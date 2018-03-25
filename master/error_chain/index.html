@@ -10,7 +10,8 @@
     <title>error_chain - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -290,8 +291,8 @@ making dispatching on error kinds relatively compact:</p>
 }
 
 <span class="kw">match</span> <span class="ident">Error</span>::<span class="ident">from</span>(<span class="string">&quot;error!&quot;</span>) {
-    <span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidToolchainName</span>(_), _) <span class="op">=&gt;</span> { }
-    <span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">Msg</span>(_), _) <span class="op">=&gt;</span> { }
+    <span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">InvalidToolchainName</span>(<span class="kw">_</span>), <span class="kw">_</span>) <span class="op">=&gt;</span> { }
+    <span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">Msg</span>(<span class="kw">_</span>), <span class="kw">_</span>) <span class="op">=&gt;</span> { }
 }</pre>
 <p>Chained errors are also matched with (relatively) compact syntax</p>
 
@@ -316,8 +317,8 @@ making dispatching on error kinds relatively compact:</p>
 
 
 <span class="kw">match</span> <span class="ident">app</span>::<span class="ident">Error</span>::<span class="ident">from</span>(<span class="string">&quot;error!&quot;</span>) {
-    <span class="ident">app</span>::<span class="ident">Error</span>(<span class="ident">app</span>::<span class="ident">ErrorKind</span>::<span class="ident">Utils</span>(<span class="ident">utils</span>::<span class="ident">ErrorKind</span>::<span class="ident">BadStuff</span>), _) <span class="op">=&gt;</span> { }
-    _ <span class="op">=&gt;</span> { }
+    <span class="ident">app</span>::<span class="ident">Error</span>(<span class="ident">app</span>::<span class="ident">ErrorKind</span>::<span class="ident">Utils</span>(<span class="ident">utils</span>::<span class="ident">ErrorKind</span>::<span class="ident">BadStuff</span>), <span class="kw">_</span>) <span class="op">=&gt;</span> { }
+    <span class="kw">_</span> <span class="op">=&gt;</span> { }
 }</pre>
 <h2 id="foreign-links" class="section-header"><a href="#foreign-links">Foreign links</a></h2>
 <p>Errors that do not conform to the same conventions as this library

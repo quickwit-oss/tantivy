@@ -10,7 +10,8 @@
     <title>pack.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -137,7 +138,7 @@
 <span class="doccomment">/// on success.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">pack_uint</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(<span class="ident">wtr</span>: <span class="ident">W</span>, <span class="ident">n</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">nbytes</span> <span class="op">=</span> <span class="ident">pack_size</span>(<span class="ident">n</span>);
-    <span class="ident">pack_uint_in</span>(<span class="ident">wtr</span>, <span class="ident">n</span>, <span class="ident">nbytes</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">nbytes</span>)
+    <span class="ident">pack_uint_in</span>(<span class="ident">wtr</span>, <span class="ident">n</span>, <span class="ident">nbytes</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">nbytes</span>)
 }
 
 <span class="doccomment">/// pack_uint_in is like pack_uint, but always uses the number of bytes given</span>

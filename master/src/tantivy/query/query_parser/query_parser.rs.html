@@ -10,7 +10,8 @@
     <title>query_parser.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -790,7 +791,7 @@
     <span class="doccomment">/// Parse the user query into an AST.</span>
     <span class="kw">fn</span> <span class="ident">parse_query_to_logical_ast</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">query</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">LogicalAST</span>, <span class="ident">QueryParserError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> (<span class="ident">user_input_ast</span>, <span class="ident">_remaining</span>) <span class="op">=</span>
-            <span class="ident">parse_to_ast</span>(<span class="ident">query</span>).<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">QueryParserError</span>::<span class="ident">SyntaxError</span>)<span class="question-mark">?</span>;
+            <span class="ident">parse_to_ast</span>(<span class="ident">query</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">QueryParserError</span>::<span class="ident">SyntaxError</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">compute_logical_ast</span>(<span class="ident">user_input_ast</span>)
     }
 
@@ -822,12 +823,12 @@
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(<span class="ident">field_name</span>));
         }
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_type</span> {
-            <span class="ident">FieldType</span>::<span class="ident">I64</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">i64</span> <span class="op">=</span> <span class="ident">i64</span>::<span class="ident">from_str</span>(<span class="ident">phrase</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_i64</span>(<span class="ident">field</span>, <span class="ident">val</span>);
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>)))
             }
-            <span class="ident">FieldType</span>::<span class="ident">U64</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">val</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">from_str</span>(<span class="ident">phrase</span>)<span class="question-mark">?</span>;
                 <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_u64</span>(<span class="ident">field</span>, <span class="ident">val</span>);
                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>)))
@@ -963,7 +964,7 @@
 <span class="kw">fn</span> <span class="ident">convert_literal_to_query</span>(<span class="ident">logical_literal</span>: <span class="ident">LogicalLiteral</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">logical_literal</span> {
         <span class="ident">LogicalLiteral</span>::<span class="ident">Term</span>(<span class="ident">term</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>),
-        <span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">PhraseQuery</span>::<span class="ident">from</span>(<span class="ident">terms</span>),
+        <span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">PhraseQuery</span>::<span class="ident">new</span>(<span class="ident">terms</span>),
     }
 }
 
@@ -973,7 +974,7 @@
             <span class="kw">let</span> <span class="ident">occur_subqueries</span> <span class="op">=</span> <span class="ident">clause</span>
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">occur</span>, <span class="ident">subquery</span>)<span class="op">|</span> (<span class="ident">occur</span>, <span class="ident">convert_to_query</span>(<span class="ident">subquery</span>)))
-                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
             <span class="kw">box</span> <span class="ident">BooleanQuery</span>::<span class="ident">from</span>(<span class="ident">occur_subqueries</span>)
         }
         <span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">logical_literal</span>) <span class="op">=&gt;</span> <span class="ident">convert_literal_to_query</span>(<span class="kw-2">*</span><span class="ident">logical_literal</span>),
@@ -1155,7 +1156,7 @@
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
         <span class="macro">assert_matches</span><span class="macro">!</span>(
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;boujou:\&quot;18446744073709551615\&quot;&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotExist</span>(_))
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotExist</span>(<span class="kw">_</span>))
         );
     }
 
@@ -1164,7 +1165,7 @@
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
         <span class="macro">assert_matches</span><span class="macro">!</span>(
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;notindexed_text:\&quot;18446744073709551615\&quot;&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(_))
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(<span class="kw">_</span>))
         );
     }
 
@@ -1182,7 +1183,7 @@
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">new</span>(<span class="ident">schema</span>, <span class="ident">default_fields</span>, <span class="ident">tokenizer_manager</span>);
         <span class="macro">assert_matches</span><span class="macro">!</span>(
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;title:\&quot;happy tax payer\&quot;&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(_, _))
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(<span class="kw">_</span>, <span class="kw">_</span>))
         );
     }
 
@@ -1208,12 +1209,12 @@
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">make_query_parser</span>();
         <span class="macro">assert_matches</span><span class="macro">!</span>(
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:18a&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(_))
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(<span class="kw">_</span>))
         );
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;unsigned:\&quot;18\&quot;&quot;</span>).<span class="ident">is_ok</span>());
         <span class="macro">assert_matches</span><span class="macro">!</span>(
             <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;signed:18b&quot;</span>),
-            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(_))
+            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">ExpectedInt</span>(<span class="kw">_</span>))
         );
     }
 

@@ -10,7 +10,8 @@
     <title>tantivy::postings::InvertedIndexSerializer - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#49-54' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#50-55' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct InvertedIndexSerializer { /* fields omitted */ }</pre><div class='docblock'><p><code>PostingsSerializer</code> is in charge of serializing
 postings on disk, in the</p>
 <ul>
@@ -95,14 +96,14 @@ Within a term, document have to be pushed in increasing order.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#56-107' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><code>pub fn <a href='#method.open' class='fnname'>open</a>(segment: &amp;mut <a class="struct" href="../../tantivy/struct.Segment.html" title="struct tantivy::Segment">Segment</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#73-81' title='goto source code'>[src]</a></span></h4>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#57-109' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><code>pub fn <a href='#method.open' class='fnname'>open</a>(segment: &amp;mut <a class="struct" href="../../tantivy/struct.Segment.html" title="struct tantivy::Segment">Segment</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#74-82' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Open a new <code>PostingsSerializer</code> for the given segment</p>
-</div><h4 id='method.new_field' class="method"><span id='new_field.v' class='invisible'><code>pub fn <a href='#method.new_field' class='fnname'>new_field</a>(&amp;mut self, field: <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="struct" href="../../tantivy/postings/struct.FieldSerializer.html" title="struct tantivy::postings::FieldSerializer">FieldSerializer</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#87-98' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.new_field' class="method"><span id='new_field.v' class='invisible'><code>pub fn <a href='#method.new_field' class='fnname'>new_field</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;field: <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;total_num_tokens: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a><br>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="struct" href="../../tantivy/postings/struct.FieldSerializer.html" title="struct tantivy::postings::FieldSerializer">FieldSerializer</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#88-100' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Must be called before starting pushing terms of
 a given field.</p>
 <p>Loads the indexing options for the given field.</p>
-</div><h4 id='method.close' class="method"><span id='close.v' class='invisible'><code>pub fn <a href='#method.close' class='fnname'>close</a>(self) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#101-106' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.close' class="method"><span id='close.v' class='invisible'><code>pub fn <a href='#method.close' class='fnname'>close</a>(self) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/postings/serializer.rs.html#103-108' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Closes the serializer.</p>
 </div></div>
             <h2 id='implementations' class='small-section-header'>
@@ -110,11 +111,11 @@ a given field.</p>
             </h2>
             <div id='implementations-list'>
         </div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/postings/struct.InvertedIndexSerializer.html" title="struct tantivy::postings::InvertedIndexSerializer">InvertedIndexSerializer</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

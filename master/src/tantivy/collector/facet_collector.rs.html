@@ -10,7 +10,8 @@
     <title>facet_collector.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1050,7 +1051,7 @@
         <span class="kw">let</span> <span class="ident">facet_streams</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_counters</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">seg_counts</span><span class="op">|</span> <span class="ident">seg_counts</span>.<span class="ident">facet_reader</span>.<span class="ident">facet_dict</span>().<span class="ident">range</span>().<span class="ident">into_stream</span>())
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_merger</span> <span class="op">=</span> <span class="ident">TermMerger</span>::<span class="ident">new</span>(<span class="ident">facet_streams</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_counts</span> <span class="op">=</span> <span class="ident">BTreeMap</span>::<span class="ident">new</span>();
@@ -1084,7 +1085,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">FacetCollector</span> {
-    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, _: <span class="ident">SegmentLocalId</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">SegmentLocalId</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">finalize_segment</span>();
         <span class="kw">let</span> <span class="ident">facet_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">facet_reader</span>(<span class="self">self</span>.<span class="ident">field</span>)<span class="question-mark">?</span>;
         <span class="self">self</span>.<span class="ident">set_collapse_mapping</span>(<span class="kw-2">&amp;</span><span class="ident">facet_reader</span>);
@@ -1094,7 +1095,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, _: <span class="ident">Score</span>) {
+    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="kw">_</span>: <span class="ident">Score</span>) {
         <span class="kw">let</span> <span class="ident">facet_reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FacetReader</span> <span class="op">=</span> <span class="kw">unsafe</span> {
             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">ff_reader</span>
                 .<span class="ident">as_ref</span>()
@@ -1171,7 +1172,7 @@
         <span class="ident">heap</span>.<span class="ident">into_sorted_vec</span>()
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">hit</span><span class="op">|</span> (<span class="ident">hit</span>.<span class="ident">facet</span>, <span class="ident">hit</span>.<span class="ident">count</span>))
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>()
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()
     }
 }
 
@@ -1233,7 +1234,7 @@
                     (<span class="string">&quot;/top1/mid3&quot;</span>, <span class="number">50</span>),
                 ].<span class="ident">iter</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">facet_str</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">facet_str</span>), <span class="ident">count</span>))
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>()
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()
             );
         }
     }
@@ -1308,7 +1309,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">docs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">for</span> <span class="ident">val</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
             <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;/facet_{}&quot;</span>, <span class="ident">val</span>));
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">val</span> <span class="op">*</span> <span class="ident">val</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">val</span> <span class="op">*</span> <span class="ident">val</span> {
                 <span class="ident">docs</span>.<span class="ident">push</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">facet_field</span><span class="op">=&gt;</span><span class="ident">facet</span>.<span class="ident">clone</span>()));
             }
         }

@@ -10,7 +10,8 @@
     <title>registry.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -442,7 +443,7 @@
 
     <span class="kw">fn</span> <span class="ident">assert_not_found</span>(<span class="ident">entry</span>: <span class="ident">RegistryEntry</span>) {
         <span class="kw">match</span> <span class="ident">entry</span> {
-            <span class="ident">RegistryEntry</span>::<span class="ident">NotFound</span>(_) <span class="op">=&gt;</span> {}
+            <span class="ident">RegistryEntry</span>::<span class="ident">NotFound</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
             <span class="ident">entry</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;expected nout found entry, got: {:?}&quot;</span>, <span class="ident">entry</span>),
         }
     }

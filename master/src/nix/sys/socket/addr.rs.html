@@ -10,7 +10,8 @@
     <title>addr.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -932,7 +933,7 @@
                     <span class="ident">a</span>.<span class="ident">sin6_flowinfo</span> <span class="op">==</span> <span class="ident">b</span>.<span class="ident">sin6_flowinfo</span> <span class="op">&amp;&amp;</span>
                     <span class="ident">a</span>.<span class="ident">sin6_scope_id</span> <span class="op">==</span> <span class="ident">b</span>.<span class="ident">sin6_scope_id</span>
             }
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -968,8 +969,8 @@
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">InetAddr</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">InetAddr</span>::<span class="ident">V4</span>(_) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}:{}&quot;</span>, <span class="self">self</span>.<span class="ident">ip</span>(), <span class="self">self</span>.<span class="ident">port</span>()),
-            <span class="ident">InetAddr</span>::<span class="ident">V6</span>(_) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;[{}]:{}&quot;</span>, <span class="self">self</span>.<span class="ident">ip</span>(), <span class="self">self</span>.<span class="ident">port</span>()),
+            <span class="ident">InetAddr</span>::<span class="ident">V4</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}:{}&quot;</span>, <span class="self">self</span>.<span class="ident">ip</span>(), <span class="self">self</span>.<span class="ident">port</span>()),
+            <span class="ident">InetAddr</span>::<span class="ident">V6</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;[{}]:{}&quot;</span>, <span class="self">self</span>.<span class="ident">ip</span>(), <span class="self">self</span>.<span class="ident">port</span>()),
         }
     }
 }
@@ -1346,7 +1347,7 @@
             (<span class="ident">SockAddr</span>::<span class="ident">Netlink</span>(<span class="kw-2">ref</span> <span class="ident">a</span>), <span class="ident">SockAddr</span>::<span class="ident">Netlink</span>(<span class="kw-2">ref</span> <span class="ident">b</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">a</span> <span class="op">==</span> <span class="ident">b</span>
             }
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }

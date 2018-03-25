@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1458,7 +1459,7 @@ assert_eq!(matches, vec![Match { pati: 1, start: 0, end: 1}]);
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Sparse</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">StateIdx</span><span class="op">&gt;</span>);
 
 <span class="kw">impl</span> <span class="ident">Transitions</span> <span class="kw">for</span> <span class="ident">Sparse</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>(_: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Sparse</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="kw">_</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Sparse</span> {
         <span class="ident">Sparse</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>; <span class="number">256</span>])
     }
 
@@ -1824,7 +1825,7 @@ digraph automaton {{
         <span class="kw">fn</span> <span class="ident">arbitrary</span><span class="op">&lt;</span><span class="ident">G</span>: <span class="ident">Gen</span><span class="op">&gt;</span>(<span class="ident">g</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">G</span>) <span class="op">-&gt;</span> <span class="ident">SmallAscii</span> {
             <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">char</span>::<span class="ident">from_u32</span>;
             <span class="ident">SmallAscii</span>((<span class="number">0</span>..<span class="number">2</span>)
-                       .<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">from_u32</span>(<span class="ident">g</span>.<span class="ident">gen_range</span>(<span class="number">97</span>, <span class="number">123</span>)).<span class="ident">unwrap</span>())
+                       .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">from_u32</span>(<span class="ident">g</span>.<span class="ident">gen_range</span>(<span class="number">97</span>, <span class="number">123</span>)).<span class="ident">unwrap</span>())
                        .<span class="ident">collect</span>())
         }
 
@@ -1851,11 +1852,11 @@ digraph automaton {{
             <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">char</span>::<span class="ident">from_u32</span>;
             <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> { <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">g</span>.<span class="ident">size</span>(); <span class="ident">g</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="ident">s</span>) };
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">with_capacity</span>(<span class="ident">size</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> {
                 <span class="kw">if</span> <span class="ident">g</span>.<span class="ident">gen_weighted_bool</span>(<span class="number">3</span>) {
                     <span class="ident">s</span>.<span class="ident">push</span>(<span class="ident">char</span>::<span class="ident">arbitrary</span>(<span class="ident">g</span>));
                 } <span class="kw">else</span> {
-                    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
+                    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
                         <span class="ident">s</span>.<span class="ident">push</span>(<span class="ident">from_u32</span>(<span class="ident">g</span>.<span class="ident">gen_range</span>(<span class="number">97</span>, <span class="number">123</span>)).<span class="ident">unwrap</span>());
                     }
                 }

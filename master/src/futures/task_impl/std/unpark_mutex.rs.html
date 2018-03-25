@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/task_impl/std/unpark_mutex.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/task_impl/std/unpark_mutex.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>unpark_mutex.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -265,7 +266,7 @@
                 <span class="ident">WAITING</span> <span class="op">=&gt;</span> {
                     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">compare_exchange</span>(<span class="ident">WAITING</span>, <span class="ident">POLLING</span>,
                                                        <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
-                        <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> {
+                        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                             <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw">unsafe</span> {
                                 <span class="comment">// SAFETY: we&#39;ve ensured mutual exclusion via</span>
                                 <span class="comment">// the status protocol; we are the only thread</span>
@@ -286,14 +287,14 @@
                 <span class="ident">POLLING</span> <span class="op">=&gt;</span> {
                     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">compare_exchange</span>(<span class="ident">POLLING</span>, <span class="ident">REPOLL</span>,
                                                        <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
-                        <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(()),
+                        <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(()),
                         <span class="prelude-val">Err</span>(<span class="ident">cur</span>) <span class="op">=&gt;</span> <span class="ident">status</span> <span class="op">=</span> <span class="ident">cur</span>,
                     }
                 }
 
                 <span class="comment">// The task is already scheduled for polling, or is complete, so</span>
                 <span class="comment">// we&#39;ve got nothing to do.</span>
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(()),
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(()),
             }
         }
     }
@@ -320,7 +321,7 @@
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">status</span>.<span class="ident">compare_exchange</span>(<span class="ident">POLLING</span>, <span class="ident">WAITING</span>, <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
             <span class="comment">// no unparks came in while we were running</span>
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
 
             <span class="comment">// guaranteed to be in REPOLL state; just clobber the</span>
             <span class="comment">// state and run again.</span>

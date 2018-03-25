@@ -10,7 +10,8 @@
     <title>jitter.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1021,7 +1022,7 @@
         <span class="comment">// bits of the time stamp are included as possible.</span>
         <span class="kw">let</span> <span class="ident">folds</span> <span class="op">=</span> (<span class="number">64</span> <span class="op">+</span> <span class="ident">n_bits</span> <span class="op">-</span> <span class="number">1</span>) <span class="op">/</span> <span class="ident">n_bits</span>;
         <span class="kw">let</span> <span class="ident">mask</span> <span class="op">=</span> (<span class="number">1</span> <span class="op">&lt;&lt;</span> <span class="ident">n_bits</span>) <span class="op">-</span> <span class="number">1</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">folds</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">folds</span> {
             <span class="ident">rounds</span> <span class="op">^=</span> <span class="ident">time</span> <span class="op">&amp;</span> <span class="ident">mask</span>;
             <span class="ident">time</span> <span class="op">=</span> <span class="ident">time</span> <span class="op">&gt;&gt;</span> <span class="ident">n_bits</span>;
         }
@@ -1074,7 +1075,7 @@
         <span class="kw">if</span> <span class="ident">var_rounds</span> { <span class="ident">lfsr_loop_cnt</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">random_loop_cnt</span>(<span class="number">4</span>) };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">throw_away</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">lfsr_loop_cnt</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">lfsr_loop_cnt</span> {
             <span class="ident">throw_away</span> <span class="op">=</span> <span class="ident">lfsr</span>(<span class="ident">throw_away</span>, <span class="ident">time</span>);
         }
         <span class="ident">black_box</span>(<span class="ident">throw_away</span>);
@@ -1104,7 +1105,7 @@
         <span class="kw">if</span> <span class="ident">var_rounds</span> { <span class="ident">acc_loop_cnt</span> <span class="op">+=</span> <span class="self">self</span>.<span class="ident">random_loop_cnt</span>(<span class="number">4</span>) };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">mem_prev_index</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">acc_loop_cnt</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">acc_loop_cnt</span> {
             <span class="comment">// Addition of memblocksize - 1 to index with wrap around logic to</span>
             <span class="comment">// ensure that every memory location is hit evenly.</span>
             <span class="comment">// The modulus also allows the compiler to remove the indexing</span>
@@ -1228,9 +1229,9 @@
     <span class="kw">fn</span> <span class="ident">gen_entropy</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
         <span class="comment">// Prime `self.prev_time`, and run the noice sources to make sure the</span>
         <span class="comment">// first loop round collects the expected entropy.</span>
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="self">self</span>.<span class="ident">measure_jitter</span>();
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">measure_jitter</span>();
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">rounds</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">rounds</span> {
             <span class="comment">// If a stuck measurement is received, repeat measurement</span>
             <span class="comment">// Note: we do not guard against an infinite loop, that would mean</span>
             <span class="comment">// the timer suddenly became broken.</span>

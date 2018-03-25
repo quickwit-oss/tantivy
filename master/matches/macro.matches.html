@@ -10,7 +10,8 @@
     <title>matches::matches - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>matches</a></p><script>window.sidebarCurrent = {name: 'matches', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>matches</a></p><script>window.sidebarCurrent = {name: 'matches', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -83,7 +84,7 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_b</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="macro">matches</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="self">self</span>, <span class="ident">Foo</span>::<span class="ident">B</span>(_))
+        <span class="macro">matches</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="self">self</span>, <span class="ident">Foo</span>::<span class="ident">B</span>(<span class="kw">_</span>))
     }
 }
 </pre>

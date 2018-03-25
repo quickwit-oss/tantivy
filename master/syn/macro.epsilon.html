@@ -10,7 +10,8 @@
     <title>syn::epsilon - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>syn</a></p><script>window.sidebarCurrent = {name: 'epsilon', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>syn</a></p><script>window.sidebarCurrent = {name: 'epsilon', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -88,7 +89,7 @@ useful for parsing empty delimiters using <a href="macro.parens.html"><code>pare
     <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
         <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw-2">mut</span>) <span class="op">=&gt;</span> { <span class="ident">Mutability</span>::<span class="ident">Mutable</span> }
         <span class="op">|</span>
-        <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">Mutability</span>::<span class="ident">Immutable</span> }
+        <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Mutability</span>::<span class="ident">Immutable</span> }
     ));
 }</pre>
 <p><em>This macro is available if Syn is built with the <code>&quot;parsing&quot;</code> feature.</em></p>

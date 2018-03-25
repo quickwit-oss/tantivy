@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/future/chain.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/future/chain.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>chain.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -127,7 +128,7 @@
                         <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">B</span>::<span class="ident">Item</span>, <span class="ident">B</span><span class="op">&gt;</span>, <span class="ident">B</span>::<span class="ident">Error</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> <span class="ident">a_result</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Chain</span>::<span class="ident">First</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">a</span>, _) <span class="op">=&gt;</span> {
+            <span class="ident">Chain</span>::<span class="ident">First</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">a</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="ident">a</span>.<span class="ident">poll</span>() {
                     <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
                     <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="ident">t</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">t</span>),
@@ -138,8 +139,8 @@
             <span class="ident">Chain</span>::<span class="ident">Done</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot poll a chained future twice&quot;</span>),
         };
         <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="self">self</span>, <span class="ident">Chain</span>::<span class="ident">Done</span>) {
-            <span class="ident">Chain</span>::<span class="ident">First</span>(_, <span class="ident">c</span>) <span class="op">=&gt;</span> <span class="ident">c</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
+            <span class="ident">Chain</span>::<span class="ident">First</span>(<span class="kw">_</span>, <span class="ident">c</span>) <span class="op">=&gt;</span> <span class="ident">c</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
         };
         <span class="kw">match</span> <span class="ident">f</span>(<span class="ident">a_result</span>, <span class="ident">data</span>)<span class="question-mark">?</span> {
             <span class="prelude-val">Ok</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="ident">e</span>)),

@@ -10,7 +10,8 @@
     <title>combine::struct_parser - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'struct_parser', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>combine</a></p><script>window.sidebarCurrent = {name: 'struct_parser', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -82,9 +83,9 @@
         <span class="ident">Field</span> {
             <span class="ident">name</span>: <span class="ident">many</span>(<span class="ident">letter</span>()),
             <span class="comment">// `_` fields are ignored when building the struct</span>
-            _: <span class="ident">spaces</span>(),
-            _: <span class="ident">token</span>(<span class="string">b&#39;:&#39;</span>),
-            _: <span class="ident">spaces</span>(),
+            <span class="kw">_</span>: <span class="ident">spaces</span>(),
+            <span class="kw">_</span>: <span class="ident">token</span>(<span class="string">b&#39;:&#39;</span>),
+            <span class="kw">_</span>: <span class="ident">spaces</span>(),
             <span class="ident">value</span>: <span class="ident">many</span>(<span class="ident">letter</span>()),
         }
     };

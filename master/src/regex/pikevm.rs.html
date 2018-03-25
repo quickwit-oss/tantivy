@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/pikevm.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/pikevm.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>pikevm.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -709,7 +710,7 @@
                 }
                 <span class="bool-val">false</span>
             }
-            <span class="ident">EmptyLook</span>(_) <span class="op">|</span> <span class="ident">Save</span>(_) <span class="op">|</span> <span class="ident">Split</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">EmptyLook</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Save</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Split</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -774,7 +775,7 @@
                     <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">FollowEpsilon</span>::<span class="ident">IP</span>(<span class="ident">inst</span>.<span class="ident">goto2</span>));
                     <span class="ident">ip</span> <span class="op">=</span> <span class="ident">inst</span>.<span class="ident">goto1</span>;
                 }
-                <span class="ident">Match</span>(_) <span class="op">|</span> <span class="ident">Char</span>(_) <span class="op">|</span> <span class="ident">Ranges</span>(_) <span class="op">|</span> <span class="ident">Bytes</span>(_) <span class="op">=&gt;</span> {
+                <span class="ident">Match</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Char</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Ranges</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Bytes</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">nlist</span>.<span class="ident">caps</span>(<span class="ident">ip</span>);
                     <span class="kw">for</span> (<span class="ident">slot</span>, <span class="ident">val</span>) <span class="kw">in</span> <span class="ident">t</span>.<span class="ident">iter_mut</span>().<span class="ident">zip</span>(<span class="ident">thread_caps</span>.<span class="ident">iter</span>()) {
                         <span class="kw-2">*</span><span class="ident">slot</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">val</span>;

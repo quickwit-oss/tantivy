@@ -10,7 +10,8 @@
     <title>seq.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -635,7 +636,7 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">small_sample</span>.<span class="ident">len</span>(), <span class="number">5</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">large_sample</span>.<span class="ident">len</span>(), <span class="ident">vals</span>.<span class="ident">len</span>());
         <span class="comment">// no randomization happens when amount &gt;= len</span>
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">large_sample</span>, <span class="ident">vals</span>.<span class="ident">iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">large_sample</span>, <span class="ident">vals</span>.<span class="ident">iter</span>().<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>());
 
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">small_sample</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> {
             <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">e</span> <span class="op">&gt;=</span> <span class="ident">min_val</span> <span class="op">&amp;&amp;</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">e</span> <span class="op">&lt;=</span> <span class="ident">max_val</span>
@@ -672,7 +673,7 @@
         <span class="kw">let</span> <span class="ident">slice</span> <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">42</span>, <span class="number">777</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_42</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">let</span> <span class="ident">total</span> <span class="op">=</span> <span class="number">1000</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">total</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">total</span> {
             <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">sample_slice</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span>, <span class="ident">slice</span>, <span class="number">1</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>.<span class="ident">len</span>(), <span class="number">1</span>);
             <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">v</span>[<span class="number">0</span>];
@@ -723,7 +724,7 @@
 
             {
                 <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">sample_slice_ref</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">xor_rng</span>(<span class="ident">seed</span>), <span class="kw-2">&amp;</span><span class="ident">vec</span>, <span class="ident">amount</span>);
-                <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">regular</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> <span class="ident">regular</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">result</span>, <span class="ident">expected</span>);
             }
         }

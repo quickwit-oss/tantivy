@@ -10,7 +10,8 @@
     <title>fcntl.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -506,7 +507,7 @@
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
             <span class="ident">F_SETPIPE_SZ</span>(<span class="ident">size</span>) <span class="op">=&gt;</span> <span class="ident">libc</span>::<span class="ident">fcntl</span>(<span class="ident">fd</span>, <span class="ident">libc</span>::<span class="ident">F_SETPIPE_SZ</span>, <span class="ident">size</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>))]</span>
-            _ <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>()
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>()
         }
     };
 
@@ -544,8 +545,8 @@
           <span class="ident">fd_out</span>: <span class="ident">RawFd</span>, <span class="ident">off_out</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">loff_t</span><span class="op">&gt;</span>,
           <span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">flags</span>: <span class="ident">SpliceFFlags</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
-    <span class="kw">let</span> <span class="ident">off_in</span> <span class="op">=</span> <span class="ident">off_in</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">offset</span><span class="op">|</span> <span class="ident">offset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _).<span class="ident">unwrap_or</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>());
-    <span class="kw">let</span> <span class="ident">off_out</span> <span class="op">=</span> <span class="ident">off_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">offset</span><span class="op">|</span> <span class="ident">offset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _).<span class="ident">unwrap_or</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>());
+    <span class="kw">let</span> <span class="ident">off_in</span> <span class="op">=</span> <span class="ident">off_in</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">offset</span><span class="op">|</span> <span class="ident">offset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>).<span class="ident">unwrap_or</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>());
+    <span class="kw">let</span> <span class="ident">off_out</span> <span class="op">=</span> <span class="ident">off_out</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">offset</span><span class="op">|</span> <span class="ident">offset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>).<span class="ident">unwrap_or</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>());
 
     <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">splice</span>(<span class="ident">fd_in</span>, <span class="ident">off_in</span>, <span class="ident">fd_out</span>, <span class="ident">off_out</span>, <span class="ident">len</span>, <span class="ident">flags</span>.<span class="ident">bits</span>()) };
     <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">ret</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> <span class="ident">r</span> <span class="kw">as</span> <span class="ident">usize</span>)

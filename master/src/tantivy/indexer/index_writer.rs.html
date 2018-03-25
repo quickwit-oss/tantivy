@@ -10,7 +10,8 @@
     <title>index_writer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1336,7 +1337,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">start_workers</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_threads</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_threads</span> {
             <span class="self">self</span>.<span class="ident">add_indexing_worker</span>()<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -1414,7 +1415,7 @@
         <span class="comment">//</span>
         <span class="comment">// This will reach an end as the only document_sender</span>
         <span class="comment">// was dropped with the index_writer.</span>
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="ident">document_receiver</span>.<span class="ident">clone</span>() {}
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="ident">document_receiver</span>.<span class="ident">clone</span>() {}
 
         <span class="prelude-val">Ok</span>(())
     }
@@ -1561,8 +1562,8 @@
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema_builder</span>.<span class="ident">build</span>());
         <span class="kw">let</span> <span class="ident">_index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
         <span class="kw">match</span> <span class="ident">index</span>.<span class="ident">writer</span>(<span class="number">40_000_000</span>) {
-            <span class="prelude-val">Err</span>(<span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">FileAlreadyExists</span>(_), _)) <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Expected FileAlreadyExists error&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>(<span class="ident">ErrorKind</span>::<span class="ident">FileAlreadyExists</span>(<span class="kw">_</span>), <span class="kw">_</span>)) <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Expected FileAlreadyExists error&quot;</span>),
         }
     }
 
@@ -1632,7 +1633,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_with_merges</span>() {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">schema</span>::<span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema_builder</span>.<span class="ident">build</span>());
@@ -1670,7 +1671,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_prepare_with_commit_message</span>() {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">schema</span>::<span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema_builder</span>.<span class="ident">build</span>());
@@ -1705,7 +1706,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_prepare_but_rollback</span>() {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">env_logger</span>::<span class="ident">init</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">schema</span>::<span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema_builder</span>.<span class="ident">build</span>());

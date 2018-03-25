@@ -10,7 +10,8 @@
     <title>display.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -407,7 +408,7 @@
         <span class="string">&#39;G&#39;</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">year</span>),
         <span class="string">&#39;g&#39;</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{:02}&quot;</span>, (<span class="ident">year</span> <span class="op">%</span> <span class="number">100</span> <span class="op">+</span> <span class="number">100</span>) <span class="op">%</span> <span class="number">100</span>),
         <span class="string">&#39;V&#39;</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{:02}&quot;</span>, <span class="ident">days</span> <span class="op">/</span> <span class="number">7</span> <span class="op">+</span> <span class="number">1</span>),
-        _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(())
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(())
     }
 }
 
@@ -421,7 +422,7 @@
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="string">&quot;Thursday&quot;</span>,
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="string">&quot;Friday&quot;</span>,
             <span class="number">6</span> <span class="op">=&gt;</span> <span class="string">&quot;Saturday&quot;</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }),
         <span class="string">&#39;a&#39;</span> <span class="op">=&gt;</span> <span class="ident">fmt</span>.<span class="ident">write_str</span>(<span class="kw">match</span> <span class="ident">tm</span>.<span class="ident">tm_wday</span> {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="string">&quot;Sun&quot;</span>,
@@ -431,7 +432,7 @@
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="string">&quot;Thu&quot;</span>,
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="string">&quot;Fri&quot;</span>,
             <span class="number">6</span> <span class="op">=&gt;</span> <span class="string">&quot;Sat&quot;</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }),
         <span class="string">&#39;B&#39;</span> <span class="op">=&gt;</span> <span class="ident">fmt</span>.<span class="ident">write_str</span>(<span class="kw">match</span> <span class="ident">tm</span>.<span class="ident">tm_mon</span> {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="string">&quot;January&quot;</span>,
@@ -446,7 +447,7 @@
             <span class="number">9</span> <span class="op">=&gt;</span> <span class="string">&quot;October&quot;</span>,
             <span class="number">10</span> <span class="op">=&gt;</span> <span class="string">&quot;November&quot;</span>,
             <span class="number">11</span> <span class="op">=&gt;</span> <span class="string">&quot;December&quot;</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }),
         <span class="string">&#39;b&#39;</span> <span class="op">|</span> <span class="string">&#39;h&#39;</span> <span class="op">=&gt;</span> <span class="ident">fmt</span>.<span class="ident">write_str</span>(<span class="kw">match</span> <span class="ident">tm</span>.<span class="ident">tm_mon</span> {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="string">&quot;Jan&quot;</span>,
@@ -461,7 +462,7 @@
             <span class="number">9</span> <span class="op">=&gt;</span> <span class="string">&quot;Oct&quot;</span>,
             <span class="number">10</span> <span class="op">=&gt;</span> <span class="string">&quot;Nov&quot;</span>,
             <span class="number">11</span> <span class="op">=&gt;</span> <span class="string">&quot;Dec&quot;</span>,
-            _  <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span>  <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }),
         <span class="string">&#39;C&#39;</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{:02}&quot;</span>, (<span class="ident">tm</span>.<span class="ident">tm_year</span> <span class="op">+</span> <span class="number">1900</span>) <span class="op">/</span> <span class="number">100</span>),
         <span class="string">&#39;c&#39;</span> <span class="op">=&gt;</span> {
@@ -568,7 +569,7 @@
         }
         <span class="string">&#39;+&#39;</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">fmt</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">tm</span>.<span class="ident">rfc3339</span>()),
         <span class="string">&#39;%&#39;</span> <span class="op">=&gt;</span> <span class="ident">fmt</span>.<span class="ident">write_str</span>(<span class="string">&quot;%&quot;</span>),
-        _   <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+        <span class="kw">_</span>   <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
     }
 }
 

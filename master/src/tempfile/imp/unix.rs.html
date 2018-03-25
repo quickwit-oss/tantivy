@@ -10,7 +10,8 @@
     <title>unix.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -236,7 +237,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cstr</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">CString</span><span class="op">&gt;</span> {
     <span class="comment">// TODO: Use OsStr::to_cstring (convert)</span>
     <span class="ident">CString</span>::<span class="ident">new</span>(<span class="ident">path</span>.<span class="ident">as_os_str</span>().<span class="ident">as_bytes</span>())
-        .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">InvalidInput</span>, <span class="string">&quot;path contained a null&quot;</span>))
+        .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(<span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">InvalidInput</span>, <span class="string">&quot;path contained a null&quot;</span>))
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;redox&quot;</span>))]</span>
@@ -279,13 +280,13 @@
 }
 
 <span class="kw">fn</span> <span class="ident">create_unix</span>(<span class="ident">dir</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">File</span><span class="op">&gt;</span> {
-    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..::<span class="ident">NUM_RETRIES</span> {
+    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..::<span class="ident">NUM_RETRIES</span> {
         <span class="kw">let</span> <span class="ident">tmp_path</span> <span class="op">=</span> <span class="ident">dir</span>.<span class="ident">join</span>(<span class="ident">util</span>::<span class="ident">tmpname</span>(<span class="string">&quot;.tmp&quot;</span>, <span class="string">&quot;&quot;</span>, ::<span class="ident">NUM_RAND_CHARS</span>));
         <span class="kw">return</span> <span class="kw">match</span> <span class="ident">create_named</span>(<span class="kw-2">&amp;</span><span class="ident">tmp_path</span>) {
             <span class="prelude-val">Ok</span>(<span class="ident">file</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// I should probably tell the user this failed but the temporary file creation</span>
                 <span class="comment">// didn&#39;t really fail...</span>
-                <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">tmp_path</span>);
+                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">tmp_path</span>);
                 <span class="prelude-val">Ok</span>(<span class="ident">file</span>)
             }
             <span class="prelude-val">Err</span>(<span class="kw-2">ref</span> <span class="ident">e</span>) <span class="kw">if</span> <span class="ident">e</span>.<span class="ident">kind</span>() <span class="op">==</span> <span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">AlreadyExists</span> <span class="op">=&gt;</span> <span class="kw">continue</span>,
@@ -328,7 +329,7 @@
                               <span class="ident">new_path</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>)));
             <span class="comment">// Ignore unlink errors. Can we do better?</span>
             <span class="comment">// On recent linux, we can use renameat2 to do this atomically.</span>
-            <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">unlink</span>(<span class="ident">old_path</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>);
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">unlink</span>(<span class="ident">old_path</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">c_char</span>);
         }
         <span class="prelude-val">Ok</span>(())
     }

@@ -10,7 +10,8 @@
     <title>combine::combinator::chainl1 - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'chainl1', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'chainl1', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -65,7 +66,7 @@ left associative application of the function returned by the parser <code>op</co
 
 <pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="ident">digit</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">c</span>: <span class="ident">char</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">to_digit</span>(<span class="number">10</span>).<span class="ident">unwrap</span>());
-<span class="kw">let</span> <span class="ident">sub</span> <span class="op">=</span> <span class="ident">token</span>(<span class="string">&#39;-&#39;</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="op">|</span><span class="ident">l</span>: <span class="ident">u32</span>, <span class="ident">r</span>: <span class="ident">u32</span><span class="op">|</span> <span class="ident">l</span> <span class="op">-</span> <span class="ident">r</span>);
+<span class="kw">let</span> <span class="ident">sub</span> <span class="op">=</span> <span class="ident">token</span>(<span class="string">&#39;-&#39;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="op">|</span><span class="ident">l</span>: <span class="ident">u32</span>, <span class="ident">r</span>: <span class="ident">u32</span><span class="op">|</span> <span class="ident">l</span> <span class="op">-</span> <span class="ident">r</span>);
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parser</span> <span class="op">=</span> <span class="ident">chainl1</span>(<span class="ident">number</span>, <span class="ident">sub</span>);
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">parser</span>.<span class="ident">parse</span>(<span class="string">&quot;9-3-5&quot;</span>), <span class="prelude-val">Ok</span>((<span class="number">1</span>, <span class="string">&quot;&quot;</span>)));</pre>
 </div></section>

@@ -10,7 +10,8 @@
     <title>inverted_index_reader.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -220,6 +221,33 @@
 <span id="164">164</span>
 <span id="165">165</span>
 <span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">SourceRead</span>};
 <span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionary</span>, <span class="ident">TermDictionaryImpl</span>};
@@ -230,6 +258,8 @@
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">CompressedIntStream</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FreqReadingOption</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">DeleteSet</span>, <span class="ident">NoDelete</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 
 <span class="doccomment">/// The inverted index reader is in charge of accessing</span>
@@ -249,8 +279,9 @@
     <span class="ident">termdict</span>: <span class="ident">TermDictionaryImpl</span>,
     <span class="ident">postings_source</span>: <span class="ident">ReadOnlySource</span>,
     <span class="ident">positions_source</span>: <span class="ident">ReadOnlySource</span>,
-    <span class="ident">delete_bitset</span>: <span class="ident">DeleteBitSet</span>,
+    <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>,
     <span class="ident">record_option</span>: <span class="ident">IndexRecordOption</span>,
+    <span class="ident">total_num_tokens</span>: <span class="ident">u64</span>
 }
 
 <span class="kw">impl</span> <span class="ident">InvertedIndexReader</span> {
@@ -258,15 +289,19 @@
         <span class="ident">termdict</span>: <span class="ident">TermDictionaryImpl</span>,
         <span class="ident">postings_source</span>: <span class="ident">ReadOnlySource</span>,
         <span class="ident">positions_source</span>: <span class="ident">ReadOnlySource</span>,
-        <span class="ident">delete_bitset</span>: <span class="ident">DeleteBitSet</span>,
+        <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>,
         <span class="ident">record_option</span>: <span class="ident">IndexRecordOption</span>,
     ) <span class="op">-&gt;</span> <span class="ident">InvertedIndexReader</span> {
+        <span class="kw">let</span> <span class="ident">total_num_tokens_data</span> <span class="op">=</span> <span class="ident">postings_source</span>.<span class="ident">slice</span>(<span class="number">0</span>, <span class="number">8</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_num_tokens_cursor</span> <span class="op">=</span> <span class="ident">total_num_tokens_data</span>.<span class="ident">as_slice</span>();
+        <span class="kw">let</span> <span class="ident">total_num_tokens</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">total_num_tokens_cursor</span>).<span class="ident">unwrap_or</span>(<span class="number">0u64</span>);
         <span class="ident">InvertedIndexReader</span> {
             <span class="ident">termdict</span>,
-            <span class="ident">postings_source</span>,
+            <span class="ident">postings_source</span>: <span class="ident">postings_source</span>.<span class="ident">slice_from</span>(<span class="number">8</span>),
             <span class="ident">positions_source</span>,
-            <span class="ident">delete_bitset</span>,
+            <span class="ident">delete_bitset_opt</span>,
             <span class="ident">record_option</span>,
+            <span class="ident">total_num_tokens</span>
         }
     }
 
@@ -276,13 +311,14 @@
         <span class="kw">let</span> <span class="ident">record_option</span> <span class="op">=</span> <span class="ident">field_type</span>
             .<span class="ident">get_index_record_option</span>()
             .<span class="ident">unwrap_or</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
-        <span class="ident">InvertedIndexReader</span>::<span class="ident">new</span>(
-            <span class="ident">TermDictionaryImpl</span>::<span class="ident">empty</span>(<span class="ident">field_type</span>),
-            <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
-            <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
-            <span class="ident">DeleteBitSet</span>::<span class="ident">empty</span>(),
+        <span class="ident">InvertedIndexReader</span> {
+            <span class="ident">termdict</span>:    <span class="ident">TermDictionaryImpl</span>::<span class="ident">empty</span>(<span class="ident">field_type</span>),
+            <span class="ident">postings_source</span>: <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
+            <span class="ident">positions_source</span>: <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
+            <span class="ident">delete_bitset_opt</span>: <span class="prelude-val">None</span>,
             <span class="ident">record_option</span>,
-        )
+            <span class="ident">total_num_tokens</span>: <span class="number">0u64</span>
+        }
     }
 
     <span class="doccomment">/// Returns the term info associated with the term.</span>
@@ -329,9 +365,9 @@
         <span class="kw">let</span> <span class="ident">offset</span> <span class="op">=</span> <span class="ident">term_info</span>.<span class="ident">postings_offset</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="kw">let</span> <span class="ident">postings_data</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">postings_source</span>.<span class="ident">slice_from</span>(<span class="ident">offset</span>);
         <span class="kw">let</span> <span class="ident">freq_reading_option</span> <span class="op">=</span> <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">record_option</span>, <span class="ident">requested_option</span>) {
-            (<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>, _) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">NoFreq</span>,
-            (_, <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">SkipFreq</span>,
-            (_, _) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">ReadFreq</span>,
+            (<span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">NoFreq</span>,
+            (<span class="kw">_</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">SkipFreq</span>,
+            (<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">FreqReadingOption</span>::<span class="ident">ReadFreq</span>,
         };
         <span class="ident">BlockSegmentPostings</span>::<span class="ident">from_data</span>(
             <span class="ident">term_info</span>.<span class="ident">doc_freq</span> <span class="kw">as</span> <span class="ident">usize</span>,
@@ -344,13 +380,15 @@
     <span class="doccomment">/// This method is for an advanced usage only.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Most user should prefer using `read_postings` instead.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_postings_from_terminfo</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_postings_from_terminfo</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">term_info</span>: <span class="kw-2">&amp;</span><span class="ident">TermInfo</span>,
         <span class="ident">option</span>: <span class="ident">IndexRecordOption</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span> {
+    ) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">block_postings</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_block_postings_from_terminfo</span>(<span class="ident">term_info</span>, <span class="ident">option</span>);
-        <span class="kw">let</span> <span class="ident">delete_bitset</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">clone</span>();
+        <span class="kw">let</span> <span class="ident">delete_set</span> <span class="op">=</span> <span class="ident">TDeleteSet</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">delete_bitset_opt</span>.<span class="ident">iter</span>()
+            .<span class="ident">cloned</span>()
+            .<span class="ident">next</span>());
         <span class="kw">let</span> <span class="ident">position_stream</span> <span class="op">=</span> {
             <span class="kw">if</span> <span class="ident">option</span>.<span class="ident">has_positions</span>() {
                 <span class="kw">let</span> <span class="ident">position_offset</span> <span class="op">=</span> <span class="ident">term_info</span>.<span class="ident">positions_offset</span>;
@@ -362,8 +400,16 @@
                 <span class="prelude-val">None</span>
             }
         };
-        <span class="ident">SegmentPostings</span>::<span class="ident">from_block_postings</span>(<span class="ident">block_postings</span>, <span class="ident">delete_bitset</span>, <span class="ident">position_stream</span>)
+        <span class="ident">SegmentPostings</span>::<span class="ident">from_block_postings</span>(<span class="ident">block_postings</span>, <span class="ident">delete_set</span>, <span class="ident">position_stream</span>)
     }
+
+    <span class="doccomment">/// Returns the total number of tokens recorded for all documents</span>
+    <span class="doccomment">/// (including deleted documents).</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">total_num_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">total_num_tokens</span>
+    }
+
+
 
     <span class="doccomment">/// Returns the segment postings associated with the term, and with the given option,</span>
     <span class="doccomment">/// or `None` if the term has never been encountered and indexed.</span>
@@ -375,10 +421,16 @@
     <span class="doccomment">/// For instance, requesting `IndexRecordOption::Freq` for a</span>
     <span class="doccomment">/// `TextIndexingOptions` that does not index position will return a `SegmentPostings`</span>
     <span class="doccomment">/// with `DocId`s and frequencies.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>, <span class="ident">option</span>: <span class="ident">IndexRecordOption</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>, <span class="ident">option</span>: <span class="ident">IndexRecordOption</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">term_info</span> <span class="op">=</span> <span class="macro">get</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">get_term_info</span>(<span class="ident">term</span>));
         <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">read_postings_from_terminfo</span>(<span class="kw-2">&amp;</span><span class="ident">term_info</span>, <span class="ident">option</span>))
     }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">read_postings_no_deletes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>, <span class="ident">option</span>: <span class="ident">IndexRecordOption</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">let</span> <span class="ident">term_info</span> <span class="op">=</span> <span class="macro">get</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">get_term_info</span>(<span class="ident">term</span>));
+        <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">read_postings_from_terminfo</span>(<span class="kw-2">&amp;</span><span class="ident">term_info</span>, <span class="ident">option</span>))
+    }
+
 
     <span class="doccomment">/// Returns the number of documents containing the term.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">doc_freq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
@@ -387,6 +439,9 @@
             .<span class="ident">unwrap_or</span>(<span class="number">0u32</span>)
     }
 }
+
+
+
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

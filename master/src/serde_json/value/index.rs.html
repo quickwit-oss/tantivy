@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/value/index.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/value/index.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>index.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -406,13 +407,13 @@
     <span class="kw">fn</span> <span class="ident">index_into</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>.<span class="ident">get</span>(<span class="kw-2">*</span><span class="self">self</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
     <span class="kw">fn</span> <span class="ident">index_into_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> <span class="ident">vec</span>.<span class="ident">get_mut</span>(<span class="kw-2">*</span><span class="self">self</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
     <span class="kw">fn</span> <span class="ident">index_or_insert</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span> {
@@ -430,7 +431,7 @@
                         },
                     )
             }
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access index {} of JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access index {} of JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
         }
     }
 }
@@ -439,13 +440,13 @@
     <span class="kw">fn</span> <span class="ident">index_into</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="ident">map</span>.<span class="ident">get</span>(<span class="self">self</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
     <span class="kw">fn</span> <span class="ident">index_into_mut</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="ident">map</span>.<span class="ident">get_mut</span>(<span class="self">self</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
     <span class="kw">fn</span> <span class="ident">index_or_insert</span><span class="op">&lt;</span><span class="lifetime">&#39;v</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;v</span> <span class="kw-2">mut</span> <span class="ident">Value</span> {
@@ -456,7 +457,7 @@
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> {
                 <span class="ident">map</span>.<span class="ident">entry</span>(<span class="self">self</span>.<span class="ident">to_owned</span>()).<span class="ident">or_insert</span>(<span class="ident">Value</span>::<span class="ident">Null</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access key {:?} in JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access key {:?} in JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
         }
     }
 }
@@ -508,11 +509,11 @@
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">formatter</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="number">0</span> {
             <span class="ident">Value</span>::<span class="ident">Null</span> <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;null&quot;</span>),
-            <span class="ident">Value</span>::<span class="ident">Bool</span>(_) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;boolean&quot;</span>),
-            <span class="ident">Value</span>::<span class="ident">Number</span>(_) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;number&quot;</span>),
-            <span class="ident">Value</span>::<span class="ident">String</span>(_) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;string&quot;</span>),
-            <span class="ident">Value</span>::<span class="ident">Array</span>(_) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;array&quot;</span>),
-            <span class="ident">Value</span>::<span class="ident">Object</span>(_) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;object&quot;</span>),
+            <span class="ident">Value</span>::<span class="ident">Bool</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;boolean&quot;</span>),
+            <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;number&quot;</span>),
+            <span class="ident">Value</span>::<span class="ident">String</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;string&quot;</span>),
+            <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;array&quot;</span>),
+            <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">formatter</span>.<span class="ident">write_str</span>(<span class="string">&quot;object&quot;</span>),
         }
     }
 }

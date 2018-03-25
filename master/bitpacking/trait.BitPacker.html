@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `BitPacker` trait in crate `bitpacking`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, BitPacker">
+
+    <title>bitpacking::BitPacker - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../dark.css">
+    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <script src="../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait BitPacker</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.DataType">DataType</a></div><a class="sidebar-title" href="#associated-const">Associated Constants</a><div class="sidebar-links"><a href="#associatedconstant.BLOCK_LEN">BLOCK_LEN</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.compress">compress</a><a href="#tymethod.compress_sorted">compress_sorted</a><a href="#tymethod.decompress_to">decompress_to</a><a href="#tymethod.decompress">decompress</a><a href="#tymethod.decompress_sorted">decompress_sorted</a><a href="#tymethod.num_bits">num_bits</a><a href="#tymethod.num_bits_sorted">num_bits_sorted</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>bitpacking</a></p><script>window.sidebarCurrent = {name: 'BitPacker', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content">
+<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>bitpacking</a>::<wbr><a class="trait" href=''>BitPacker</a></span><span class='out-of-band'><span id='render-detail'>
+                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
+                       [<span class='inner'>&#x2212;</span>]
+                   </a>
+               </span><a class='srclink' href='../src/bitpacking/lib.rs.html#52-84' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait BitPacker {
+    type <a href='#associatedtype.DataType' class="type">DataType</a>;
+
+    const <a href='#associatedconstant.BLOCK_LEN' class="constant"><b>BLOCK_LEN</b></a>: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>;
+
+    fn <a href='#tymethod.compress' class='fnname'>compress</a>(decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>);
+<div class='item-spacer'></div>    fn <a href='#tymethod.compress_sorted' class='fnname'>compress_sorted</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>&nbsp;&nbsp;&nbsp;&nbsp;);
+<div class='item-spacer'></div>    fn <a href='#tymethod.decompress_to' class='fnname'>decompress_to</a>&lt;Output:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(Self::<a class="type" href="../bitpacking/trait.BitPacker.html#associatedtype.DataType" title="type bitpacking::BitPacker::DataType">DataType</a>)&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;output: Output, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>&nbsp;&nbsp;&nbsp;&nbsp;);
+<div class='item-spacer'></div>    fn <a href='#tymethod.decompress' class='fnname'>decompress</a>(compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>);
+<div class='item-spacer'></div>    fn <a href='#tymethod.decompress_sorted' class='fnname'>decompress_sorted</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>&nbsp;&nbsp;&nbsp;&nbsp;);
+<div class='item-spacer'></div>    fn <a href='#tymethod.num_bits' class='fnname'>num_bits</a>(decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.num_bits_sorted' class='fnname'>num_bits_sorted</a>(initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>;
+}</pre><div class='docblock'><h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+<pre class="rust rust-example-rendered">
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitpacking</span>;
+
+<span class="kw">use</span> <span class="ident">bitpacking</span>::{<span class="ident">SSE3BitPacker</span>, <span class="ident">BitPacker</span>};
+
+<span class="kw">let</span> <span class="ident">fake_data</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">7</span>, <span class="number">11</span>, <span class="number">10</span>, <span class="number">15</span>, <span class="number">13</span>, <span class="number">6</span>, <span class="number">5</span>, <span class="number">3</span>, <span class="number">14</span>, <span class="number">5</span>, <span class="number">7</span>,
+    <span class="number">15</span>, <span class="number">12</span>, <span class="number">1</span>, <span class="number">10</span>, <span class="number">8</span>, <span class="number">10</span>, <span class="number">12</span>, <span class="number">14</span>, <span class="number">13</span>, <span class="number">1</span>, <span class="number">10</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">10</span>, <span class="number">4</span>, <span class="number">15</span>, <span class="number">12</span>,
+    <span class="number">1</span>, <span class="number">2</span>, <span class="number">0</span>, <span class="number">8</span>, <span class="number">5</span>, <span class="number">14</span>, <span class="number">5</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">1</span>, <span class="number">6</span>, <span class="number">14</span>, <span class="number">13</span>, <span class="number">5</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="number">1</span>, <span class="number">6</span>, <span class="number">4</span>,
+    <span class="number">1</span>, <span class="number">12</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="number">5</span>, <span class="number">15</span>, <span class="number">15</span>, <span class="number">2</span>, <span class="number">8</span>, <span class="number">6</span>, <span class="number">4</span>, <span class="number">3</span>, <span class="number">10</span>, <span class="number">8</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">2</span>, <span class="number">6</span>, <span class="number">10</span>,
+    <span class="number">5</span>, <span class="number">7</span>, <span class="number">9</span>, <span class="number">0</span>, <span class="number">13</span>, <span class="number">15</span>, <span class="number">5</span>, <span class="number">13</span>, <span class="number">10</span>, <span class="number">0</span>, <span class="number">2</span>, <span class="number">10</span>, <span class="number">14</span>, <span class="number">5</span>, <span class="number">9</span>, <span class="number">12</span>, <span class="number">8</span>, <span class="number">5</span>, <span class="number">10</span>,
+    <span class="number">8</span>, <span class="number">8</span>, <span class="number">10</span>, <span class="number">5</span>, <span class="number">13</span>, <span class="number">8</span>, <span class="number">11</span>, <span class="number">14</span>, <span class="number">7</span>, <span class="number">14</span>, <span class="number">4</span>, <span class="number">2</span>, <span class="number">9</span>, <span class="number">12</span>, <span class="number">14</span>, <span class="number">5</span>, <span class="number">15</span>, <span class="number">12</span>, <span class="number">0</span>,
+    <span class="number">12</span>, <span class="number">13</span>, <span class="number">3</span>, <span class="number">13</span>, <span class="number">5</span>, <span class="number">4</span>, <span class="number">15</span>, <span class="number">9</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="number">3</span>, <span class="number">1</span>, <span class="number">12</span>, <span class="number">0</span>, <span class="number">6</span>, <span class="number">11</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">4</span>];
+<span class="kw">let</span> <span class="ident">num_bits</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="ident">SSE3BitPacker</span>::<span class="ident">num_bits</span>(<span class="kw-2">&amp;</span><span class="ident">fake_data</span>);
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u8</span>; (<span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">*</span> <span class="ident">SSE3BitPacker</span>::<span class="ident">BLOCK_LEN</span> <span class="op">/</span> <span class="number">8</span>];
+<span class="ident">SSE3BitPacker</span>::<span class="ident">compress</span>(<span class="kw-2">&amp;</span><span class="ident">fake_data</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">compressed</span>[..], <span class="ident">num_bits</span>);
+
+<span class="comment">// Decompressing</span>
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decompressed</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u32</span>; <span class="ident">SSE3BitPacker</span>::<span class="ident">BLOCK_LEN</span>];
+<span class="ident">SSE3BitPacker</span>::<span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="ident">compressed</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">decompressed</span>[..], <span class="ident">num_bits</span>);
+
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">fake_data</span>, <span class="kw-2">&amp;</span><span class="ident">decompressed</span>);</pre>
+</div>
+            <h2 id='associated-types' class='small-section-header'>
+              Associated Types<a href='#associated-types' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='associatedtype.DataType' class='method'><span id='DataType.t' class='invisible'><code>type <a href='#associatedtype.DataType' class="type">DataType</a></code></span></h3></div>
+            <h2 id='associated-const' class='small-section-header'>
+              Associated Constants<a href='#associated-const' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='associatedconstant.BLOCK_LEN' class='method'><span id='BLOCK_LEN.v' class='invisible'><code>const <a href='#associatedconstant.BLOCK_LEN' class="constant"><b>BLOCK_LEN</b></a>: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a></code></span></h3></div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.compress' class='method'><span id='compress.v' class='invisible'><code>fn <a href='#tymethod.compress' class='fnname'>compress</a>(decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>)</code></span></h3><h3 id='tymethod.compress_sorted' class='method'><span id='compress_sorted.v' class='invisible'><code>fn <a href='#tymethod.compress_sorted' class='fnname'>compress_sorted</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>)</code></span></h3><h3 id='tymethod.decompress_to' class='method'><span id='decompress_to.v' class='invisible'><code>fn <a href='#tymethod.decompress_to' class='fnname'>decompress_to</a>&lt;Output:&nbsp;<a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(Self::<a class="type" href="../bitpacking/trait.BitPacker.html#associatedtype.DataType" title="type bitpacking::BitPacker::DataType">DataType</a>)&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;output: Output, <br>&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>)</code></span></h3><h3 id='tymethod.decompress' class='method'><span id='decompress.v' class='invisible'><code>fn <a href='#tymethod.decompress' class='fnname'>decompress</a>(compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>)</code></span></h3><h3 id='tymethod.decompress_sorted' class='method'><span id='decompress_sorted.v' class='invisible'><code>fn <a href='#tymethod.decompress_sorted' class='fnname'>decompress_sorted</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>)</code></span></h3><h3 id='tymethod.num_bits' class='method'><span id='num_bits.v' class='invisible'><code>fn <a href='#tymethod.num_bits' class='fnname'>num_bits</a>(decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></h3><h3 id='tymethod.num_bits_sorted' class='method'><span id='num_bits_sorted.v' class='invisible'><code>fn <a href='#tymethod.num_bits_sorted' class='fnname'>num_bits_sorted</a>(initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></h3></div>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.ScalarBitPacker.html" title="struct bitpacking::ScalarBitPacker">ScalarBitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;</span></code></li>
+<li><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.SSE3BitPacker.html" title="struct bitpacking::SSE3BitPacker">SSE3BitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="struct" href="https://doc.rust-lang.org/nightly/core/coresimd/x86/struct.__m128i.html" title="struct core::coresimd::x86::__m128i">DataType</a>;</span></code></li>
+</ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
+                         src="../implementors/bitpacking/trait.BitPacker.js">
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../";
+        window.currentCrate = "bitpacking";
+    </script>
+    <script src="../main.js"></script>
+    <script defer src="../search-index.js"></script>
+</body>
+</html>

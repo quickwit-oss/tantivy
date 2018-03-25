@@ -10,7 +10,8 @@
     <title>reseeding.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -469,7 +470,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rs</span> <span class="op">=</span> <span class="ident">ReseedingRng</span>::<span class="ident">new</span>(<span class="ident">Counter</span> {<span class="ident">i</span>:<span class="number">0</span>}, <span class="number">400</span>, <span class="ident">ReseedWithDefault</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rs</span>.<span class="ident">next_u32</span>(), <span class="ident">i</span> <span class="op">%</span> <span class="number">100</span>);
             <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
         }
@@ -497,7 +498,7 @@
     <span class="kw">const</span> <span class="ident">FILL_BYTES_V_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">13579</span>;
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_fill_bytes</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">repeat</span>(<span class="number">0u8</span>).<span class="ident">take</span>(<span class="ident">FILL_BYTES_V_LEN</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">repeat</span>(<span class="number">0u8</span>).<span class="ident">take</span>(<span class="ident">FILL_BYTES_V_LEN</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         ::<span class="ident">test</span>::<span class="ident">rng</span>().<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>);
 
         <span class="comment">// Sanity test: if we&#39;ve gotten here, `fill_bytes` has not infinitely</span>

@@ -1,3 +1,4 @@
+var resourcesSuffix = "";
 /*!
  * Copyright 2018 The Rust Project Developers. See the COPYRIGHT
  * file at the top-level directory of this distribution and at
@@ -41,9 +42,15 @@ function getCurrentValue(name) {
 }
 
 function switchTheme(styleElem, mainStyleElem, newTheme) {
-    var newHref = mainStyleElem.href.replace("rustdoc.css", newTheme + ".css");
-    var found = false;
+    var fullBasicCss = "rustdoc" + resourcesSuffix + ".css";
+    var fullNewTheme = newTheme + resourcesSuffix + ".css";
+    var newHref = mainStyleElem.href.replace(fullBasicCss, fullNewTheme);
 
+    if (styleElem.href === newHref) {
+        return;
+    }
+
+    var found = false;
     if (savedHref.length === 0) {
         onEach(document.getElementsByTagName("link"), function(el) {
             savedHref.push(el.href);

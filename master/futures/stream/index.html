@@ -10,7 +10,8 @@
     <title>futures::stream - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -357,6 +358,15 @@ stream.</p>
                                   title='struct futures::stream::Repeat'>Repeat</a></td>
                            <td class='docblock-short'>
                                 <p>Stream that produces the same element repeatedly.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ReuniteError.html"
+                                  title='struct futures::stream::ReuniteError'>ReuniteError</a></td>
+                           <td class='docblock-short'>
+                                <p>Error indicating a <code>SplitSink&lt;S&gt;</code> and <code>SplitStream&lt;S&gt;</code> were not two halves
+of a <code>Stream + Split</code>, and thus could not be <code>reunite</code>d.</p>
 
                            </td>
                        </tr>

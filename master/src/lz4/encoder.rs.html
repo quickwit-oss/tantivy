@@ -10,7 +10,8 @@
     <title>encoder.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -468,7 +469,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">EncoderBuilder</span>::<span class="ident">new</span>().<span class="ident">level</span>(<span class="number">1</span>).<span class="ident">build</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()).<span class="ident">unwrap</span>();
         <span class="ident">encoder</span>.<span class="ident">write</span>(<span class="string">b&quot;Some &quot;</span>).<span class="ident">unwrap</span>();
         <span class="ident">encoder</span>.<span class="ident">write</span>(<span class="string">b&quot;data&quot;</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> (_, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">finish</span>();
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">finish</span>();
         <span class="ident">result</span>.<span class="ident">unwrap</span>();
     }
 
@@ -477,18 +478,18 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">EncoderBuilder</span>::<span class="ident">new</span>().<span class="ident">level</span>(<span class="number">1</span>).<span class="ident">build</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rnd</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">42</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1024</span> <span class="op">*</span> <span class="number">1024</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1024</span> <span class="op">*</span> <span class="number">1024</span> {
             <span class="ident">buffer</span>.<span class="ident">push</span>((<span class="ident">rnd</span> <span class="op">&amp;</span> <span class="number">0xFF</span>) <span class="kw">as</span> <span class="ident">u8</span>);
             <span class="ident">rnd</span> <span class="op">=</span> ((<span class="number">1664525</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">*</span> (<span class="ident">rnd</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">+</span> (<span class="number">1013904223</span> <span class="kw">as</span> <span class="ident">u64</span>)) <span class="kw">as</span> <span class="ident">u32</span>;
         }
         <span class="ident">encoder</span>.<span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="ident">buffer</span>).<span class="ident">unwrap</span>();
-        <span class="kw">let</span> (_, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">finish</span>();
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">finish</span>();
         <span class="ident">result</span>.<span class="ident">unwrap</span>();
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_encoder_send</span>() {
-        <span class="kw">fn</span> <span class="ident">check_send</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Send</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">S</span>) {}
+        <span class="kw">fn</span> <span class="ident">check_send</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="ident">Send</span><span class="op">&gt;</span>(<span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">S</span>) {}
         <span class="kw">let</span> <span class="ident">enc</span> <span class="op">=</span> <span class="ident">EncoderBuilder</span>::<span class="ident">new</span>().<span class="ident">build</span>(<span class="ident">Vec</span>::<span class="ident">new</span>());
         <span class="ident">check_send</span>(<span class="kw-2">&amp;</span><span class="ident">enc</span>);
     }

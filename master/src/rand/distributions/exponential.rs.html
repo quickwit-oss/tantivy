@@ -10,7 +10,8 @@
     <title>exponential.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -287,7 +288,7 @@
     <span class="kw">fn</span> <span class="ident">test_exp</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exp</span> <span class="op">=</span> <span class="ident">Exp</span>::<span class="ident">new</span>(<span class="number">10.0</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> ::<span class="ident">test</span>::<span class="ident">rng</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">exp</span>.<span class="ident">sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>) <span class="op">&gt;=</span> <span class="number">0.0</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">exp</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>) <span class="op">&gt;=</span> <span class="number">0.0</span>);
         }

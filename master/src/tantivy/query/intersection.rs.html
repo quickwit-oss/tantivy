@@ -10,7 +10,8 @@
     <title>intersection.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -276,88 +277,292 @@
 <span id="220">220</span>
 <span id="221">221</span>
 <span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">EmptyScorer</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="ident">downcast</span>::<span class="ident">Downcast</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::{<span class="ident">TermScorerNoDeletes</span>, <span class="ident">TermScorerWithDeletes</span>};
 
-<span class="doccomment">/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> {
-    <span class="ident">docsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span>,
-    <span class="ident">finished</span>: <span class="ident">bool</span>,
-    <span class="ident">doc</span>: <span class="ident">DocId</span>,
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">intersect_scorers</span>(<span class="kw-2">mut</span> <span class="ident">docsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">num_docsets</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">len</span>();
+    <span class="ident">docsets</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">left</span>, <span class="ident">right</span><span class="op">|</span> <span class="ident">right</span>.<span class="ident">size_hint</span>().<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">left</span>.<span class="ident">size_hint</span>()));
+    <span class="kw">let</span> <span class="ident">rarest_opt</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>();
+    <span class="kw">let</span> <span class="ident">second_rarest_opt</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>();
+    <span class="ident">docsets</span>.<span class="ident">reverse</span>();
+    <span class="kw">match</span> (<span class="ident">rarest_opt</span>, <span class="ident">second_rarest_opt</span>) {
+        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">EmptyScorer</span>,
+        (<span class="prelude-val">Some</span>(<span class="ident">single_docset</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="ident">single_docset</span>,
+        (<span class="prelude-val">Some</span>(<span class="ident">left</span>), <span class="prelude-val">Some</span>(<span class="ident">right</span>)) <span class="op">=&gt;</span> {
+            {
+                <span class="kw">if</span> [<span class="kw-2">&amp;</span><span class="ident">left</span>, <span class="kw-2">&amp;</span><span class="ident">right</span>].<span class="ident">into_iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">scorer</span><span class="op">|</span> {
+                    <span class="kw">let</span> <span class="ident">scorer_ref</span>: <span class="kw-2">&amp;</span><span class="ident">Scorer</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">scorer</span>).<span class="ident">borrow</span>();
+                    <span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerWithDeletes</span><span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="ident">scorer_ref</span>)
+                }) {
+                    <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerWithDeletes</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">left</span>).<span class="ident">unwrap</span>();
+                    <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerWithDeletes</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">right</span>).<span class="ident">unwrap</span>();
+                    <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
+                        <span class="ident">left</span>,
+                        <span class="ident">right</span>,
+                        <span class="ident">others</span>: <span class="ident">docsets</span>,
+                        <span class="ident">num_docsets</span>
+                    }
+                }
+            }
+            {
+                <span class="kw">if</span> [<span class="kw-2">&amp;</span><span class="ident">left</span>, <span class="kw-2">&amp;</span><span class="ident">right</span>].<span class="ident">into_iter</span>()
+                        .<span class="ident">all</span>(<span class="op">|</span><span class="ident">scorer</span><span class="op">|</span> {
+                        <span class="kw">let</span> <span class="ident">scorer_ref</span>: <span class="kw-2">&amp;</span><span class="ident">Scorer</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">scorer</span>).<span class="ident">borrow</span>();
+                        <span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerNoDeletes</span><span class="op">&gt;</span>::<span class="ident">is_type</span>(<span class="ident">scorer_ref</span>)
+                    }) {
+                    <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerNoDeletes</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">left</span>).<span class="ident">unwrap</span>();
+                    <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorerNoDeletes</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">right</span>).<span class="ident">unwrap</span>();
+                    <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
+                        <span class="ident">left</span>,
+                        <span class="ident">right</span>,
+                        <span class="ident">others</span>: <span class="ident">docsets</span>,
+                        <span class="ident">num_docsets</span>
+                    }
+                }
+            }
+            {
+                <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
+                    <span class="ident">left</span>,
+                    <span class="ident">right</span>,
+                    <span class="ident">others</span>: <span class="ident">docsets</span>,
+                    <span class="ident">num_docsets</span>
+                }
+            }
+        }
+        <span class="kw">_</span> <span class="op">=&gt;</span> { <span class="macro">unreachable</span><span class="macro">!</span>(); }
+    }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="kw-2">mut</span> <span class="ident">docsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">docsets</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">2</span>);
-        <span class="ident">docsets</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="ident">docset</span><span class="op">|</span> <span class="ident">docset</span>.<span class="ident">size_hint</span>());
+<span class="doccomment">/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span>, <span class="ident">TOtherDocSet</span>: <span class="ident">DocSet</span><span class="op">=</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span> {
+    <span class="ident">left</span>: <span class="ident">TDocSet</span>,
+    <span class="ident">right</span>: <span class="ident">TDocSet</span>,
+    <span class="ident">others</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TOtherDocSet</span><span class="op">&gt;</span>,
+    <span class="ident">num_docsets</span>: <span class="ident">usize</span>
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>, <span class="ident">TDocSet</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="kw-2">mut</span> <span class="ident">docsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>, <span class="ident">TDocSet</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">num_docsets</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">len</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">num_docsets</span> <span class="op">&gt;=</span> <span class="number">2</span>);
+        <span class="ident">docsets</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">left</span>, <span class="ident">right</span><span class="op">|</span> <span class="ident">right</span>.<span class="ident">size_hint</span>().<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">left</span>.<span class="ident">size_hint</span>()));
+        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>();
+        <span class="ident">docsets</span>.<span class="ident">reverse</span>();
         <span class="ident">Intersection</span> {
-            <span class="ident">docsets</span>,
-            <span class="ident">finished</span>: <span class="bool-val">false</span>,
-            <span class="ident">doc</span>: <span class="number">0u32</span>,
+            <span class="ident">left</span>,
+            <span class="ident">right</span>,
+            <span class="ident">others</span>: <span class="ident">docsets</span>,
+            <span class="ident">num_docsets</span>
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
-    <span class="doccomment">/// Returns an array to the underlying `DocSet`s of the intersection.</span>
-    <span class="doccomment">/// These `DocSet` are in the same position as the `IntersectionDocSet`,</span>
-    <span class="doccomment">/// so that user can access their `docfreq` and `positions`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">docsets</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">TDocSet</span>] {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">docsets</span>[..]
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>, <span class="ident">TDocSet</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">docset_mut_specialized</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ord</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TDocSet</span> {
+        <span class="kw">match</span> <span class="ident">ord</span> {
+            <span class="number">0</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">left</span>,
+            <span class="number">1</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">right</span>,
+            <span class="ident">n</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">others</span>[<span class="ident">n</span> <span class="op">-</span> <span class="number">2</span>]
+        }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span>, <span class="ident">TOtherDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>, <span class="ident">TOtherDocSet</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">docset_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ord</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DocSet</span> {
+        <span class="kw">match</span> <span class="ident">ord</span> {
+            <span class="number">0</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">left</span>,
+            <span class="number">1</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">right</span>,
+            <span class="ident">n</span> <span class="op">=&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">others</span>[<span class="ident">n</span> <span class="op">-</span> <span class="number">2</span>]
+        }
+    }
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDocSet</span>: <span class="ident">DocSet</span>, <span class="ident">TOtherDocSet</span>: <span class="ident">DocSet</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TDocSet</span>, <span class="ident">TOtherDocSet</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">never_loop</span>)]</span>
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">finished</span> {
+        <span class="kw">let</span> (<span class="ident">left</span>, <span class="ident">right</span>) <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">left</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">right</span>);
+
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">left</span>.<span class="ident">advance</span>() {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">candidate_doc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">doc</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">candidate_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">docsets</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">candidate</span> <span class="op">=</span> <span class="ident">left</span>.<span class="ident">doc</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">other_candidate_ord</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">max_value</span>();
 
         <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
-            <span class="kw">for</span> (<span class="ident">ord</span>, <span class="ident">docset</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">docsets</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
-                <span class="kw">if</span> <span class="ident">ord</span> <span class="op">!=</span> <span class="ident">candidate_ord</span> {
+            <span class="comment">// In the first part we look for a document in the intersection</span>
+            <span class="comment">// of the two rarest `DocSet` in the intersection.</span>
+            <span class="kw">loop</span> {
+                <span class="kw">match</span> <span class="ident">right</span>.<span class="ident">skip_next</span>(<span class="ident">candidate</span>) {
+                    <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> { <span class="kw">break</span>; }
+                    <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
+                        <span class="ident">candidate</span> <span class="op">=</span> <span class="ident">right</span>.<span class="ident">doc</span>();
+                        <span class="ident">other_candidate_ord</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">max_value</span>();
+                    }
+                    <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="bool-val">false</span>; }
+                }
+
+                <span class="kw">match</span> <span class="ident">left</span>.<span class="ident">skip_next</span>(<span class="ident">candidate</span>) {
+                    <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> { <span class="kw">break</span>; }
+                    <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
+                        <span class="ident">candidate</span> <span class="op">=</span> <span class="ident">left</span>.<span class="ident">doc</span>();
+                        <span class="ident">other_candidate_ord</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">max_value</span>();
+                    }
+                    <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="bool-val">false</span>; }
+                }
+
+            }
+            <span class="comment">// test the remaining scorers;</span>
+            <span class="kw">for</span> (<span class="ident">ord</span>, <span class="ident">docset</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">others</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
+                <span class="kw">if</span> <span class="ident">ord</span> <span class="op">!=</span> <span class="ident">other_candidate_ord</span> {
                     <span class="comment">// `candidate_ord` is already at the</span>
                     <span class="comment">// right position.</span>
                     <span class="comment">//</span>
                     <span class="comment">// Calling `skip_next` would advance this docset</span>
                     <span class="comment">// and miss it.</span>
-                    <span class="kw">match</span> <span class="ident">docset</span>.<span class="ident">skip_next</span>(<span class="ident">candidate_doc</span>) {
+                    <span class="kw">match</span> <span class="ident">docset</span>.<span class="ident">skip_next</span>(<span class="ident">candidate</span>) {
                         <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> {}
                         <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
                             <span class="comment">// this is not in the intersection,</span>
                             <span class="comment">// let&#39;s update our candidate.</span>
-                            <span class="ident">candidate_doc</span> <span class="op">=</span> <span class="ident">docset</span>.<span class="ident">doc</span>();
-                            <span class="ident">candidate_ord</span> <span class="op">=</span> <span class="ident">ord</span>;
+                            <span class="ident">candidate</span> <span class="op">=</span> <span class="ident">docset</span>.<span class="ident">doc</span>();
+                            <span class="kw">match</span> <span class="ident">left</span>.<span class="ident">skip_next</span>(<span class="ident">candidate</span>) {
+                                <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> { <span class="ident">other_candidate_ord</span> <span class="op">=</span> <span class="ident">ord</span>; }
+                                <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> {
+                                    <span class="ident">candidate</span> <span class="op">=</span> <span class="ident">left</span>.<span class="ident">doc</span>();
+                                    <span class="ident">other_candidate_ord</span> <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">max_value</span>();
+                                }
+                                <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="bool-val">false</span>; }
+                            }
                             <span class="kw">continue</span> <span class="lifetime">&#39;outer</span>;
                         }
-                        <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> {
-                            <span class="self">self</span>.<span class="ident">finished</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                            <span class="kw">return</span> <span class="bool-val">false</span>;
-                        }
+                        <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="bool-val">false</span>; }
                     }
                 }
             }
-
-            <span class="self">self</span>.<span class="ident">doc</span> <span class="op">=</span> <span class="ident">candidate_doc</span>;
             <span class="kw">return</span> <span class="bool-val">true</span>;
         }
     }
 
+
     <span class="kw">fn</span> <span class="ident">skip_next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">target</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
+
         <span class="comment">// We optimize skipping by skipping every single member</span>
         <span class="comment">// of the intersection to target.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_target</span>: <span class="ident">DocId</span> <span class="op">=</span> <span class="ident">target</span>;
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">docsets</span>.<span class="ident">len</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">current_ord</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">num_docsets</span>;
 
         <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
-            <span class="kw">for</span> (<span class="ident">ord</span>, <span class="ident">docset</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">docsets</span>.<span class="ident">iter_mut</span>().<span class="ident">enumerate</span>() {
+            <span class="kw">for</span> <span class="ident">ord</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_docsets</span> {
+                <span class="kw">let</span> <span class="ident">docset</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">docset_mut</span>(<span class="ident">ord</span>);
                 <span class="kw">if</span> <span class="ident">ord</span> <span class="op">==</span> <span class="ident">current_ord</span> {
                     <span class="kw">continue</span>;
                 }
@@ -375,8 +580,6 @@
                     <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">=&gt;</span> {}
                 }
             }
-
-            <span class="self">self</span>.<span class="ident">doc</span> <span class="op">=</span> <span class="ident">current_target</span>;
             <span class="kw">if</span> <span class="ident">target</span> <span class="op">==</span> <span class="ident">current_target</span> {
                 <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span>;
             } <span class="kw">else</span> {
@@ -387,24 +590,18 @@
     }
 
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
-        <span class="self">self</span>.<span class="ident">doc</span>
+        <span class="self">self</span>.<span class="ident">left</span>.<span class="ident">doc</span>()
     }
 
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
-        <span class="self">self</span>.<span class="ident">docsets</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">docset</span><span class="op">|</span> <span class="ident">docset</span>.<span class="ident">size_hint</span>())
-            .<span class="ident">min</span>()
-            .<span class="ident">unwrap_or</span>(<span class="number">0u32</span>)
+        <span class="self">self</span>.<span class="ident">left</span>.<span class="ident">size_hint</span>()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TScorer</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TScorer</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">TScorer</span>: <span class="ident">Scorer</span>,
-{
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TScorer</span>, <span class="ident">TOtherScorer</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">Intersection</span><span class="op">&lt;</span><span class="ident">TScorer</span>, <span class="ident">TOtherScorer</span><span class="op">&gt;</span>
+<span class="kw">where</span> <span class="ident">TScorer</span>: <span class="ident">Scorer</span>, <span class="ident">TOtherScorer</span>: <span class="ident">Scorer</span> {
     <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
-        <span class="self">self</span>.<span class="ident">docsets</span>.<span class="ident">iter_mut</span>().<span class="ident">map</span>(<span class="ident">Scorer</span>::<span class="ident">score</span>).<span class="ident">sum</span>()
+        <span class="self">self</span>.<span class="ident">left</span>.<span class="ident">score</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">right</span>.<span class="ident">score</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">others</span>.<span class="ident">iter_mut</span>().<span class="ident">map</span>(<span class="ident">Scorer</span>::<span class="ident">score</span>).<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">Score</span><span class="op">&gt;</span>()
     }
 }
 
@@ -420,7 +617,7 @@
         {
             <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">3</span>, <span class="number">9</span>]);
             <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">3</span>, <span class="number">4</span>, <span class="number">9</span>, <span class="number">18</span>]);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">advance</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">doc</span>(), <span class="number">3</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">advance</span>());
@@ -431,7 +628,7 @@
             <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">3</span>, <span class="number">9</span>]);
             <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">3</span>, <span class="number">4</span>, <span class="number">9</span>, <span class="number">18</span>]);
             <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">5</span>, <span class="number">9</span>, <span class="number">111</span>]);
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">a</span>, <span class="ident">b</span>, <span class="ident">c</span>]);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">a</span>, <span class="ident">b</span>, <span class="ident">c</span>]);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">advance</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">doc</span>(), <span class="number">9</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">intersection</span>.<span class="ident">advance</span>());
@@ -442,7 +639,7 @@
     <span class="kw">fn</span> <span class="ident">test_intersection_zero</span>() {
         <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>]);
         <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>]);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">advance</span>());
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">doc</span>(), <span class="number">0</span>);
     }
@@ -451,7 +648,7 @@
     <span class="kw">fn</span> <span class="ident">test_intersection_skip</span>() {
         <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">4</span>]);
         <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">5</span>]);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">skip_next</span>(<span class="number">2</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">intersection</span>.<span class="ident">doc</span>(), <span class="number">2</span>);
     }
@@ -462,7 +659,7 @@
             <span class="op">||</span> {
                 <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>]);
                 <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">5</span>]);
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
+                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>],
         );
@@ -472,13 +669,13 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">5</span>, <span class="number">10</span>]);
                 <span class="ident">left</span>.<span class="ident">advance</span>();
                 <span class="ident">right</span>.<span class="ident">advance</span>();
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
+                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">10</span>, <span class="number">11</span>],
         );
         <span class="ident">test_skip_against_unoptimized</span>(
             <span class="op">||</span> {
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
+                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
@@ -495,7 +692,7 @@
         <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">3</span>]);
         <span class="kw">let</span> <span class="ident">b</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">4</span>]);
         <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">3</span>, <span class="number">9</span>]);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">a</span>, <span class="ident">b</span>, <span class="ident">c</span>]);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">a</span>, <span class="ident">b</span>, <span class="ident">c</span>]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">intersection</span>.<span class="ident">advance</span>());
     }
 }

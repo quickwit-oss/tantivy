@@ -10,7 +10,8 @@
     <title>build.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -901,7 +902,7 @@
                     <span class="ident">t</span>.<span class="ident">out</span> <span class="op">=</span> <span class="ident">common_pre</span>;
                     <span class="ident">add_prefix</span>
                 }
-                _ <span class="op">=&gt;</span> <span class="kw">break</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
             };
             <span class="kw">if</span> <span class="op">!</span><span class="ident">add_prefix</span>.<span class="ident">is_zero</span>() {
                 <span class="self">self</span>.<span class="ident">stack</span>[<span class="ident">i</span>].<span class="ident">add_output_prefix</span>(<span class="ident">add_prefix</span>);

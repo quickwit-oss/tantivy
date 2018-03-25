@@ -10,7 +10,8 @@
     <title>writer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -276,44 +277,10 @@
 <span id="220">220</span>
 <span id="221">221</span>
 <span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
-<span id="226">226</span>
-<span id="227">227</span>
-<span id="228">228</span>
-<span id="229">229</span>
-<span id="230">230</span>
-<span id="231">231</span>
-<span id="232">232</span>
-<span id="233">233</span>
-<span id="234">234</span>
-<span id="235">235</span>
-<span id="236">236</span>
-<span id="237">237</span>
-<span id="238">238</span>
-<span id="239">239</span>
-<span id="240">240</span>
-<span id="241">241</span>
-<span id="242">242</span>
-<span id="243">243</span>
-<span id="244">244</span>
-<span id="245">245</span>
-<span id="246">246</span>
-<span id="247">247</span>
-<span id="248">248</span>
-<span id="249">249</span>
-<span id="250">250</span>
-<span id="251">251</span>
-<span id="252">252</span>
-<span id="253">253</span>
-<span id="254">254</span>
-<span id="255">255</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">common</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
@@ -336,7 +303,7 @@
 
         <span class="kw">for</span> (<span class="ident">field_id</span>, <span class="ident">field_entry</span>) <span class="kw">in</span> <span class="ident">schema</span>.<span class="ident">fields</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
             <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>);
-            <span class="kw">let</span> <span class="ident">default_value</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
+            <span class="kw">let</span> <span class="ident">default_value</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
                 <span class="ident">common</span>::<span class="ident">i64_to_u64</span>(<span class="number">0i64</span>)
             } <span class="kw">else</span> {
                 <span class="number">0u64</span>
@@ -360,21 +327,12 @@
                     <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="bool-val">true</span>);
                     <span class="ident">multi_values_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
                 }
-                _ <span class="op">=&gt;</span> {}
+                <span class="kw">_</span> <span class="op">=&gt;</span> {}
             }
         }
         <span class="ident">FastFieldsWriter</span> {
             <span class="ident">single_value_writers</span>,
             <span class="ident">multi_values_writers</span>,
-        }
-    }
-
-    <span class="doccomment">/// Returns a `FastFieldsWriter with a `u64` `IntFastFieldWriter` for each</span>
-    <span class="doccomment">/// of the field given in argument.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">FastFieldsWriter</span> {
-        <span class="ident">FastFieldsWriter</span> {
-            <span class="ident">single_value_writers</span>: <span class="ident">fields</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="ident">IntFastFieldWriter</span>::<span class="ident">new</span>).<span class="ident">collect</span>(),
-            <span class="ident">multi_values_writers</span>: <span class="macro">vec</span><span class="macro">!</span>[],
         }
     }
 
@@ -428,16 +386,6 @@
         }
         <span class="prelude-val">Ok</span>(())
     }
-
-    <span class="doccomment">/// Ensures all of the fast field writers have</span>
-    <span class="doccomment">/// reached `doc`. (included)</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The missing values will be filled with 0.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fill_val_up_to</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) {
-        <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">single_value_writers</span> {
-            <span class="ident">field_writer</span>.<span class="ident">fill_val_up_to</span>(<span class="ident">doc</span>);
-        }
-    }
 }
 
 <span class="doccomment">/// Fast field writer for ints.</span>
@@ -488,19 +436,6 @@
     <span class="doccomment">/// a document does not have any value.</span>
     <span class="kw">fn</span> <span class="ident">set_val_if_missing</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">val_if_missing</span>: <span class="ident">u64</span>) {
         <span class="self">self</span>.<span class="ident">val_if_missing</span> <span class="op">=</span> <span class="ident">val_if_missing</span>;
-    }
-
-    <span class="doccomment">/// Ensures all of the fast field writer have</span>
-    <span class="doccomment">/// reached `doc`. (included)</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// The missing values will be filled with 0.</span>
-    <span class="kw">fn</span> <span class="ident">fill_val_up_to</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) {
-        <span class="kw">let</span> <span class="ident">target</span> <span class="op">=</span> <span class="ident">doc</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">+</span> <span class="number">1</span>;
-        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">val_count</span> <span class="op">&lt;=</span> <span class="ident">target</span>);
-        <span class="kw">let</span> <span class="ident">val_if_missing</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">val_if_missing</span>;
-        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">val_count</span> <span class="op">&lt;</span> <span class="ident">target</span> {
-            <span class="self">self</span>.<span class="ident">add_val</span>(<span class="ident">val_if_missing</span>);
-        }
     }
 
     <span class="doccomment">/// Records a new value.</span>

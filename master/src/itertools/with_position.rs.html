@@ -10,7 +10,8 @@
     <title>with_position.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -208,14 +209,14 @@
                     <span class="comment">// Peek to see if this is also the last item,</span>
                     <span class="comment">// in which case tag it as `Only`.</span>
                     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">peekable</span>.<span class="ident">peek</span>() {
-                        <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">First</span>(<span class="ident">item</span>)),
+                        <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">First</span>(<span class="ident">item</span>)),
                         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">Only</span>(<span class="ident">item</span>)),
                     }
                 } <span class="kw">else</span> {
                     <span class="comment">// Have seen the first item, and there&#39;s something left.</span>
                     <span class="comment">// Peek to see if this is the last item.</span>
                     <span class="kw">match</span> <span class="self">self</span>.<span class="ident">peekable</span>.<span class="ident">peek</span>() {
-                        <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">Middle</span>(<span class="ident">item</span>)),
+                        <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">Middle</span>(<span class="ident">item</span>)),
                         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Position</span>::<span class="ident">Last</span>(<span class="ident">item</span>)),
                     }
                 }

@@ -10,7 +10,8 @@
     <title>segment_reader.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -371,6 +372,17 @@
 <span id="315">315</span>
 <span id="316">316</span>
 <span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
@@ -399,6 +411,8 @@
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionary</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
+<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">DeleteSet</span>;
 
 <span class="doccomment">/// Entry point to access all of the datastructures of the `Segment`</span>
 <span class="doccomment">///</span>
@@ -427,7 +441,7 @@
     <span class="ident">fieldnorms_composite</span>: <span class="ident">CompositeFile</span>,
 
     <span class="ident">store_reader</span>: <span class="ident">StoreReader</span>,
-    <span class="ident">delete_bitset</span>: <span class="ident">DeleteBitSet</span>,
+    <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>,
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
 }
 
@@ -452,7 +466,13 @@
     <span class="doccomment">/// Return the number of documents that have been</span>
     <span class="doccomment">/// deleted in the segment.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_deleted_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
-        <span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">DocId</span>
+        <span class="self">self</span>.<span class="ident">delete_bitset</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">delete_set</span><span class="op">|</span> <span class="ident">delete_set</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">DocId</span>)
+            .<span class="ident">unwrap_or</span>(<span class="number">0u32</span>)
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_deletes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">delete_bitset</span>().<span class="ident">is_some</span>()
     }
 
     <span class="doccomment">/// Accessor to a segment&#39;s fast field reader given a field.</span>
@@ -536,10 +556,10 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// They are simply stored as a fast field, serialized in</span>
     <span class="doccomment">/// the `.fieldnorm` file of the segment.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_fieldnorms_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_fieldnorms_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FieldNormReader</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">fieldnorms_composite</span>
             .<span class="ident">open_read</span>(<span class="ident">field</span>)
-            .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)
+            .<span class="ident">map</span>(<span class="ident">FieldNormReader</span>::<span class="ident">open</span>)
     }
 
     <span class="doccomment">/// Accessor to the segment&#39;s `StoreReader`.</span>
@@ -572,12 +592,13 @@
         <span class="kw">let</span> <span class="ident">fieldnorms_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">FIELDNORMS</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">fieldnorms_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">fieldnorms_data</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">delete_bitset</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">has_deletes</span>() {
-            <span class="kw">let</span> <span class="ident">delete_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">DELETE</span>)<span class="question-mark">?</span>;
-            <span class="ident">DeleteBitSet</span>::<span class="ident">open</span>(<span class="ident">delete_data</span>)
-        } <span class="kw">else</span> {
-            <span class="ident">DeleteBitSet</span>::<span class="ident">empty</span>()
-        };
+        <span class="kw">let</span> <span class="ident">delete_bitset_opt</span> <span class="op">=</span>
+            <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">has_deletes</span>() {
+                <span class="kw">let</span> <span class="ident">delete_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">DELETE</span>)<span class="question-mark">?</span>;
+                <span class="prelude-val">Some</span>(<span class="ident">DeleteBitSet</span>::<span class="ident">open</span>(<span class="ident">delete_data</span>))
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
+            };
 
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">schema</span>();
         <span class="prelude-val">Ok</span>(<span class="ident">SegmentReader</span> {
@@ -589,7 +610,7 @@
             <span class="ident">fieldnorms_composite</span>,
             <span class="ident">segment_id</span>: <span class="ident">segment</span>.<span class="ident">id</span>(),
             <span class="ident">store_reader</span>,
-            <span class="ident">delete_bitset</span>,
+            <span class="ident">delete_bitset_opt</span>,
             <span class="ident">positions_composite</span>,
             <span class="ident">schema</span>,
         })
@@ -644,7 +665,7 @@
             <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
             <span class="ident">postings_source</span>,
             <span class="ident">positions_source</span>,
-            <span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">clone</span>(),
+            <span class="self">self</span>.<span class="ident">delete_bitset_opt</span>.<span class="ident">clone</span>(),
             <span class="ident">record_option</span>,
         ));
 
@@ -673,14 +694,16 @@
 
     <span class="doccomment">/// Returns the bitset representing</span>
     <span class="doccomment">/// the documents that have been deleted.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delete_bitset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">delete_bitset</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">delete_bitset</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">delete_bitset_opt</span>.<span class="ident">as_ref</span>()
     }
 
     <span class="doccomment">/// Returns true iff the `doc` is marked</span>
     <span class="doccomment">/// as deleted.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_deleted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>)
+        <span class="self">self</span>.<span class="ident">delete_bitset</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">delete_set</span><span class="op">|</span> <span class="ident">delete_set</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>))
+            .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>)
     }
 }
 

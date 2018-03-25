@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/ast/parse.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/ast/parse.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>parse.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -5311,6 +5312,101 @@
 <span id="5255">5255</span>
 <span id="5256">5256</span>
 <span id="5257">5257</span>
+<span id="5258">5258</span>
+<span id="5259">5259</span>
+<span id="5260">5260</span>
+<span id="5261">5261</span>
+<span id="5262">5262</span>
+<span id="5263">5263</span>
+<span id="5264">5264</span>
+<span id="5265">5265</span>
+<span id="5266">5266</span>
+<span id="5267">5267</span>
+<span id="5268">5268</span>
+<span id="5269">5269</span>
+<span id="5270">5270</span>
+<span id="5271">5271</span>
+<span id="5272">5272</span>
+<span id="5273">5273</span>
+<span id="5274">5274</span>
+<span id="5275">5275</span>
+<span id="5276">5276</span>
+<span id="5277">5277</span>
+<span id="5278">5278</span>
+<span id="5279">5279</span>
+<span id="5280">5280</span>
+<span id="5281">5281</span>
+<span id="5282">5282</span>
+<span id="5283">5283</span>
+<span id="5284">5284</span>
+<span id="5285">5285</span>
+<span id="5286">5286</span>
+<span id="5287">5287</span>
+<span id="5288">5288</span>
+<span id="5289">5289</span>
+<span id="5290">5290</span>
+<span id="5291">5291</span>
+<span id="5292">5292</span>
+<span id="5293">5293</span>
+<span id="5294">5294</span>
+<span id="5295">5295</span>
+<span id="5296">5296</span>
+<span id="5297">5297</span>
+<span id="5298">5298</span>
+<span id="5299">5299</span>
+<span id="5300">5300</span>
+<span id="5301">5301</span>
+<span id="5302">5302</span>
+<span id="5303">5303</span>
+<span id="5304">5304</span>
+<span id="5305">5305</span>
+<span id="5306">5306</span>
+<span id="5307">5307</span>
+<span id="5308">5308</span>
+<span id="5309">5309</span>
+<span id="5310">5310</span>
+<span id="5311">5311</span>
+<span id="5312">5312</span>
+<span id="5313">5313</span>
+<span id="5314">5314</span>
+<span id="5315">5315</span>
+<span id="5316">5316</span>
+<span id="5317">5317</span>
+<span id="5318">5318</span>
+<span id="5319">5319</span>
+<span id="5320">5320</span>
+<span id="5321">5321</span>
+<span id="5322">5322</span>
+<span id="5323">5323</span>
+<span id="5324">5324</span>
+<span id="5325">5325</span>
+<span id="5326">5326</span>
+<span id="5327">5327</span>
+<span id="5328">5328</span>
+<span id="5329">5329</span>
+<span id="5330">5330</span>
+<span id="5331">5331</span>
+<span id="5332">5332</span>
+<span id="5333">5333</span>
+<span id="5334">5334</span>
+<span id="5335">5335</span>
+<span id="5336">5336</span>
+<span id="5337">5337</span>
+<span id="5338">5338</span>
+<span id="5339">5339</span>
+<span id="5340">5340</span>
+<span id="5341">5341</span>
+<span id="5342">5342</span>
+<span id="5343">5343</span>
+<span id="5344">5344</span>
+<span id="5345">5345</span>
+<span id="5346">5346</span>
+<span id="5347">5347</span>
+<span id="5348">5348</span>
+<span id="5349">5349</span>
+<span id="5350">5350</span>
+<span id="5351">5351</span>
+<span id="5352">5352</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -5818,7 +5914,7 @@ This module provides a regular expression parser.
     <span class="doccomment">/// and return false.</span>
     <span class="kw">fn</span> <span class="ident">bump_if</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">prefix</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">pattern</span>()[<span class="self">self</span>.<span class="ident">offset</span>()..].<span class="ident">starts_with</span>(<span class="ident">prefix</span>) {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">prefix</span>.<span class="ident">chars</span>().<span class="ident">count</span>() {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">prefix</span>.<span class="ident">chars</span>().<span class="ident">count</span>() {
                 <span class="self">self</span>.<span class="ident">bump</span>();
             }
             <span class="bool-val">true</span>
@@ -5899,6 +5995,32 @@ This module provides a regular expression parser.
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
         <span class="self">self</span>.<span class="ident">pattern</span>()[<span class="self">self</span>.<span class="ident">offset</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">char</span>().<span class="ident">len_utf8</span>()..].<span class="ident">chars</span>().<span class="ident">next</span>()
+    }
+
+    <span class="doccomment">/// Like peek, but will ignore spaces when the parser is in whitespace</span>
+    <span class="doccomment">/// insensitive mode.</span>
+    <span class="kw">fn</span> <span class="ident">peek_space</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">char</span><span class="op">&gt;</span> {
+        <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">ignore_whitespace</span>() {
+            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">peek</span>();
+        }
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">is_eof</span>() {
+            <span class="kw">return</span> <span class="prelude-val">None</span>;
+        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">offset</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">char</span>().<span class="ident">len_utf8</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">in_comment</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">c</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">pattern</span>()[<span class="ident">start</span>..].<span class="ident">char_indices</span>() {
+            <span class="kw">if</span> <span class="ident">c</span>.<span class="ident">is_whitespace</span>() {
+                <span class="kw">continue</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">in_comment</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;#&#39;</span> {
+                <span class="ident">in_comment</span> <span class="op">=</span> <span class="bool-val">true</span>;
+            } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">in_comment</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;\n&#39;</span> {
+                <span class="ident">in_comment</span> <span class="op">=</span> <span class="bool-val">false</span>;
+            } <span class="kw">else</span> {
+                <span class="ident">start</span> <span class="op">+=</span> <span class="ident">i</span>;
+                <span class="kw">break</span>;
+            }
+        }
+        <span class="self">self</span>.<span class="ident">pattern</span>()[<span class="ident">start</span>..].<span class="ident">chars</span>().<span class="ident">next</span>()
     }
 
     <span class="doccomment">/// Returns true if the next call to `bump` would return false.</span>
@@ -6037,7 +6159,7 @@ This module provides a regular expression parser.
                         <span class="prelude-val">Some</span>(<span class="ident">Group</span> { <span class="ident">concat</span>, <span class="ident">group</span>, <span class="ident">ignore_whitespace</span> }) <span class="op">=&gt;</span> {
                             (<span class="ident">concat</span>, <span class="ident">group</span>, <span class="ident">ignore_whitespace</span>, <span class="prelude-val">Some</span>(<span class="ident">alt</span>))
                         }
-                        <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Alternation</span>(_)) <span class="op">=&gt;</span> {
+                        <span class="prelude-val">None</span> <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="ident">Alternation</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> {
                             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
                                 <span class="self">self</span>.<span class="ident">span_char</span>(),
                                 <span class="ident">ast</span>::<span class="ident">ErrorKind</span>::<span class="ident">GroupUnopened</span>,
@@ -6096,7 +6218,7 @@ This module provides a regular expression parser.
         <span class="comment">// If we try to pop again, there should be nothing.</span>
         <span class="kw">match</span> <span class="ident">stack</span>.<span class="ident">pop</span>() {
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">ast</span>,
-            <span class="prelude-val">Some</span>(<span class="ident">GroupState</span>::<span class="ident">Alternation</span>(_)) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">GroupState</span>::<span class="ident">Alternation</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> {
                 <span class="comment">// This unreachable is unfortunate. This case can&#39;t happen</span>
                 <span class="comment">// because the only way we can be here is if there were two</span>
                 <span class="comment">// `GroupState::Alternation`s adjacent in the parser&#39;s stack,</span>
@@ -6201,7 +6323,7 @@ This module provides a regular expression parser.
                 <span class="ident">ClassState</span>::<span class="ident">Open</span> { <span class="kw-2">ref</span> <span class="ident">set</span>, .. } <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="self">self</span>.<span class="ident">error</span>(<span class="ident">set</span>.<span class="ident">span</span>, <span class="ident">ast</span>::<span class="ident">ErrorKind</span>::<span class="ident">ClassUnclosed</span>);
                 }
-                _ <span class="op">=&gt;</span> {}
+                <span class="kw">_</span> <span class="op">=&gt;</span> {}
             }
         }
         <span class="comment">// We are guaranteed to have a non-empty stack with at least</span>
@@ -6297,7 +6419,7 @@ This module provides a regular expression parser.
                 <span class="string">&#39;{&#39;</span> <span class="op">=&gt;</span> {
                     <span class="ident">concat</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_counted_repetition</span>(<span class="ident">concat</span>));
                 }
-                _ <span class="op">=&gt;</span> <span class="ident">concat</span>.<span class="ident">asts</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_primitive</span>()).<span class="ident">into_ast</span>()),
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">concat</span>.<span class="ident">asts</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_primitive</span>()).<span class="ident">into_ast</span>()),
             }
         }
         <span class="kw">let</span> <span class="ident">ast</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">pop_group_end</span>(<span class="ident">concat</span>));
@@ -6653,7 +6775,7 @@ This module provides a regular expression parser.
             <span class="string">&#39;U&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ast</span>::<span class="ident">Flag</span>::<span class="ident">SwapGreed</span>),
             <span class="string">&#39;u&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ast</span>::<span class="ident">Flag</span>::<span class="ident">Unicode</span>),
             <span class="string">&#39;x&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ast</span>::<span class="ident">Flag</span>::<span class="ident">IgnoreWhitespace</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
                 <span class="self">self</span>.<span class="ident">span_char</span>(),
                 <span class="ident">ast</span>::<span class="ident">ErrorKind</span>::<span class="ident">FlagUnrecognized</span>,
             )),
@@ -6755,7 +6877,7 @@ This module provides a regular expression parser.
                 <span class="ident">cls</span>.<span class="ident">span</span>.<span class="ident">start</span> <span class="op">=</span> <span class="ident">start</span>;
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Primitive</span>::<span class="ident">Perl</span>(<span class="ident">cls</span>));
             }
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
 
         <span class="comment">// Handle all of the one letter sequences inline.</span>
@@ -6799,7 +6921,7 @@ This module provides a regular expression parser.
                 <span class="ident">span</span>: <span class="ident">span</span>,
                 <span class="ident">kind</span>: <span class="ident">ast</span>::<span class="ident">AssertionKind</span>::<span class="ident">NotWordBoundary</span>,
             })),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">span</span>, <span class="ident">ast</span>::<span class="ident">ErrorKind</span>::<span class="ident">EscapeUnrecognized</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">span</span>, <span class="ident">ast</span>::<span class="ident">ErrorKind</span>::<span class="ident">EscapeUnrecognized</span>)),
         }
     }
 
@@ -6851,7 +6973,7 @@ This module provides a regular expression parser.
         <span class="kw">let</span> <span class="ident">hex_kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">char</span>() {
             <span class="string">&#39;x&#39;</span> <span class="op">=&gt;</span> <span class="ident">ast</span>::<span class="ident">HexLiteralKind</span>::<span class="ident">X</span>,
             <span class="string">&#39;u&#39;</span> <span class="op">=&gt;</span> <span class="ident">ast</span>::<span class="ident">HexLiteralKind</span>::<span class="ident">UnicodeShort</span>,
-            _ <span class="op">=&gt;</span> <span class="ident">ast</span>::<span class="ident">HexLiteralKind</span>::<span class="ident">UnicodeLong</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">ast</span>::<span class="ident">HexLiteralKind</span>::<span class="ident">UnicodeLong</span>,
         };
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">bump_and_bump_space</span>() {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(
@@ -7060,7 +7182,7 @@ This module provides a regular expression parser.
                     <span class="ident">union</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">push_class_op</span>(
                         <span class="ident">ast</span>::<span class="ident">ClassSetBinaryOpKind</span>::<span class="ident">SymmetricDifference</span>, <span class="ident">union</span>);
                 }
-                _ <span class="op">=&gt;</span> {
+                <span class="kw">_</span> <span class="op">=&gt;</span> {
                     <span class="ident">union</span>.<span class="ident">push</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_set_class_range</span>()));
                 }
             }
@@ -7087,8 +7209,8 @@ This module provides a regular expression parser.
         <span class="comment">// after a `-` is a `-`, then `--` corresponds to a &quot;difference&quot;</span>
         <span class="comment">// operation.</span>
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">char</span>() <span class="op">!=</span> <span class="string">&#39;-&#39;</span>
-            <span class="op">||</span> <span class="self">self</span>.<span class="ident">peek</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">&#39;]&#39;</span>)
-            <span class="op">||</span> <span class="self">self</span>.<span class="ident">peek</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">&#39;-&#39;</span>)
+            <span class="op">||</span> <span class="self">self</span>.<span class="ident">peek_space</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">&#39;]&#39;</span>)
+            <span class="op">||</span> <span class="self">self</span>.<span class="ident">peek_space</span>() <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="string">&#39;-&#39;</span>)
         {
             <span class="kw">return</span> <span class="ident">prim1</span>.<span class="ident">into_class_set_item</span>(<span class="self">self</span>);
         }
@@ -7420,7 +7542,7 @@ This module provides a regular expression parser.
     <span class="kw">fn</span> <span class="ident">decrement_depth</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="comment">// Assuming the correctness of the visitor, this should never drop</span>
         <span class="comment">// below 0.</span>
-        <span class="self">self</span>.<span class="ident">depth</span>.<span class="ident">checked_sub</span>(<span class="number">1</span>).<span class="ident">unwrap</span>();
+        <span class="self">self</span>.<span class="ident">depth</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">depth</span>.<span class="ident">checked_sub</span>(<span class="number">1</span>).<span class="ident">unwrap</span>();
     }
 }
 
@@ -7434,13 +7556,13 @@ This module provides a regular expression parser.
 
     <span class="kw">fn</span> <span class="ident">visit_pre</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">Ast</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(_))
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Perl</span>(_)) <span class="op">=&gt;</span> {
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>))
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Perl</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> {
                 <span class="comment">// These are all base cases, so we don&#39;t increment depth.</span>
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
             }
@@ -7455,21 +7577,21 @@ This module provides a regular expression parser.
 
     <span class="kw">fn</span> <span class="ident">visit_post</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">Ast</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(_))
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Perl</span>(_)) <span class="op">=&gt;</span> {
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>))
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Perl</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> {
                 <span class="comment">// These are all base cases, so we don&#39;t decrement depth.</span>
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Bracketed</span>(_))
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Repetition</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Group</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Bracketed</span>(<span class="kw">_</span>))
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Repetition</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Group</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">decrement_depth</span>();
                 <span class="prelude-val">Ok</span>(())
             }
@@ -7481,12 +7603,12 @@ This module provides a regular expression parser.
         <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">ClassSetItem</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// These are all base cases, so we don&#39;t increment depth.</span>
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(());
             }
@@ -7501,17 +7623,17 @@ This module provides a regular expression parser.
         <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">ClassSetItem</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// These are all base cases, so we don&#39;t decrement depth.</span>
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(_)
-            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">decrement_depth</span>();
                 <span class="prelude-val">Ok</span>(())
             }
@@ -10567,6 +10689,75 @@ bar
                     }),
                 ],
             })));
+    }
+
+    <span class="comment">// This tests a bug fix where the nest limit checker wasn&#39;t decrementing</span>
+    <span class="comment">// its depth during post-traversal, which causes long regexes to trip</span>
+    <span class="comment">// the default limit too aggressively.</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">regression_454_nest_too_big</span>() {
+        <span class="kw">let</span> <span class="ident">pattern</span> <span class="op">=</span> <span class="string">r#&quot;
+        2(?:
+          [45]\d{3}|
+          7(?:
+            1[0-267]|
+            2[0-289]|
+            3[0-29]|
+            4[01]|
+            5[1-3]|
+            6[013]|
+            7[0178]|
+            91
+          )|
+          8(?:
+            0[125]|
+            [139][1-6]|
+            2[0157-9]|
+            41|
+            6[1-35]|
+            7[1-5]|
+            8[1-8]|
+            90
+          )|
+          9(?:
+            0[0-2]|
+            1[0-4]|
+            2[568]|
+            3[3-6]|
+            5[5-7]|
+            6[0167]|
+            7[15]|
+            8[0146-9]
+          )
+        )\d{4}
+        &quot;#</span>;
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser_nest_limit</span>(<span class="ident">pattern</span>, <span class="number">50</span>).<span class="ident">parse</span>().<span class="ident">is_ok</span>());
+    }
+
+    <span class="comment">// This tests that we treat a trailing `-` in a character class as a</span>
+    <span class="comment">// literal `-` even when whitespace mode is enabled and there is whitespace</span>
+    <span class="comment">// after the trailing `-`.</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">regression_455_trailing_dash_ignore_whitespace</span>() {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[ / - ]&quot;</span>).<span class="ident">parse</span>().<span class="ident">is_ok</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[ a - ]&quot;</span>).<span class="ident">parse</span>().<span class="ident">is_ok</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[
+            a
+            - ]
+        &quot;</span>).<span class="ident">parse</span>().<span class="ident">is_ok</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[
+            a # wat
+            - ]
+        &quot;</span>).<span class="ident">parse</span>().<span class="ident">is_ok</span>());
+
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[ / -&quot;</span>).<span class="ident">parse</span>().<span class="ident">is_err</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[ / - &quot;</span>).<span class="ident">parse</span>().<span class="ident">is_err</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[
+            / -
+        &quot;</span>).<span class="ident">parse</span>().<span class="ident">is_err</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">parser</span>(<span class="string">&quot;(?x)[
+            / - # wat
+        &quot;</span>).<span class="ident">parse</span>().<span class="ident">is_err</span>());
     }
 }
 </pre>

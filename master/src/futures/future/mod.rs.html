@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/future/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/future/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1329,7 +1330,7 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;removed without replacement, recommended to use a \
                          local extension trait or function if needed, more \
-                         details in https://github.com/alexcrichton/futures-rs/issues/228&quot;</span>)]</span>
+                         details in https://github.com/rust-lang-nursery/futures-rs/issues/228&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">BoxFuture</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">boxed</span>::<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>;
 
     <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">F</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Future</span><span class="op">&gt;</span> <span class="ident">Future</span> <span class="kw">for</span> ::<span class="ident">std</span>::<span class="ident">boxed</span>::<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span> {
@@ -1550,7 +1551,7 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;removed without replacement, recommended to use a \
                          local extension trait or function if needed, more \
-                         details in https://github.com/alexcrichton/futures-rs/issues/228&quot;</span>)]</span>
+                         details in https://github.com/rust-lang-nursery/futures-rs/issues/228&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
     <span class="kw">fn</span> <span class="ident">boxed</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">BoxFuture</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
         <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>
@@ -1598,7 +1599,7 @@
         <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="self">Self</span>::<span class="ident">Item</span>) <span class="op">-&gt;</span> <span class="ident">U</span>,
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">U</span>, <span class="self">Self</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">map</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">U</span>, <span class="self">Self</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">map</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
     <span class="doccomment">/// Map this future&#39;s error to a different error, returning a new future.</span>
@@ -1638,7 +1639,7 @@
         <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="self">Self</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="ident">E</span>,
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">E</span>, _<span class="op">&gt;</span>(<span class="ident">map_err</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">E</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">map_err</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
 
@@ -1667,7 +1668,7 @@
     <span class="kw">fn</span> <span class="ident">from_err</span><span class="op">&lt;</span><span class="ident">E</span>:<span class="ident">From</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;&gt;</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">FromErr</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">E</span><span class="op">&gt;</span>
         <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">E</span>, _<span class="op">&gt;</span>(<span class="ident">from_err</span>::<span class="ident">new</span>(<span class="self">self</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">E</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">from_err</span>::<span class="ident">new</span>(<span class="self">self</span>))
     }
 
     <span class="doccomment">/// Chain on a computation for when a future finished, passing the result of</span>
@@ -1713,7 +1714,7 @@
               <span class="ident">B</span>: <span class="ident">IntoFuture</span>,
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">B</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">then</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">B</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">then</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
     <span class="doccomment">/// Execute another future after this one has resolved successfully.</span>
@@ -1754,7 +1755,7 @@
               <span class="ident">B</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Error</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>,
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">B</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">and_then</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="ident">B</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">and_then</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
     <span class="doccomment">/// Execute another future if this one resolves with an error.</span>
@@ -1795,7 +1796,7 @@
               <span class="ident">B</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span>,
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">or_else</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">or_else</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
     <span class="doccomment">/// Waits for either one of two futures to complete.</span>
@@ -1854,7 +1855,7 @@
     {
         <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">select</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">other</span>.<span class="ident">into_future</span>());
         <span class="ident">assert_future</span>::<span class="op">&lt;</span>(<span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">SelectNext</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">B</span>::<span class="ident">Future</span><span class="op">&gt;</span>),
-                        (<span class="self">Self</span>::<span class="ident">Error</span>, <span class="ident">SelectNext</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">B</span>::<span class="ident">Future</span><span class="op">&gt;</span>), _<span class="op">&gt;</span>(<span class="ident">f</span>)
+                        (<span class="self">Self</span>::<span class="ident">Error</span>, <span class="ident">SelectNext</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">B</span>::<span class="ident">Future</span><span class="op">&gt;</span>), <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">f</span>)
     }
 
     <span class="doccomment">/// Waits for either one of two differently-typed futures to complete.</span>
@@ -1944,7 +1945,7 @@
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
         <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">join</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">other</span>.<span class="ident">into_future</span>());
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span>(<span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Item</span>), <span class="self">Self</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">f</span>)
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span>(<span class="self">Self</span>::<span class="ident">Item</span>, <span class="ident">B</span>::<span class="ident">Item</span>), <span class="self">Self</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">f</span>)
     }
 
     <span class="doccomment">/// Same as `join`, but with more futures.</span>
@@ -2052,7 +2053,7 @@
         <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">flatten</span>::<span class="ident">new</span>(<span class="self">self</span>);
         <span class="ident">assert_future</span>::<span class="op">&lt;&lt;</span><span class="op">&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Future</span><span class="op">&gt;</span>::<span class="ident">Item</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span>::<span class="ident">Item</span>,
                         <span class="op">&lt;&lt;</span><span class="self">Self</span> <span class="kw">as</span> <span class="ident">Future</span><span class="op">&gt;</span>::<span class="ident">Item</span> <span class="kw">as</span> <span class="ident">IntoFuture</span><span class="op">&gt;</span>::<span class="ident">Error</span>,
-                        _<span class="op">&gt;</span>(<span class="ident">f</span>)
+                        <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">f</span>)
     }
 
     <span class="doccomment">/// Flatten the execution of this future when the successful result of this</span>
@@ -2127,7 +2128,7 @@
         <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span>
     {
         <span class="kw">let</span> <span class="ident">f</span> <span class="op">=</span> <span class="ident">fuse</span>::<span class="ident">new</span>(<span class="self">self</span>);
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">f</span>)
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">f</span>)
     }
 
     <span class="doccomment">/// Do something with the item of a future, passing it on.</span>
@@ -2150,7 +2151,7 @@
         <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnOnce</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">Item</span>) <span class="op">-&gt;</span> (),
               <span class="self">Self</span>: <span class="ident">Sized</span>,
     {
-        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, _<span class="op">&gt;</span>(<span class="ident">inspect</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
+        <span class="ident">assert_future</span>::<span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">inspect</span>::<span class="ident">new</span>(<span class="self">self</span>, <span class="ident">f</span>))
     }
 
     <span class="doccomment">/// Catches unwinding panics while polling the future.</span>

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -433,7 +434,7 @@ done automatically in the `regex` crate.
     <span class="kw">match</span> <span class="ident">c</span> {
         <span class="string">&#39;\\&#39;</span> <span class="op">|</span> <span class="string">&#39;.&#39;</span> <span class="op">|</span> <span class="string">&#39;+&#39;</span> <span class="op">|</span> <span class="string">&#39;*&#39;</span> <span class="op">|</span> <span class="string">&#39;?&#39;</span> <span class="op">|</span> <span class="string">&#39;(&#39;</span> <span class="op">|</span> <span class="string">&#39;)&#39;</span> <span class="op">|</span> <span class="string">&#39;|&#39;</span> <span class="op">|</span>
         <span class="string">&#39;[&#39;</span> <span class="op">|</span> <span class="string">&#39;]&#39;</span> <span class="op">|</span> <span class="string">&#39;{&#39;</span> <span class="op">|</span> <span class="string">&#39;}&#39;</span> <span class="op">|</span> <span class="string">&#39;^&#39;</span> <span class="op">|</span> <span class="string">&#39;$&#39;</span> <span class="op">|</span> <span class="string">&#39;#&#39;</span> <span class="op">|</span> <span class="string">&#39;&amp;&#39;</span> <span class="op">|</span> <span class="string">&#39;-&#39;</span> <span class="op">|</span> <span class="string">&#39;~&#39;</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
 }
 
@@ -472,7 +473,7 @@ done automatically in the `regex` crate.
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_word_byte</span>(<span class="ident">c</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="kw">match</span> <span class="ident">c</span> {
         <span class="string">b&#39;_&#39;</span> <span class="op">|</span> <span class="string">b&#39;0&#39;</span> ... <span class="string">b&#39;9&#39;</span> <span class="op">|</span> <span class="string">b&#39;a&#39;</span> ... <span class="string">b&#39;z&#39;</span> <span class="op">|</span> <span class="string">b&#39;A&#39;</span> ... <span class="string">b&#39;Z&#39;</span>  <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
 }
 

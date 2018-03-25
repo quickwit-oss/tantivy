@@ -10,7 +10,8 @@
     <title>macros.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -904,7 +905,7 @@
 <span class="doccomment">/// offset of `field` within struct `ty`</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">offset_of</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
-        <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>)).<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="ident">usize</span>
+        <span class="kw-2">&amp;</span>(<span class="kw-2">*</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>)).<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="ident">usize</span>
     }
 }
 </pre>

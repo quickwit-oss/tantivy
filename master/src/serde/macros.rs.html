@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.29/src/macros.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.34/src/macros.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>macros.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -444,7 +445,7 @@
             <span class="macro-nonterminal">$</span><span class="macro-nonterminal">v</span>: <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">l</span><span class="op">&gt;</span>,
         {
             $(
-                <span class="kw">let</span> _ <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>;
+                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>;
             )<span class="op">*</span>
             <span class="self">self</span>.<span class="ident">deserialize_any</span>(<span class="ident">visitor</span>)
         }

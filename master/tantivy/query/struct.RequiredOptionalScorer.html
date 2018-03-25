@@ -10,7 +10,8 @@
     <title>tantivy::query::RequiredOptionalScorer - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -98,11 +99,11 @@ and complements the score using the optional scorer.</p>
 </div><h4 id='method.collect' class="method"><span id='collect.v' class='invisible'><code>fn <a href='../../tantivy/query/trait.Scorer.html#method.collect' class='fnname'>collect</a>(&amp;mut self, collector: &amp;mut <a class="trait" href="../../tantivy/collector/trait.Collector.html" title="trait tantivy::collector::Collector">Collector</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/query/scorer.rs.html#20-24' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Consumes the complete <code>DocSet</code> and push the scored documents to the collector. <a href="../../tantivy/query/trait.Scorer.html#method.collect">Read more</a></p>
 </div></div></div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/query/struct.RequiredOptionalScorer.html" title="struct tantivy::query::RequiredOptionalScorer">RequiredOptionalScorer</a>&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;TOptScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TReqScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TScoreCombiner: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/query/struct.RequiredOptionalScorer.html" title="struct tantivy::query::RequiredOptionalScorer">RequiredOptionalScorer</a>&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;TOptScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TReqScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TScoreCombiner: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/query/struct.RequiredOptionalScorer.html" title="struct tantivy::query::RequiredOptionalScorer">RequiredOptionalScorer</a>&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;TOptScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TReqScorer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;TScoreCombiner: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

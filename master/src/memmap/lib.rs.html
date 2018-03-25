@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1041,7 +1042,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">Protection</span>::<span class="ident">ReadWrite</span> <span class="op">|</span> <span class="ident">Protection</span>::<span class="ident">ReadCopy</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -1559,8 +1560,8 @@
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">mmap</span>.<span class="ident">len</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_len</span>, <span class="ident">len</span>);
 
-        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="comment">// check that the mmap is empty</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">zeros</span>[..], <span class="kw">unsafe</span> { <span class="ident">mmap</span>.<span class="ident">as_slice</span>() });
@@ -1593,8 +1594,8 @@
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">mmap</span>.<span class="ident">len</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">expected_len</span>, <span class="ident">len</span>);
 
-        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="comment">// check that the mmap is empty</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">zeros</span>[..], <span class="kw">unsafe</span> { <span class="ident">mmap</span>.<span class="ident">as_slice</span>() });
@@ -1704,8 +1705,8 @@
                                               <span class="ident">len</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="ident">mmap</span>.<span class="ident">len</span>());
 
-        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="comment">// check that the mmap is empty</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">zeros</span>[..], <span class="kw">unsafe</span> { <span class="ident">mmap</span>.<span class="ident">as_slice</span>() });
@@ -1739,7 +1740,7 @@
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="number">128</span>;
         <span class="kw">let</span> <span class="ident">split</span> <span class="op">=</span> <span class="number">32</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">view</span> <span class="op">=</span> <span class="ident">Mmap</span>::<span class="ident">anonymous</span>(<span class="ident">len</span>, <span class="ident">Protection</span>::<span class="ident">ReadWrite</span>).<span class="ident">unwrap</span>().<span class="ident">into_view</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="comment">// write values into the view</span>
         <span class="kw">unsafe</span> { <span class="ident">view</span>.<span class="ident">as_mut_slice</span>() }.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">incr</span>[..]).<span class="ident">unwrap</span>();
 
@@ -1759,7 +1760,7 @@
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="number">128</span>;
         <span class="kw">let</span> <span class="ident">split</span> <span class="op">=</span> <span class="number">32</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">view</span> <span class="op">=</span> <span class="ident">Mmap</span>::<span class="ident">anonymous</span>(<span class="ident">len</span>, <span class="ident">Protection</span>::<span class="ident">ReadWrite</span>).<span class="ident">unwrap</span>().<span class="ident">into_view_sync</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="comment">// write values into the view</span>
         <span class="kw">unsafe</span> { <span class="ident">view</span>.<span class="ident">as_mut_slice</span>() }.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">incr</span>[..]).<span class="ident">unwrap</span>();
 
@@ -1789,7 +1790,7 @@
                                        .<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
         <span class="ident">file</span>.<span class="ident">set_len</span>(<span class="ident">len</span>).<span class="ident">unwrap</span>();
 
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="kw">let</span> <span class="ident">incr1</span> <span class="op">=</span> <span class="ident">incr</span>[<span class="number">0</span>..<span class="ident">split</span>].<span class="ident">to_owned</span>();
         <span class="kw">let</span> <span class="ident">incr2</span> <span class="op">=</span> <span class="ident">incr</span>[<span class="ident">split</span>..].<span class="ident">to_owned</span>();
 
@@ -1887,8 +1888,8 @@
                                               <span class="ident">len</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">len</span>, <span class="ident">mmap</span>.<span class="ident">len</span>());
 
-        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
-        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">zeros</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">0</span>).<span class="ident">take</span>(<span class="ident">len</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">incr</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">len</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="comment">// check that the mmap is empty</span>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">zeros</span>[..], <span class="kw">unsafe</span> { <span class="ident">mmap</span>.<span class="ident">as_slice</span>() });

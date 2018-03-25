@@ -10,7 +10,8 @@
     <title>field_entry.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -377,7 +378,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_int_fast</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">field_type</span> {
             <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> <span class="ident">options</span>.<span class="ident">is_fast</span>(),
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -480,7 +481,7 @@
                                 <span class="string">&quot;text&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
                                 <span class="string">&quot;u64&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
                                 <span class="string">&quot;i64&quot;</span> <span class="op">=&gt;</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="ident">map</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>)),
-                                _ <span class="op">=&gt;</span> {
+                                <span class="kw">_</span> <span class="op">=&gt;</span> {
                                     <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Unrecognised type {}&quot;</span>, <span class="ident">ty</span>);
                                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="ident">msg</span>));
                                 }
@@ -532,8 +533,8 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;title&quot;</span>, <span class="ident">field_value</span>.<span class="ident">name</span>);
 
         <span class="kw">match</span> <span class="ident">field_value</span>.<span class="ident">field_type</span> {
-            <span class="ident">FieldType</span>::<span class="ident">Str</span>(_) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">true</span>),
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;expected FieldType::Str&quot;</span>),
+            <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">true</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;expected FieldType::Str&quot;</span>),
         }
     }
 }

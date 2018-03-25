@@ -10,7 +10,8 @@
     <title>managed_directory.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -545,7 +546,7 @@
                     })),
                 })
             }
-            <span class="prelude-val">Err</span>(<span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(_)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ManagedDirectory</span> {
+            <span class="prelude-val">Err</span>(<span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ManagedDirectory</span> {
                 <span class="ident">directory</span>: <span class="kw">box</span> <span class="ident">directory</span>,
                 <span class="ident">meta_informations</span>: <span class="ident">Arc</span>::<span class="ident">default</span>(),
             }),
@@ -594,23 +595,23 @@
         {
             <span class="kw">for</span> <span class="ident">file_to_delete</span> <span class="kw">in</span> <span class="ident">files_to_delete</span> {
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="ident">file_to_delete</span>) {
-                    <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> {
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                         <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;Deleted {:?}&quot;</span>, <span class="ident">file_to_delete</span>);
                         <span class="ident">deleted_files</span>.<span class="ident">push</span>(<span class="ident">file_to_delete</span>);
                     }
                     <span class="prelude-val">Err</span>(<span class="ident">file_error</span>) <span class="op">=&gt;</span> {
                         <span class="kw">match</span> <span class="ident">file_error</span> {
-                            <span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(_) <span class="op">=&gt;</span> {
+                            <span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                                 <span class="ident">deleted_files</span>.<span class="ident">push</span>(<span class="ident">file_to_delete</span>);
                             }
-                            <span class="ident">DeleteError</span>::<span class="ident">IOError</span>(_) <span class="op">=&gt;</span> {
+                            <span class="ident">DeleteError</span>::<span class="ident">IOError</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                                 <span class="kw">if</span> <span class="op">!</span><span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;windows&quot;</span>) {
                                     <span class="comment">// On windows, delete is expected to fail if the file</span>
                                     <span class="comment">// is mmapped.</span>
                                     <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Failed to delete {:?}&quot;</span>, <span class="ident">file_to_delete</span>);
                                 }
                             }
-                            <span class="ident">DeleteError</span>::<span class="ident">FileProtected</span>(_) <span class="op">=&gt;</span> {
+                            <span class="ident">DeleteError</span>::<span class="ident">FileProtected</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                                 <span class="comment">// this is expected.</span>
                             }
                         }

@@ -10,7 +10,8 @@
     <title>ty.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1023,7 +1024,7 @@
         <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Infer</span>(<span class="ident">TypeInfer</span> {
-            <span class="kw">pub</span> <span class="ident">underscore_token</span>: <span class="macro">Token</span><span class="macro">!</span>[_],
+            <span class="kw">pub</span> <span class="ident">underscore_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>],
         }),
 
         <span class="doccomment">/// A macro in the type position.</span>
@@ -1095,7 +1096,7 @@
         <span class="doccomment">/// Argument given a name.</span>
         <span class="ident">Named</span>(<span class="ident">Ident</span>),
         <span class="doccomment">/// Argument not given a name, matched with `_`.</span>
-        <span class="ident">Wild</span>(<span class="macro">Token</span><span class="macro">!</span>[_]),
+        <span class="ident">Wild</span>(<span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>]),
     }
 }
 
@@ -1293,7 +1294,7 @@
 
     <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">TypeInfer</span> {
         <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(_),
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw">_</span>),
             <span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="ident">TypeInfer</span> { <span class="ident">underscore_token</span>: <span class="ident">u</span> }
         ));
 
@@ -1359,7 +1360,7 @@
                 (<span class="ident">ReturnType</span>::<span class="ident">Type</span>(<span class="ident">arrow</span>, <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ty</span>)))
             )
             <span class="op">|</span>
-            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">ReturnType</span>::<span class="ident">Default</span> }
+            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ReturnType</span>::<span class="ident">Default</span> }
         ));
 
         <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
@@ -1377,7 +1378,7 @@
 
     <span class="kw">fn</span> <span class="ident">at_least_one_type</span>(<span class="ident">bounds</span>: <span class="kw-2">&amp;</span><span class="ident">Punctuated</span><span class="op">&lt;</span><span class="ident">TypeParamBound</span>, <span class="macro">Token</span><span class="macro">!</span>[<span class="op">+</span>]<span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">for</span> <span class="ident">bound</span> <span class="kw">in</span> <span class="ident">bounds</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">bound</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">bound</span> {
                 <span class="kw">return</span> <span class="bool-val">true</span>;
             }
         }
@@ -1482,7 +1483,7 @@
         <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
             <span class="macro">map</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Ident</span>), <span class="ident">BareFnArgName</span>::<span class="ident">Named</span>)
             <span class="op">|</span>
-            <span class="macro">map</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(_), <span class="ident">BareFnArgName</span>::<span class="ident">Wild</span>)
+            <span class="macro">map</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="kw">_</span>), <span class="ident">BareFnArgName</span>::<span class="ident">Wild</span>)
         ));
 
         <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {

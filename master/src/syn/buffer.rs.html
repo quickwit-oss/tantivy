@@ -10,7 +10,8 @@
     <title>buffer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -849,7 +850,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// WARNING: This mutates its argument.</span>
     <span class="kw">fn</span> <span class="ident">ignore_none</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(_, <span class="ident">Delimiter</span>::<span class="prelude-val">None</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="kw">_</span>, <span class="ident">Delimiter</span>::<span class="prelude-val">None</span>, <span class="kw-2">ref</span> <span class="ident">buf</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="comment">// NOTE: We call `Cursor::create` here to make sure that situations</span>
             <span class="comment">// where we should immediately exit the span after entering it are</span>
             <span class="comment">// handled correctly.</span>
@@ -892,7 +893,7 @@
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="ident">Entry</span>::<span class="ident">Term</span>(<span class="ident">span</span>, <span class="ident">term</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">term</span>, <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -902,7 +903,7 @@
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="ident">Entry</span>::<span class="ident">Op</span>(<span class="ident">span</span>, <span class="ident">op</span>, <span class="ident">spacing</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">op</span>, <span class="ident">spacing</span>, <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -912,7 +913,7 @@
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="ident">span</span>, <span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">lit</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 

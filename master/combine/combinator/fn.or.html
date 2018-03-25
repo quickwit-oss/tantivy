@@ -10,7 +10,8 @@
     <title>combine::combinator::or - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'or', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'or', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -62,7 +63,7 @@
                </span><a class='srclink' href='../../src/combine/combinator.rs.html#1945-1951' title='goto source code'>[src]</a></span></h1>
 <pre class='rust fn'>pub fn or&lt;P1, P2&gt;(p1: P1, p2: P2) -&gt; <a class="struct" href="../../combine/combinator/struct.Or.html" title="struct combine::combinator::Or">Or</a>&lt;P1, P2&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P1: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;P2: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>&lt;Input = P1::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a>, Output = P1::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>&gt;,&nbsp;</span></pre><div class='docblock'><p>Equivalent to <a href="../primitives/trait.Parser.html#method.or"><code>p1.or(p2)</code></a>.</p>
 <p>If you are looking to chain 3 or more parsers using <code>or</code> you may consider using the
-[<code>choice!</code>] macro instead, which can be clearer and may result in a faster parser.</p>
+<a href="../../combine/macro.choice.html" title="`choice!`"><code>choice!</code></a> macro instead, which can be clearer and may result in a faster parser.</p>
 </div></section>
     <section id='search' class="content hidden"></section>
 

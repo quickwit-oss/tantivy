@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/de.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/de.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>de.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -2101,6 +2102,134 @@
 <span id="2045">2045</span>
 <span id="2046">2046</span>
 <span id="2047">2047</span>
+<span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
+<span id="2068">2068</span>
+<span id="2069">2069</span>
+<span id="2070">2070</span>
+<span id="2071">2071</span>
+<span id="2072">2072</span>
+<span id="2073">2073</span>
+<span id="2074">2074</span>
+<span id="2075">2075</span>
+<span id="2076">2076</span>
+<span id="2077">2077</span>
+<span id="2078">2078</span>
+<span id="2079">2079</span>
+<span id="2080">2080</span>
+<span id="2081">2081</span>
+<span id="2082">2082</span>
+<span id="2083">2083</span>
+<span id="2084">2084</span>
+<span id="2085">2085</span>
+<span id="2086">2086</span>
+<span id="2087">2087</span>
+<span id="2088">2088</span>
+<span id="2089">2089</span>
+<span id="2090">2090</span>
+<span id="2091">2091</span>
+<span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
+<span id="2096">2096</span>
+<span id="2097">2097</span>
+<span id="2098">2098</span>
+<span id="2099">2099</span>
+<span id="2100">2100</span>
+<span id="2101">2101</span>
+<span id="2102">2102</span>
+<span id="2103">2103</span>
+<span id="2104">2104</span>
+<span id="2105">2105</span>
+<span id="2106">2106</span>
+<span id="2107">2107</span>
+<span id="2108">2108</span>
+<span id="2109">2109</span>
+<span id="2110">2110</span>
+<span id="2111">2111</span>
+<span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
+<span id="2115">2115</span>
+<span id="2116">2116</span>
+<span id="2117">2117</span>
+<span id="2118">2118</span>
+<span id="2119">2119</span>
+<span id="2120">2120</span>
+<span id="2121">2121</span>
+<span id="2122">2122</span>
+<span id="2123">2123</span>
+<span id="2124">2124</span>
+<span id="2125">2125</span>
+<span id="2126">2126</span>
+<span id="2127">2127</span>
+<span id="2128">2128</span>
+<span id="2129">2129</span>
+<span id="2130">2130</span>
+<span id="2131">2131</span>
+<span id="2132">2132</span>
+<span id="2133">2133</span>
+<span id="2134">2134</span>
+<span id="2135">2135</span>
+<span id="2136">2136</span>
+<span id="2137">2137</span>
+<span id="2138">2138</span>
+<span id="2139">2139</span>
+<span id="2140">2140</span>
+<span id="2141">2141</span>
+<span id="2142">2142</span>
+<span id="2143">2143</span>
+<span id="2144">2144</span>
+<span id="2145">2145</span>
+<span id="2146">2146</span>
+<span id="2147">2147</span>
+<span id="2148">2148</span>
+<span id="2149">2149</span>
+<span id="2150">2150</span>
+<span id="2151">2151</span>
+<span id="2152">2152</span>
+<span id="2153">2153</span>
+<span id="2154">2154</span>
+<span id="2155">2155</span>
+<span id="2156">2156</span>
+<span id="2157">2157</span>
+<span id="2158">2158</span>
+<span id="2159">2159</span>
+<span id="2160">2160</span>
+<span id="2161">2161</span>
+<span id="2162">2162</span>
+<span id="2163">2163</span>
+<span id="2164">2164</span>
+<span id="2165">2165</span>
+<span id="2166">2166</span>
+<span id="2167">2167</span>
+<span id="2168">2168</span>
+<span id="2169">2169</span>
+<span id="2170">2170</span>
+<span id="2171">2171</span>
+<span id="2172">2172</span>
+<span id="2173">2173</span>
+<span id="2174">2174</span>
+<span id="2175">2175</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2123,6 +2252,9 @@
 <span class="kw">use</span> <span class="ident">read</span>::{<span class="self">self</span>, <span class="ident">Reference</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">read</span>::{<span class="ident">Read</span>, <span class="ident">IoRead</span>, <span class="ident">SliceRead</span>, <span class="ident">StrRead</span>};
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">number</span>::<span class="ident">NumberDeserializer</span>;
 
 <span class="comment">//////////////////////////////////////////////////////////////////////////////</span>
 
@@ -2184,10 +2316,14 @@
     }
 }
 
-<span class="kw">enum</span> <span class="ident">Number</span> {
+<span class="comment">// Not public API. Should be pub(crate).</span>
+<span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Number</span> {
     <span class="ident">F64</span>(<span class="ident">f64</span>),
     <span class="ident">U64</span>(<span class="ident">u64</span>),
     <span class="ident">I64</span>(<span class="ident">i64</span>),
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="ident">String</span>(<span class="ident">String</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">Number</span> {
@@ -2199,6 +2335,12 @@
             <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_f64</span>(<span class="ident">x</span>),
             <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_u64</span>(<span class="ident">x</span>),
             <span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_i64</span>(<span class="ident">x</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+            <span class="ident">Number</span>::<span class="ident">String</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> {
+                <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">NumberDeserializer</span> {
+                    <span class="ident">number</span>: <span class="ident">x</span>.<span class="ident">into</span>(),
+                })
+            },
         }
     }
 
@@ -2207,6 +2349,8 @@
             <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Float</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
             <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
             <span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Signed</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+            <span class="ident">Number</span>::<span class="ident">String</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;number&quot;</span>), <span class="ident">exp</span>),
         }
     }
 }
@@ -2217,7 +2361,7 @@
     <span class="doccomment">/// only has trailing whitespace.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_whitespace</span>()) {
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
@@ -2313,13 +2457,13 @@
             }
             <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">false</span>) {
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">false</span>) {
                     <span class="prelude-val">Ok</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">invalid_type</span>(<span class="ident">exp</span>),
                     <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">err</span>,
                 }
             }
             <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
-                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">true</span>) {
+                <span class="kw">match</span> <span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">true</span>) {
                     <span class="prelude-val">Ok</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">invalid_type</span>(<span class="ident">exp</span>),
                     <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">err</span>,
                 }
@@ -2338,13 +2482,13 @@
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
                 <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Map</span>, <span class="ident">exp</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>),
         };
 
         <span class="self">self</span>.<span class="ident">fix_position</span>(<span class="ident">err</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">deserialize_number</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize_prim_number</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -2361,7 +2505,7 @@
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">false</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>)
             }
             <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">true</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -2385,13 +2529,13 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">parse_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">pos</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char_or_null</span>()) {
             <span class="string">b&#39;0&#39;</span> <span class="op">=&gt;</span> {
                 <span class="comment">// There can be only one leading &#39;0&#39;.</span>
                 <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
                     <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
-                    _ <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">parse_number</span>(<span class="ident">pos</span>, <span class="number">0</span>),
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">parse_number</span>(<span class="ident">positive</span>, <span class="number">0</span>),
                 }
             }
             <span class="ident">c</span> @ <span class="string">b&#39;1&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
@@ -2408,7 +2552,7 @@
                             <span class="comment">// parsing the value as a `f64`.</span>
                             <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">res</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">max_value</span>()) {
                                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_long_integer</span>(
-                                    <span class="ident">pos</span>,
+                                    <span class="ident">positive</span>,
                                     <span class="ident">res</span>,
                                     <span class="number">1</span>, <span class="comment">// res * 10^1</span>
                                 ))));
@@ -2416,19 +2560,19 @@
 
                             <span class="ident">res</span> <span class="op">=</span> <span class="ident">res</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>;
                         }
-                        _ <span class="op">=&gt;</span> {
-                            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_number</span>(<span class="ident">pos</span>, <span class="ident">res</span>);
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {
+                            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_number</span>(<span class="ident">positive</span>, <span class="ident">res</span>);
                         }
                     }
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
         }
     }
 
     <span class="kw">fn</span> <span class="ident">parse_long_integer</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">pos</span>: <span class="ident">bool</span>,
+        <span class="ident">positive</span>: <span class="ident">bool</span>,
         <span class="ident">significand</span>: <span class="ident">u64</span>,
         <span class="kw-2">mut</span> <span class="ident">exponent</span>: <span class="ident">i32</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
@@ -2441,24 +2585,24 @@
                     <span class="ident">exponent</span> <span class="op">+=</span> <span class="number">1</span>;
                 }
                 <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
+                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
                 }
                 <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
+                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
                 }
-                _ <span class="op">=&gt;</span> {
-                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
+                <span class="kw">_</span> <span class="op">=&gt;</span> {
+                    <span class="kw">return</span> <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>);
                 }
             }
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">parse_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">pos</span>: <span class="ident">bool</span>, <span class="ident">significand</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>, <span class="ident">significand</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
-            <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
-            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
-            _ <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="ident">pos</span> {
+            <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
+            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="ident">positive</span> {
                     <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">significand</span>)
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="ident">neg</span> <span class="op">=</span> (<span class="ident">significand</span> <span class="kw">as</span> <span class="ident">i64</span>).<span class="ident">wrapping_neg</span>();
@@ -2476,7 +2620,7 @@
 
     <span class="kw">fn</span> <span class="ident">parse_decimal</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">pos</span>: <span class="ident">bool</span>,
+        <span class="ident">positive</span>: <span class="ident">bool</span>,
         <span class="kw-2">mut</span> <span class="ident">significand</span>: <span class="ident">u64</span>,
         <span class="kw-2">mut</span> <span class="ident">exponent</span>: <span class="ident">i32</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
@@ -2506,14 +2650,14 @@
         }
 
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
-            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>),
-            _ <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>),
+            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">exponent</span>),
         }
     }
 
     <span class="kw">fn</span> <span class="ident">parse_exponent</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">pos</span>: <span class="ident">bool</span>,
+        <span class="ident">positive</span>: <span class="ident">bool</span>,
         <span class="ident">significand</span>: <span class="ident">u64</span>,
         <span class="ident">starting_exp</span>: <span class="ident">i32</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
@@ -2528,13 +2672,13 @@
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
                 <span class="bool-val">false</span>
             }
-            _ <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
         };
 
         <span class="comment">// Make sure a digit follows the exponent place.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">exp</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char_or_null</span>()) {
             <span class="ident">c</span> @ <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> (<span class="ident">c</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">i32</span>,
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
             }
         };
@@ -2544,7 +2688,7 @@
             <span class="kw">let</span> <span class="ident">digit</span> <span class="op">=</span> (<span class="ident">c</span> <span class="op">-</span> <span class="string">b&#39;0&#39;</span>) <span class="kw">as</span> <span class="ident">i32</span>;
 
             <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">exp</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">i32</span>::<span class="ident">max_value</span>()) {
-                <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_exponent_overflow</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">pos_exp</span>);
+                <span class="kw">return</span> <span class="self">self</span>.<span class="ident">parse_exponent_overflow</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">pos_exp</span>);
             }
 
             <span class="ident">exp</span> <span class="op">=</span> <span class="ident">exp</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>;
@@ -2556,7 +2700,7 @@
             <span class="ident">starting_exp</span>.<span class="ident">saturating_sub</span>(<span class="ident">exp</span>)
         };
 
-        <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">pos</span>, <span class="ident">significand</span>, <span class="ident">final_exp</span>)
+        <span class="self">self</span>.<span class="ident">f64_from_parts</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="ident">final_exp</span>)
     }
 
     <span class="comment">// This cold code should not be inlined into the middle of the hot</span>
@@ -2565,7 +2709,7 @@
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">never</span>)]</span>
     <span class="kw">fn</span> <span class="ident">parse_exponent_overflow</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">pos</span>: <span class="ident">bool</span>,
+        <span class="ident">positive</span>: <span class="ident">bool</span>,
         <span class="ident">significand</span>: <span class="ident">u64</span>,
         <span class="ident">pos_exp</span>: <span class="ident">bool</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
@@ -2577,12 +2721,171 @@
         <span class="kw">while</span> <span class="kw">let</span> <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
             <span class="self">self</span>.<span class="ident">eat_char</span>();
         }
-        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">pos</span> { <span class="number">0.0</span> } <span class="kw">else</span> { <span class="op">-</span><span class="number">0.0</span> })
+        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">positive</span> { <span class="number">0.0</span> } <span class="kw">else</span> { <span class="op">-</span><span class="number">0.0</span> })
+    }
+
+    <span class="comment">// Not public API. Should be pub(crate).</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_any_signed_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">peek</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek</span>()) {
+            <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">b</span>,
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>));
+            }
+        };
+
+        <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">peek</span> {
+            <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">eat_char</span>();
+                <span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">false</span>)
+            }
+            <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">true</span>)
+            }
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
+        };
+
+        <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek</span>()) {
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">value</span>,
+        };
+
+        <span class="kw">match</span> <span class="ident">value</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="comment">// The de::Error impl creates errors with unknown line and column.</span>
+            <span class="comment">// Fill in the position here by looking at the current index in the</span>
+            <span class="comment">// input. There is no way to tell whether this should call `error`</span>
+            <span class="comment">// or `peek_error` so pick the one that seems correct more often.</span>
+            <span class="comment">// Worst case, the position is off by one character.</span>
+            <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">fix_position</span>(<span class="ident">err</span>)),
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
+    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">pos</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span>
+    {
+        <span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="ident">pos</span>)
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">pos</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span>
+    {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">with_capacity</span>(<span class="number">16</span>);
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">pos</span> {
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="string">&#39;-&#39;</span>);
+        }
+        <span class="self">self</span>.<span class="ident">scan_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">Number</span>::<span class="ident">String</span>(<span class="ident">buf</span>))
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">scan_or_null</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char</span>()) {
+            <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> {
+                <span class="ident">buf</span>.<span class="ident">push</span>(<span class="ident">b</span> <span class="kw">as</span> <span class="ident">char</span>);
+                <span class="prelude-val">Ok</span>(<span class="ident">b</span>)
+            }
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="string">b&#39;\x00&#39;</span>)
+            }
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">scan_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">scan_or_null</span>(<span class="ident">buf</span>)) {
+            <span class="string">b&#39;0&#39;</span> <span class="op">=&gt;</span> {
+                <span class="comment">// There can be only one leading &#39;0&#39;.</span>
+                <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+                    <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                        <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>))
+                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">scan_number</span>(<span class="ident">buf</span>),
+                }
+            }
+            <span class="string">b&#39;1&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                <span class="kw">loop</span> {
+                    <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+                        <span class="ident">c</span> @ <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                            <span class="self">self</span>.<span class="ident">eat_char</span>();
+                            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="ident">c</span> <span class="kw">as</span> <span class="ident">char</span>);
+                        }
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {
+                            <span class="kw">return</span> <span class="self">self</span>.<span class="ident">scan_number</span>(<span class="ident">buf</span>);
+                        }
+                    }
+                }
+            }
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>)),
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">scan_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+            <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">scan_decimal</span>(<span class="ident">buf</span>),
+            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">scan_exponent</span>(<span class="ident">buf</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">scan_decimal</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">eat_char</span>();
+        <span class="ident">buf</span>.<span class="ident">push</span>(<span class="string">&#39;.&#39;</span>);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">at_least_one_digit</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">while</span> <span class="kw">let</span> <span class="ident">c</span> @ <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+            <span class="self">self</span>.<span class="ident">eat_char</span>();
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="ident">c</span> <span class="kw">as</span> <span class="ident">char</span>);
+            <span class="ident">at_least_one_digit</span> <span class="op">=</span> <span class="bool-val">true</span>;
+        }
+
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">at_least_one_digit</span> {
+            <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
+        }
+
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">scan_exponent</span>(<span class="ident">buf</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">scan_exponent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">eat_char</span>();
+        <span class="ident">buf</span>.<span class="ident">push</span>(<span class="string">&#39;e&#39;</span>);
+
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+            <span class="string">b&#39;+&#39;</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">eat_char</span>();
+            }
+            <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
+                <span class="self">self</span>.<span class="ident">eat_char</span>();
+                <span class="ident">buf</span>.<span class="ident">push</span>(<span class="string">&#39;-&#39;</span>);
+            }
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
+        }
+
+        <span class="comment">// Make sure a digit follows the exponent place.</span>
+        <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">scan_or_null</span>(<span class="ident">buf</span>)) {
+            <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
+            }
+        }
+
+        <span class="kw">while</span> <span class="kw">let</span> <span class="ident">c</span> @ <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
+            <span class="self">self</span>.<span class="ident">eat_char</span>();
+            <span class="ident">buf</span>.<span class="ident">push</span>(<span class="ident">c</span> <span class="kw">as</span> <span class="ident">char</span>);
+        }
+
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn</span> <span class="ident">f64_from_parts</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-        <span class="ident">pos</span>: <span class="ident">bool</span>,
+        <span class="ident">positive</span>: <span class="ident">bool</span>,
         <span class="ident">significand</span>: <span class="ident">u64</span>,
         <span class="kw-2">mut</span> <span class="ident">exponent</span>: <span class="ident">i32</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
@@ -2612,7 +2915,7 @@
                 }
             }
         }
-        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">pos</span> { <span class="ident">f</span> } <span class="kw">else</span> { <span class="op">-</span><span class="ident">f</span> })
+        <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">positive</span> { <span class="ident">f</span> } <span class="kw">else</span> { <span class="op">-</span><span class="ident">f</span> })
     }
 
     <span class="kw">fn</span> <span class="ident">parse_object_colon</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
@@ -2621,7 +2924,7 @@
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
                 <span class="prelude-val">Ok</span>(())
             }
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>)),
         }
     }
@@ -2636,10 +2939,10 @@
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">parse_whitespace</span>() {
                     <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span>)),
-                    _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
                 }
             }
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingList</span>)),
         }
     }
@@ -2651,7 +2954,7 @@
                 <span class="prelude-val">Ok</span>(())
             }
             <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span>)),
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>)),
         }
     }
@@ -2710,7 +3013,7 @@
                 <span class="self">self</span>.<span class="ident">remaining_depth</span> <span class="op">+=</span> <span class="number">1</span>;
                 <span class="ident">res</span>
             }
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>))
             }
         }
@@ -2729,7 +3032,7 @@
                     <span class="self">self</span>.<span class="ident">eat_char</span>();
                 }
             }
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
             }
         }
@@ -2737,7 +3040,7 @@
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
             <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">ignore_decimal</span>(),
             <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">ignore_exponent</span>(),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -2756,7 +3059,7 @@
 
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
             <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">ignore_exponent</span>(),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -2765,13 +3068,13 @@
 
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
             <span class="string">b&#39;+&#39;</span> <span class="op">|</span> <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">eat_char</span>(),
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
 
         <span class="comment">// Make sure a digit follows the exponent place.</span>
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char_or_null</span>()) {
             <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>));
             }
         }
@@ -2795,7 +3098,7 @@
                 <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> <span class="op">=&gt;</span> {
                     <span class="self">self</span>.<span class="ident">eat_char</span>();
                 }
-                <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">first</span> {
                         <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
                     } <span class="kw">else</span> {
@@ -2842,7 +3145,7 @@
                     <span class="self">self</span>.<span class="ident">eat_char</span>();
                     <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">read</span>.<span class="ident">ignore_str</span>());
                 }
-                <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>));
                 }
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
@@ -2855,7 +3158,7 @@
                     <span class="self">self</span>.<span class="ident">eat_char</span>();
                     <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">ignore_value</span>());
                 }
-                <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>));
                 }
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
@@ -2900,6 +3203,17 @@
      <span class="number">1e290</span>, <span class="number">1e291</span>, <span class="number">1e292</span>, <span class="number">1e293</span>, <span class="number">1e294</span>, <span class="number">1e295</span>, <span class="number">1e296</span>, <span class="number">1e297</span>, <span class="number">1e298</span>, <span class="number">1e299</span>,
      <span class="number">1e300</span>, <span class="number">1e301</span>, <span class="number">1e302</span>, <span class="number">1e303</span>, <span class="number">1e304</span>, <span class="number">1e305</span>, <span class="number">1e306</span>, <span class="number">1e307</span>, <span class="number">1e308</span>];
 
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">deserialize_prim_number</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">method</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
+        <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">method</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+        {
+            <span class="self">self</span>.<span class="ident">deserialize_prim_number</span>(<span class="ident">visitor</span>)
+        }
+    }
+}
+
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="lifetime">&#39;a</span>, <span class="ident">R</span>: <span class="ident">Read</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;&gt;</span> <span class="ident">de</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="ident">R</span><span class="op">&gt;</span> {
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Error</span>;
 
@@ -2933,9 +3247,11 @@
             }
             <span class="string">b&#39;-&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
-                <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">false</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>)
+                <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">false</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>)
             }
-            <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="bool-val">true</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>),
+            <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> {
+                <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_any_number</span>(<span class="bool-val">true</span>)).<span class="ident">visit</span>(<span class="ident">visitor</span>)
+            }
             <span class="string">b&#39;&quot;&#39;</span> <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">eat_char</span>();
                 <span class="self">self</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
@@ -2957,7 +3273,7 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
@@ -2973,10 +3289,10 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3012,7 +3328,7 @@
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;alse&quot;</span>));
                 <span class="ident">visitor</span>.<span class="ident">visit_bool</span>(<span class="bool-val">false</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3021,75 +3337,16 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">deserialize_i8</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_i16</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_i32</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_i64</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_u8</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_u16</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_u32</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_u64</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_f32</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">deserialize_f64</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="self">self</span>.<span class="ident">deserialize_number</span>(<span class="ident">visitor</span>)
-    }
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_i8</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_i16</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_i32</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_i64</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_u8</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_u16</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_u32</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_u64</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_f32</span>);
+    <span class="macro">deserialize_prim_number</span><span class="macro">!</span>(<span class="ident">deserialize_f64</span>);
 
     <span class="kw">fn</span> <span class="ident">deserialize_char</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
@@ -3118,7 +3375,7 @@
                     <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3236,7 +3493,7 @@
                 }
             }
             <span class="string">b&#39;[&#39;</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">deserialize_seq</span>(<span class="ident">visitor</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3265,7 +3522,7 @@
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;ull&quot;</span>));
                 <span class="ident">visitor</span>.<span class="ident">visit_none</span>()
             }
-            _ <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_some</span>(<span class="self">self</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_some</span>(<span class="self">self</span>),
         }
     }
 
@@ -3286,7 +3543,7 @@
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_ident</span>(<span class="string">b&quot;ull&quot;</span>));
                 <span class="ident">visitor</span>.<span class="ident">visit_unit</span>()
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3340,10 +3597,10 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3400,10 +3657,10 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3442,7 +3699,7 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_seq</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
             <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> {
@@ -3458,10 +3715,10 @@
 
                 <span class="kw">match</span> (<span class="ident">ret</span>, <span class="self">self</span>.<span class="ident">end_map</span>()) {
                     (<span class="prelude-val">Ok</span>(<span class="ident">ret</span>), <span class="prelude-val">Ok</span>(())) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ret</span>),
-                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), _) <span class="op">|</span> (_, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
+                    (<span class="prelude-val">Err</span>(<span class="ident">err</span>), <span class="kw">_</span>) <span class="op">|</span> (<span class="kw">_</span>, <span class="prelude-val">Err</span>(<span class="ident">err</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">err</span>),
                 }
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
         };
 
         <span class="kw">match</span> <span class="ident">value</span> {
@@ -3499,12 +3756,12 @@
                         <span class="self">self</span>.<span class="ident">eat_char</span>();
                         <span class="prelude-val">Ok</span>(<span class="ident">value</span>)
                     }
-                    <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>)),
                 }
             }
             <span class="prelude-val">Some</span>(<span class="string">b&#39;&quot;&#39;</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_enum</span>(<span class="ident">UnitVariantAccess</span>::<span class="ident">new</span>(<span class="self">self</span>)),
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>)),
         }
     }
@@ -3572,7 +3829,7 @@
 
         <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span>)),
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">de</span>)))),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">de</span>)))),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>)),
         }
     }
@@ -3623,7 +3880,7 @@
         <span class="kw">match</span> <span class="ident">peek</span> {
             <span class="prelude-val">Some</span>(<span class="string">b&#39;&quot;&#39;</span>) <span class="op">=&gt;</span> <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">MapKey</span> { <span class="ident">de</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">de</span> }).<span class="ident">map</span>(<span class="prelude-val">Some</span>),
             <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span>)),
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>)),
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">peek_error</span>(<span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span>)),
         }
     }
@@ -3750,8 +4007,8 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">deserialize_integer_key</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">deserialize</span>:<span class="ident">ident</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">visit</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
-        <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">deserialize</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">method</span>:<span class="ident">ident</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">visit</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
+        <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">method</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
         <span class="kw">where</span>
             <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
         {
@@ -3759,9 +4016,9 @@
             <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>.<span class="ident">clear</span>();
             <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">str_buf</span>));
             <span class="kw">match</span> (<span class="ident">string</span>.<span class="ident">parse</span>(), <span class="ident">string</span>) {
-                (<span class="prelude-val">Ok</span>(<span class="ident">integer</span>), _) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">visit</span>(<span class="ident">integer</span>),
-                (<span class="prelude-val">Err</span>(_), <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>)) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
-                (<span class="prelude-val">Err</span>(_), <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>)) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
+                (<span class="prelude-val">Ok</span>(<span class="ident">integer</span>), <span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">visit</span>(<span class="ident">integer</span>),
+                (<span class="prelude-val">Err</span>(<span class="kw">_</span>), <span class="ident">Reference</span>::<span class="ident">Borrowed</span>(<span class="ident">s</span>)) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">s</span>),
+                (<span class="prelude-val">Err</span>(<span class="kw">_</span>), <span class="ident">Reference</span>::<span class="ident">Copied</span>(<span class="ident">s</span>)) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">s</span>),
             }
         }
     }
@@ -3942,7 +4199,7 @@
             <span class="prelude-val">Some</span>(<span class="string">b&#39; &#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;\n&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;\t&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;\r&#39;</span>) <span class="op">|</span>
             <span class="prelude-val">Some</span>(<span class="string">b&#39;&quot;&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;[&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;]&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;{&#39;</span>) <span class="op">|</span>
             <span class="prelude-val">Some</span>(<span class="string">b&#39;}&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;,&#39;</span>) <span class="op">|</span> <span class="prelude-val">Some</span>(<span class="string">b&#39;:&#39;</span>) <span class="op">|</span> <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-            <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">pos</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">peek_position</span>();
                 <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">syntax</span>(<span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>, <span class="ident">pos</span>.<span class="ident">line</span>, <span class="ident">pos</span>.<span class="ident">column</span>))
             },
@@ -3972,7 +4229,7 @@
                 <span class="comment">// the beginning of a self-delineated value.</span>
                 <span class="kw">let</span> <span class="ident">self_delineated_value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">b</span> {
                     <span class="string">b&#39;[&#39;</span> <span class="op">|</span> <span class="string">b&#39;&quot;&#39;</span> <span class="op">|</span> <span class="string">b&#39;{&#39;</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-                    _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
                 };
                 <span class="self">self</span>.<span class="ident">offset</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">de</span>.<span class="ident">read</span>.<span class="ident">byte_offset</span>();
                 <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">de</span>::<span class="ident">Deserialize</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">de</span>);
@@ -3983,7 +4240,7 @@
                         <span class="kw">if</span> <span class="ident">self_delineated_value</span> {
                             <span class="prelude-val">Ok</span>(<span class="ident">value</span>)
                         } <span class="kw">else</span> {
-                            <span class="self">self</span>.<span class="ident">peek_end_of_value</span>().<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">value</span>)
+                            <span class="self">self</span>.<span class="ident">peek_end_of_value</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">value</span>)
                         }
                     }
                     <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>)

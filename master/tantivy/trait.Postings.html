@@ -10,7 +10,8 @@
     <title>tantivy::Postings - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Trait Postings</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.term_freq">term_freq</a><a href="#tymethod.positions">positions</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'Postings', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+        <p class='location'>Trait Postings</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.term_freq">term_freq</a><a href="#tymethod.positions_with_offset">positions_with_offset</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.positions">positions</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'Postings', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,10 +60,12 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/tantivy/postings/postings.rs.html#13-19' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Postings: <a class="trait" href="../tantivy/trait.DocSet.html" title="trait tantivy::DocSet">DocSet</a> {
+               </span><a class='srclink' href='../src/tantivy/postings/postings.rs.html#13-24' title='goto source code'>[src]</a></span></h1>
+<pre class='rust trait'>pub trait Postings: <a class="trait" href="../tantivy/trait.DocSet.html" title="trait tantivy::DocSet">DocSet</a> + 'static {
     fn <a href='#tymethod.term_freq' class='fnname'>term_freq</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;
-<div class='item-spacer'></div>    fn <a href='#tymethod.positions' class='fnname'>positions</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>;
+<div class='item-spacer'></div>    fn <a href='#tymethod.positions_with_offset' class='fnname'>positions_with_offset</a>(&amp;mut self, offset: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;);
+
+    fn <a href='#method.positions' class='fnname'>positions</a>(&amp;mut self, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;) { ... }
 }</pre><div class='docblock'><p>Postings (also called inverted list)</p>
 <p>For a given term, it is the list of doc ids of the doc
 containing the term. Optionally, for each document,
@@ -77,14 +80,19 @@ for merging segments or for testing.</p>
             </h2>
             <div class='methods'>
         <h3 id='tymethod.term_freq' class='method'><span id='term_freq.v' class='invisible'><code>fn <a href='#tymethod.term_freq' class='fnname'>term_freq</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></h3><div class='docblock'><p>Returns the term frequency</p>
-</div><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span></div><div class="content hidden"><h3 class="important">Important traits for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></h3><code class="content"><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Write.html" title="trait std::io::Write">Write</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a> for <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></span></code></div></div><h3 id='tymethod.positions' class='method'><span id='positions.v' class='invisible'><code>fn <a href='#tymethod.positions' class='fnname'>positions</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a></code></span></h3><div class='docblock'><p>Returns the list of positions of the term, expressed as a list of
+</div><h3 id='tymethod.positions_with_offset' class='method'><span id='positions_with_offset.v' class='invisible'><code>fn <a href='#tymethod.positions_with_offset' class='fnname'>positions_with_offset</a>(&amp;mut self, offset: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;)</code></span></h3><div class='docblock'><p>Returns the list of positions of the term, expressed as a list of
 token ordinals.</p>
 </div></div>
+            <h2 id='provided-methods' class='small-section-header'>
+              Provided Methods<a href='#provided-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='method.positions' class='method'><span id='positions.v' class='invisible'><code>fn <a href='#method.positions' class='fnname'>positions</a>(&amp;mut self, output: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt;)</code></span></h3></div>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../src/tantivy/postings/segment_postings.rs.html#308-322' title='goto source code'>[src]</a></div><code>impl Postings for <a class="struct" href="../tantivy/postings/struct.SegmentPostings.html" title="struct tantivy::postings::SegmentPostings">SegmentPostings</a></code></li>
+    <li><div class='out-of-band'><a class='srclink' href='../src/tantivy/postings/segment_postings.rs.html#299-320' title='goto source code'>[src]</a></div><code>impl&lt;TDeleteSet:&nbsp;<a class="trait" href="../tantivy/postings/trait.DeleteSet.html" title="trait tantivy::postings::DeleteSet">DeleteSet</a>&gt; Postings for <a class="struct" href="../tantivy/postings/struct.SegmentPostings.html" title="struct tantivy::postings::SegmentPostings">SegmentPostings</a>&lt;TDeleteSet&gt;</code></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../implementors/tantivy/trait.Postings.js">
                  </script></section>

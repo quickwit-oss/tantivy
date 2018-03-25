@@ -10,7 +10,8 @@
     <title>query_grammar.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -161,7 +162,7 @@
 {
     <span class="kw">let</span> <span class="ident">term_val</span> <span class="op">=</span> <span class="op">||</span> {
         <span class="kw">let</span> <span class="ident">word</span> <span class="op">=</span> <span class="ident">many1</span>(<span class="ident">satisfy</span>(<span class="op">|</span><span class="ident">c</span>: <span class="ident">char</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_alphanumeric</span>()));
-        <span class="kw">let</span> <span class="ident">phrase</span> <span class="op">=</span> (<span class="ident">char</span>(<span class="string">&#39;&quot;&#39;</span>), <span class="ident">many1</span>(<span class="ident">satisfy</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span> <span class="op">!=</span> <span class="string">&#39;&quot;&#39;</span>)), <span class="ident">char</span>(<span class="string">&#39;&quot;&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">s</span>, _)<span class="op">|</span> <span class="ident">s</span>);
+        <span class="kw">let</span> <span class="ident">phrase</span> <span class="op">=</span> (<span class="ident">char</span>(<span class="string">&#39;&quot;&#39;</span>), <span class="ident">many1</span>(<span class="ident">satisfy</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span> <span class="op">!=</span> <span class="string">&#39;&quot;&#39;</span>)), <span class="ident">char</span>(<span class="string">&#39;&quot;&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">s</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">s</span>);
         <span class="ident">phrase</span>.<span class="ident">or</span>(<span class="ident">word</span>)
     };
 
@@ -176,7 +177,7 @@
     <span class="kw">let</span> <span class="ident">term_val_with_field</span> <span class="op">=</span> <span class="ident">negative_numbers</span>.<span class="ident">or</span>(<span class="ident">term_val</span>());
 
     <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span>
-        (<span class="ident">field</span>, <span class="ident">char</span>(<span class="string">&#39;:&#39;</span>), <span class="ident">term_val_with_field</span>).<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field_name</span>, _, <span class="ident">phrase</span>)<span class="op">|</span> <span class="ident">UserInputLiteral</span> {
+        (<span class="ident">field</span>, <span class="ident">char</span>(<span class="string">&#39;:&#39;</span>), <span class="ident">term_val_with_field</span>).<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field_name</span>, <span class="kw">_</span>, <span class="ident">phrase</span>)<span class="op">|</span> <span class="ident">UserInputLiteral</span> {
             <span class="ident">field_name</span>: <span class="prelude-val">Some</span>(<span class="ident">field_name</span>),
             <span class="ident">phrase</span>,
         });
@@ -195,9 +196,9 @@
     <span class="ident">I</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">char</span><span class="op">&gt;</span>,
 {
     (<span class="ident">char</span>(<span class="string">&#39;-&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>))
-        .<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
-        .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;+&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Must</span>(<span class="kw">box</span> <span class="ident">expr</span>)))
-        .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;(&#39;</span>), <span class="ident">parser</span>(<span class="ident">parse_to_ast</span>), <span class="ident">char</span>(<span class="string">&#39;)&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(_, <span class="ident">expr</span>, _)<span class="op">|</span> <span class="ident">expr</span>))
+        .<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Not</span>(<span class="kw">box</span> <span class="ident">expr</span>))
+        .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;+&#39;</span>), <span class="ident">parser</span>(<span class="ident">leaf</span>)).<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">expr</span>)<span class="op">|</span> <span class="ident">UserInputAST</span>::<span class="ident">Must</span>(<span class="kw">box</span> <span class="ident">expr</span>)))
+        .<span class="ident">or</span>((<span class="ident">char</span>(<span class="string">&#39;(&#39;</span>), <span class="ident">parser</span>(<span class="ident">parse_to_ast</span>), <span class="ident">char</span>(<span class="string">&#39;)&#39;</span>)).<span class="ident">map</span>(<span class="op">|</span>(<span class="kw">_</span>, <span class="ident">expr</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">expr</span>))
         .<span class="ident">or</span>(<span class="ident">parser</span>(<span class="ident">literal</span>))
         .<span class="ident">parse_stream</span>(<span class="ident">input</span>)
 }

@@ -10,7 +10,8 @@
     <title>vint.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -166,7 +167,7 @@
                     }
                     <span class="ident">shift</span> <span class="op">+=</span> <span class="number">7</span>;
                 }
-                _ <span class="op">=&gt;</span> {
+                <span class="kw">_</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(
                         <span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>,
                         <span class="string">&quot;Reach end of buffer&quot;</span>,

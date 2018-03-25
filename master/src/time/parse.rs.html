@@ -10,7 +10,8 @@
     <title>parse.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -731,7 +732,7 @@
 
                 <span class="comment">// consume the colon if its present,</span>
                 <span class="comment">// just ignore it otherwise</span>
-                <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">parse_char</span>(<span class="ident">s</span>, <span class="string">&#39;:&#39;</span>);
+                <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">parse_char</span>(<span class="ident">s</span>, <span class="string">&#39;:&#39;</span>);
 
                 <span class="kw">match</span> <span class="ident">match_digits</span>(<span class="ident">s</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="bool-val">false</span>) {
                     <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="op">=&gt;</span> <span class="ident">minutes</span> <span class="op">=</span> <span class="ident">m</span>,
@@ -782,10 +783,10 @@
         <span class="kw">if</span> <span class="ident">n</span> <span class="op">&gt;</span> <span class="ident">max_digits</span> { <span class="kw">return</span> <span class="prelude-val">None</span> }
     }
     <span class="kw">let</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">ss</span>[<span class="ident">n</span>..].<span class="ident">char_indices</span>();
-    <span class="kw">for</span> (_, <span class="ident">ch</span>) <span class="kw">in</span> <span class="ident">chars</span>.<span class="ident">take</span>(<span class="ident">max_digits</span> <span class="op">-</span> <span class="ident">n</span>) {
+    <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">ch</span>) <span class="kw">in</span> <span class="ident">chars</span>.<span class="ident">take</span>(<span class="ident">max_digits</span> <span class="op">-</span> <span class="ident">n</span>) {
         <span class="kw">match</span> <span class="ident">ch</span> {
             <span class="string">&#39;0&#39;</span> ... <span class="string">&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">value</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> (<span class="ident">ch</span> <span class="kw">as</span> <span class="ident">i64</span> <span class="op">-</span> <span class="string">&#39;0&#39;</span> <span class="kw">as</span> <span class="ident">i64</span>),
-            _ <span class="op">=&gt;</span> <span class="kw">break</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
         }
         <span class="ident">n</span> <span class="op">+=</span> <span class="number">1</span>;
     }
@@ -813,7 +814,7 @@
                 <span class="ident">value</span> <span class="op">+=</span> <span class="ident">digit</span> <span class="op">*</span> <span class="ident">multiplier</span>;
                 <span class="ident">multiplier</span> <span class="op">/=</span> <span class="number">10</span>;
             }
-            _ <span class="op">=&gt;</span> <span class="kw">break</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">break</span>
         }
     }
 
@@ -826,7 +827,7 @@
     <span class="kw">let</span> <span class="ident">before</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">ss</span>;
     <span class="kw">match</span> <span class="ident">match_digits</span>(<span class="ident">ss</span>, <span class="ident">min_digits</span>, <span class="ident">max_digits</span>, <span class="ident">ws</span>) {
         <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="kw">if</span> <span class="ident">val</span> <span class="op">&gt;=</span> <span class="ident">min</span> <span class="op">&amp;&amp;</span> <span class="ident">val</span> <span class="op">&lt;=</span> <span class="ident">max</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>),
-        _ <span class="op">=&gt;</span> { <span class="kw-2">*</span><span class="ident">ss</span> <span class="op">=</span> <span class="ident">before</span>; <span class="prelude-val">None</span> }
+        <span class="kw">_</span> <span class="op">=&gt;</span> { <span class="kw-2">*</span><span class="ident">ss</span> <span class="op">=</span> <span class="ident">before</span>; <span class="prelude-val">None</span> }
     }
 }
 

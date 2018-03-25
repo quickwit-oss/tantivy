@@ -10,7 +10,8 @@
     <title>named.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -630,7 +631,7 @@
     <span class="doccomment">/// might end up persisting an attacker controlled file.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">persist</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">new_path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">File</span>, <span class="ident">PersistError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">imp</span>::<span class="ident">persist</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">path</span>, <span class="ident">new_path</span>.<span class="ident">as_ref</span>(), <span class="bool-val">true</span>) {
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">file</span>),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">file</span>),
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> {
                 <span class="prelude-val">Err</span>(<span class="ident">PersistError</span> {
                     <span class="ident">file</span>: <span class="self">self</span>,
@@ -654,7 +655,7 @@
     <span class="doccomment">/// might end up persisting an attacker controlled file.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">persist_noclobber</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">new_path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">File</span>, <span class="ident">PersistError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="ident">imp</span>::<span class="ident">persist</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">inner</span>().<span class="ident">path</span>, <span class="ident">new_path</span>.<span class="ident">as_ref</span>(), <span class="bool-val">false</span>) {
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">file</span>),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>().<span class="ident">file</span>),
             <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=&gt;</span> {
                 <span class="prelude-val">Err</span>(<span class="ident">PersistError</span> {
                     <span class="ident">file</span>: <span class="self">self</span>,
@@ -678,7 +679,7 @@
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">NamedTempFile</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">File</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">NamedTempFile</span>) <span class="op">-&gt;</span> <span class="ident">File</span> {
         <span class="kw">let</span> <span class="ident">NamedTempFileInner</span> { <span class="ident">path</span>, <span class="ident">file</span> } <span class="op">=</span> <span class="ident">f</span>.<span class="number">0</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>();
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">path</span>);
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">path</span>);
         <span class="ident">file</span>
     }
 }
@@ -687,7 +688,7 @@
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">NamedTempFileInner</span> { <span class="ident">file</span>, <span class="ident">path</span> }) <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">take</span>() {
             <span class="ident">drop</span>(<span class="ident">file</span>);
-            <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">path</span>);
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">fs</span>::<span class="ident">remove_file</span>(<span class="ident">path</span>);
         }
     }
 }
@@ -823,7 +824,7 @@
 
     <span class="doccomment">/// Create the named temporary file in the specified directory.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_in</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">dir</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">NamedTempFile</span><span class="op">&gt;</span> {
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..::<span class="ident">NUM_RETRIES</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..::<span class="ident">NUM_RETRIES</span> {
             <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">dir</span>.<span class="ident">as_ref</span>().<span class="ident">join</span>(<span class="ident">util</span>::<span class="ident">tmpname</span>(<span class="self">self</span>.<span class="ident">prefix</span>, <span class="self">self</span>.<span class="ident">suffix</span>, <span class="self">self</span>.<span class="ident">random_len</span>));
             <span class="kw">return</span> <span class="kw">match</span> <span class="ident">imp</span>::<span class="ident">create_named</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>) {
                 <span class="prelude-val">Ok</span>(<span class="ident">file</span>) <span class="op">=&gt;</span> {

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/stream/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/stream/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1317,7 +1318,7 @@
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">chunks</span>::<span class="ident">Chunks</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">collect</span>::<span class="ident">Collect</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">wait</span>::<span class="ident">Wait</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">split</span>::{<span class="ident">SplitStream</span>, <span class="ident">SplitSink</span>};
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">split</span>::{<span class="ident">SplitStream</span>, <span class="ident">SplitSink</span>, <span class="ident">ReuniteError</span>};
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">futures_unordered</span>::<span class="ident">FuturesUnordered</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">futures_ordered</span>::{<span class="ident">futures_ordered</span>, <span class="ident">FuturesOrdered</span>};
 
@@ -1330,7 +1331,7 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;removed without replacement, recommended to use a \
                          local extension trait or function if needed, more \
-                         details in https://github.com/alexcrichton/futures-rs/issues/228&quot;</span>)]</span>
+                         details in https://github.com/rust-lang-nursery/futures-rs/issues/228&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">BoxStream</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">boxed</span>::<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">T</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span><span class="op">&gt;</span> <span class="op">+</span> <span class="ident">Send</span><span class="op">&gt;</span>;
 
     <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">S</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Stream</span><span class="op">&gt;</span> <span class="ident">Stream</span> <span class="kw">for</span> ::<span class="ident">std</span>::<span class="ident">boxed</span>::<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span> {
@@ -1381,7 +1382,7 @@
 <span class="doccomment">/// entirely. If one of these use cases suits you perfectly and not the other,</span>
 <span class="doccomment">/// please feel welcome to comment on [the issue][being considered]!</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [being considered]: https://github.com/alexcrichton/futures-rs/issues/206</span>
+<span class="doccomment">/// [being considered]: https://github.com/rust-lang-nursery/futures-rs/issues/206</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Stream</span> {
     <span class="doccomment">/// The type of item this stream will yield on success.</span>
     <span class="kw">type</span> <span class="ident">Item</span>;
@@ -1473,7 +1474,7 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="attribute">#[<span class="ident">deprecated</span>(<span class="ident">note</span> <span class="op">=</span> <span class="string">&quot;removed without replacement, recommended to use a \
                          local extension trait or function if needed, more \
-                         details in https://github.com/alexcrichton/futures-rs/issues/228&quot;</span>)]</span>
+                         details in https://github.com/rust-lang-nursery/futures-rs/issues/228&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
     <span class="kw">fn</span> <span class="ident">boxed</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">BoxStream</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
         <span class="kw">where</span> <span class="self">Self</span>: <span class="ident">Sized</span> <span class="op">+</span> <span class="ident">Send</span> <span class="op">+</span> <span class="lifetime">&#39;static</span>,

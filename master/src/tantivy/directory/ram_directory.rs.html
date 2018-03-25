@@ -10,7 +10,8 @@
     <title>ram_directory.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -346,7 +347,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">write</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="ident">PathBuf</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">write</span>().<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">write</span>().<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
             <span class="ident">make_io_err</span>(<span class="macro">format</span><span class="macro">!</span>(
                 <span class="string">&quot;Failed to lock the directory, when trying to write {:?}&quot;</span>,
                 <span class="ident">path</span>
@@ -359,7 +360,7 @@
     <span class="kw">fn</span> <span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span>, <span class="ident">OpenReadError</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="number">0</span>
             .<span class="ident">read</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> {
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
                     <span class="string">&quot;Failed to acquire read lock for the \
                      directory when trying to read {:?}&quot;</span>,
@@ -380,7 +381,7 @@
     <span class="kw">fn</span> <span class="ident">delete</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">Path</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">DeleteError</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="number">0</span>
             .<span class="ident">write</span>()
-            .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> {
+            .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
                     <span class="string">&quot;Failed to acquire write lock for the \
                      directory when trying to delete {:?}&quot;</span>,
@@ -390,7 +391,7 @@
                 <span class="ident">DeleteError</span>::<span class="ident">IOError</span>(<span class="ident">IOError</span>::<span class="ident">with_path</span>(<span class="ident">path</span>.<span class="ident">to_owned</span>(), <span class="ident">io_err</span>))
             })
             .<span class="ident">and_then</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">writable_map</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">writable_map</span>.<span class="ident">remove</span>(<span class="ident">path</span>) {
-                <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(<span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">path</span>))),
             })
     }

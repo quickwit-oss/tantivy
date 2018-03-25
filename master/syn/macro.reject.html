@@ -10,7 +10,8 @@
     <title>syn::reject - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>syn</a></p><script>window.sidebarCurrent = {name: 'reject', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>syn</a></p><script>window.sidebarCurrent = {name: 'reject', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -80,7 +81,7 @@
 <span class="comment">// Parse any item, except for a module.</span>
 <span class="macro">named</span><span class="macro">!</span>(<span class="ident">almost_any_item</span> <span class="op">-&gt;</span> <span class="ident">Item</span>,
     <span class="macro">switch</span><span class="macro">!</span>(<span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Item</span>),
-        <span class="ident">Item</span>::<span class="ident">Mod</span>(_) <span class="op">=&gt;</span> <span class="macro">reject</span><span class="macro">!</span>()
+        <span class="ident">Item</span>::<span class="ident">Mod</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">reject</span><span class="macro">!</span>()
         <span class="op">|</span>
         <span class="ident">ok</span> <span class="op">=&gt;</span> <span class="macro">value</span><span class="macro">!</span>(<span class="ident">ok</span>)
     )

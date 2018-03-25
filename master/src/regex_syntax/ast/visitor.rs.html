@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/ast/visitor.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/ast/visitor.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>visitor.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -908,7 +909,7 @@
                     <span class="ident">tail</span>: <span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">asts</span>[<span class="number">1</span>..],
                 })
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         })
     }
 
@@ -916,8 +917,8 @@
     <span class="doccomment">/// then return it, otherwise return `None`.</span>
     <span class="kw">fn</span> <span class="ident">pop</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">induct</span>: <span class="ident">Frame</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Frame</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="ident">induct</span> {
-            <span class="ident">Frame</span>::<span class="ident">Repetition</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
-            <span class="ident">Frame</span>::<span class="ident">Group</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">Frame</span>::<span class="ident">Repetition</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">Frame</span>::<span class="ident">Group</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">Frame</span>::<span class="ident">Concat</span> { <span class="ident">tail</span>, .. } <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">tail</span>.<span class="ident">is_empty</span>() {
                     <span class="prelude-val">None</span>
@@ -1052,7 +1053,7 @@
                     <span class="ident">rhs</span>: <span class="kw-2">&amp;</span><span class="ident">op</span>.<span class="ident">rhs</span>,
                 })
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1142,14 +1143,14 @@
         <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">ClassInduct</span>::<span class="ident">Item</span>(<span class="ident">it</span>) <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">it</span> {
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Empty)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Literal)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Range)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Ascii)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Perl)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Unicode)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Bracketed)&quot;</span>,
-                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;Item(Union)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Empty)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Literal)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Range)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Ascii)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Perl)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Unicode)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Bracketed)&quot;</span>,
+                    <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;Item(Union)&quot;</span>,
                 }
             }
             <span class="ident">ClassInduct</span>::<span class="ident">BinaryOp</span>(<span class="ident">it</span>) <span class="op">=&gt;</span> {

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/stream/unfold.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/stream/unfold.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>unfold.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -168,6 +169,8 @@
 <span id="112">112</span>
 <span id="113">113</span>
 <span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">mem</span>;
 
@@ -184,7 +187,7 @@
 <span class="doccomment">/// for the returned `Future` to complete with `(a, b)`. It will then yield the</span>
 <span class="doccomment">/// value `a`, and use `b` as the next internal state.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// If the closure returns `None` instead of `Some(Future)`, then the `unfold()`</span>
+<span class="doccomment">/// If the future returns `None` instead of `Some`, then the `unfold()`</span>
 <span class="doccomment">/// will stop producing items and return `Ok(Async::Ready(None))` in future</span>
 <span class="doccomment">/// calls to `poll()`.</span>
 <span class="doccomment">///</span>
@@ -204,22 +207,23 @@
 <span class="doccomment">/// use futures::future::{self, Future};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let mut stream = stream::unfold(0, |state| {</span>
-<span class="doccomment">///     if state &lt;= 2 {</span>
-<span class="doccomment">///         let next_state = state + 1;</span>
-<span class="doccomment">///         let yielded = state  * 2;</span>
-<span class="doccomment">///         let fut = future::ok::&lt;_, u32&gt;((yielded, next_state));</span>
-<span class="doccomment">///         Some(fut)</span>
-<span class="doccomment">///     } else {</span>
-<span class="doccomment">///         None</span>
-<span class="doccomment">///     }</span>
+<span class="doccomment">///     future::ok::&lt;_, u32&gt;(</span>
+<span class="doccomment">///         if state &lt;= 2 {</span>
+<span class="doccomment">///             let next_state = state + 1;</span>
+<span class="doccomment">///             let yielded = state  * 2;</span>
+<span class="doccomment">///             Some((yielded, next_state))</span>
+<span class="doccomment">///         } else {</span>
+<span class="doccomment">///             None</span>
+<span class="doccomment">///         }</span>
+<span class="doccomment">///     )</span>
 <span class="doccomment">/// });</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// let result = stream.collect().wait();</span>
 <span class="doccomment">/// assert_eq!(result, Ok(vec![0, 2, 4]));</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unfold</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span>, <span class="ident">Fut</span>, <span class="ident">It</span><span class="op">&gt;</span>(<span class="ident">init</span>: <span class="ident">T</span>, <span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">Unfold</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span>, <span class="ident">Fut</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Fut</span><span class="op">&gt;</span>,
-          <span class="ident">Fut</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="ident">It</span>, <span class="ident">T</span>)<span class="op">&gt;</span>,
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Fut</span>,
+          <span class="ident">Fut</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">It</span>, <span class="ident">T</span>)<span class="op">&gt;&gt;</span>,
 {
     <span class="ident">Unfold</span> {
         <span class="ident">f</span>: <span class="ident">f</span>,
@@ -238,8 +242,8 @@
 }
 
 <span class="kw">impl</span> <span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span>, <span class="ident">Fut</span>, <span class="ident">It</span><span class="op">&gt;</span> <span class="ident">Stream</span> <span class="kw">for</span> <span class="ident">Unfold</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">F</span>, <span class="ident">Fut</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Fut</span><span class="op">&gt;</span>,
-          <span class="ident">Fut</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="ident">It</span>, <span class="ident">T</span>)<span class="op">&gt;</span>,
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Fut</span>,
+          <span class="ident">Fut</span>: <span class="ident">IntoFuture</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">It</span>, <span class="ident">T</span>)<span class="op">&gt;&gt;</span>,
 {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="ident">It</span>;
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Fut</span>::<span class="ident">Error</span>;
@@ -250,16 +254,17 @@
                 <span class="comment">// State::Empty may happen if the future returned an error</span>
                 <span class="ident">State</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)); }
                 <span class="ident">State</span>::<span class="ident">Ready</span>(<span class="ident">state</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">f</span>)(<span class="ident">state</span>) {
-                        <span class="prelude-val">Some</span>(<span class="ident">fut</span>) <span class="op">=&gt;</span> { <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Processing</span>(<span class="ident">fut</span>.<span class="ident">into_future</span>()); }
-                        <span class="prelude-val">None</span> <span class="op">=&gt;</span> { <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)); }
-                    }
+                    <span class="kw">let</span> <span class="ident">fut</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">f</span>)(<span class="ident">state</span>);
+                    <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Processing</span>(<span class="ident">fut</span>.<span class="ident">into_future</span>());
                 }
                 <span class="ident">State</span>::<span class="ident">Processing</span>(<span class="kw-2">mut</span> <span class="ident">fut</span>) <span class="op">=&gt;</span> {
                     <span class="kw">match</span> <span class="ident">fut</span>.<span class="ident">poll</span>()<span class="question-mark">?</span> {
-                        <span class="ident">Async</span>:: <span class="ident">Ready</span>((<span class="ident">item</span>, <span class="ident">next_state</span>)) <span class="op">=&gt;</span> {
+                        <span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>((<span class="ident">item</span>, <span class="ident">next_state</span>))) <span class="op">=&gt;</span> {
                             <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Ready</span>(<span class="ident">next_state</span>);
                             <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="ident">item</span>)));
+                        }
+                        <span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>) <span class="op">=&gt;</span> {
+                            <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>));
                         }
                         <span class="ident">Async</span>::<span class="ident">NotReady</span> <span class="op">=&gt;</span> {
                             <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Processing</span>(<span class="ident">fut</span>);

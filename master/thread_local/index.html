@@ -10,7 +10,8 @@
     <title>thread_local - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -98,7 +99,7 @@ occur after a thread has exited this does not lead to any race conditions.</p>
 <span class="kw">let</span> <span class="ident">tls</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">ThreadLocal</span>::<span class="ident">new</span>());
 
 <span class="comment">// Create a bunch of threads to do stuff</span>
-<span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
+<span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
     <span class="kw">let</span> <span class="ident">tls2</span> <span class="op">=</span> <span class="ident">tls</span>.<span class="ident">clone</span>();
     <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
         <span class="comment">// Increment a counter to count some event...</span>

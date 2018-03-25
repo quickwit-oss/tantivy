@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1078,7 +1079,7 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">static_fn</span> {
     (($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="ident">pat</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg_ty</span>: <span class="ident">ty</span>),<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span>: <span class="ident">ty</span> { <span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>: <span class="ident">expr</span> }) <span class="op">=&gt;</span> { {
         <span class="kw">fn</span> <span class="ident">temp</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg_ty</span>),<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span> { <span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span> }
-        <span class="ident">temp</span> <span class="kw">as</span> <span class="kw">fn</span>(_) <span class="op">-&gt;</span> _
+        <span class="ident">temp</span> <span class="kw">as</span> <span class="kw">fn</span>(<span class="kw">_</span>) <span class="op">-&gt;</span> <span class="kw">_</span>
     } }
 }
 
@@ -1295,7 +1296,7 @@
     ) <span class="op">=&gt;</span> { {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">parser</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>;
         {
-            <span class="kw">let</span> _: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="ident">Input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span>, <span class="ident">Output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output_type</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">parser</span>;
+            <span class="kw">let</span> <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Parser</span><span class="op">&lt;</span><span class="ident">Input</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span>, <span class="ident">Output</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output_type</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">parser</span>;
         }
         <span class="ident">parser</span>.<span class="ident">add_error</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">errors</span>)
     } }
@@ -1338,13 +1339,13 @@
                     <span class="ident">input</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span>
                     ) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">primitives</span>::<span class="ident">ConsumedResult</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">output_type</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span><span class="op">&gt;</span>
                 {
-                    <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span> { $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span> <span class="ident">__marker</span>: _ } <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
+                    <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span> { $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span> <span class="ident">__marker</span>: <span class="kw">_</span> } <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
                     <span class="macro">combine_parse_lazy</span><span class="macro">!</span>(<span class="ident">input</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>)<span class="kw-2">*</span>)
                 }
 
                 <span class="attribute">#[<span class="ident">inline</span>]</span>
                 <span class="kw">fn</span> <span class="ident">add_error</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">errors</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">ParseError</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span><span class="op">&gt;</span>) {
-                    <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span> { $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span> : <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span>  <span class="ident">__marker</span>: _ } <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
+                    <span class="kw">let</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">type_name</span> { $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span> : <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span>  <span class="ident">__marker</span>: <span class="kw">_</span> } <span class="op">=</span> <span class="kw-2">*</span><span class="self">self</span>;
                     <span class="macro">combine_add_error</span><span class="macro">!</span>(<span class="ident">errors</span> (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">input_type</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">output_type</span>) $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>)<span class="kw-2">*</span>)
                 }
             }
@@ -1408,7 +1409,7 @@
         <span class="ident">I</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">char</span><span class="op">&gt;</span>,
     {
         <span class="kw">let</span> (<span class="ident">s</span>, <span class="ident">input</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(
-            <span class="ident">many1</span>::<span class="op">&lt;</span><span class="ident">String</span>, _<span class="op">&gt;</span>(<span class="ident">digit</span>())
+            <span class="ident">many1</span>::<span class="op">&lt;</span><span class="ident">String</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">digit</span>())
                 .<span class="ident">expected</span>(<span class="string">&quot;integer&quot;</span>)
                 .<span class="ident">parse_stream</span>(<span class="ident">input</span>)
         );
@@ -1533,8 +1534,8 @@
         <span class="kw">fn</span> <span class="ident">plus</span>(<span class="ident">l</span>: <span class="ident">Expr</span>, <span class="ident">r</span>: <span class="ident">Expr</span>) <span class="op">-&gt;</span> <span class="ident">Expr</span> {
             <span class="ident">Expr</span>::<span class="ident">Plus</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">l</span>), <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">r</span>))
         }
-        <span class="kw">let</span> <span class="ident">mul</span> <span class="op">=</span> <span class="ident">char</span>(<span class="string">&#39;*&#39;</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">times</span>);
-        <span class="kw">let</span> <span class="ident">add</span> <span class="op">=</span> <span class="ident">char</span>(<span class="string">&#39;+&#39;</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">plus</span>);
+        <span class="kw">let</span> <span class="ident">mul</span> <span class="op">=</span> <span class="ident">char</span>(<span class="string">&#39;*&#39;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">times</span>);
+        <span class="kw">let</span> <span class="ident">add</span> <span class="op">=</span> <span class="ident">char</span>(<span class="string">&#39;+&#39;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">plus</span>);
         <span class="kw">let</span> <span class="ident">factor</span> <span class="op">=</span> <span class="ident">chainl1</span>(<span class="ident">expr</span>(), <span class="ident">mul</span>);
         <span class="ident">chainl1</span>(<span class="ident">factor</span>, <span class="ident">add</span>).<span class="ident">parse_stream</span>(<span class="ident">input</span>)
     }
@@ -1544,7 +1545,7 @@
         <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="string">r&quot;
 1 * 2 + 3 * test
 &quot;</span>;
-        <span class="kw">let</span> (<span class="ident">result</span>, _) <span class="op">=</span> <span class="ident">parser</span>(<span class="ident">term</span>).<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="ident">input</span>)).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> (<span class="ident">result</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">parser</span>(<span class="ident">term</span>).<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="ident">input</span>)).<span class="ident">unwrap</span>();
 
         <span class="kw">let</span> <span class="ident">e1</span> <span class="op">=</span> <span class="ident">Expr</span>::<span class="ident">Times</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Expr</span>::<span class="ident">Int</span>(<span class="number">1</span>)), <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Expr</span>::<span class="ident">Int</span>(<span class="number">2</span>)));
         <span class="kw">let</span> <span class="ident">e2</span> <span class="op">=</span> <span class="ident">Expr</span>::<span class="ident">Times</span>(
@@ -1563,7 +1564,7 @@
             } <span class="kw">else</span> {
                 <span class="prelude-val">Ok</span>(((), <span class="ident">Consumed</span>::<span class="ident">Empty</span>(<span class="ident">input</span>)))
             },
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(((), <span class="ident">Consumed</span>::<span class="ident">Empty</span>(<span class="ident">input</span>))),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(((), <span class="ident">Consumed</span>::<span class="ident">Empty</span>(<span class="ident">input</span>))),
         }
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1573,18 +1574,18 @@
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">to_string</span>())
             .<span class="ident">or</span>(<span class="ident">many1</span>(<span class="ident">digit</span>()));
         <span class="kw">match</span> <span class="ident">p</span>.<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="string">&quot;le123&quot;</span>)) {
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">false</span>),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">false</span>),
             <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>, <span class="ident">SourcePosition</span> { <span class="ident">line</span>: <span class="number">1</span>, <span class="ident">column</span>: <span class="number">1</span> }),
         }
         <span class="kw">match</span> <span class="ident">p</span>.<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="string">&quot;let1&quot;</span>)) {
-            <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">false</span>),
+            <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">assert</span><span class="macro">!</span>(<span class="bool-val">false</span>),
             <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>, <span class="ident">SourcePosition</span> { <span class="ident">line</span>: <span class="number">1</span>, <span class="ident">column</span>: <span class="number">4</span> }),
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">sep_by_error_consume</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">sep_by</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>, _, _<span class="op">&gt;</span>(<span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>), <span class="ident">char</span>(<span class="string">&#39;,&#39;</span>));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">sep_by</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>), <span class="ident">char</span>(<span class="string">&#39;,&#39;</span>));
         <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">p</span>.<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="string">&quot;ab,abc&quot;</span>)).<span class="ident">unwrap_err</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">err</span>.<span class="ident">position</span>, <span class="ident">SourcePosition</span> { <span class="ident">line</span>: <span class="number">1</span>, <span class="ident">column</span>: <span class="number">1</span> });
     }
@@ -1597,16 +1598,16 @@
     }
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">chainl1_error_consume</span>() {
-        <span class="kw">fn</span> <span class="ident">first</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="ident">T</span>, _: <span class="ident">U</span>) <span class="op">-&gt;</span> <span class="ident">T</span> {
+        <span class="kw">fn</span> <span class="ident">first</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">U</span><span class="op">&gt;</span>(<span class="ident">t</span>: <span class="ident">T</span>, <span class="kw">_</span>: <span class="ident">U</span>) <span class="op">-&gt;</span> <span class="ident">T</span> {
             <span class="ident">t</span>
         }
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">chainl1</span>(<span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>), <span class="ident">char</span>(<span class="string">&#39;,&#39;</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">first</span>));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">chainl1</span>(<span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>), <span class="ident">char</span>(<span class="string">&#39;,&#39;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">first</span>));
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">p</span>.<span class="ident">parse</span>(<span class="string">&quot;abc,ab&quot;</span>).<span class="ident">is_err</span>());
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">inner_error_consume</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">many</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>, _<span class="op">&gt;</span>(<span class="ident">between</span>(<span class="ident">char</span>(<span class="string">&#39;[&#39;</span>), <span class="ident">char</span>(<span class="string">&#39;]&#39;</span>), <span class="ident">digit</span>()));
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="ident">many</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="ident">between</span>(<span class="ident">char</span>(<span class="string">&#39;[&#39;</span>), <span class="ident">char</span>(<span class="string">&#39;]&#39;</span>), <span class="ident">digit</span>()));
         <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="ident">p</span>.<span class="ident">parse</span>(<span class="ident">State</span>::<span class="ident">new</span>(<span class="string">&quot;[1][2][]&quot;</span>));
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_err</span>(), <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">result</span>));
         <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{:?}&quot;</span>, <span class="ident">x</span>)).<span class="ident">unwrap_err</span>();
@@ -1615,7 +1616,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">infinite_recursion_in_box_parser</span>() {
-        <span class="kw">let</span> _: <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>, _), _<span class="op">&gt;</span> <span class="op">=</span> (<span class="ident">many</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">digit</span>()))).<span class="ident">parse</span>(<span class="string">&quot;1&quot;</span>);
+        <span class="kw">let</span> <span class="kw">_</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="kw">_</span>), <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="ident">many</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">digit</span>()))).<span class="ident">parse</span>(<span class="string">&quot;1&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1660,11 +1661,11 @@
                 <span class="string">&quot;error&quot;</span>
             }
         }
-        <span class="kw">let</span> <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span>((), _), <span class="ident">ParseError</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
-            <span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>).<span class="ident">and_then</span>(<span class="op">|</span>_<span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>)).<span class="ident">parse</span>(<span class="string">&quot;abc&quot;</span>);
+        <span class="kw">let</span> <span class="ident">result</span>: <span class="prelude-ty">Result</span><span class="op">&lt;</span>((), <span class="kw">_</span>), <span class="ident">ParseError</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
+            <span class="ident">string</span>(<span class="string">&quot;abc&quot;</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>)).<span class="ident">parse</span>(<span class="string">&quot;abc&quot;</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_err</span>());
         <span class="comment">// Test that ParseError can be coerced to a StdError</span>
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">err</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">StdError</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">err</span>);
             <span class="ident">err</span>
         });
@@ -1734,7 +1735,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">result</span>.<span class="ident">is_err</span>());
         <span class="comment">// Test that the fresh ExtractedError is Display, so that the internal errors can be</span>
         <span class="comment">// inspected by consuming code; and that the ExtractedError can be coerced to StdError.</span>
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">result</span>.<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">err</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;Parse error at 0&quot;</span>));
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">s</span>.<span class="ident">contains</span>(<span class="string">&quot;Expected&quot;</span>));

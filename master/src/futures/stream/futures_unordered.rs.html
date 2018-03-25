@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/stream/futures_unordered.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/stream/futures_unordered.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>futures_unordered.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -861,7 +862,7 @@
         <span class="kw">let</span> <span class="ident">stub_ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">stub</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Node</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>;
         <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">Inner</span> {
             <span class="ident">parent</span>: <span class="ident">AtomicTask</span>::<span class="ident">new</span>(),
-            <span class="ident">head_readiness</span>: <span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="ident">stub_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _),
+            <span class="ident">head_readiness</span>: <span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="ident">stub_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>),
             <span class="ident">tail_readiness</span>: <span class="ident">UnsafeCell</span>::<span class="ident">new</span>(<span class="ident">stub_ptr</span>),
             <span class="ident">stub</span>: <span class="ident">stub</span>,
         });
@@ -1198,7 +1199,7 @@
             (<span class="kw-2">*</span><span class="ident">node</span>).<span class="ident">next_readiness</span>.<span class="ident">store</span>(<span class="ident">ptr</span>::<span class="ident">null_mut</span>(), <span class="ident">Relaxed</span>);
 
             <span class="comment">// Note that these atomic orderings come from 1024cores</span>
-            <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _;
+            <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>;
             <span class="kw">let</span> <span class="ident">prev</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">head_readiness</span>.<span class="ident">swap</span>(<span class="ident">node</span>, <span class="ident">AcqRel</span>);
             (<span class="kw-2">*</span><span class="ident">prev</span>).<span class="ident">next_readiness</span>.<span class="ident">store</span>(<span class="ident">node</span>, <span class="ident">Release</span>);
         }
@@ -1228,7 +1229,7 @@
             <span class="kw">return</span> <span class="ident">Dequeue</span>::<span class="ident">Data</span>(<span class="ident">tail</span>);
         }
 
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">head_readiness</span>.<span class="ident">load</span>(<span class="ident">Acquire</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="op">!=</span> <span class="ident">tail</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">head_readiness</span>.<span class="ident">load</span>(<span class="ident">Acquire</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="op">!=</span> <span class="ident">tail</span> {
             <span class="kw">return</span> <span class="ident">Dequeue</span>::<span class="ident">Inconsistent</span>;
         }
 

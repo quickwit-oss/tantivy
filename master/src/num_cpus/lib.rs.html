@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -667,7 +668,7 @@
 
     <span class="kw">let</span> <span class="ident">file</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">File</span>::<span class="ident">open</span>(<span class="string">&quot;/proc/cpuinfo&quot;</span>) {
         <span class="prelude-val">Ok</span>(<span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">val</span>,
-        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> {<span class="kw">return</span> <span class="ident">get_num_cpus</span>()},
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {<span class="kw">return</span> <span class="ident">get_num_cpus</span>()},
     };
     <span class="kw">let</span> <span class="ident">reader</span> <span class="op">=</span> <span class="ident">BufReader</span>::<span class="ident">new</span>(<span class="ident">file</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">HashSet</span>::<span class="ident">new</span>();
@@ -682,12 +683,12 @@
         <span class="kw">if</span> <span class="ident">parts</span>[<span class="number">0</span>] <span class="op">==</span> <span class="string">&quot;core id&quot;</span> <span class="op">||</span> <span class="ident">parts</span>[<span class="number">0</span>] <span class="op">==</span> <span class="string">&quot;physical id&quot;</span> {
             <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">parts</span>[<span class="number">1</span>].<span class="ident">trim</span>().<span class="ident">parse</span>() {
               <span class="prelude-val">Ok</span>(<span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">val</span>,
-              <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="kw">break</span>,
+              <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
             };
             <span class="kw">match</span> <span class="ident">parts</span>[<span class="number">0</span>] {
                 <span class="string">&quot;core id&quot;</span>     <span class="op">=&gt;</span> <span class="ident">coreid</span> <span class="op">=</span> <span class="ident">value</span>,
                 <span class="string">&quot;physical id&quot;</span> <span class="op">=&gt;</span> <span class="ident">physid</span> <span class="op">=</span> <span class="ident">value</span>,
-                _ <span class="op">=&gt;</span> {},
+                <span class="kw">_</span> <span class="op">=&gt;</span> {},
             }
             <span class="ident">chgcount</span> <span class="op">+=</span> <span class="number">1</span>;
         }
@@ -744,9 +745,9 @@
         <span class="kw">unsafe</span> {
             <span class="ident">libc</span>::<span class="ident">sysctl</span>(<span class="ident">mib</span>.<span class="ident">as_mut_ptr</span>(),
                          <span class="number">2</span>,
-                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                         <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                         <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                          <span class="number">0</span>);
         }
         <span class="kw">if</span> <span class="ident">cpus</span> <span class="op">&lt;</span> <span class="number">1</span> {
@@ -765,9 +766,9 @@
     <span class="kw">unsafe</span> {
         <span class="ident">libc</span>::<span class="ident">sysctl</span>(<span class="ident">mib</span>.<span class="ident">as_mut_ptr</span>(),
                      <span class="number">2</span>,
-                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                     <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                     <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                      <span class="number">0</span>);
     }
     <span class="kw">if</span> <span class="ident">cpus</span> <span class="op">&lt;</span> <span class="number">1</span> {
@@ -790,8 +791,8 @@
 
     <span class="kw">unsafe</span> {
         <span class="kw">if</span> <span class="number">0</span> <span class="op">!=</span> <span class="ident">libc</span>::<span class="ident">sysctlbyname</span>(<span class="ident">sysctl_name</span>.<span class="ident">as_ptr</span>(),
-                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cpus_size</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                                    <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
                                    <span class="number">0</span>) {
             <span class="kw">return</span> <span class="ident">get_num_cpus</span>();

@@ -10,7 +10,8 @@
     <title>pty.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -522,8 +523,8 @@
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">master</span>,
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slave</span>,
                         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
-                        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">inner_termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
-                        <span class="ident">winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">inner_termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
+                        <span class="ident">winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                     )
                 }
             }
@@ -534,7 +535,7 @@
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slave</span>,
                         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
                         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
-                        <span class="ident">winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                        <span class="ident">winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Winsize</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                     )
                 }
             }
@@ -545,7 +546,7 @@
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">master</span>,
                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">slave</span>,
                         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
-                        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">inner_termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                        <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">inner_termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">termios</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                         <span class="ident">ptr</span>::<span class="ident">null_mut</span>(),
                     )
                 }

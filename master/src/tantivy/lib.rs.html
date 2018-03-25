@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -957,6 +958,14 @@
 <span id="901">901</span>
 <span id="902">902</span>
 <span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
@@ -1111,6 +1120,7 @@
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tempfile</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">time</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">uuid</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitpacking</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
@@ -1118,9 +1128,6 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">env_logger</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simdcompression&quot;</span>)]</span>
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">libc</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">windows</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">winapi</span>;
@@ -1164,6 +1171,7 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">postings</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">schema</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">fastfield</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">fieldnorm</span>;
 
 <span class="kw">mod</span> <span class="ident">docset</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
@@ -1254,11 +1262,20 @@
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">IndependentSample</span>, <span class="ident">Range</span>};
 
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_nearly_equals</span>(<span class="ident">expected</span>: <span class="ident">f32</span>, <span class="ident">val</span>: <span class="ident">f32</span>) {
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nearly_equals</span>(<span class="ident">val</span>, <span class="ident">expected</span>), <span class="string">&quot;Got {}, expected {}.&quot;</span>, <span class="ident">val</span>, <span class="ident">expected</span>);
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nearly_equals</span>(<span class="ident">a</span>: <span class="ident">f32</span>, <span class="ident">b</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        (<span class="ident">a</span> <span class="op">-</span> <span class="ident">b</span>).<span class="ident">abs</span>() <span class="op">&lt;</span> <span class="number">0.0005</span> <span class="op">*</span> (<span class="ident">a</span> <span class="op">+</span> <span class="ident">b</span>).<span class="ident">abs</span>()
+    }
+
     <span class="kw">fn</span> <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
         (<span class="number">0</span>..<span class="ident">u32</span>::<span class="ident">max_value</span>())
-            .<span class="ident">filter</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>)
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>)
             .<span class="ident">take</span>(<span class="ident">n</span>)
             .<span class="ident">collect</span>()
     }
@@ -1268,7 +1285,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
         <span class="kw">let</span> <span class="ident">between</span> <span class="op">=</span> <span class="ident">Range</span>::<span class="ident">new</span>(<span class="number">0u32</span>, <span class="ident">max_value</span>);
         (<span class="number">0</span>..<span class="ident">n_elems</span>)
-            .<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">between</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">between</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>))
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;&gt;</span>()
     }
 
@@ -1279,7 +1296,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_with_seed</span>(<span class="ident">n</span>: <span class="ident">u32</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
-        (<span class="number">0</span>..<span class="ident">n</span>).<span class="ident">filter</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>).<span class="ident">collect</span>()
+        (<span class="number">0</span>..<span class="ident">n</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>).<span class="ident">collect</span>()
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample</span>(<span class="ident">n</span>: <span class="ident">u32</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
@@ -1377,9 +1394,9 @@
             <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
             <span class="kw">let</span> <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>);
             <span class="kw">let</span> <span class="ident">fieldnorms_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>).<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">3</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">0</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">get</span>(<span class="number">2</span>), <span class="number">2</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">0</span>), <span class="number">3</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">1</span>), <span class="number">0</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">2</span>), <span class="number">2</span>);
         }
     }
 

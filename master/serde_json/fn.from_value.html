@@ -10,7 +10,8 @@
     <title>serde_json::from_value - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>serde_json</a></p><script>window.sidebarCurrent = {name: 'from_value', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>serde_json</a></p><script>window.sidebarCurrent = {name: 'from_value', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/serde_json/value/mod.rs.html#1059-1064' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/serde_json/value/mod.rs.html#1075-1080' title='goto source code'>[src]</a></span></h1>
 <pre class='rust fn'>pub fn from_value&lt;T&gt;(value: <a class="enum" href="../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, <a class="struct" href="../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,&nbsp;</span></pre><div class='docblock'><p>Interpret a <code>serde_json::Value</code> as an instance of type <code>T</code>.</p>
 <p>This conversion can fail if the structure of the Value does not match the
 structure expected by <code>T</code>, for example if <code>T</code> is a struct type but the Value

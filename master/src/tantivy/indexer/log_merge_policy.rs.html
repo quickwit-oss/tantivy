@@ -10,7 +10,8 @@
     <title>log_merge_policy.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -299,7 +300,7 @@
 
         <span class="ident">size_sorted_tuples</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">x</span>, <span class="ident">y</span><span class="op">|</span> <span class="ident">y</span>.<span class="number">1</span>.<span class="ident">cmp</span>(<span class="kw-2">&amp;</span>(<span class="ident">x</span>.<span class="number">1</span>)));
 
-        <span class="kw">let</span> <span class="ident">size_sorted_log_tuples</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">size_sorted_tuples</span>
+        <span class="kw">let</span> <span class="ident">size_sorted_log_tuples</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">size_sorted_tuples</span>
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">ind</span>, <span class="ident">num_docs</span>)<span class="op">|</span> (<span class="ident">ind</span>, <span class="ident">f64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">clip_min_size</span>(<span class="ident">num_docs</span>)).<span class="ident">log2</span>()))
             .<span class="ident">collect</span>();

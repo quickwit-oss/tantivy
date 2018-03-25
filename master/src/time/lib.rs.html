@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1762,7 +1763,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_timespec</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Timespec</span> {
         <span class="kw">let</span> <span class="ident">sec</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">tm_utcoff</span> {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">sys</span>::<span class="ident">utc_tm_to_time</span>(<span class="self">self</span>),
-            _ <span class="op">=&gt;</span> <span class="ident">sys</span>::<span class="ident">local_tm_to_time</span>(<span class="self">self</span>)
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">sys</span>::<span class="ident">local_tm_to_time</span>(<span class="self">self</span>)
         };
 
         <span class="ident">Timespec</span>::<span class="ident">new</span>(<span class="ident">sec</span>, <span class="self">self</span>.<span class="ident">tm_nsec</span>)
@@ -1777,7 +1778,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_utc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Tm</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">tm_utcoff</span> {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="kw-2">*</span><span class="self">self</span>,
-            _ <span class="op">=&gt;</span> <span class="ident">at_utc</span>(<span class="self">self</span>.<span class="ident">to_timespec</span>())
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">at_utc</span>(<span class="self">self</span>.<span class="ident">to_timespec</span>())
         }
     }
 
@@ -1889,7 +1890,7 @@
             <span class="ident">UnexpectedCharacter</span>(<span class="ident">a</span>, <span class="ident">b</span>) <span class="op">=&gt;</span> {
                 <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;expected: `{}`, found: `{}`&quot;</span>, <span class="ident">a</span>, <span class="ident">b</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">description</span>())
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">description</span>())
         }
     }
 }
@@ -1936,7 +1937,7 @@
         (<span class="number">0</span>...<span class="number">6</span>, <span class="number">0</span>...<span class="number">11</span>) <span class="op">=&gt;</span> (),
         (<span class="ident">_wday</span>, <span class="number">0</span>...<span class="number">11</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidDayOfWeek</span>),
         (<span class="number">0</span>...<span class="number">6</span>, <span class="ident">_mon</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidMonth</span>),
-        _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidDay</span>)
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">InvalidDay</span>)
     }
     <span class="kw">match</span> <span class="ident">fmt</span>.<span class="ident">format</span> {
         <span class="ident">Fmt</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> {
@@ -1962,11 +1963,11 @@
                         }
                     },
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">break</span>,
-                    _ <span class="op">=&gt;</span> ()
+                    <span class="kw">_</span> <span class="op">=&gt;</span> ()
                 }
             }
         },
-        _ <span class="op">=&gt;</span> ()
+        <span class="kw">_</span> <span class="op">=&gt;</span> ()
     }
     <span class="prelude-val">Ok</span>(<span class="ident">fmt</span>)
 }
@@ -1994,7 +1995,7 @@
     <span class="kw">fn</span> <span class="ident">set_time_zone_la_or_london</span>(<span class="ident">london</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">TzReset</span> {
         <span class="comment">// Lock manages current timezone because some tests require LA some</span>
         <span class="comment">// London</span>
-        <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">LOCK</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _;
+        <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">LOCK</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">Mutex</span><span class="op">&lt;</span>()<span class="op">&gt;</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>;
         <span class="kw">static</span> <span class="ident">INIT</span>: <span class="ident">Once</span> <span class="op">=</span> <span class="ident">ONCE_INIT</span>;
 
         <span class="kw">unsafe</span> {
@@ -2155,7 +2156,7 @@
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">tm</span>.<span class="ident">tm_utcoff</span> <span class="op">==</span> <span class="number">0</span>);
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">tm</span>.<span class="ident">tm_nsec</span> <span class="op">==</span> <span class="number">0</span>);
             }
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> ()
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> ()
         }
 
         <span class="kw">let</span> <span class="ident">format</span> <span class="op">=</span> <span class="string">&quot;%a %b %e %T.%f %Y&quot;</span>;
@@ -2191,7 +2192,7 @@
 
         <span class="kw">fn</span> <span class="ident">test_oneway</span>(<span class="ident">s</span> : <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">format</span> : <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
             <span class="kw">match</span> <span class="ident">strptime</span>(<span class="ident">s</span>, <span class="ident">format</span>) {
-              <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> {
+              <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// oneway tests are used when reformatting the parsed Tm</span>
                 <span class="comment">// back into a string can generate a different string</span>
                 <span class="comment">// from the original (i.e. leading zeroes)</span>

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1252,14 +1253,17 @@ another matching engine with fixed memory requirements.
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">deny</span>(<span class="ident">warnings</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;pattern&quot;</span>, <span class="ident">feature</span>(<span class="ident">pattern</span>))]</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simd-accel&quot;</span>, <span class="ident">feature</span>(<span class="ident">cfg_target_feature</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>,
+    <span class="ident">feature</span>(<span class="ident">cfg_target_feature</span>, <span class="ident">target_feature</span>, <span class="ident">stdsimd</span>))]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">aho_corasick</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">memchr</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">thread_local</span>;
-<span class="attribute">#[<span class="ident">macro_use</span>]</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quickcheck</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">quickcheck</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">regex_syntax</span> <span class="kw">as</span> <span class="ident">syntax</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simd-accel&quot;</span>)]</span> <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">simd</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">utf8_ranges</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">Error</span>;
@@ -1377,7 +1381,7 @@ performance on `&amp;str`.
 <span class="kw">mod</span> <span class="ident">expand</span>;
 <span class="kw">mod</span> <span class="ident">freqs</span>;
 <span class="kw">mod</span> <span class="ident">input</span>;
-<span class="kw">mod</span> <span class="ident">literals</span>;
+<span class="kw">mod</span> <span class="ident">literal</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;pattern&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">pattern</span>;
 <span class="kw">mod</span> <span class="ident">pikevm</span>;
@@ -1387,12 +1391,9 @@ performance on `&amp;str`.
 <span class="kw">mod</span> <span class="ident">re_set</span>;
 <span class="kw">mod</span> <span class="ident">re_trait</span>;
 <span class="kw">mod</span> <span class="ident">re_unicode</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simd-accel&quot;</span>)]</span>
-<span class="kw">mod</span> <span class="ident">simd_accel</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simd-accel&quot;</span>))]</span>
-<span class="attribute">#[<span class="ident">path</span> <span class="op">=</span> <span class="string">&quot;simd_fallback/mod.rs&quot;</span>]</span>
-<span class="kw">mod</span> <span class="ident">simd_accel</span>;
 <span class="kw">mod</span> <span class="ident">sparse</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">vector</span>;
 
 <span class="doccomment">/// The `internal` module exists to support suspicious activity, such as</span>
 <span class="doccomment">/// testing different matching engines and supporting the `regex-debug` CLI</span>
@@ -1402,7 +1403,7 @@ performance on `&amp;str`.
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">compile</span>::<span class="ident">Compiler</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">exec</span>::{<span class="ident">Exec</span>, <span class="ident">ExecBuilder</span>};
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">input</span>::{<span class="ident">Char</span>, <span class="ident">Input</span>, <span class="ident">CharInput</span>, <span class="ident">InputAt</span>};
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">literals</span>::<span class="ident">LiteralSearcher</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">literal</span>::<span class="ident">LiteralSearcher</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">prog</span>::{<span class="ident">Program</span>, <span class="ident">Inst</span>, <span class="ident">EmptyLook</span>, <span class="ident">InstRanges</span>};
 }
 </pre>

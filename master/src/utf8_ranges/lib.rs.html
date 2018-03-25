@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1018,7 +1019,7 @@ which uses it for executing automata on their term index.
         <span class="number">2</span> <span class="op">=&gt;</span> <span class="number">0x07FF</span>,
         <span class="number">3</span> <span class="op">=&gt;</span> <span class="number">0xFFFF</span>,
         <span class="number">4</span> <span class="op">=&gt;</span> <span class="number">0x10FFFF</span>,
-        _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;invalid UTF-8 byte sequence size&quot;</span>),
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;invalid UTF-8 byte sequence size&quot;</span>),
     }
 }
 
@@ -1069,7 +1070,7 @@ which uses it for executing automata on their term index.
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">continue</span>,
                 <span class="prelude-val">Some</span>(<span class="ident">c</span>) <span class="op">=&gt;</span> <span class="ident">c</span>,
             };
-            <span class="kw">let</span> <span class="ident">seqs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Utf8Sequences</span>::<span class="ident">new</span>(<span class="ident">c</span>, <span class="ident">c</span>).<span class="ident">collect</span>();
+            <span class="kw">let</span> <span class="ident">seqs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Utf8Sequences</span>::<span class="ident">new</span>(<span class="ident">c</span>, <span class="ident">c</span>).<span class="ident">collect</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">seqs</span>.<span class="ident">len</span>(), <span class="number">1</span>);
         }
     }
@@ -1091,7 +1092,7 @@ which uses it for executing automata on their term index.
         <span class="kw">use</span> <span class="ident">Utf8Sequence</span>::<span class="kw-2">*</span>;
 
         <span class="kw">let</span> <span class="ident">seqs</span> <span class="op">=</span> <span class="ident">Utf8Sequences</span>::<span class="ident">new</span>(<span class="string">&#39;\u{0}&#39;</span>, <span class="string">&#39;\u{FFFF}&#39;</span>)
-                                 .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                                 .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">seqs</span>, <span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">One</span>(<span class="ident">rutf8</span>(<span class="number">0x0</span>, <span class="number">0x7F</span>)),
             <span class="ident">Two</span>([<span class="ident">rutf8</span>(<span class="number">0xC2</span>, <span class="number">0xDF</span>), <span class="ident">rutf8</span>(<span class="number">0x80</span>, <span class="number">0xBF</span>)]),

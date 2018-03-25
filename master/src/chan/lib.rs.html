@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -2798,7 +2799,7 @@ languages.
             (<span class="ident">UserData</span>::<span class="ident">One</span>(<span class="prelude-val">None</span>), <span class="ident">ChannelType</span>::<span class="ident">Rendezvous</span>)
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">queue</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">size</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> { <span class="ident">queue</span>.<span class="ident">push</span>(<span class="prelude-val">None</span>); }
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">size</span> { <span class="ident">queue</span>.<span class="ident">push</span>(<span class="prelude-val">None</span>); }
             (
                 <span class="ident">UserData</span>::<span class="ident">Ring</span> { <span class="ident">queue</span>: <span class="ident">queue</span>, <span class="ident">pos</span>: <span class="number">0</span>, <span class="ident">len</span>: <span class="number">0</span> },
                 <span class="ident">ChannelType</span>::<span class="ident">Buffered</span>,
@@ -3034,7 +3035,7 @@ languages.
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
             <span class="ident">SendOpKind</span>::<span class="prelude-val">Ok</span> <span class="op">=&gt;</span> (<span class="self">self</span>.<span class="ident">lock</span>, <span class="prelude-val">Ok</span>(())),
             <span class="ident">SendOpKind</span>::<span class="ident">WouldBlock</span>(<span class="ident">val</span>) <span class="op">=&gt;</span> (<span class="self">self</span>.<span class="ident">lock</span>, <span class="prelude-val">Err</span>(<span class="ident">val</span>)),
-            <span class="ident">SendOpKind</span>::<span class="ident">Closed</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">SendOpKind</span>::<span class="ident">Closed</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// If we&#39;re here, then there was a `send` on a closed</span>
                 <span class="comment">// channel. But the only way a channel gets closed is if</span>
                 <span class="comment">// all values that can `send` have been dropped.</span>

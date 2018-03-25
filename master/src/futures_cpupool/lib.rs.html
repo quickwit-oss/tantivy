@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -779,7 +780,7 @@
 <span class="kw">impl</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">CpuPool</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">cnt</span>.<span class="ident">fetch_sub</span>(<span class="number">1</span>, <span class="ident">Ordering</span>::<span class="ident">Relaxed</span>) <span class="op">==</span> <span class="number">1</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">size</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">size</span> {
                 <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">send</span>(<span class="ident">Message</span>::<span class="ident">Close</span>);
             }
         }
@@ -822,7 +823,7 @@
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> ();
 
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Poll</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(_)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">poll_cancel</span>() {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="kw">_</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">tx</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">poll_cancel</span>() {
             <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">keep_running_flag</span>.<span class="ident">load</span>(<span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) {
                 <span class="comment">// Cancelled, bail out</span>
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(().<span class="ident">into</span>())

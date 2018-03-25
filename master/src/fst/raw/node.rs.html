@@ -10,7 +10,8 @@
     <title>node.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1116,9 +1117,9 @@
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
             <span class="ident">OneTransNext</span>(<span class="ident">s</span>) <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">input</span>(<span class="self">self</span>) <span class="op">==</span> <span class="ident">b</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            <span class="ident">OneTransNext</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">OneTransNext</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">OneTrans</span>(<span class="ident">s</span>) <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">input</span>(<span class="self">self</span>) <span class="op">==</span> <span class="ident">b</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="number">0</span>),
-            <span class="ident">OneTrans</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">OneTrans</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">AnyTrans</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span>.<span class="ident">find_input</span>(<span class="self">self</span>, <span class="ident">b</span>),
             <span class="ident">EmptyFinal</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
@@ -1162,9 +1163,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
-            <span class="ident">OneTransNext</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;OTN&quot;</span>,
-            <span class="ident">OneTrans</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;OT&quot;</span>,
-            <span class="ident">AnyTrans</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;AT&quot;</span>,
+            <span class="ident">OneTransNext</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;OTN&quot;</span>,
+            <span class="ident">OneTrans</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;OT&quot;</span>,
+            <span class="ident">AnyTrans</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;AT&quot;</span>,
             <span class="ident">EmptyFinal</span> <span class="op">=&gt;</span> <span class="string">&quot;EF&quot;</span>,
         }
     }
@@ -1230,14 +1231,14 @@
         <span class="kw">match</span> (<span class="ident">v</span> <span class="op">&amp;</span> <span class="number">0b11_000000</span>) <span class="op">&gt;&gt;</span> <span class="number">6</span> {
             <span class="number">0b11</span> <span class="op">=&gt;</span> <span class="ident">OneTransNext</span>(<span class="ident">StateOneTransNext</span>(<span class="ident">v</span>)),
             <span class="number">0b10</span> <span class="op">=&gt;</span> <span class="ident">OneTrans</span>(<span class="ident">StateOneTrans</span>(<span class="ident">v</span>)),
-            _ <span class="op">=&gt;</span> <span class="ident">AnyTrans</span>(<span class="ident">StateAnyTrans</span>(<span class="ident">v</span>)),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">AnyTrans</span>(<span class="ident">StateAnyTrans</span>(<span class="ident">v</span>)),
         }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">StateOneTransNext</span> {
     <span class="kw">fn</span> <span class="ident">compile</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span><span class="op">&gt;</span>(
-        <span class="kw-2">mut</span> <span class="ident">wtr</span>: <span class="ident">W</span>, _: <span class="ident">CompiledAddr</span>, <span class="ident">input</span>: <span class="ident">u8</span>,
+        <span class="kw-2">mut</span> <span class="ident">wtr</span>: <span class="ident">W</span>, <span class="kw">_</span>: <span class="ident">CompiledAddr</span>, <span class="ident">input</span>: <span class="ident">u8</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">StateOneTransNext</span>::<span class="ident">new</span>();
         <span class="ident">state</span>.<span class="ident">set_common_input</span>(<span class="ident">input</span>);

@@ -10,7 +10,8 @@
     <title>document.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -366,7 +367,7 @@
     <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Read</span><span class="op">&gt;</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">num_field_values</span> <span class="op">=</span> <span class="ident">VInt</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>.<span class="ident">val</span>() <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="kw">let</span> <span class="ident">field_values</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">num_field_values</span>)
-            .<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">FieldValue</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">FieldValue</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>))
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">FieldValue</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>()<span class="question-mark">?</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">Document</span>::<span class="ident">from</span>(<span class="ident">field_values</span>))
     }

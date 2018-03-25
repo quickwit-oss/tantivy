@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -756,6 +757,22 @@
 <span id="700">700</span>
 <span id="701">701</span>
 <span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Postings module (also called inverted index)
@@ -772,11 +789,13 @@ Postings module (also called inverted index)
 <span class="kw">mod</span> <span class="ident">postings_writer</span>;
 <span class="kw">mod</span> <span class="ident">term_info</span>;
 <span class="kw">mod</span> <span class="ident">segment_postings</span>;
+<span class="kw">mod</span> <span class="ident">delete_set</span>;
 
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings_writer</span>::<span class="ident">MultiFieldPostingsWriter</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">delete_set</span>::{<span class="ident">DeleteSet</span>, <span class="ident">NoDelete</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_info</span>::<span class="ident">TermInfo</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings</span>::<span class="ident">Postings</span>;
 
@@ -810,12 +829,12 @@ Postings module (also called inverted index)
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
     <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::<span class="ident">Heap</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">test</span>::{<span class="self">self</span>, <span class="ident">Bencher</span>};
     <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
     <span class="kw">use</span> <span class="ident">tests</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
+    <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_position_write</span>() {
@@ -826,12 +845,12 @@ Postings module (also called inverted index)
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">new_segment</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">posting_serializer</span> <span class="op">=</span> <span class="ident">InvertedIndexSerializer</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">segment</span>).<span class="ident">unwrap</span>();
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span> <span class="ident">posting_serializer</span>.<span class="ident">new_field</span>(<span class="ident">text_field</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span> <span class="ident">posting_serializer</span>.<span class="ident">new_field</span>(<span class="ident">text_field</span>, <span class="number">120</span> <span class="op">*</span> <span class="number">4</span>).<span class="ident">unwrap</span>();
             <span class="ident">field_serializer</span>.<span class="ident">new_term</span>(<span class="string">&quot;abc&quot;</span>.<span class="ident">as_bytes</span>()).<span class="ident">unwrap</span>();
             <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0u32</span>..<span class="number">120u32</span> {
                 <span class="kw">let</span> <span class="ident">delta_positions</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">2</span>];
                 <span class="ident">field_serializer</span>
-                    .<span class="ident">write_doc</span>(<span class="ident">doc_id</span>, <span class="number">2</span>, <span class="kw-2">&amp;</span><span class="ident">delta_positions</span>)
+                    .<span class="ident">write_doc</span>(<span class="ident">doc_id</span>, <span class="number">4</span>, <span class="kw-2">&amp;</span><span class="ident">delta_positions</span>)
                     .<span class="ident">unwrap</span>();
             }
             <span class="ident">field_serializer</span>.<span class="ident">close_term</span>().<span class="ident">unwrap</span>();
@@ -850,64 +869,75 @@ Postings module (also called inverted index)
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">30_000_000</span>).<span class="ident">unwrap</span>();
         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">r#&quot;abc abc abc&quot;#</span>));
         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">r#&quot;abc be be be be abc&quot;#</span>));
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1_000</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1_000</span> {
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">r#&quot;abc abc abc&quot;#</span>));
         }
         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">title</span> <span class="op">=&gt;</span> <span class="string">r#&quot;abc be be be be abc&quot;#</span>));
         <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
         <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-        <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(
-            <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">title</span>, <span class="string">&quot;abc&quot;</span>),
-            <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>,
-        );
-        <span class="kw">let</span> <span class="ident">weight</span> <span class="op">=</span> <span class="ident">query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="ident">inverted_index</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>).<span class="ident">inverted_index</span>(<span class="ident">title</span>);
+        <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">title</span>, <span class="string">&quot;abc&quot;</span>);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
-                .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
+                .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="ident">scorer</span>.<span class="ident">advance</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
-            <span class="ident">scorer</span>.<span class="ident">advance</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
+            <span class="ident">postings</span>.<span class="ident">advance</span>();
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
+            <span class="ident">postings</span>.<span class="ident">advance</span>();
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
-                .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
+                .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="ident">scorer</span>.<span class="ident">advance</span>();
-            <span class="ident">scorer</span>.<span class="ident">advance</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
+            <span class="ident">postings</span>.<span class="ident">advance</span>();
+            <span class="ident">postings</span>.<span class="ident">advance</span>();
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
-                .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
+
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
+                .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">skip_next</span>(<span class="number">1</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">doc</span>(), <span class="number">1</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">skip_next</span>(<span class="number">1</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">doc</span>(), <span class="number">1</span>);
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
-                .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
+                .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">skip_next</span>(<span class="number">1002</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">doc</span>(), <span class="number">1002</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">skip_next</span>(<span class="number">1002</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">doc</span>(), <span class="number">1002</span>);
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="ident">weight</span>
-                .<span class="ident">specialized_scorer</span>(<span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0u32</span>))
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
+                .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">skip_next</span>(<span class="number">100</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">skip_next</span>(<span class="number">1002</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scorer</span>.<span class="ident">doc</span>(), <span class="number">1002</span>);
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="ident">scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>());
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">skip_next</span>(<span class="number">100</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">skip_next</span>(<span class="number">1002</span>), <span class="ident">SkipResult</span>::<span class="ident">Reached</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">doc</span>(), <span class="number">1002</span>);
+            <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_position_and_fieldnorm1</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
@@ -955,10 +985,12 @@ Postings module (also called inverted index)
             <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="ident">SegmentReader</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">segment</span>).<span class="ident">unwrap</span>();
             {
                 <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>).<span class="ident">unwrap</span>();
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">8</span> <span class="op">+</span> <span class="number">5</span>);
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">2</span>);
+                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">0</span>), <span class="number">8</span> <span class="op">+</span> <span class="number">5</span>);
+                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">1</span>), <span class="number">2</span>);
                 <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">2</span>..<span class="number">1000</span> {
-                    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">get</span>(<span class="ident">i</span>), (<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u64</span>);
+                    <span class="macro">assert_eq</span><span class="macro">!</span>(
+                        <span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">i</span>),
+                        <span class="ident">FieldNormReader</span>::<span class="ident">fieldnorm_to_id</span>(<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>) );
                 }
             }
             {
@@ -980,15 +1012,16 @@ Postings module (also called inverted index)
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">advance</span>());
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">doc</span>(), <span class="number">0</span>);
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">term_freq</span>(), <span class="number">6</span>);
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">positions</span>(), [<span class="number">0</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">13</span>]);
-                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">positions</span>(), [<span class="number">0</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">13</span>]);
+                <span class="ident">postings_a</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+                <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">positions</span>[..], [<span class="number">0</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">13</span>]);
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">advance</span>());
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">doc</span>(), <span class="number">1u32</span>);
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">term_freq</span>(), <span class="number">1</span>);
                 <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">2u32</span>..<span class="number">1000u32</span> {
                     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">advance</span>());
                     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">term_freq</span>(), <span class="number">1</span>);
-                    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">positions</span>(), [<span class="ident">i</span>]);
+                    <span class="ident">postings_a</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+                    <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">positions</span>[..], [<span class="ident">i</span>]);
                     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_a</span>.<span class="ident">doc</span>(), <span class="ident">i</span>);
                 }
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">postings_a</span>.<span class="ident">advance</span>());
@@ -1003,7 +1036,7 @@ Postings module (also called inverted index)
                 <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">2u32</span>..<span class="number">1000u32</span> {
                     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings_e</span>.<span class="ident">advance</span>());
                     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings_e</span>.<span class="ident">term_freq</span>(), <span class="ident">i</span>);
-                    <span class="kw">let</span> <span class="ident">positions</span> <span class="op">=</span> <span class="ident">postings_e</span>.<span class="ident">positions</span>();
+                    <span class="ident">postings_e</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
                     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">positions</span>.<span class="ident">len</span>(), <span class="ident">i</span> <span class="kw">as</span> <span class="ident">usize</span>);
                     <span class="kw">for</span> <span class="ident">j</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">positions</span>.<span class="ident">len</span>() {
                         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">positions</span>[<span class="ident">j</span>], (<span class="ident">j</span> <span class="kw">as</span> <span class="ident">u32</span>));
@@ -1017,6 +1050,7 @@ Postings module (also called inverted index)
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_position_and_fieldnorm2</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
@@ -1036,18 +1070,17 @@ Postings module (also called inverted index)
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">is_ok</span>());
         }
         <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-        <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(
-            <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>),
-            <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>,
-        );
+        <span class="kw">let</span> <span class="ident">term_a</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>);
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_weight</span> <span class="op">=</span> <span class="ident">term_query</span>.<span class="ident">specialized_weight</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">searcher</span>, <span class="bool-val">true</span>);
-        <span class="ident">term_weight</span>.<span class="ident">index_record_option</span> <span class="op">=</span> <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>;
-        <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">searcher</span>.<span class="ident">segment_readers</span>()[<span class="number">0</span>];
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_scorer</span> <span class="op">=</span> <span class="ident">term_weight</span>.<span class="ident">specialized_scorer</span>(<span class="ident">segment_reader</span>).<span class="ident">unwrap</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">advance</span>());
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">doc</span>(), <span class="number">1u32</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">postings</span>().<span class="ident">positions</span>(), <span class="kw-2">&amp;</span>[<span class="number">1u32</span>, <span class="number">4</span>]);
+        <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">segment_reader</span>
+            .<span class="ident">inverted_index</span>(<span class="ident">text_field</span>)
+            .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term_a</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
+            .<span class="ident">unwrap</span>();
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">advance</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">postings</span>.<span class="ident">doc</span>(), <span class="number">1u32</span>);
+        <span class="ident">postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">positions</span>[..], <span class="kw-2">&amp;</span>[<span class="number">1u32</span>, <span class="number">4</span>]);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
@@ -1252,7 +1285,7 @@ Postings module (also called inverted index)
             <span class="kw">let</span> <span class="ident">posting_list_size</span> <span class="op">=</span> <span class="number">1_000_000</span>;
             {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
-                <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span> .. <span class="ident">posting_list_size</span> {
+                <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span> .. <span class="ident">posting_list_size</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">Document</span>::<span class="ident">default</span>();
                     <span class="kw">if</span> <span class="ident">rng</span>.<span class="ident">gen_weighted_bool</span>(<span class="number">15</span>) {
                         <span class="ident">doc</span>.<span class="ident">add_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>);
@@ -1310,7 +1343,7 @@ Postings module (also called inverted index)
                 .<span class="ident">inverted_index</span>(<span class="ident">TERM_D</span>.<span class="ident">field</span>())
                 .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">TERM_D</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>)
                 .<span class="ident">unwrap</span>();
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">intersection</span> <span class="op">=</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">segment_postings_a</span>,
                 <span class="ident">segment_postings_b</span>,
                 <span class="ident">segment_postings_c</span>,

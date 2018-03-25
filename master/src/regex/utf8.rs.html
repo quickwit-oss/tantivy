@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/utf8.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/utf8.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>utf8.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -446,7 +447,7 @@
                      <span class="op">|</span> ((<span class="ident">b1</span> <span class="op">&amp;</span> <span class="op">!</span><span class="ident">TAG_CONT</span>) <span class="kw">as</span> <span class="ident">u32</span>);
             <span class="kw">match</span> <span class="ident">cp</span> {
                 <span class="number">0x80</span> ... <span class="number">0x7FF</span> <span class="op">=&gt;</span> <span class="ident">char</span>::<span class="ident">from_u32</span>(<span class="ident">cp</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">cp</span><span class="op">|</span> (<span class="ident">cp</span>, <span class="number">2</span>)),
-                _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             }
         }
         <span class="number">0b1110_0000</span> ... <span class="number">0b1110_1111</span> <span class="op">=&gt;</span> {
@@ -466,7 +467,7 @@
             <span class="kw">match</span> <span class="ident">cp</span> {
                 <span class="comment">// char::from_u32 will disallow surrogate codepoints.</span>
                 <span class="number">0x800</span> ... <span class="number">0xFFFF</span> <span class="op">=&gt;</span> <span class="ident">char</span>::<span class="ident">from_u32</span>(<span class="ident">cp</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">cp</span><span class="op">|</span> (<span class="ident">cp</span>, <span class="number">3</span>)),
-                _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             }
         }
         <span class="number">0b11110_000</span> ... <span class="number">0b11110_111</span> <span class="op">=&gt;</span> {
@@ -489,10 +490,10 @@
                      <span class="op">|</span> ((<span class="ident">b3</span> <span class="op">&amp;</span> <span class="op">!</span><span class="ident">TAG_CONT</span>) <span class="kw">as</span> <span class="ident">u32</span>);
             <span class="kw">match</span> <span class="ident">cp</span> {
                 <span class="number">0x10000</span> ... <span class="number">0x10FFFF</span> <span class="op">=&gt;</span> <span class="ident">char</span>::<span class="ident">from_u32</span>(<span class="ident">cp</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">cp</span><span class="op">|</span> (<span class="ident">cp</span>, <span class="number">4</span>)),
-                _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             }
         }
-        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     }
 }
 
@@ -514,7 +515,7 @@
     }
     <span class="kw">match</span> <span class="ident">decode_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">src</span>[<span class="ident">start</span>..]) {
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
-        <span class="prelude-val">Some</span>((_, <span class="ident">n</span>)) <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="ident">src</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">start</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">n</span>)) <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;</span> <span class="ident">src</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">start</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         <span class="prelude-val">Some</span>((<span class="ident">cp</span>, <span class="ident">n</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">cp</span>, <span class="ident">n</span>)),
     }
 }
@@ -573,7 +574,7 @@
         <span class="kw">fn</span> <span class="ident">p</span>(<span class="ident">given_cp</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tmp</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">4</span>];
             <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">encode_utf8</span>(<span class="ident">given_cp</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">tmp</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> (<span class="ident">got_cp</span>, _) <span class="op">=</span> <span class="ident">decode_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> (<span class="ident">got_cp</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">decode_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">expected_cp</span> <span class="op">=</span>
                 <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>().<span class="ident">chars</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="ident">got_cp</span> <span class="op">==</span> <span class="ident">expected_cp</span>
@@ -586,7 +587,7 @@
         <span class="kw">fn</span> <span class="ident">p</span>(<span class="ident">given_cp</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tmp</span> <span class="op">=</span> [<span class="number">0</span>; <span class="number">4</span>];
             <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">encode_utf8</span>(<span class="ident">given_cp</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">tmp</span>).<span class="ident">unwrap</span>();
-            <span class="kw">let</span> (<span class="ident">got_cp</span>, _) <span class="op">=</span> <span class="ident">decode_last_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> (<span class="ident">got_cp</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">decode_last_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">expected_cp</span> <span class="op">=</span>
                 <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="kw-2">&amp;</span><span class="ident">tmp</span>[..<span class="ident">n</span>]).<span class="ident">unwrap</span>()
                     .<span class="ident">chars</span>().<span class="ident">rev</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();

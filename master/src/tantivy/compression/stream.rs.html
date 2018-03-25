@@ -10,7 +10,8 @@
     <title>stream.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -184,6 +185,34 @@
 <span id="128">128</span>
 <span id="129">129</span>
 <span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">BlockDecoder</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">COMPRESSION_BLOCK_SIZE</span>;
@@ -198,7 +227,12 @@
 <span class="doccomment">/// decompressing blocks that are not required.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">CompressedIntStream</span> {
     <span class="ident">buffer</span>: <span class="ident">SourceRead</span>,
+
     <span class="ident">block_decoder</span>: <span class="ident">BlockDecoder</span>,
+    <span class="ident">cached_addr</span>: <span class="ident">usize</span>, <span class="comment">// address of the currently decoded block</span>
+    <span class="ident">cached_next_addr</span>: <span class="ident">usize</span>, <span class="comment">// address following the currently decoded block</span>
+
+    <span class="ident">addr</span>: <span class="ident">usize</span>, <span class="comment">// address of the block associated to the current position</span>
     <span class="ident">inner_offset</span>: <span class="ident">usize</span>,
 }
 
@@ -208,34 +242,47 @@
         <span class="ident">CompressedIntStream</span> {
             <span class="ident">buffer</span>: <span class="ident">SourceRead</span>::<span class="ident">from</span>(<span class="ident">source</span>),
             <span class="ident">block_decoder</span>: <span class="ident">BlockDecoder</span>::<span class="ident">new</span>(),
-            <span class="ident">inner_offset</span>: <span class="ident">COMPRESSION_BLOCK_SIZE</span>,
+            <span class="ident">cached_addr</span>: <span class="ident">usize</span>::<span class="ident">max_value</span>(),
+            <span class="ident">cached_next_addr</span>: <span class="ident">usize</span>::<span class="ident">max_value</span>(),
+
+            <span class="ident">addr</span>: <span class="number">0</span>,
+            <span class="ident">inner_offset</span>: <span class="number">0</span>,
         }
     }
 
-    <span class="doccomment">/// Fills a buffer with the next `output.len()` integers,</span>
-    <span class="doccomment">/// and advance the stream by that many els.</span>
+    <span class="doccomment">/// Loads the block at the given address and return the address of the</span>
+    <span class="doccomment">/// following block</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read_block</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">addr</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">cached_addr</span> <span class="op">==</span> <span class="ident">addr</span> {
+            <span class="comment">// we are already on this block.</span>
+            <span class="comment">// no need to read.</span>
+            <span class="self">self</span>.<span class="ident">cached_next_addr</span>
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="ident">next_addr</span> <span class="op">=</span> <span class="ident">addr</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">block_decoder</span>.<span class="ident">uncompress_block_unsorted</span>(<span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">slice_from</span>(<span class="ident">addr</span>));
+            <span class="self">self</span>.<span class="ident">cached_addr</span> <span class="op">=</span> <span class="ident">addr</span>;
+            <span class="self">self</span>.<span class="ident">cached_next_addr</span> <span class="op">=</span> <span class="ident">next_addr</span>;
+            <span class="ident">next_addr</span>
+        }
+    }
+
+    <span class="doccomment">/// Fills a buffer with the next `output.len()` integers.</span>
+    <span class="doccomment">/// This does not consume / advance the stream.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>]) {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cursor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">addr</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">inner_offset</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner_offset</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">num_els</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">output</span>.<span class="ident">len</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">loop</span> {
-            <span class="kw">let</span> <span class="ident">available</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">inner_offset</span>;
-            <span class="kw">if</span> <span class="ident">num_els</span> <span class="op">&gt;=</span> <span class="ident">available</span> {
-                <span class="kw">if</span> <span class="ident">available</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                    <span class="kw">let</span> <span class="ident">uncompressed_block</span> <span class="op">=</span>
-                        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_decoder</span>.<span class="ident">output_array</span>()[<span class="self">self</span>.<span class="ident">inner_offset</span>..];
-                    <span class="ident">output</span>[<span class="ident">start</span>..][..<span class="ident">available</span>].<span class="ident">clone_from_slice</span>(<span class="ident">uncompressed_block</span>);
-                }
-                <span class="ident">num_els</span> <span class="op">-=</span> <span class="ident">available</span>;
-                <span class="ident">start</span> <span class="op">+=</span> <span class="ident">available</span>;
-                <span class="kw">let</span> <span class="ident">num_consumed_bytes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">block_decoder</span>
-                    .<span class="ident">uncompress_block_unsorted</span>(<span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">as_ref</span>());
-                <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">advance</span>(<span class="ident">num_consumed_bytes</span>);
-                <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="ident">cursor</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">read_block</span>(<span class="ident">cursor</span>);
+            <span class="kw">let</span> <span class="ident">block</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_decoder</span>.<span class="ident">output_array</span>()[<span class="ident">inner_offset</span>..];
+            <span class="kw">let</span> <span class="ident">block_len</span> <span class="op">=</span> <span class="ident">block</span>.<span class="ident">len</span>();
+            <span class="kw">if</span> <span class="ident">num_els</span> <span class="op">&gt;=</span> <span class="ident">block_len</span> {
+                <span class="ident">output</span>[<span class="ident">start</span>..<span class="ident">start</span> <span class="op">+</span> <span class="ident">block_len</span>].<span class="ident">clone_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">block</span>);
+                <span class="ident">start</span> <span class="op">+=</span> <span class="ident">block_len</span>;
+                <span class="ident">num_els</span> <span class="op">-=</span> <span class="ident">block_len</span>;
+                <span class="ident">inner_offset</span> <span class="op">=</span> <span class="number">0</span>;
             } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="ident">uncompressed_block</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_decoder</span>.<span class="ident">output_array</span>()
-                    [<span class="self">self</span>.<span class="ident">inner_offset</span>..<span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">+</span> <span class="ident">num_els</span>];
-                <span class="ident">output</span>[<span class="ident">start</span>..][..<span class="ident">num_els</span>].<span class="ident">clone_from_slice</span>(<span class="ident">uncompressed_block</span>);
-                <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">+=</span> <span class="ident">num_els</span>;
+                <span class="ident">output</span>[<span class="ident">start</span>..].<span class="ident">clone_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">block</span>[..<span class="ident">num_els</span>]);
                 <span class="kw">break</span>;
             }
         }
@@ -245,23 +292,22 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// If a full block is skipped, calling</span>
     <span class="doccomment">/// `.skip(...)` will avoid decompressing it.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// May panic if the end of the stream is reached.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">skip</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">skip_len</span>: <span class="ident">usize</span>) {
-        <span class="kw">let</span> <span class="ident">available</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">inner_offset</span>;
-        <span class="kw">if</span> <span class="ident">available</span> <span class="op">&gt;=</span> <span class="ident">skip_len</span> {
-            <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">+=</span> <span class="ident">skip_len</span>;
-        } <span class="kw">else</span> {
-            <span class="ident">skip_len</span> <span class="op">-=</span> <span class="ident">available</span>;
-            <span class="comment">// entirely skip decompressing some blocks.</span>
-            <span class="kw">while</span> <span class="ident">skip_len</span> <span class="op">&gt;=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> {
-                <span class="ident">skip_len</span> <span class="op">-=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>;
-                <span class="kw">let</span> <span class="ident">num_bits</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">as_ref</span>()[<span class="number">0</span>];
+        <span class="kw">loop</span> {
+            <span class="kw">let</span> <span class="ident">available</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">inner_offset</span>;
+            <span class="kw">if</span> <span class="ident">available</span> <span class="op">&gt;=</span> <span class="ident">skip_len</span> {
+                <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">+=</span> <span class="ident">skip_len</span>;
+                <span class="kw">break</span>;
+            } <span class="kw">else</span> {
+                <span class="ident">skip_len</span> <span class="op">-=</span> <span class="ident">available</span>;
+                <span class="comment">// entirely skip decompressing some blocks.</span>
+                <span class="kw">let</span> <span class="ident">num_bits</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">get</span>(<span class="self">self</span>.<span class="ident">addr</span>);
                 <span class="kw">let</span> <span class="ident">block_len</span> <span class="op">=</span> <span class="ident">compressed_block_size</span>(<span class="ident">num_bits</span>);
-                <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">advance</span>(<span class="ident">block_len</span>);
+                <span class="self">self</span>.<span class="ident">addr</span> <span class="op">+=</span> <span class="ident">block_len</span>;
+                <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">=</span> <span class="number">0</span>;
             }
-            <span class="kw">let</span> <span class="ident">num_consumed_bytes</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">block_decoder</span>
-                .<span class="ident">uncompress_block_unsorted</span>(<span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">as_ref</span>());
-            <span class="self">self</span>.<span class="ident">buffer</span>.<span class="ident">advance</span>(<span class="ident">num_consumed_bytes</span>);
-            <span class="self">self</span>.<span class="ident">inner_offset</span> <span class="op">=</span> <span class="ident">skip_len</span>;
         }
     }
 }
@@ -278,7 +324,7 @@
     <span class="kw">fn</span> <span class="ident">create_stream_buffer</span>() <span class="op">-&gt;</span> <span class="ident">ReadOnlySource</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BlockEncoder</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">1_025u32</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">1152u32</span>).<span class="ident">collect</span>();
         <span class="kw">for</span> <span class="ident">chunk</span> <span class="kw">in</span> <span class="ident">vals</span>.<span class="ident">chunks</span>(<span class="ident">COMPRESSION_BLOCK_SIZE</span>) {
             <span class="kw">let</span> <span class="ident">compressed_block</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">compress_block_unsorted</span>(<span class="ident">chunk</span>);
             <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="ident">compressed_block</span>[<span class="number">0</span>];
@@ -300,13 +346,24 @@
         <span class="ident">stream</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">block</span>[<span class="number">0</span>..<span class="number">2</span>]);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">0</span>], <span class="number">0</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">1</span>], <span class="number">1</span>);
+
+        <span class="comment">// reading does not consume the stream</span>
+        <span class="ident">stream</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">block</span>[<span class="number">0</span>..<span class="number">2</span>]);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">0</span>], <span class="number">0</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">1</span>], <span class="number">1</span>);
+        <span class="ident">stream</span>.<span class="ident">skip</span>(<span class="number">2</span>);
+
         <span class="ident">stream</span>.<span class="ident">skip</span>(<span class="number">5</span>);
         <span class="ident">stream</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">block</span>[<span class="number">0</span>..<span class="number">3</span>]);
+        <span class="ident">stream</span>.<span class="ident">skip</span>(<span class="number">3</span>);
+
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">0</span>], <span class="number">7</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">1</span>], <span class="number">8</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">2</span>], <span class="number">9</span>);
         <span class="ident">stream</span>.<span class="ident">skip</span>(<span class="number">500</span>);
         <span class="ident">stream</span>.<span class="ident">read</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">block</span>[<span class="number">0</span>..<span class="number">3</span>]);
+        <span class="ident">stream</span>.<span class="ident">skip</span>(<span class="number">3</span>);
+
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">0</span>], <span class="number">510</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">1</span>], <span class="number">511</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block</span>[<span class="number">2</span>], <span class="number">512</span>);

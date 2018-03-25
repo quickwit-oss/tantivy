@@ -10,7 +10,8 @@
     <title>libbacktrace.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -290,7 +291,7 @@
             <span class="ident">Symbol</span>::<span class="ident">Syminfo</span> { <span class="ident">pc</span>, .. } <span class="op">=&gt;</span> <span class="ident">pc</span>,
             <span class="ident">Symbol</span>::<span class="ident">Pcinfo</span> { <span class="ident">pc</span>, .. } <span class="op">=&gt;</span> <span class="ident">pc</span>,
         };
-        <span class="kw">if</span> <span class="ident">pc</span> <span class="op">==</span> <span class="number">0</span> {<span class="prelude-val">None</span>} <span class="kw">else</span> {<span class="prelude-val">Some</span>(<span class="ident">pc</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _)}
+        <span class="kw">if</span> <span class="ident">pc</span> <span class="op">==</span> <span class="number">0</span> {<span class="prelude-val">None</span>} <span class="kw">else</span> {<span class="prelude-val">Some</span>(<span class="ident">pc</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>)}
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">filename</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Path</span><span class="op">&gt;</span> {
@@ -383,7 +384,7 @@
 <span class="comment">// can&#39;t cause arbitrary code execution. As a result of all of this, we don&#39;t</span>
 <span class="comment">// hint libbacktrace with the path to the current process.</span>
 <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">init_state</span>() <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">bt</span>::<span class="ident">backtrace_state</span> {
-    <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">STATE</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">bt</span>::<span class="ident">backtrace_state</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _;
+    <span class="kw">static</span> <span class="kw-2">mut</span> <span class="ident">STATE</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">bt</span>::<span class="ident">backtrace_state</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>;
     <span class="kw">static</span> <span class="ident">INIT</span>: <span class="ident">Once</span> <span class="op">=</span> <span class="ident">ONCE_INIT</span>;
     <span class="ident">INIT</span>.<span class="ident">call_once</span>(<span class="op">||</span> {
         <span class="comment">// Our libbacktrace may not have multithreading support, so</span>
@@ -407,11 +408,11 @@
 
         <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="ident">bt</span>::<span class="ident">backtrace_pcinfo</span>(<span class="ident">state</span>, <span class="ident">symaddr</span> <span class="kw">as</span> <span class="ident">uintptr_t</span>,
                                        <span class="ident">pcinfo_cb</span>, <span class="ident">error_cb</span>,
-                                       <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _);
+                                       <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
         <span class="kw">if</span> <span class="ident">ret</span> <span class="op">!=</span> <span class="number">0</span> {
             <span class="ident">bt</span>::<span class="ident">backtrace_syminfo</span>(<span class="ident">state</span>, <span class="ident">symaddr</span> <span class="kw">as</span> <span class="ident">uintptr_t</span>,
                                   <span class="ident">syminfo_cb</span>, <span class="ident">error_cb</span>,
-                                  <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _);
+                                  <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
         }
     }
 }

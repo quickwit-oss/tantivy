@@ -10,7 +10,8 @@
     <title>serializer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -424,6 +425,9 @@
 <span id="368">368</span>
 <span id="369">369</span>
 <span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionaryBuilderImpl</span>;
@@ -438,6 +442,7 @@
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">VIntEncoder</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeWrite</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionaryBuilder</span>;
@@ -511,10 +516,11 @@
     <span class="doccomment">/// a given field.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Loads the indexing options for the given field.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FieldSerializer</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">total_num_tokens</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FieldSerializer</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">term_dictionary_write</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">terms_write</span>.<span class="ident">for_field</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">postings_write</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">postings_write</span>.<span class="ident">for_field</span>(<span class="ident">field</span>);
+        <span class="ident">total_num_tokens</span>.<span class="ident">serialize</span>(<span class="ident">postings_write</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">positions_write</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">positions_write</span>.<span class="ident">for_field</span>(<span class="ident">field</span>);
         <span class="ident">FieldSerializer</span>::<span class="ident">new</span>(
             <span class="ident">field_entry</span>.<span class="ident">field_type</span>().<span class="ident">clone</span>(),
@@ -550,6 +556,7 @@
         <span class="ident">postings_write</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">CountingWriter</span><span class="op">&lt;</span><span class="ident">WritePtr</span><span class="op">&gt;</span>,
         <span class="ident">positions_write</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">CountingWriter</span><span class="op">&lt;</span><span class="ident">WritePtr</span><span class="op">&gt;</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FieldSerializer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span> {
+
         <span class="kw">let</span> (<span class="ident">term_freq_enabled</span>, <span class="ident">position_enabled</span>): (<span class="ident">bool</span>, <span class="ident">bool</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">field_type</span> {
             <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">text_options</span>) <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">text_indexing_options</span>) <span class="op">=</span> <span class="ident">text_options</span>.<span class="ident">get_indexing_options</span>() {
@@ -562,7 +569,7 @@
                     (<span class="bool-val">false</span>, <span class="bool-val">false</span>)
                 }
             }
-            _ <span class="op">=&gt;</span> (<span class="bool-val">false</span>, <span class="bool-val">false</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="bool-val">false</span>, <span class="bool-val">false</span>),
         };
         <span class="kw">let</span> <span class="ident">term_dictionary_builder</span> <span class="op">=</span>
             <span class="ident">TermDictionaryBuilderImpl</span>::<span class="ident">new</span>(<span class="ident">term_dictionary_write</span>, <span class="ident">field_type</span>)<span class="question-mark">?</span>;

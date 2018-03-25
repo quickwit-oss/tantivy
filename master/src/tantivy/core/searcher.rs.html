@@ -10,7 +10,8 @@
     <title>searcher.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -164,7 +165,6 @@
 <span id="108">108</span>
 <span id="109">109</span>
 <span id="110">110</span>
-<span id="111">111</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -172,7 +172,6 @@
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">TimerTree</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">DocAddress</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
 <span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionary</span>, <span class="ident">TermMerger</span>};
@@ -201,20 +200,20 @@
     }
 
     <span class="doccomment">/// Returns the overall number of documents in the index.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
         <span class="self">self</span>.<span class="ident">segment_readers</span>
             .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">num_docs</span>())
-            .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">num_docs</span>() <span class="kw">as</span> <span class="ident">u64</span>)
+            .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>()
     }
 
     <span class="doccomment">/// Return the overall number of documents containing</span>
     <span class="doccomment">/// the given term.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">doc_freq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">doc_freq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
         <span class="self">self</span>.<span class="ident">segment_readers</span>
             .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">inverted_index</span>(<span class="ident">term</span>.<span class="ident">field</span>()).<span class="ident">doc_freq</span>(<span class="ident">term</span>))
-            .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">inverted_index</span>(<span class="ident">term</span>.<span class="ident">field</span>()).<span class="ident">doc_freq</span>(<span class="ident">term</span>) <span class="kw">as</span> <span class="ident">u64</span>)
+            .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>()
     }
 
     <span class="doccomment">/// Return the list of segment readers</span>
@@ -237,7 +236,7 @@
         <span class="kw">let</span> <span class="ident">inv_index_readers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_readers</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">inverted_index</span>(<span class="ident">field</span>))
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="ident">FieldSearcher</span>::<span class="ident">new</span>(<span class="ident">inv_index_readers</span>)
     }
 }
@@ -254,7 +253,7 @@
     <span class="doccomment">/// Returns a Stream over all of the sorted unique terms of</span>
     <span class="doccomment">/// for the given field.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">terms</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermMerger</span> {
-        <span class="kw">let</span> <span class="ident">term_streamers</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inv_index_readers</span>
+        <span class="kw">let</span> <span class="ident">term_streamers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inv_index_readers</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">inverted_index</span><span class="op">|</span> <span class="ident">inverted_index</span>.<span class="ident">terms</span>().<span class="ident">stream</span>())
             .<span class="ident">collect</span>();
@@ -273,7 +272,7 @@
         <span class="kw">let</span> <span class="ident">segment_ids</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">segment_readers</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">segment_reader</span><span class="op">|</span> <span class="ident">segment_reader</span>.<span class="ident">segment_id</span>())
-            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+            .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Searcher({:?})&quot;</span>, <span class="ident">segment_ids</span>)
     }
 }

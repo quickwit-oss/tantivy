@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1833,7 +1834,7 @@
 
         <span class="comment">// virtually pad other with 0&#39;s for equal lengths</span>
         <span class="kw">let</span> <span class="ident">other_words</span> <span class="op">=</span> {
-            <span class="kw">let</span> (_, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">match_words</span>(<span class="ident">self_bit_vec</span>, <span class="ident">other_bit_vec</span>);
+            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">result</span>) <span class="op">=</span> <span class="ident">match_words</span>(<span class="ident">self_bit_vec</span>, <span class="ident">other_bit_vec</span>);
             <span class="ident">result</span>
         };
 
@@ -2353,8 +2354,8 @@
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">tail</span>.<span class="ident">size_hint</span>() {
-            (_, <span class="prelude-val">Some</span>(<span class="ident">h</span>)) <span class="op">=&gt;</span> (<span class="number">0</span>, <span class="prelude-val">Some</span>(<span class="number">1</span> <span class="op">+</span> <span class="ident">h</span> <span class="op">*</span> <span class="ident">B</span>::<span class="ident">bits</span>())),
-            _ <span class="op">=&gt;</span> (<span class="number">0</span>, <span class="prelude-val">None</span>)
+            (<span class="kw">_</span>, <span class="prelude-val">Some</span>(<span class="ident">h</span>)) <span class="op">=&gt;</span> (<span class="number">0</span>, <span class="prelude-val">Some</span>(<span class="number">1</span> <span class="op">+</span> <span class="ident">h</span> <span class="op">*</span> <span class="ident">B</span>::<span class="ident">bits</span>())),
+            <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="number">0</span>, <span class="prelude-val">None</span>)
         }
     }
 }
@@ -2367,7 +2368,7 @@
             (<span class="prelude-val">Some</span>(<span class="ident">a</span>), <span class="prelude-val">Some</span>(<span class="ident">b</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="self">self</span>.<span class="ident">merge</span>)(<span class="ident">a</span>, <span class="ident">b</span>)),
             (<span class="prelude-val">Some</span>(<span class="ident">a</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="self">self</span>.<span class="ident">merge</span>)(<span class="ident">a</span>, <span class="ident">B</span>::<span class="ident">zero</span>())),
             (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="ident">b</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="self">self</span>.<span class="ident">merge</span>)(<span class="ident">B</span>::<span class="ident">zero</span>(), <span class="ident">b</span>)),
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>
         }
     }
 
@@ -2378,7 +2379,7 @@
 
         <span class="kw">let</span> <span class="ident">upper</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">au</span>, <span class="ident">bu</span>) {
             (<span class="prelude-val">Some</span>(<span class="ident">au</span>), <span class="prelude-val">Some</span>(<span class="ident">bu</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">au</span>, <span class="ident">bu</span>)),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         };
 
         (<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">a</span>, <span class="ident">b</span>), <span class="ident">upper</span>)
@@ -2461,13 +2462,13 @@
         <span class="kw">let</span> <span class="ident">usizes</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">2</span>, <span class="number">2</span>, <span class="number">3</span>];
         <span class="kw">let</span> <span class="ident">bit_vec</span>: <span class="ident">BitSet</span> <span class="op">=</span> <span class="ident">usizes</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>();
 
-        <span class="kw">let</span> <span class="ident">idxs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">bit_vec</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">idxs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">bit_vec</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">idxs</span>, [<span class="number">0</span>, <span class="number">2</span>, <span class="number">3</span>]);
 
         <span class="kw">let</span> <span class="ident">long</span>: <span class="ident">BitSet</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10000</span>).<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span> <span class="op">%</span> <span class="number">2</span> <span class="op">==</span> <span class="number">0</span>).<span class="ident">collect</span>();
-        <span class="kw">let</span> <span class="ident">real</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10000</span><span class="op">/</span><span class="number">2</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span><span class="kw-2">*</span><span class="number">2</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">real</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10000</span><span class="op">/</span><span class="number">2</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span><span class="kw-2">*</span><span class="number">2</span>).<span class="ident">collect</span>();
 
-        <span class="kw">let</span> <span class="ident">idxs</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">long</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">idxs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">long</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">idxs</span>, <span class="ident">real</span>);
     }
 
@@ -2532,7 +2533,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">insert</span>(<span class="number">3</span>));
 
         <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> [<span class="number">3</span>, <span class="number">5</span>, <span class="number">11</span>, <span class="number">77</span>];
-        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">intersection</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">intersection</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">actual</span>, <span class="ident">expected</span>);
     }
 
@@ -2551,7 +2552,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">insert</span>(<span class="number">200</span>));
 
         <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">5</span>, <span class="number">500</span>];
-        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">difference</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">difference</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">actual</span>, <span class="ident">expected</span>);
     }
 
@@ -2572,7 +2573,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">insert</span>(<span class="number">220</span>));
 
         <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">5</span>, <span class="number">11</span>, <span class="number">14</span>, <span class="number">220</span>];
-        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">symmetric_difference</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">symmetric_difference</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">actual</span>, <span class="ident">expected</span>);
     }
 
@@ -2597,7 +2598,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">b</span>.<span class="ident">insert</span>(<span class="number">19</span>));
 
         <span class="kw">let</span> <span class="ident">expected</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">3</span>, <span class="number">5</span>, <span class="number">9</span>, <span class="number">11</span>, <span class="number">13</span>, <span class="number">19</span>, <span class="number">24</span>, <span class="number">160</span>, <span class="number">200</span>];
-        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="ident">actual</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">a</span>.<span class="ident">union</span>(<span class="kw-2">&amp;</span><span class="ident">b</span>).<span class="ident">collect</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">actual</span>, <span class="ident">expected</span>);
     }
 
@@ -2895,7 +2896,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">rng</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bit_vec</span> <span class="op">=</span> <span class="ident">BitSet</span>::<span class="ident">new</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                 <span class="ident">bit_vec</span>.<span class="ident">insert</span>((<span class="ident">r</span>.<span class="ident">next_u32</span>() <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">%</span> <span class="ident">BITS</span>);
             }
             <span class="ident">black_box</span>(<span class="kw-2">&amp;</span><span class="ident">bit_vec</span>);
@@ -2907,7 +2908,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">rng</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bit_vec</span> <span class="op">=</span> <span class="ident">BitSet</span>::<span class="ident">new</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                 <span class="ident">bit_vec</span>.<span class="ident">insert</span>((<span class="ident">r</span>.<span class="ident">next_u32</span>() <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">%</span> <span class="ident">BENCH_BITS</span>);
             }
             <span class="ident">black_box</span>(<span class="kw-2">&amp;</span><span class="ident">bit_vec</span>);

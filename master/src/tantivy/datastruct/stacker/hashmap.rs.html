@@ -10,7 +10,8 @@
     <title>hashmap.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -382,7 +383,7 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">h</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">SEED</span> <span class="op">^</span> <span class="ident">len</span>;
         <span class="kw">let</span> <span class="ident">num_blocks</span> <span class="op">=</span> <span class="ident">len</span> <span class="op">&gt;&gt;</span> <span class="number">2</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_blocks</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_blocks</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">k</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span><span class="ident">key_ptr</span> };
             <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
             <span class="ident">k</span> <span class="op">^=</span> <span class="ident">k</span> <span class="op">&gt;&gt;</span> <span class="ident">r</span>;
@@ -411,7 +412,7 @@
                 <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>) };
                 <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
             }
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
         <span class="ident">h</span> <span class="op">^=</span> <span class="ident">h</span> <span class="op">&gt;&gt;</span> <span class="number">13</span>;
         <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
@@ -623,12 +624,12 @@
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">iter_values</span> <span class="op">=</span> <span class="ident">hash_map</span>.<span class="ident">iter</span>();
         {
-            <span class="kw">let</span> (_, <span class="ident">addr</span>, _) <span class="op">=</span> <span class="ident">iter_values</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
+            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">addr</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">iter_values</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">TestValue</span> <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">get_ref</span>(<span class="ident">addr</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">val</span>.<span class="ident">val</span>, <span class="number">3u32</span>);
         }
         {
-            <span class="kw">let</span> (_, <span class="ident">addr</span>, _) <span class="op">=</span> <span class="ident">iter_values</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
+            <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">addr</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">iter_values</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">val</span>: <span class="kw-2">&amp;</span><span class="ident">TestValue</span> <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">get_ref</span>(<span class="ident">addr</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">val</span>.<span class="ident">val</span>, <span class="number">4u32</span>);
         }

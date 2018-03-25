@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/task_impl/std/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/task_impl/std/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -829,7 +830,7 @@
 }
 
 <span class="kw">fn</span> <span class="ident">tls_slot</span>() <span class="op">-&gt;</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">Cell</span><span class="op">&lt;</span><span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span><span class="op">&gt;</span> {
-    <span class="ident">CURRENT_TASK</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _)
+    <span class="ident">CURRENT_TASK</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>)
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">F</span>, <span class="ident">R</span><span class="op">&gt;</span>(<span class="ident">task</span>: <span class="kw-2">&amp;</span><span class="ident">BorrowedTask</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>, <span class="ident">f</span>: <span class="ident">F</span>) <span class="op">-&gt;</span> <span class="ident">R</span>
@@ -840,8 +841,8 @@
     <span class="comment">// Note that we won&#39;t actually use these functions ever, we&#39;ll instead be</span>
     <span class="comment">// testing the pointer&#39;s value elsewhere and calling our own functions.</span>
     <span class="ident">INIT</span>.<span class="ident">call_once</span>(<span class="op">||</span> <span class="kw">unsafe</span> {
-        <span class="kw">let</span> <span class="ident">get</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">usize</span>, _<span class="op">&gt;</span>(<span class="number">0x1</span>);
-        <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">usize</span>, _<span class="op">&gt;</span>(<span class="number">0x2</span>);
+        <span class="kw">let</span> <span class="ident">get</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">usize</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="number">0x1</span>);
+        <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">usize</span>, <span class="kw">_</span><span class="op">&gt;</span>(<span class="number">0x2</span>);
         <span class="ident">init</span>(<span class="ident">get</span>, <span class="ident">set</span>);
     });
 
@@ -861,7 +862,7 @@
         <span class="kw">unsafe</span> {
             <span class="kw">let</span> <span class="ident">slot</span> <span class="op">=</span> <span class="ident">tls_slot</span>();
             <span class="kw">let</span> <span class="ident">_reset</span> <span class="op">=</span> <span class="ident">Reset</span>(<span class="ident">slot</span>, (<span class="kw-2">*</span><span class="ident">slot</span>).<span class="ident">get</span>());
-            (<span class="kw-2">*</span><span class="ident">slot</span>).<span class="ident">set</span>(<span class="ident">task</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>);
+            (<span class="kw-2">*</span><span class="ident">slot</span>).<span class="ident">set</span>(<span class="ident">task</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u8</span>);
             <span class="ident">f</span>()
         }
     } <span class="kw">else</span> {
@@ -963,12 +964,12 @@
         <span class="comment">// equivalent to the current task.</span>
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">UnparkEvents</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
         }
 
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">events</span> {
             <span class="ident">BorrowedEvents</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> {},
+            <span class="kw">_</span> <span class="op">=&gt;</span> {},
         }
 
         <span class="kw">return</span> <span class="bool-val">false</span>
@@ -992,7 +993,7 @@
             (<span class="kw-2">&amp;</span><span class="ident">BorrowedUnpark</span>::<span class="ident">New</span>(<span class="kw-2">ref</span> <span class="ident">new1</span>), <span class="kw-2">&amp;</span><span class="ident">TaskUnpark</span>::<span class="ident">New</span>(<span class="kw-2">ref</span> <span class="ident">new2</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">new2</span>.<span class="ident">will_notify</span>(<span class="ident">new1</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -1299,7 +1300,7 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">compare_and_swap</span>(<span class="ident">NOTIFY</span>, <span class="ident">IDLE</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) {
             <span class="ident">NOTIFY</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">IDLE</span> <span class="op">=&gt;</span> {},
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
 
         <span class="comment">// The state is currently idle, so obtain the lock and then try to</span>
@@ -1315,7 +1316,7 @@
                 <span class="kw">return</span>;
             }
             <span class="ident">IDLE</span> <span class="op">=&gt;</span> {},
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
 
         <span class="comment">// Loop until we&#39;ve been notified</span>
@@ -1337,7 +1338,7 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">compare_and_swap</span>(<span class="ident">IDLE</span>, <span class="ident">NOTIFY</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) {
             <span class="ident">IDLE</span> <span class="op">|</span> <span class="ident">NOTIFY</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">SLEEP</span> <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
 
         <span class="comment">// The other half is sleeping, this requires a lock</span>
@@ -1346,7 +1347,7 @@
         <span class="comment">// Transition from SLEEP -&gt; NOTIFY</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span>.<span class="ident">compare_and_swap</span>(<span class="ident">SLEEP</span>, <span class="ident">NOTIFY</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>) {
             <span class="ident">SLEEP</span> <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> <span class="kw">return</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
         }
 
         <span class="comment">// Wakeup the sleeper</span>

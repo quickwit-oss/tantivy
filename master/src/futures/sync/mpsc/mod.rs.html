@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/sync/mpsc/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/sync/mpsc/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -1417,8 +1418,8 @@
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">TrySendErrorKind</span>::<span class="kw-2">*</span>;
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
-            <span class="ident">Full</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Full</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1427,8 +1428,8 @@
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">TrySendErrorKind</span>::<span class="kw-2">*</span>;
 
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
-            <span class="ident">Disconnected</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Disconnected</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1718,7 +1719,7 @@
 
             <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="ident">encode_state</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>);
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">state</span>.<span class="ident">compare_exchange</span>(<span class="ident">curr</span>, <span class="ident">next</span>, <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
-                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="comment">// Block if the current number of pending messages has exceeded</span>
                     <span class="comment">// the configured buffer size</span>
                     <span class="kw">let</span> <span class="ident">park_self</span> <span class="op">=</span> <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">buffer</span> {
@@ -1966,7 +1967,7 @@
         <span class="kw">let</span> <span class="ident">prev</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">num_senders</span>.<span class="ident">fetch_sub</span>(<span class="number">1</span>, <span class="ident">SeqCst</span>);
 
         <span class="kw">if</span> <span class="ident">prev</span> <span class="op">==</span> <span class="number">1</span> {
-            <span class="kw">let</span> _ <span class="op">=</span> <span class="self">self</span>.<span class="ident">do_send</span>(<span class="prelude-val">None</span>, <span class="bool-val">false</span>);
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">do_send</span>(<span class="prelude-val">None</span>, <span class="bool-val">false</span>);
         }
     }
 }
@@ -1996,7 +1997,7 @@
 
             <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="ident">encode_state</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>);
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">state</span>.<span class="ident">compare_exchange</span>(<span class="ident">curr</span>, <span class="ident">next</span>, <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
-                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">break</span>,
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">actual</span>) <span class="op">=&gt;</span> <span class="ident">curr</span> <span class="op">=</span> <span class="ident">actual</span>,
             }
         }
@@ -2096,7 +2097,7 @@
 
             <span class="kw">let</span> <span class="ident">next</span> <span class="op">=</span> <span class="ident">encode_state</span>(<span class="kw-2">&amp;</span><span class="ident">state</span>);
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">state</span>.<span class="ident">compare_exchange</span>(<span class="ident">curr</span>, <span class="ident">next</span>, <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
-                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">break</span>,
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">actual</span>) <span class="op">=&gt;</span> <span class="ident">curr</span> <span class="op">=</span> <span class="ident">actual</span>,
             }
         }
@@ -2276,7 +2277,7 @@
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>)))) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;mpsc::Receiver should never return Err&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;mpsc::Receiver should never return Err&quot;</span>),
         }
     }
 }
@@ -2295,11 +2296,11 @@
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Poll</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">cancel_rx</span>.<span class="ident">poll</span>() {
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> (),
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(())),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(())),
         }
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">poll</span>() {
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(()))
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(()))
         }
     }
 }

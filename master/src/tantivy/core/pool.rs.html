@@ -10,7 +10,8 @@
     <title>pool.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -313,12 +314,12 @@
         <span class="kw">let</span> <span class="ident">items10</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">10</span>).<span class="ident">take</span>(<span class="number">10</span>).<span class="ident">collect</span>();
         <span class="kw">let</span> <span class="ident">pool</span> <span class="op">=</span> <span class="ident">Pool</span>::<span class="ident">new</span>();
         <span class="ident">pool</span>.<span class="ident">publish_new_generation</span>(<span class="ident">items10</span>);
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">pool</span>.<span class="ident">acquire</span>(), <span class="number">10</span>);
         }
         <span class="kw">let</span> <span class="ident">items11</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="number">11</span>).<span class="ident">take</span>(<span class="number">10</span>).<span class="ident">collect</span>();
         <span class="ident">pool</span>.<span class="ident">publish_new_generation</span>(<span class="ident">items11</span>);
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">pool</span>.<span class="ident">acquire</span>(), <span class="number">11</span>);
         }
     }

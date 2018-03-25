@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/hir/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/hir/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -2094,6 +2095,21 @@
 <span id="2038">2038</span>
 <span id="2039">2039</span>
 <span id="2040">2040</span>
+<span id="2041">2041</span>
+<span id="2042">2042</span>
+<span id="2043">2043</span>
+<span id="2044">2044</span>
+<span id="2045">2045</span>
+<span id="2046">2046</span>
+<span id="2047">2047</span>
+<span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -2122,6 +2138,7 @@ Defines a high-level intermediate representation for regular expressions.
 
 <span class="kw">mod</span> <span class="ident">interval</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">literal</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">print</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">translate</span>;
 <span class="kw">mod</span> <span class="ident">visitor</span>;
 
@@ -2195,7 +2212,7 @@ Defines a high-level intermediate representation for regular expressions.
             <span class="ident">UnicodePropertyNotFound</span> <span class="op">=&gt;</span> <span class="string">&quot;Unicode property not found&quot;</span>,
             <span class="ident">UnicodePropertyValueNotFound</span> <span class="op">=&gt;</span> <span class="string">&quot;Unicode property value not found&quot;</span>,
             <span class="ident">EmptyClassNotAllowed</span> <span class="op">=&gt;</span> <span class="string">&quot;empty character classes are not allowed&quot;</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 }
@@ -2249,6 +2266,10 @@ Defines a high-level intermediate representation for regular expressions.
 <span class="doccomment">///    and can be computed cheaply during the construction process. For</span>
 <span class="doccomment">///    example, one such attribute is whether the expression must match at the</span>
 <span class="doccomment">///    beginning of the text.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Also, an `Hir`&#39;s `fmt::Display` implementation prints an HIR as a regular</span>
+<span class="doccomment">/// expression pattern string, and uses constant stack space and heap space</span>
+<span class="doccomment">/// proportional to the size of the `Hir`.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Hir</span> {
     <span class="doccomment">/// The underlying HIR kind.</span>
@@ -2399,10 +2420,7 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="comment">// A negated word boundary matches the empty string, but a normal</span>
         <span class="comment">// word boundary does not!</span>
         <span class="ident">info</span>.<span class="ident">set_match_empty</span>(<span class="ident">word_boundary</span>.<span class="ident">is_negated</span>());
-        <span class="comment">// ASCII word boundaries can match invalid UTF-8.</span>
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">WordBoundary</span>::<span class="ident">Ascii</span> <span class="op">=</span> <span class="ident">word_boundary</span> {
-            <span class="ident">info</span>.<span class="ident">set_always_utf8</span>(<span class="bool-val">false</span>);
-        }
+        <span class="comment">// Negated ASCII word boundaries can match invalid UTF-8.</span>
         <span class="kw">if</span> <span class="kw">let</span> <span class="ident">WordBoundary</span>::<span class="ident">AsciiNegate</span> <span class="op">=</span> <span class="ident">word_boundary</span> {
             <span class="ident">info</span>.<span class="ident">set_always_utf8</span>(<span class="bool-val">false</span>);
         }
@@ -2457,7 +2475,7 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="kw">match</span> <span class="ident">exprs</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Hir</span>::<span class="ident">empty</span>(),
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="ident">exprs</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">HirInfo</span>::<span class="ident">new</span>();
                 <span class="ident">info</span>.<span class="ident">set_always_utf8</span>(<span class="bool-val">true</span>);
                 <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
@@ -2528,7 +2546,7 @@ Defines a high-level intermediate representation for regular expressions.
         <span class="kw">match</span> <span class="ident">exprs</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Hir</span>::<span class="ident">empty</span>(),
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="ident">exprs</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">info</span> <span class="op">=</span> <span class="ident">HirInfo</span>::<span class="ident">new</span>();
                 <span class="ident">info</span>.<span class="ident">set_always_utf8</span>(<span class="bool-val">true</span>);
                 <span class="ident">info</span>.<span class="ident">set_all_assertions</span>(<span class="bool-val">true</span>);
@@ -2681,7 +2699,7 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">HirKind</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -2690,15 +2708,28 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">has_subexprs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">HirKind</span>::<span class="ident">Empty</span>
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">HirKind</span>::<span class="ident">Group</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Repetition</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Concat</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">HirKind</span>::<span class="ident">Group</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Repetition</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Concat</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
         }
+    }
+}
+
+<span class="doccomment">/// Print a display representation of this Hir.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The result of this is a valid regular expression pattern string.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This implementation uses constant stack space and heap space proportional</span>
+<span class="doccomment">/// to the size of the `Hir`.</span>
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Hir</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">use</span> <span class="ident">hir</span>::<span class="ident">print</span>::<span class="ident">Printer</span>;
+        <span class="ident">Printer</span>::<span class="ident">new</span>().<span class="ident">print</span>(<span class="self">self</span>, <span class="ident">f</span>)
     }
 }
 
@@ -2721,9 +2752,9 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="doccomment">/// scalar value.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_unicode</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Literal</span>::<span class="ident">Unicode</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">Literal</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">Literal</span>::<span class="ident">Byte</span>(<span class="ident">b</span>) <span class="kw">if</span> <span class="ident">b</span> <span class="op">&lt;=</span> <span class="number">0x7F</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">Literal</span>::<span class="ident">Byte</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Literal</span>::<span class="ident">Byte</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -2791,7 +2822,7 @@ Defines a high-level intermediate representation for regular expressions.
     <span class="doccomment">///    enabled.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_always_utf8</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Class</span>::<span class="ident">Unicode</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">Class</span>::<span class="ident">Bytes</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">is_all_ascii</span>(),
         }
     }
@@ -3298,7 +3329,7 @@ Defines a high-level intermediate representation for regular expressions.
             <span class="ident">RepetitionKind</span>::<span class="ident">OneOrMore</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
             <span class="ident">RepetitionKind</span>::<span class="ident">Range</span>(<span class="ident">RepetitionRange</span>::<span class="ident">Exactly</span>(<span class="ident">m</span>)) <span class="op">=&gt;</span> <span class="ident">m</span> <span class="op">==</span> <span class="number">0</span>,
             <span class="ident">RepetitionKind</span>::<span class="ident">Range</span>(<span class="ident">RepetitionRange</span>::<span class="ident">AtLeast</span>(<span class="ident">m</span>)) <span class="op">=&gt;</span> <span class="ident">m</span> <span class="op">==</span> <span class="number">0</span>,
-            <span class="ident">RepetitionKind</span>::<span class="ident">Range</span>(<span class="ident">RepetitionRange</span>::<span class="ident">Bounded</span>(<span class="ident">m</span>, _)) <span class="op">=&gt;</span> <span class="ident">m</span> <span class="op">==</span> <span class="number">0</span>,
+            <span class="ident">RepetitionKind</span>::<span class="ident">Range</span>(<span class="ident">RepetitionRange</span>::<span class="ident">Bounded</span>(<span class="ident">m</span>, <span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="ident">m</span> <span class="op">==</span> <span class="number">0</span>,
         }
     }
 }
@@ -3335,25 +3366,25 @@ Defines a high-level intermediate representation for regular expressions.
 
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">kind</span>() {
             <span class="ident">HirKind</span>::<span class="ident">Empty</span>
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(_)
-            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span>,
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">HirKind</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">x</span>.<span class="ident">hir</span>.<span class="ident">kind</span>.<span class="ident">has_subexprs</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">HirKind</span>::<span class="ident">Repetition</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">x</span>.<span class="ident">hir</span>.<span class="ident">kind</span>.<span class="ident">has_subexprs</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">HirKind</span>::<span class="ident">Concat</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">is_empty</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">is_empty</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stack</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="self">self</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>())];
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">expr</span>) <span class="op">=</span> <span class="ident">stack</span>.<span class="ident">pop</span>() {
             <span class="kw">match</span> <span class="ident">expr</span>.<span class="ident">kind</span> {
                 <span class="ident">HirKind</span>::<span class="ident">Empty</span>
-                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(_)
-                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(_)
-                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(_)
-                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(_) <span class="op">=&gt;</span> {}
+                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Class</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">Anchor</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">HirKind</span>::<span class="ident">WordBoundary</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
                 <span class="ident">HirKind</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                     <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">x</span>.<span class="ident">hir</span>, <span class="ident">Hir</span>::<span class="ident">empty</span>()));
                 }
@@ -4102,7 +4133,7 @@ Defines a high-level intermediate representation for regular expressions.
 
         <span class="kw">let</span> <span class="ident">run</span> <span class="op">=</span> <span class="op">||</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expr</span> <span class="op">=</span> <span class="ident">Hir</span>::<span class="ident">empty</span>();
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                 <span class="ident">expr</span> <span class="op">=</span> <span class="ident">Hir</span>::<span class="ident">group</span>(<span class="ident">Group</span> {
                     <span class="ident">kind</span>: <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>,
                     <span class="ident">hir</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">expr</span>),

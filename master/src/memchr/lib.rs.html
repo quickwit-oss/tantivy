@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1894,7 +1895,7 @@ interface to the corresponding functions in `libc`.
     {
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">haystack</span>.<span class="ident">iter</span>()
                          .<span class="ident">enumerate</span>()
-                         .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle</span>)
+                         .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle</span>)
                          .<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="number">0</span>))
     }
 
@@ -1904,7 +1905,7 @@ interface to the corresponding functions in `libc`.
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">haystack</span>
             .<span class="ident">iter</span>()
             .<span class="ident">enumerate</span>()
-            .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle1</span> <span class="op">||</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle2</span>)
+            .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle1</span> <span class="op">||</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle2</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="number">0</span>))
     }
 
@@ -1917,7 +1918,7 @@ interface to the corresponding functions in `libc`.
         <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">haystack</span>
             .<span class="ident">iter</span>()
             .<span class="ident">enumerate</span>()
-            .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> {
+            .<span class="ident">filter</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="ident">elt</span>)<span class="op">|</span> {
                 <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle1</span> <span class="op">||</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle2</span> <span class="op">||</span> <span class="ident">elt</span> <span class="op">==</span> <span class="ident">needle3</span>
             })
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="number">0</span>))

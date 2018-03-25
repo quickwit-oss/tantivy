@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/sink/buffer.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/sink/buffer.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>buffer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -162,9 +163,6 @@
 <span id="106">106</span>
 <span id="107">107</span>
 <span id="108">108</span>
-<span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">VecDeque</span>;
 
@@ -216,9 +214,6 @@
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">pop_front</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="ident">AsyncSink</span>::<span class="ident">NotReady</span>(<span class="ident">item</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">sink</span>.<span class="ident">start_send</span>(<span class="ident">item</span>)<span class="question-mark">?</span> {
                 <span class="self">self</span>.<span class="ident">buf</span>.<span class="ident">push_front</span>(<span class="ident">item</span>);
-
-                <span class="comment">// ensure that we attempt to complete any pushes we&#39;ve started</span>
-                <span class="self">self</span>.<span class="ident">sink</span>.<span class="ident">poll_complete</span>()<span class="question-mark">?</span>;
 
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>);
             }

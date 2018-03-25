@@ -10,7 +10,8 @@
     <title>chacha.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -449,7 +450,7 @@
 <span class="kw">fn</span> <span class="ident">core</span>(<span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">w32</span>; <span class="ident">STATE_WORDS</span>], <span class="ident">input</span>: <span class="kw-2">&amp;</span>[<span class="ident">w32</span>; <span class="ident">STATE_WORDS</span>]) {
     <span class="kw-2">*</span><span class="ident">output</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">input</span>;
 
-    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">CHACHA_ROUNDS</span> <span class="op">/</span> <span class="number">2</span> {
+    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">CHACHA_ROUNDS</span> <span class="op">/</span> <span class="number">2</span> {
         <span class="macro">double_round</span><span class="macro">!</span>(<span class="ident">output</span>);
     }
 
@@ -626,7 +627,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_seeded</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0</span>,<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>,<span class="number">7</span>];
+        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0</span>,<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>,<span class="number">7</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">ChaChaRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rb</span>: <span class="ident">ChaChaRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="macro">assert</span><span class="macro">!</span>(::<span class="ident">test</span>::<span class="ident">iter_eq</span>(<span class="ident">ra</span>.<span class="ident">gen_ascii_chars</span>().<span class="ident">take</span>(<span class="number">100</span>),
@@ -649,17 +650,17 @@
     <span class="kw">fn</span> <span class="ident">test_rng_true_values</span>() {
         <span class="comment">// Test vectors 1 and 2 from</span>
         <span class="comment">// http://tools.ietf.org/html/draft-nir-cfrg-chacha20-poly1305-04</span>
-        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0u32</span>; <span class="number">8</span>];
+        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0u32</span>; <span class="number">8</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">ChaChaRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">16</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">16</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">0xade0b876</span>, <span class="number">0x903df1a0</span>, <span class="number">0xe56a5d40</span>, <span class="number">0x28bd8653</span>,
                         <span class="number">0xb819d2bd</span>, <span class="number">0x1aed8da0</span>, <span class="number">0xccef36a8</span>, <span class="number">0xc70d778b</span>,
                         <span class="number">0x7c5941da</span>, <span class="number">0x8d485751</span>, <span class="number">0x3fe02477</span>, <span class="number">0x374ad8b8</span>,
                         <span class="number">0xf4b8436a</span>, <span class="number">0x1ca11815</span>, <span class="number">0x69b687c3</span>, <span class="number">0x8665eeb2</span>));
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">16</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">16</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">0xbee7079f</span>, <span class="number">0x7a385155</span>, <span class="number">0x7c97ba98</span>, <span class="number">0x0d082d73</span>,
                         <span class="number">0xa0290fcb</span>, <span class="number">0x6965e348</span>, <span class="number">0x3e53c612</span>, <span class="number">0xed7aee32</span>,
@@ -667,15 +668,15 @@
                         <span class="number">0x281fed31</span>, <span class="number">0x45fb0a51</span>, <span class="number">0x1f0ae1ac</span>, <span class="number">0x6f4d794b</span>));
 
 
-        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0</span>,<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>,<span class="number">7</span>];
+        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0</span>,<span class="number">1</span>,<span class="number">2</span>,<span class="number">3</span>,<span class="number">4</span>,<span class="number">5</span>,<span class="number">6</span>,<span class="number">7</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">ChaChaRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
 
         <span class="comment">// Store the 17*i-th 32-bit word,</span>
         <span class="comment">// i.e., the i-th word of the i-th 16-word block</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> : <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
             <span class="ident">v</span>.<span class="ident">push</span>(<span class="ident">ra</span>.<span class="ident">next_u32</span>());
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
                 <span class="ident">ra</span>.<span class="ident">next_u32</span>();
             }
         }
@@ -689,10 +690,10 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_clone</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0u32</span>; <span class="number">8</span>];
+        <span class="kw">let</span> <span class="ident">seed</span> : <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">0u32</span>; <span class="number">8</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">ChaChaRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">clone</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">clone</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rng</span>.<span class="ident">next_u64</span>(), <span class="ident">clone</span>.<span class="ident">next_u64</span>());
         }
     }

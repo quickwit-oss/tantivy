@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/unsync/mpsc.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/unsync/mpsc.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mpsc.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -524,6 +525,10 @@
 <span id="468">468</span>
 <span id="469">469</span>
 <span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! A multi-producer, single-consumer, futures-aware, FIFO queue with back</span>
 <span class="doccomment">//! pressure, for use communicating between tasks on the same thread.</span>
@@ -597,7 +602,7 @@
                 <span class="ident">shared</span>.<span class="ident">blocked_senders</span>.<span class="ident">push_back</span>(<span class="ident">task</span>::<span class="ident">current</span>());
                 <span class="prelude-val">Ok</span>(<span class="ident">AsyncSink</span>::<span class="ident">NotReady</span>(<span class="ident">msg</span>))
             }
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="ident">shared</span>.<span class="ident">buffer</span>.<span class="ident">push_back</span>(<span class="ident">msg</span>);
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">task</span>) <span class="op">=</span> <span class="ident">shared</span>.<span class="ident">blocked_recv</span>.<span class="ident">take</span>() {
                     <span class="ident">task</span>.<span class="ident">notify</span>();
@@ -637,7 +642,11 @@
             <span class="prelude-val">Some</span>(<span class="ident">shared</span>) <span class="op">=&gt;</span> <span class="ident">shared</span>,
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span>,
         };
-        <span class="kw">if</span> <span class="ident">Rc</span>::<span class="ident">weak_count</span>(<span class="kw-2">&amp;</span><span class="ident">shared</span>) <span class="op">==</span> <span class="number">0</span> {
+        <span class="comment">// The number of existing `Weak` indicates if we are possibly the last</span>
+        <span class="comment">// `Sender`. If we are the last, we possibly must notify a blocked</span>
+        <span class="comment">// `Receiver`. `self.shared` is always one of the `Weak` to this shared</span>
+        <span class="comment">// data. Therefore the smallest possible Rc::weak_count(&amp;shared) is 1.</span>
+        <span class="kw">if</span> <span class="ident">Rc</span>::<span class="ident">weak_count</span>(<span class="kw-2">&amp;</span><span class="ident">shared</span>) <span class="op">==</span> <span class="number">1</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">task</span>) <span class="op">=</span> <span class="ident">shared</span>.<span class="ident">borrow_mut</span>().<span class="ident">blocked_recv</span>.<span class="ident">take</span>() {
                 <span class="comment">// Wake up receiver as its stream has ended</span>
                 <span class="ident">task</span>.<span class="ident">notify</span>();
@@ -675,7 +684,7 @@
                 <span class="kw">let</span> <span class="ident">blockers</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">state</span>.<span class="ident">blocked_senders</span>, <span class="ident">VecDeque</span>::<span class="ident">new</span>());
                 (<span class="ident">blockers</span>, <span class="ident">items</span>)
             }
-            <span class="ident">State</span>::<span class="ident">Closed</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span>,
+            <span class="ident">State</span>::<span class="ident">Closed</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span>,
         };
         <span class="self">self</span>.<span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Closed</span>(<span class="ident">items</span>);
         <span class="kw">for</span> <span class="ident">task</span> <span class="kw">in</span> <span class="ident">blockers</span> {
@@ -961,7 +970,7 @@
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>)))) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">None</span>)),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;mpsc::Receiver should never return Err&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;mpsc::Receiver should never return Err&quot;</span>),
         }
     }
 }
@@ -980,11 +989,11 @@
     <span class="kw">fn</span> <span class="ident">poll</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Poll</span><span class="op">&lt;</span>(), ()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">cancel_rx</span>.<span class="ident">poll</span>() {
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> (),
-            _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(())),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(())),
         }
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">poll</span>() {
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(()))
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(()))
         }
     }
 }

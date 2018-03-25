@@ -10,7 +10,8 @@
     <title>tantivy::fastfield::IntFastFieldWriter - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#146-153' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#126-133' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct IntFastFieldWriter { /* fields omitted */ }</pre><div class='docblock'><p>Fast field writer for ints.
 The fast field writer just keeps the values in memory.</p>
 <p>Only when the segment writer can be closed and
@@ -76,20 +77,20 @@ using <code>common::i64_to_u64</code>.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#155-255' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(field: <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>) -&gt; <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#157-166' title='goto source code'>[src]</a></span></h4>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#135-222' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(field: <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>) -&gt; <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#137-146' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Creates a new <code>IntFastFieldWriter</code></p>
-</div><h4 id='method.field' class="method"><span id='field.v' class='invisible'><code>pub fn <a href='#method.field' class='fnname'>field</a>(&amp;self) -&gt; <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#169-171' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.field' class="method"><span id='field.v' class='invisible'><code>pub fn <a href='#method.field' class='fnname'>field</a>(&amp;self) -&gt; <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#149-151' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Returns the field that this writer is targetting.</p>
-</div><h4 id='method.add_val' class="method"><span id='add_val.v' class='invisible'><code>pub fn <a href='#method.add_val' class='fnname'>add_val</a>(&amp;mut self, val: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#199-212' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.add_val' class="method"><span id='add_val.v' class='invisible'><code>pub fn <a href='#method.add_val' class='fnname'>add_val</a>(&amp;mut self, val: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u64.html">u64</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#166-179' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Records a new value.</p>
 <p>The n-th value being recorded is implicitely
 associated to the document with the <code>DocId</code> n.
 (Well, <code>n-1</code> actually because of 0-indexing)</p>
-</div><h4 id='method.add_document' class="method"><span id='add_document.v' class='invisible'><code>pub fn <a href='#method.add_document' class='fnname'>add_document</a>(&amp;mut self, doc: &amp;<a class="struct" href="../../tantivy/struct.Document.html" title="struct tantivy::Document">Document</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#233-236' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.add_document' class="method"><span id='add_document.v' class='invisible'><code>pub fn <a href='#method.add_document' class='fnname'>add_document</a>(&amp;mut self, doc: &amp;<a class="struct" href="../../tantivy/struct.Document.html" title="struct tantivy::Document">Document</a>)</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#200-203' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Extract the fast field value from the document
 (or use the default value) and records it.</p>
-</div><h4 id='method.serialize' class="method"><span id='serialize.v' class='invisible'><code>pub fn <a href='#method.serialize' class='fnname'>serialize</a>(&amp;self, serializer: &amp;mut <a class="struct" href="../../tantivy/fastfield/struct.FastFieldSerializer.html" title="struct tantivy::fastfield::FastFieldSerializer">FastFieldSerializer</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#239-254' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.serialize' class="method"><span id='serialize.v' class='invisible'><code>pub fn <a href='#method.serialize' class='fnname'>serialize</a>(&amp;self, serializer: &amp;mut <a class="struct" href="../../tantivy/fastfield/struct.FastFieldSerializer.html" title="struct tantivy::fastfield::FastFieldSerializer">FastFieldSerializer</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fastfield/writer.rs.html#206-221' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Push the fast fields value to the <code>FastFieldWriter</code>.</p>
 </div></div>
             <h2 id='implementations' class='small-section-header'>
@@ -97,11 +98,11 @@ associated to the document with the <code>DocId</code> n.
             </h2>
             <div id='implementations-list'>
         </div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/fastfield/struct.IntFastFieldWriter.html" title="struct tantivy::fastfield::IntFastFieldWriter">IntFastFieldWriter</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

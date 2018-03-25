@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/re_builder.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/re_builder.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>re_builder.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -337,6 +338,69 @@
 <span id="281">281</span>
 <span id="282">282</span>
 <span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2014-2015 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -355,6 +419,7 @@
     <span class="kw">pub</span> <span class="ident">pats</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">size_limit</span>: <span class="ident">usize</span>,
     <span class="kw">pub</span> <span class="ident">dfa_size_limit</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">nest_limit</span>: <span class="ident">u32</span>,
     <span class="kw">pub</span> <span class="ident">case_insensitive</span>: <span class="ident">bool</span>,
     <span class="kw">pub</span> <span class="ident">multi_line</span>: <span class="ident">bool</span>,
     <span class="kw">pub</span> <span class="ident">dot_matches_new_line</span>: <span class="ident">bool</span>,
@@ -369,6 +434,7 @@
             <span class="ident">pats</span>: <span class="macro">vec</span><span class="macro">!</span>[],
             <span class="ident">size_limit</span>: <span class="number">10</span> <span class="op">*</span> (<span class="number">1</span><span class="op">&lt;&lt;</span><span class="number">20</span>),
             <span class="ident">dfa_size_limit</span>: <span class="number">2</span> <span class="op">*</span> (<span class="number">1</span><span class="op">&lt;&lt;</span><span class="number">20</span>),
+            <span class="ident">nest_limit</span>: <span class="number">250</span>,
             <span class="ident">case_insensitive</span>: <span class="bool-val">false</span>,
             <span class="ident">multi_line</span>: <span class="bool-val">false</span>,
             <span class="ident">dot_matches_new_line</span>: <span class="bool-val">false</span>,
@@ -503,6 +569,36 @@
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">dfa_size_limit</span> <span class="op">=</span> <span class="ident">limit</span>;
         <span class="self">self</span>
     }
+
+    <span class="doccomment">/// Set the nesting limit for this parser.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The nesting limit controls how deep the abstract syntax tree is allowed</span>
+    <span class="doccomment">/// to be. If the AST exceeds the given limit (e.g., with too many nested</span>
+    <span class="doccomment">/// groups), then an error is returned by the parser.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The purpose of this limit is to act as a heuristic to prevent stack</span>
+    <span class="doccomment">/// overflow for consumers that do structural induction on an `Ast` using</span>
+    <span class="doccomment">/// explicit recursion. While this crate never does this (instead using</span>
+    <span class="doccomment">/// constant stack space and moving the call stack to the heap), other</span>
+    <span class="doccomment">/// crates may.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This limit is not checked until the entire Ast is parsed. Therefore,</span>
+    <span class="doccomment">/// if callers want to put a limit on the amount of heap space used, then</span>
+    <span class="doccomment">/// they should impose a limit on the length, in bytes, of the concrete</span>
+    <span class="doccomment">/// pattern string. In particular, this is viable since this parser</span>
+    <span class="doccomment">/// implementation will limit itself to heap space proportional to the</span>
+    <span class="doccomment">/// lenth of the pattern string.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that a nest limit of `0` will return a nest limit error for most</span>
+    <span class="doccomment">/// patterns but not all. For example, a nest limit of `0` permits `a` but</span>
+    <span class="doccomment">/// not `ab`, since `ab` requires a concatenation, which results in a nest</span>
+    <span class="doccomment">/// depth of `1`. In general, a nest limit is not something that manifests</span>
+    <span class="doccomment">/// in an obvious way in the concrete syntax, therefore, it should not be</span>
+    <span class="doccomment">/// used in a granular way.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nest_limit</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexBuilder</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">nest_limit</span> <span class="op">=</span> <span class="ident">limit</span>;
+        <span class="self">self</span>
+    }
 }
         }
     }
@@ -614,6 +710,37 @@
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">dfa_size_limit</span> <span class="op">=</span> <span class="ident">limit</span>;
         <span class="self">self</span>
     }
+
+    <span class="doccomment">/// Set the nesting limit for this parser.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The nesting limit controls how deep the abstract syntax tree is allowed</span>
+    <span class="doccomment">/// to be. If the AST exceeds the given limit (e.g., with too many nested</span>
+    <span class="doccomment">/// groups), then an error is returned by the parser.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The purpose of this limit is to act as a heuristic to prevent stack</span>
+    <span class="doccomment">/// overflow for consumers that do structural induction on an `Ast` using</span>
+    <span class="doccomment">/// explicit recursion. While this crate never does this (instead using</span>
+    <span class="doccomment">/// constant stack space and moving the call stack to the heap), other</span>
+    <span class="doccomment">/// crates may.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This limit is not checked until the entire Ast is parsed. Therefore,</span>
+    <span class="doccomment">/// if callers want to put a limit on the amount of heap space used, then</span>
+    <span class="doccomment">/// they should impose a limit on the length, in bytes, of the concrete</span>
+    <span class="doccomment">/// pattern string. In particular, this is viable since this parser</span>
+    <span class="doccomment">/// implementation will limit itself to heap space proportional to the</span>
+    <span class="doccomment">/// lenth of the pattern string.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that a nest limit of `0` will return a nest limit error for most</span>
+    <span class="doccomment">/// patterns but not all. For example, a nest limit of `0` permits `a` but</span>
+    <span class="doccomment">/// not `ab`, since `ab` requires a concatenation, which results in a nest</span>
+    <span class="doccomment">/// depth of `1`. In general, a nest limit is not something that manifests</span>
+    <span class="doccomment">/// in an obvious way in the concrete syntax, therefore, it should not be</span>
+    <span class="doccomment">/// used in a granular way.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nest_limit</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">limit</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">RegexSetBuilder</span> {
+        <span class="self">self</span>.<span class="number">0</span>.<span class="ident">nest_limit</span> <span class="op">=</span> <span class="ident">limit</span>;
+        <span class="self">self</span>
+    }
+
 }
         }
     }

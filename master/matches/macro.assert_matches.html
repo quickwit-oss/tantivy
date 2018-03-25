@@ -10,7 +10,8 @@
     <title>matches::assert_matches - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='index.html'>matches</a></p><script>window.sidebarCurrent = {name: 'assert_matches', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='index.html'>matches</a></p><script>window.sidebarCurrent = {name: 'assert_matches', ty: 'macro', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -75,7 +76,7 @@ pattern.</p>
 
 <span class="kw">fn</span> <span class="ident">main</span>() {
     <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>];
-    <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(_));
+    <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="prelude-val">Some</span>(<span class="kw">_</span>));
 }</pre>
 </div></section>
     <section id='search' class="content hidden"></section>

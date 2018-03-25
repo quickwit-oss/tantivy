@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1588,7 +1589,7 @@ Most of the rest of the types are streams from set operations.
                   <span class="ident">S</span>: <span class="lifetime">&#39;f</span> <span class="op">+</span> <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Streamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Item</span><span class="op">=</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="ident">Output</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">op</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="ident">stream</span>).<span class="ident">intersection</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(_) <span class="op">=</span> <span class="ident">op</span>.<span class="ident">next</span>() {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">op</span>.<span class="ident">next</span>() {
             <span class="ident">count</span> <span class="op">+=</span> <span class="number">1</span>;
         }
         <span class="ident">count</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">len</span>()
@@ -1604,7 +1605,7 @@ Most of the rest of the types are streams from set operations.
                   <span class="ident">S</span>: <span class="lifetime">&#39;f</span> <span class="op">+</span> <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Streamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Item</span><span class="op">=</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>], <span class="ident">Output</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">op</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">op</span>().<span class="ident">add</span>(<span class="ident">stream</span>).<span class="ident">union</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(_) <span class="op">=</span> <span class="ident">op</span>.<span class="ident">next</span>() {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">op</span>.<span class="ident">next</span>() {
             <span class="ident">count</span> <span class="op">+=</span> <span class="number">1</span>;
         }
         <span class="ident">count</span> <span class="op">==</span> <span class="self">self</span>.<span class="ident">len</span>()
@@ -1746,8 +1747,8 @@ Most of the rest of the types are streams from set operations.
 
     <span class="kw">fn</span> <span class="ident">is_inclusive</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Bound</span>::<span class="ident">Excluded</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
         }
     }
 }
@@ -1910,7 +1911,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// Note that this creates a new allocation for every key in the stream.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_byte_keys</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, _)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="kw">_</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
             <span class="ident">vs</span>.<span class="ident">push</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>());
         }
         <span class="ident">vs</span>
@@ -1924,7 +1925,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// Note that this creates a new allocation for every key in the stream.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_str_keys</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, _)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="kw">_</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
             <span class="kw">let</span> <span class="ident">k</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>()).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">from</span>));
             <span class="ident">vs</span>.<span class="ident">push</span>(<span class="ident">k</span>);
         }
@@ -1934,7 +1935,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// Convert this stream into a vector of outputs.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_values</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((_, <span class="ident">v</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
+        <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">v</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
             <span class="ident">vs</span>.<span class="ident">push</span>(<span class="ident">v</span>.<span class="ident">value</span>());
         }
         <span class="ident">vs</span>

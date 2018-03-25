@@ -10,7 +10,8 @@
     <title>rand::jitter::JitterRng - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -168,7 +169,7 @@ for the available entropy.</p>
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">deltas_variable</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">ROUNDS</span>);
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">deltas_minimal</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">ROUNDS</span>);
 
-<span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">ROUNDS</span> {
+<span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">ROUNDS</span> {
     <span class="ident">deltas_variable</span>.<span class="ident">push</span>(<span class="ident">rng</span>.<span class="ident">timer_stats</span>(<span class="bool-val">true</span>) <span class="kw">as</span> <span class="ident">u8</span>);
     <span class="ident">deltas_minimal</span>.<span class="ident">push</span>(<span class="ident">rng</span>.<span class="ident">timer_stats</span>(<span class="bool-val">false</span>) <span class="kw">as</span> <span class="ident">u8</span>);
 }
@@ -213,11 +214,11 @@ for the available entropy.</p>
 </div><h4 id='method.shuffle' class="method"><span id='shuffle.v' class='invisible'><code>fn <a href='../../rand/trait.Rng.html#method.shuffle' class='fnname'>shuffle</a>&lt;T&gt;(&amp;mut self, values: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [T]</a>) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Self: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/rand/lib.rs.html#602-610' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Shuffle a mutable slice in place. <a href="../../rand/trait.Rng.html#method.shuffle">Read more</a></p>
 </div></div></div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../rand/jitter/struct.JitterRng.html" title="struct rand::jitter::JitterRng">JitterRng</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../rand/jitter/struct.JitterRng.html" title="struct rand::jitter::JitterRng">JitterRng</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../rand/jitter/struct.JitterRng.html" title="struct rand::jitter::JitterRng">JitterRng</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

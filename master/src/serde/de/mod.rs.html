@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.29/src/de/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.34/src/de/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -2479,7 +2480,7 @@
             <span class="ident">Float</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;floating point `{}`&quot;</span>, <span class="ident">f</span>),
             <span class="ident">Char</span>(<span class="ident">c</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;character `{}`&quot;</span>, <span class="ident">c</span>),
             <span class="ident">Str</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;string {:?}&quot;</span>, <span class="ident">s</span>),
-            <span class="ident">Bytes</span>(_) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;byte array&quot;</span>),
+            <span class="ident">Bytes</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;byte array&quot;</span>),
             <span class="ident">Unit</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;unit value&quot;</span>),
             <span class="prelude-ty">Option</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;Option value&quot;</span>),
             <span class="ident">NewtypeStruct</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;newtype struct&quot;</span>),
@@ -3486,7 +3487,7 @@
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">Error</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">v</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">v</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Bytes</span>(<span class="ident">v</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
@@ -3547,7 +3548,7 @@
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">deserializer</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">deserializer</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="prelude-ty">Option</span>, <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
@@ -3571,7 +3572,7 @@
     <span class="kw">where</span>
         <span class="ident">D</span>: <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">deserializer</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">deserializer</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">NewtypeStruct</span>, <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
@@ -3582,7 +3583,7 @@
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">seq</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">seq</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Seq</span>, <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
@@ -3593,7 +3594,7 @@
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">map</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">map</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Map</span>, <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
@@ -3604,7 +3605,7 @@
     <span class="kw">where</span>
         <span class="ident">A</span>: <span class="ident">EnumAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">data</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">data</span>;
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Enum</span>, <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 }
@@ -4130,7 +4131,7 @@
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// special case elsewhere</span>
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;`{}`&quot;</span>, <span class="self">self</span>.<span class="ident">names</span>[<span class="number">0</span>]),
             <span class="number">2</span> <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;`{}` or `{}`&quot;</span>, <span class="self">self</span>.<span class="ident">names</span>[<span class="number">0</span>], <span class="self">self</span>.<span class="ident">names</span>[<span class="number">1</span>]),
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">formatter</span>, <span class="string">&quot;one of &quot;</span>));
                 <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">alt</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">names</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
                     <span class="kw">if</span> <span class="ident">i</span> <span class="op">&gt;</span> <span class="number">0</span> {

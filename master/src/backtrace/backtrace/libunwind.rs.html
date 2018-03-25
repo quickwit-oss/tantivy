@@ -10,7 +10,8 @@
     <title>libunwind.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -280,7 +281,7 @@
         <span class="kw">if</span> <span class="op">!</span><span class="ident">ip</span>.<span class="ident">is_null</span>() <span class="op">&amp;&amp;</span> <span class="ident">ip_before_insn</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="comment">// this is a non-signaling frame, so `ip` refers to the address</span>
             <span class="comment">// after the calling instruction. account for that.</span>
-            <span class="ident">ip</span> <span class="op">=</span> (<span class="ident">ip</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="number">1</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _;
+            <span class="ident">ip</span> <span class="op">=</span> (<span class="ident">ip</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">-</span> <span class="number">1</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>;
         }
         <span class="kw">return</span> <span class="ident">ip</span>
     }
@@ -307,7 +308,7 @@
 <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">trace</span>(<span class="kw-2">mut</span> <span class="ident">cb</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw">super</span>::<span class="ident">Frame</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>) {
     <span class="kw">unsafe</span> {
-        <span class="ident">uw</span>::<span class="ident">_Unwind_Backtrace</span>(<span class="ident">trace_fn</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _);
+        <span class="ident">uw</span>::<span class="ident">_Unwind_Backtrace</span>(<span class="ident">trace_fn</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cb</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
     }
 
     <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">trace_fn</span>(<span class="ident">ctx</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">uw</span>::<span class="ident">_Unwind_Context</span>,
@@ -425,7 +426,7 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val</span>: <span class="ident">_Unwind_Word</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">let</span> <span class="ident">ptr</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">val</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">_Unwind_Word</span>;
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">_Unwind_VRS_Get</span>(<span class="ident">ctx</span>, <span class="ident">_Unwind_VRS_RegClass</span>::<span class="ident">_UVRSC_CORE</span>, <span class="number">15</span>,
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">_Unwind_VRS_Get</span>(<span class="ident">ctx</span>, <span class="ident">_Unwind_VRS_RegClass</span>::<span class="ident">_UVRSC_CORE</span>, <span class="number">15</span>,
                                 <span class="ident">_Unwind_VRS_DataRepresentation</span>::<span class="ident">_UVRSD_UINT32</span>,
                                 <span class="ident">ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">c_void</span>);
         (<span class="ident">val</span> <span class="op">&amp;</span> <span class="op">!</span><span class="number">1</span>) <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">uintptr_t</span>

@@ -10,7 +10,8 @@
     <title>combine::combinator::parser - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'parser', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'parser', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -68,7 +69,7 @@ to make them usable as a parser.</p>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">combine</span>;
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">even_digit</span> <span class="op">=</span> <span class="ident">parser</span>(<span class="op">|</span><span class="ident">input</span><span class="op">|</span> {
     <span class="comment">// Help type inference out</span>
-    <span class="kw">let</span> _: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="ident">input</span>;
+    <span class="kw">let</span> <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="ident">input</span>;
     <span class="kw">let</span> <span class="ident">position</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">position</span>();
     <span class="kw">let</span> (<span class="ident">char_digit</span>, <span class="ident">input</span>) <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">digit</span>().<span class="ident">parse_stream</span>(<span class="ident">input</span>));
     <span class="kw">let</span> <span class="ident">d</span> <span class="op">=</span> (<span class="ident">char_digit</span> <span class="kw">as</span> <span class="ident">i32</span>) <span class="op">-</span> (<span class="string">&#39;0&#39;</span> <span class="kw">as</span> <span class="ident">i32</span>);

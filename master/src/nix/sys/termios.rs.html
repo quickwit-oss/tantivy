@@ -10,7 +10,8 @@
     <title>termios.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1300,7 +1301,7 @@
             <span class="ident">B3500000</span> <span class="op">=&gt;</span> <span class="ident">BaudRate</span>::<span class="ident">B3500000</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;android&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>))]</span>
             <span class="ident">B4000000</span> <span class="op">=&gt;</span> <span class="ident">BaudRate</span>::<span class="ident">B4000000</span>,
-            <span class="ident">b</span> @ _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;Invalid baud constant: {}&quot;</span>, <span class="ident">b</span>),
+            <span class="ident">b</span> @ <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;Invalid baud constant: {}&quot;</span>, <span class="ident">b</span>),
         }
     }
 }

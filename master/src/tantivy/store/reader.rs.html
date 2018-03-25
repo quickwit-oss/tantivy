@@ -10,7 +10,8 @@
     <title>reader.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -228,7 +229,7 @@
             <span class="kw">let</span> <span class="ident">compressed_block</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">compressed_block</span>(<span class="ident">block_offset</span>);
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lz4_decoder</span> <span class="op">=</span> <span class="ident">lz4</span>::<span class="ident">Decoder</span>::<span class="ident">new</span>(<span class="ident">compressed_block</span>)<span class="question-mark">?</span>;
             <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">current_block_offset</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="ident">usize</span>::<span class="ident">max_value</span>();
-            <span class="ident">lz4_decoder</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">current_block_mut</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> ())<span class="question-mark">?</span>;
+            <span class="ident">lz4_decoder</span>.<span class="ident">read_to_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">current_block_mut</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())<span class="question-mark">?</span>;
             <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">current_block_offset</span>.<span class="ident">borrow_mut</span>() <span class="op">=</span> <span class="ident">block_offset</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -246,7 +247,7 @@
         <span class="self">self</span>.<span class="ident">read_block</span>(<span class="ident">block_offset</span> <span class="kw">as</span> <span class="ident">usize</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">current_block_mut</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">current_block</span>.<span class="ident">borrow_mut</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">cursor</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">current_block_mut</span>[..];
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="ident">first_doc_id</span>..<span class="ident">doc_id</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="ident">first_doc_id</span>..<span class="ident">doc_id</span> {
             <span class="kw">let</span> <span class="ident">doc_length</span> <span class="op">=</span> <span class="ident">VInt</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">cursor</span>)<span class="question-mark">?</span>.<span class="ident">val</span>() <span class="kw">as</span> <span class="ident">usize</span>;
             <span class="ident">cursor</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">cursor</span>[<span class="ident">doc_length</span>..];
         }

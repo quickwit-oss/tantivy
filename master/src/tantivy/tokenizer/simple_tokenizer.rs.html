@@ -10,7 +10,8 @@
     <title>simple_tokenizer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -151,8 +152,8 @@
     <span class="comment">// search for the end of the current token.</span>
     <span class="kw">fn</span> <span class="ident">search_token_end</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">chars</span>)
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="kw-2">ref</span> <span class="ident">c</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_alphanumeric</span>())
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">offset</span>, _)<span class="op">|</span> <span class="ident">offset</span>)
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">c</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">c</span>.<span class="ident">is_alphanumeric</span>())
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">offset</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">offset</span>)
             .<span class="ident">next</span>()
             .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="self">self</span>.<span class="ident">text</span>.<span class="ident">len</span>())
     }

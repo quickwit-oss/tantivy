@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/parser.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/parser.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>parser.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -255,6 +256,11 @@
 <span id="199">199</span>
 <span id="200">200</span>
 <span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">ast</span>;
 <span class="kw">use</span> <span class="ident">hir</span>;
@@ -345,6 +351,11 @@
     <span class="doccomment">/// When disabled (the default), the parser is guaranteed to produce</span>
     <span class="doccomment">/// an expression that will only ever match valid UTF-8 (otherwise, the</span>
     <span class="doccomment">/// parser will return an error).</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Note that currently, even when invalid UTF-8 is banned, the parser</span>
+    <span class="doccomment">/// will permit a negated ASCII word boundary (i.e., `(?-u:\B)`) even</span>
+    <span class="doccomment">/// though it can actually match at invalid UTF-8 boundaries. This bug</span>
+    <span class="doccomment">/// will be fixed on the next semver release.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">allow_invalid_utf8</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">yes</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ParserBuilder</span> {
         <span class="self">self</span>.<span class="ident">hir</span>.<span class="ident">allow_invalid_utf8</span>(<span class="ident">yes</span>);
         <span class="self">self</span>

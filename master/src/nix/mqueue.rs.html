@@ -10,7 +10,8 @@
     <title>mqueue.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -324,7 +325,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">mq_getattr</span>(<span class="ident">mqd</span>: <span class="ident">mqd_t</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MqAttr</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attr</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">mq_attr</span><span class="op">&gt;</span>() };
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">mq_getattr</span>(<span class="ident">mqd</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">attr</span>) };
-    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">MqAttr</span> { <span class="ident">mq_attr</span>: <span class="ident">attr</span> })
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">MqAttr</span> { <span class="ident">mq_attr</span>: <span class="ident">attr</span> })
 }
 
 <span class="doccomment">/// Set the attributes of the message queue. Only `O_NONBLOCK` can be set, everything else will be ignored</span>
@@ -335,7 +336,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">mq_setattr</span>(<span class="ident">mqd</span>: <span class="ident">mqd_t</span>, <span class="ident">newattr</span>: <span class="kw-2">&amp;</span><span class="ident">MqAttr</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MqAttr</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">attr</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">mq_attr</span><span class="op">&gt;</span>() };
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">mq_setattr</span>(<span class="ident">mqd</span>, <span class="kw-2">&amp;</span><span class="ident">newattr</span>.<span class="ident">mq_attr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">mq_attr</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">attr</span>) };
-    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">MqAttr</span> { <span class="ident">mq_attr</span>: <span class="ident">attr</span> })
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">MqAttr</span> { <span class="ident">mq_attr</span>: <span class="ident">attr</span> })
 }
 
 <span class="doccomment">/// Convenience function.</span>

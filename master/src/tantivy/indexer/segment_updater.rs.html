@@ -10,7 +10,8 @@
     <title>segment_updater.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1055,14 +1056,14 @@
                 <span class="ident">mem</span>::<span class="ident">swap</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">new_merging_threads</span>, <span class="ident">merging_threads</span>.<span class="ident">deref_mut</span>());
             }
             <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;wait merging thread {}&quot;</span>, <span class="ident">new_merging_threads</span>.<span class="ident">len</span>());
-            <span class="kw">for</span> (_, <span class="ident">merging_thread_handle</span>) <span class="kw">in</span> <span class="ident">new_merging_threads</span> {
+            <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">merging_thread_handle</span>) <span class="kw">in</span> <span class="ident">new_merging_threads</span> {
                 <span class="ident">merging_thread_handle</span>
                     .<span class="ident">join</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> ())
-                    .<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ErrorKind</span>::<span class="ident">ErrorInThread</span>(<span class="string">&quot;Merging thread failed.&quot;</span>.<span class="ident">into</span>()))<span class="question-mark">?</span>;
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+                    .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ErrorKind</span>::<span class="ident">ErrorInThread</span>(<span class="string">&quot;Merging thread failed.&quot;</span>.<span class="ident">into</span>()))<span class="question-mark">?</span>;
             }
             <span class="comment">// Our merging thread may have queued their completed</span>
-            <span class="self">self</span>.<span class="ident">run_async</span>(<span class="kw">move</span> <span class="op">|</span>_<span class="op">|</span> {}).<span class="ident">wait</span>()<span class="question-mark">?</span>;
+            <span class="self">self</span>.<span class="ident">run_async</span>(<span class="kw">move</span> <span class="op">|</span><span class="kw">_</span><span class="op">|</span> {}).<span class="ident">wait</span>()<span class="question-mark">?</span>;
 
             <span class="kw">let</span> <span class="ident">new_num_segments</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">segment_manager</span>.<span class="ident">num_segments</span>();
 
@@ -1094,7 +1095,7 @@
         <span class="ident">index_writer</span>.<span class="ident">set_merge_policy</span>(<span class="kw">box</span> <span class="ident">MergeWheneverPossible</span>);
 
         {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">text_field</span><span class="op">=&gt;</span><span class="string">&quot;a&quot;</span>));
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">text_field</span><span class="op">=&gt;</span><span class="string">&quot;b&quot;</span>));
             }
@@ -1102,7 +1103,7 @@
         }
 
         {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">text_field</span><span class="op">=&gt;</span><span class="string">&quot;c&quot;</span>));
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">text_field</span><span class="op">=&gt;</span><span class="string">&quot;d&quot;</span>));
             }

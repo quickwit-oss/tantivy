@@ -10,7 +10,8 @@
     <title>path.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -755,7 +756,7 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">PathArguments</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="ident">PathArguments</span>::<span class="ident">AngleBracketed</span>(<span class="kw-2">ref</span> <span class="ident">bracketed</span>) <span class="op">=&gt;</span> <span class="ident">bracketed</span>.<span class="ident">args</span>.<span class="ident">is_empty</span>(),
-            <span class="ident">PathArguments</span>::<span class="ident">Parenthesized</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">PathArguments</span>::<span class="ident">Parenthesized</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -1083,17 +1084,17 @@
                 <span class="ident">GenericArgument</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">ty</span>) <span class="op">=&gt;</span> <span class="ident">ty</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
                 <span class="ident">GenericArgument</span>::<span class="ident">Binding</span>(<span class="kw-2">ref</span> <span class="ident">tb</span>) <span class="op">=&gt;</span> <span class="ident">tb</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
                 <span class="ident">GenericArgument</span>::<span class="ident">Const</span>(<span class="kw-2">ref</span> <span class="ident">e</span>) <span class="op">=&gt;</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">e</span> {
-                    <span class="ident">Expr</span>::<span class="ident">Lit</span>(_) <span class="op">=&gt;</span> <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                    <span class="ident">Expr</span>::<span class="ident">Lit</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
 
                     <span class="comment">// NOTE: We should probably support parsing blocks with only</span>
                     <span class="comment">// expressions in them without the full feature for const</span>
                     <span class="comment">// generics.</span>
                     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-                    <span class="ident">Expr</span>::<span class="ident">Block</span>(_) <span class="op">=&gt;</span> <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                    <span class="ident">Expr</span>::<span class="ident">Block</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
 
                     <span class="comment">// ERROR CORRECTION: Add braces to make sure that the</span>
                     <span class="comment">// generated code is valid.</span>
-                    _ <span class="op">=&gt;</span> <span class="ident">token</span>::<span class="ident">Brace</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">token</span>::<span class="ident">Brace</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
                         <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     }),
                 },
@@ -1113,25 +1114,25 @@
             <span class="comment">// not been settled yet. https://github.com/rust-lang/rust/issues/44580</span>
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">args</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="ident">param</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="ident">param</span>.<span class="ident">punct</span>().<span class="ident">is_some</span>();
                 }
             }
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">args</span>.<span class="ident">pairs</span>() {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
-                    <span class="ident">GenericArgument</span>::<span class="ident">Type</span>(_) <span class="op">|</span> <span class="ident">GenericArgument</span>::<span class="ident">Const</span>(_) <span class="op">=&gt;</span> {
+                    <span class="ident">GenericArgument</span>::<span class="ident">Type</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">GenericArgument</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="op">!</span><span class="ident">trailing_or_empty</span> {
                             <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>::<span class="ident">default</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                         }
                         <span class="ident">param</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                         <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="ident">param</span>.<span class="ident">punct</span>().<span class="ident">is_some</span>();
                     }
-                    <span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(_) <span class="op">|</span> <span class="ident">GenericArgument</span>::<span class="ident">Binding</span>(_) <span class="op">=&gt;</span> {}
+                    <span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">GenericArgument</span>::<span class="ident">Binding</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
                 }
             }
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">args</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericArgument</span>::<span class="ident">Binding</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericArgument</span>::<span class="ident">Binding</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">trailing_or_empty</span> {
                         <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>::<span class="ident">default</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                         <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;

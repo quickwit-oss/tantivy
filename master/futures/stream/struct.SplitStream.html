@@ -10,7 +10,8 @@
     <title>futures::stream::SplitStream - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -66,7 +67,7 @@
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
                 <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="struct" href="../../futures/stream/struct.SplitStream.html" title="struct futures::stream::SplitStream">SplitStream</a>&lt;S&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/stream/split.rs.html#12-19' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.reunite' class="method"><span id='reunite.v' class='invisible'><code>pub fn <a href='#method.reunite' class='fnname'>reunite</a>(self, other: <a class="struct" href="../../futures/stream/struct.SplitSink.html" title="struct futures::stream::SplitSink">SplitSink</a>&lt;S&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;S, ReuniteError&lt;S&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/stream/split.rs.html#16-18' title='goto source code'>[src]</a></span></h4>
+<div class='impl-items'><h4 id='method.reunite' class="method"><span id='reunite.v' class='invisible'><code>pub fn <a href='#method.reunite' class='fnname'>reunite</a>(self, other: <a class="struct" href="../../futures/stream/struct.SplitSink.html" title="struct futures::stream::SplitSink">SplitSink</a>&lt;S&gt;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;S, <a class="struct" href="../../futures/stream/struct.ReuniteError.html" title="struct futures::stream::ReuniteError">ReuniteError</a>&lt;S&gt;&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/stream/split.rs.html#16-18' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Attempts to put the two &quot;halves&quot; of a split <code>Stream + Sink</code> back
 together. Succeeds only if the <code>SplitStream&lt;S&gt;</code> and <code>SplitSink&lt;S&gt;</code> are
 a matching pair originating from the same call to <code>Stream::split</code>.</p>
@@ -158,11 +159,11 @@ a matching pair originating from the same call to <code>Stream::split</code>.</p
 </div><h4 id='method.inspect_err' class="method"><span id='inspect_err.v' class='invisible'><code>fn <a href='../../futures/stream/trait.Stream.html#method.inspect_err' class='fnname'>inspect_err</a>&lt;F&gt;(self, f: F) -&gt; <a class="struct" href="../../futures/stream/struct.InspectErr.html" title="struct futures::stream::InspectErr">InspectErr</a>&lt;Self, F&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(&amp;Self::<a class="type" href="../../futures/stream/trait.Stream.html#associatedtype.Error" title="type futures::stream::Stream::Error">Error</a>),<br>&nbsp;&nbsp;&nbsp;&nbsp;Self: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/futures/stream/mod.rs.html#1106-1111' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Do something with the error of this stream, afterwards passing it on. <a href="../../futures/stream/trait.Stream.html#method.inspect_err">Read more</a></p>
 </div></div></div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../futures/stream/struct.SplitStream.html" title="struct futures::stream::SplitStream">SplitStream</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../futures/stream/struct.SplitStream.html" title="struct futures::stream::SplitStream">SplitStream</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;S&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../futures/stream/struct.SplitStream.html" title="struct futures::stream::SplitStream">SplitStream</a>&lt;S&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;S: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>,&nbsp;</span></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

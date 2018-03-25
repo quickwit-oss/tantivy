@@ -10,7 +10,8 @@
     <title>postings.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -73,6 +74,11 @@
 <span id="17">17</span>
 <span id="18">18</span>
 <span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
 
@@ -86,12 +92,17 @@
 <span class="doccomment">/// Its main implementation is `SegmentPostings`,</span>
 <span class="doccomment">/// but other implementations mocking `SegmentPostings` exist,</span>
 <span class="doccomment">/// for merging segments or for testing.</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Postings</span>: <span class="ident">DocSet</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Postings</span>: <span class="ident">DocSet</span> <span class="op">+</span> <span class="lifetime">&#39;static</span> {
     <span class="doccomment">/// Returns the term frequency</span>
     <span class="kw">fn</span> <span class="ident">term_freq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span>;
+
     <span class="doccomment">/// Returns the list of positions of the term, expressed as a list of</span>
     <span class="doccomment">/// token ordinals.</span>
-    <span class="kw">fn</span> <span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u32</span>];
+    <span class="kw">fn</span> <span class="ident">positions_with_offset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">offset</span>: <span class="ident">u32</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>);
+
+    <span class="kw">fn</span> <span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">positions_with_offset</span>(<span class="number">0u32</span>, <span class="ident">output</span>);
+    }
 }
 </pre>
 </section>

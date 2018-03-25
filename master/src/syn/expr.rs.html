@@ -10,7 +10,8 @@
     <title>expr.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -4231,7 +4232,7 @@
             <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Try</span>(<span class="ident">ExprTry</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">attrs</span>, .. })
             <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Catch</span>(<span class="ident">ExprCatch</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">attrs</span>, .. })
             <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Yield</span>(<span class="ident">ExprYield</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">attrs</span>, .. }) <span class="op">=&gt;</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="ident">attrs</span>, <span class="ident">new</span>),
-            <span class="ident">Expr</span>::<span class="ident">Verbatim</span>(_) <span class="op">=&gt;</span> {
+            <span class="ident">Expr</span>::<span class="ident">Verbatim</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="comment">// TODO</span>
                 <span class="ident">Vec</span>::<span class="ident">new</span>()
             }
@@ -4420,7 +4421,7 @@
         <span class="doccomment">///</span>
         <span class="doccomment">/// *This type is available if Syn is built with the `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Wild</span>(<span class="ident">PatWild</span> {
-            <span class="kw">pub</span> <span class="ident">underscore_token</span>: <span class="macro">Token</span><span class="macro">!</span>[_],
+            <span class="kw">pub</span> <span class="ident">underscore_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">_</span>],
         }),
 
         <span class="doccomment">/// A pattern that binds a new variable: `ref mut binding @ SUBPATTERN`.</span>
@@ -4637,7 +4638,7 @@
         <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Loop</span>(..)
         <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">ForLoop</span>(..)
         <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Catch</span>(..) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-        _ <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
     }
 }
 
@@ -5568,7 +5569,7 @@
                 <span class="ident">expr</span>: <span class="macro">alt</span><span class="macro">!</span>(<span class="ident">expr_nosemi</span> <span class="op">|</span> <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Expr</span>)) <span class="op">&gt;&gt;</span>
                 <span class="ident">comma</span>: <span class="macro">switch</span><span class="macro">!</span>(<span class="macro">value</span><span class="macro">!</span>(<span class="ident">arm_expr_requires_comma</span>(<span class="kw-2">&amp;</span><span class="ident">expr</span>)),
                     <span class="bool-val">true</span> <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(
-                        <span class="macro">input_end</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="prelude-val">None</span> }
+                        <span class="macro">input_end</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="prelude-val">None</span> }
                         <span class="op">|</span>
                         <span class="macro">punct</span><span class="macro">!</span>(,) <span class="op">=&gt;</span> { <span class="prelude-val">Some</span> }
                     )
@@ -6091,7 +6092,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
     <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">PatWild</span> {
         <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">map</span><span class="macro">!</span>(
-            <span class="macro">punct</span><span class="macro">!</span>(_),
+            <span class="macro">punct</span><span class="macro">!</span>(<span class="kw">_</span>),
             <span class="op">|</span><span class="ident">u</span><span class="op">|</span> <span class="ident">PatWild</span> { <span class="ident">underscore_token</span>: <span class="ident">u</span> }
         ));
 
@@ -6280,8 +6281,8 @@
                     <span class="macro">tuple</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(..), <span class="macro">option</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(,)))
                 )) <span class="op">&gt;&gt;</span>
                 <span class="ident">back</span>: <span class="macro">cond</span><span class="macro">!</span>(<span class="kw">match</span> <span class="ident">dotdot</span> {
-                                <span class="prelude-val">Some</span>((_, <span class="prelude-val">Some</span>(_))) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-                                _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+                                <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="prelude-val">Some</span>(<span class="kw">_</span>))) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+                                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
                             },
                             <span class="ident">Punctuated</span>::<span class="ident">parse_terminated</span>) <span class="op">&gt;&gt;</span>
                 (<span class="ident">front</span>, <span class="ident">dotdot</span>, <span class="ident">back</span>)
@@ -6329,7 +6330,7 @@
     <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">PatLit</span> {
         <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
             <span class="ident">lit</span>: <span class="ident">pat_lit_expr</span> <span class="op">&gt;&gt;</span>
-            (<span class="kw">if</span> <span class="kw">let</span> <span class="ident">Expr</span>::<span class="ident">Path</span>(_) <span class="op">=</span> <span class="ident">lit</span> {
+            (<span class="kw">if</span> <span class="kw">let</span> <span class="ident">Expr</span>::<span class="ident">Path</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">lit</span> {
                 <span class="kw">return</span> <span class="ident">parse_error</span>(); <span class="comment">// these need to be parsed by pat_path</span>
             } <span class="kw">else</span> {
                 <span class="ident">PatLit</span> {
@@ -6392,8 +6393,8 @@
                 )) <span class="op">&gt;&gt;</span>
                 <span class="ident">after</span>: <span class="macro">cond</span><span class="macro">!</span>(
                     <span class="kw">match</span> <span class="ident">middle</span> {
-                        <span class="prelude-val">Some</span>((_, <span class="kw-2">ref</span> <span class="ident">trailing</span>)) <span class="op">=&gt;</span> <span class="ident">trailing</span>.<span class="ident">is_some</span>(),
-                        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+                        <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">trailing</span>)) <span class="op">=&gt;</span> <span class="ident">trailing</span>.<span class="ident">is_some</span>(),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
                     },
                     <span class="ident">Punctuated</span>::<span class="ident">parse_terminated</span>
                 ) <span class="op">&gt;&gt;</span>
@@ -6409,7 +6410,7 @@
                         <span class="ident">m</span>.<span class="number">1</span>.<span class="ident">as_ref</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">m</span><span class="op">|</span> <span class="macro">Token</span><span class="macro">!</span>[,](<span class="ident">m</span>.<span class="number">0</span>))
                     }),
                     <span class="ident">bracket_token</span>: <span class="ident">brackets</span>,
-                    <span class="ident">middle</span>: <span class="ident">middle</span>.<span class="ident">and_then</span>(<span class="op">|</span>_<span class="op">|</span> {
+                    <span class="ident">middle</span>: <span class="ident">middle</span>.<span class="ident">and_then</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                         <span class="kw">if</span> <span class="ident">before</span>.<span class="ident">empty_or_trailing</span>() {
                             <span class="prelude-val">None</span>
                         } <span class="kw">else</span> {
@@ -6449,7 +6450,7 @@
     <span class="comment">// before appending it to `Tokens`.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">wrap_bare_struct</span>(<span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>, <span class="ident">e</span>: <span class="kw-2">&amp;</span><span class="ident">Expr</span>) {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Expr</span>::<span class="ident">Struct</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">e</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Expr</span>::<span class="ident">Struct</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">e</span> {
             <span class="ident">token</span>::<span class="ident">Paren</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
                 <span class="ident">e</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
             });
@@ -6605,10 +6606,10 @@
             <span class="comment">// If we are not one of the valid expressions to exist in an else</span>
             <span class="comment">// clause, wrap ourselves in a block.</span>
             <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">else_</span> {
-                <span class="ident">Expr</span>::<span class="ident">If</span>(_) <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">IfLet</span>(_) <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Block</span>(_) <span class="op">=&gt;</span> {
+                <span class="ident">Expr</span>::<span class="ident">If</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">IfLet</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">Expr</span>::<span class="ident">Block</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="ident">else_</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                 }
-                _ <span class="op">=&gt;</span> {
+                <span class="kw">_</span> <span class="op">=&gt;</span> {
                     <span class="ident">token</span>::<span class="ident">Brace</span>::<span class="ident">default</span>().<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
                         <span class="ident">else_</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     });
@@ -6739,12 +6740,12 @@
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">input</span>.<span class="ident">value</span>() {
                     <span class="ident">FnArg</span>::<span class="ident">Captured</span>(<span class="ident">ArgCaptured</span> {
                         <span class="kw-2">ref</span> <span class="ident">pat</span>,
-                        <span class="ident">ty</span>: <span class="ident">Type</span>::<span class="ident">Infer</span>(_),
+                        <span class="ident">ty</span>: <span class="ident">Type</span>::<span class="ident">Infer</span>(<span class="kw">_</span>),
                         ..
                     }) <span class="op">=&gt;</span> {
                         <span class="ident">pat</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     }
-                    _ <span class="op">=&gt;</span> <span class="ident">input</span>.<span class="ident">value</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">input</span>.<span class="ident">value</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>),
                 }
                 <span class="ident">input</span>.<span class="ident">punct</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
             }

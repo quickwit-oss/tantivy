@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1926,7 +1927,7 @@
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">has_cur</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">a_cur</span>.<span class="ident">is_some</span>() <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="comment">// Not ExactSizeIterator because size may be larger than usize</span>
-        <span class="kw">let</span> (<span class="ident">b</span>, _) <span class="op">=</span> <span class="self">self</span>.<span class="ident">b</span>.<span class="ident">size_hint</span>();
+        <span class="kw">let</span> (<span class="ident">b</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">b</span>.<span class="ident">size_hint</span>();
 
         <span class="comment">// Compute a * b_orig + b for both lower and upper bound</span>
         <span class="ident">size_hint</span>::<span class="ident">add_scalar</span>(
@@ -2063,11 +2064,11 @@
             <span class="prelude-val">Some</span>(<span class="ident">lt</span>) <span class="op">=&gt;</span> <span class="ident">lt</span>,
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">a</span>.<span class="ident">peek</span>(), <span class="self">self</span>.<span class="ident">b</span>.<span class="ident">peek</span>()) {
                 (<span class="prelude-val">Some</span>(<span class="ident">a</span>), <span class="prelude-val">Some</span>(<span class="ident">b</span>)) <span class="op">=&gt;</span> <span class="ident">less_than</span>(<span class="ident">a</span>, <span class="ident">b</span>),
-                (<span class="prelude-val">Some</span>(_), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> {
+                (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> {
                     <span class="self">self</span>.<span class="ident">fused</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">true</span>);
                     <span class="bool-val">true</span>
                 }
-                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(_)) <span class="op">=&gt;</span> {
+                (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> {
                     <span class="self">self</span>.<span class="ident">fused</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="bool-val">false</span>);
                     <span class="bool-val">false</span>
                 }
@@ -2432,7 +2433,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> (_, <span class="ident">hi</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">iter</span>.<span class="ident">size_hint</span>();
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">hi</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">iter</span>.<span class="ident">size_hint</span>();
         (<span class="number">0</span>, <span class="ident">hi</span>)
     }
 }
@@ -2692,7 +2693,7 @@
     }
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pool</span>: <span class="ident">LazyBuffer</span><span class="op">&lt;</span><span class="ident">I</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">LazyBuffer</span>::<span class="ident">new</span>(<span class="ident">iter</span>);
 
-    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">n</span> {
+    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">n</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="ident">pool</span>.<span class="ident">get_next</span>() {
             <span class="kw">break</span>;
         }
@@ -2902,7 +2903,7 @@
         <span class="kw">loop</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">f</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">front</span> {
                 <span class="kw">match</span> <span class="ident">f</span>.<span class="ident">next</span>() {
-                    <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
+                    <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> { }
                 }
             }
@@ -2914,7 +2915,7 @@
         }
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">b</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">back</span> {
             <span class="kw">match</span> <span class="ident">b</span>.<span class="ident">next</span>() {
-                <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
+                <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> { }
             }
         }
@@ -2948,7 +2949,7 @@
         <span class="kw">loop</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">b</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">back</span> {
                 <span class="kw">match</span> <span class="ident">b</span>.<span class="ident">next_back</span>() {
-                    <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
+                    <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> { }
                 }
             }
@@ -2960,7 +2961,7 @@
         }
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">f</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">front</span> {
             <span class="kw">match</span> <span class="ident">f</span>.<span class="ident">next_back</span>() {
-                <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
+                <span class="ident">elt</span> @ <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">elt</span>,
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> { }
             }
         }

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/future/lazy.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/future/lazy.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lazy.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -197,17 +198,17 @@
 {
     <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>::<span class="ident">Future</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
-            <span class="ident">_Lazy</span>::<span class="ident">First</span>(_) <span class="op">=&gt;</span> {}
+            <span class="ident">_Lazy</span>::<span class="ident">First</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
             <span class="ident">_Lazy</span>::<span class="ident">Second</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">f</span>,
             <span class="ident">_Lazy</span>::<span class="ident">Moved</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// can only happen if `f()` panics</span>
         }
         <span class="kw">match</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">inner</span>, <span class="ident">_Lazy</span>::<span class="ident">Moved</span>) {
             <span class="ident">_Lazy</span>::<span class="ident">First</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">inner</span> <span class="op">=</span> <span class="ident">_Lazy</span>::<span class="ident">Second</span>(<span class="ident">f</span>().<span class="ident">into_future</span>()),
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// we already found First</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// we already found First</span>
         }
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span> {
             <span class="ident">_Lazy</span>::<span class="ident">Second</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// we just stored Second</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(), <span class="comment">// we just stored Second</span>
         }
     }
 }

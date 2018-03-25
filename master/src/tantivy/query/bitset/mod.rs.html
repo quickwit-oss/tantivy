@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -558,7 +559,7 @@
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_bitset_1pct_clone_iterate</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
-        <span class="kw">let</span> <span class="ident">els</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">generate_nonunique_unsorted</span>(<span class="number">1_000_000u32</span>, <span class="number">10_000</span>);
+        <span class="kw">let</span> <span class="ident">els</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">sample</span>(<span class="number">1_000_000u32</span>, <span class="number">0.01</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bitset</span> <span class="op">=</span> <span class="ident">BitSet</span>::<span class="ident">with_max_value</span>(<span class="number">1_000_000</span>);
         <span class="kw">for</span> <span class="ident">el</span> <span class="kw">in</span> <span class="ident">els</span> {
             <span class="ident">bitset</span>.<span class="ident">insert</span>(<span class="ident">el</span>);

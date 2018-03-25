@@ -10,7 +10,8 @@
     <title>serde_json::ser::to_string_pretty - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>ser</a></p><script>window.sidebarCurrent = {name: 'to_string_pretty', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>ser</a></p><script>window.sidebarCurrent = {name: 'to_string_pretty', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde_json/ser.rs.html#1800-1810' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/serde_json/ser.rs.html#2051-2061' title='goto source code'>[src]</a></span></h1>
 <pre class='rust fn'>pub fn to_string_pretty&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="type" href="../../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a>,&nbsp;</span></pre><div class='docblock'><p>Serialize the given data structure as a pretty-printed String of JSON.</p>
 <h1 id="errors" class="section-header"><a href="#errors">Errors</a></h1>
 <p>Serialization can fail if <code>T</code>'s implementation of <code>Serialize</code> decides to

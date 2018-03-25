@@ -49,6 +49,13 @@
 
     var themesWidth = null;
 
+    if (!String.prototype.startsWith) {
+        String.prototype.startsWith = function(searchString, position) {
+            position = position || 0;
+            return this.indexOf(searchString, position) === position;
+        };
+    }
+
     function hasClass(elem, className) {
         if (elem && className && elem.className) {
             var elemClass = elem.className;
@@ -239,49 +246,59 @@
         }
     }
 
-    function handleShortcut(ev) {
-        if (document.activeElement.tagName === "INPUT")
-            return;
+    function handleEscape(ev, help) {
+        hideModal();
+        var search = document.getElementById("search");
+        if (!hasClass(help, "hidden")) {
+            displayHelp(false, ev);
+        } else if (!hasClass(search, "hidden")) {
+            ev.preventDefault();
+            addClass(search, "hidden");
+            removeClass(document.getElementById("main"), "hidden");
+        }
+        defocusSearchBar();
+    }
 
+    function handleShortcut(ev) {
         // Don't interfere with browser shortcuts
-        if (ev.ctrlKey || ev.altKey || ev.metaKey)
+        if (ev.ctrlKey || ev.altKey || ev.metaKey) {
             return;
+        }
 
         var help = document.getElementById("help");
-        switch (getVirtualKey(ev)) {
-        case "Escape":
-            hideModal();
-            var search = document.getElementById("search");
-            if (!hasClass(help, "hidden")) {
+        if (document.activeElement.tagName === "INPUT") {
+            switch (getVirtualKey(ev)) {
+            case "Escape":
+                handleEscape(ev, help);
+                break;
+            }
+        } else {
+            switch (getVirtualKey(ev)) {
+            case "Escape":
+                handleEscape(ev, help);
+                break;
+
+            case "s":
+            case "S":
                 displayHelp(false, ev);
-            } else if (!hasClass(search, "hidden")) {
-                ev.preventDefault();
-                addClass(search, "hidden");
-                removeClass(document.getElementById("main"), "hidden");
-            }
-            defocusSearchBar();
-            break;
-
-        case "s":
-        case "S":
-            displayHelp(false, ev);
-            hideModal();
-            ev.preventDefault();
-            focusSearchBar();
-            break;
-
-        case "+":
-        case "-":
-            ev.preventDefault();
-            toggleAllDocs();
-            break;
-
-        case "?":
-            if (ev.shiftKey) {
                 hideModal();
-                displayHelp(true, ev);
+                ev.preventDefault();
+                focusSearchBar();
+                break;
+
+            case "+":
+            case "-":
+                ev.preventDefault();
+                toggleAllDocs();
+                break;
+
+            case "?":
+                if (ev.shiftKey) {
+                    hideModal();
+                    displayHelp(true, ev);
+                }
+                break;
             }
-            break;
         }
     }
 
@@ -1457,36 +1474,38 @@
         // Draw a convenient sidebar of known crates if we have a listing
         if (rootPath === '../') {
             var sidebar = document.getElementsByClassName('sidebar-elems')[0];
-            var div = document.createElement('div');
-            div.className = 'block crate';
-            div.innerHTML = '<h3>Crates</h3>';
-            var ul = document.createElement('ul');
-            div.appendChild(ul);
+            if (sidebar) {
+                var div = document.createElement('div');
+                div.className = 'block crate';
+                div.innerHTML = '<h3>Crates</h3>';
+                var ul = document.createElement('ul');
+                div.appendChild(ul);
 
-            var crates = [];
-            for (var crate in rawSearchIndex) {
-                if (!rawSearchIndex.hasOwnProperty(crate)) {
-                    continue;
+                var crates = [];
+                for (var crate in rawSearchIndex) {
+                    if (!rawSearchIndex.hasOwnProperty(crate)) {
+                        continue;
+                    }
+                    crates.push(crate);
                 }
-                crates.push(crate);
-            }
-            crates.sort();
-            for (var i = 0; i < crates.length; ++i) {
-                var klass = 'crate';
-                if (crates[i] === window.currentCrate) {
-                    klass += ' current';
-                }
-                var link = document.createElement('a');
-                link.href = '../' + crates[i] + '/index.html';
-                link.title = rawSearchIndex[crates[i]].doc;
-                link.className = klass;
-                link.textContent = crates[i];
+                crates.sort();
+                for (var i = 0; i < crates.length; ++i) {
+                    var klass = 'crate';
+                    if (crates[i] === window.currentCrate) {
+                        klass += ' current';
+                    }
+                    var link = document.createElement('a');
+                    link.href = '../' + crates[i] + '/index.html';
+                    link.title = rawSearchIndex[crates[i]].doc;
+                    link.className = klass;
+                    link.textContent = crates[i];
 
-                var li = document.createElement('li');
-                li.appendChild(link);
-                ul.appendChild(li);
+                    var li = document.createElement('li');
+                    li.appendChild(link);
+                    ul.appendChild(li);
+                }
+                sidebar.appendChild(div);
             }
-            sidebar.appendChild(div);
         }
     }
 
@@ -1623,6 +1642,7 @@
     function toggleAllDocs() {
         var toggle = document.getElementById("toggle-all-docs");
         if (hasClass(toggle, "will-expand")) {
+            updateLocalStorage("rustdoc-collapse", "false");
             removeClass(toggle, "will-expand");
             onEveryMatchingChild(toggle, "inner", function(e) {
                 e.innerHTML = labelForToggleButton(false);
@@ -1632,6 +1652,7 @@
                 collapseDocs(e, "show");
             });
         } else {
+            updateLocalStorage("rustdoc-collapse", "true");
             addClass(toggle, "will-expand");
             onEveryMatchingChild(toggle, "inner", function(e) {
                 e.innerHTML = labelForToggleButton(true);
@@ -1776,22 +1797,33 @@
         referenceNode.parentNode.insertBefore(newNode, referenceNode.nextSibling);
     }
 
+    function checkIfThereAreMethods(elems) {
+        var areThereMethods = false;
+
+        onEach(elems, function(e) {
+            if (hasClass(e, "method")) {
+                areThereMethods = true;
+                return true;
+            }
+        });
+        return areThereMethods;
+    }
+
     var toggle = document.createElement('a');
     toggle.href = 'javascript:void(0)';
     toggle.className = 'collapse-toggle';
-    toggle.innerHTML = "[<span class='inner'>"+labelForToggleButton(false)+"</span>]";
+    toggle.innerHTML = "[<span class='inner'>" + labelForToggleButton(false) + "</span>]";
 
     var func = function(e) {
         var next = e.nextElementSibling;
         if (!next) {
             return;
         }
-        if (hasClass(next, 'docblock') ||
-            (hasClass(next, 'stability') &&
-             hasClass(next.nextElementSibling, 'docblock'))) {
-            insertAfter(toggle.cloneNode(true), e.childNodes[e.childNodes.length - 1]);
-        }
-        if (hasClass(e, 'impl')) {
+        if ((checkIfThereAreMethods(next.childNodes) || hasClass(e, 'method')) &&
+            (hasClass(next, 'docblock') ||
+             hasClass(e, 'impl') ||
+             (hasClass(next, 'stability') &&
+              hasClass(next.nextElementSibling, 'docblock')))) {
             insertAfter(toggle.cloneNode(true), e.childNodes[e.childNodes.length - 1]);
         }
     }
@@ -1972,6 +2004,10 @@
     window.onresize = function() {
         hideSidebar();
     };
+
+    if (getCurrentValue("rustdoc-collapse") === "true") {
+        toggleAllDocs();
+    }
 }());
 
 // Sets the focus on the search bar at the top of the page

@@ -10,7 +10,8 @@
     <title>chained_collector.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -159,7 +160,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">DoNothingCollector</span>;
 <span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">DoNothingCollector</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, _: <span class="ident">SegmentLocalId</span>, _: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="kw">_</span>: <span class="ident">SegmentLocalId</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(())
     }
     <span class="attribute">#[<span class="ident">inline</span>]</span>

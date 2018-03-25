@@ -10,7 +10,8 @@
     <title>nix::unistd::fork - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a></p><script>window.sidebarCurrent = {name: 'fork', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a></p><script>window.sidebarCurrent = {name: 'fork', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -74,7 +75,7 @@ return value of this function.  As an example:</p>
        <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Continuing execution in parent process, new child has pid: {}&quot;</span>, <span class="ident">child</span>);
    }
    <span class="prelude-val">Ok</span>(<span class="ident">ForkResult</span>::<span class="ident">Child</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;I&#39;m a new child process&quot;</span>),
-   <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Fork failed&quot;</span>),
+   <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Fork failed&quot;</span>),
 }</pre>
 <p>This will print something like the following (order indeterministic).  The
 thing to note is that you end up with two processes continuing execution

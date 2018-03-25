@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.10/src/value/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/value/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1118,6 +1119,22 @@
 <span id="1062">1062</span>
 <span id="1063">1063</span>
 <span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1230,6 +1247,7 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">i64</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Serialize</span>;
@@ -1477,7 +1495,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_object</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">map</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1499,7 +1517,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_object_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">map</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1546,7 +1564,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_array</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">array</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">array</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1567,7 +1585,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_array_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">list</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">list</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1622,7 +1640,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">String</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">s</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1643,8 +1661,8 @@
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_number</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Value</span>::<span class="ident">Number</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1676,7 +1694,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_i64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">is_i64</span>(),
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1704,7 +1722,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">is_u64</span>(),
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1733,7 +1751,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_f64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">is_f64</span>(),
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -1758,7 +1776,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_i64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">as_i64</span>(),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1780,7 +1798,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_u64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">as_u64</span>(),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1802,7 +1820,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_f64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Number</span>(<span class="kw-2">ref</span> <span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">n</span>.<span class="ident">as_f64</span>(),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1847,7 +1865,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bool</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">bool</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Bool</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">b</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1891,7 +1909,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_null</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Value</span>::<span class="ident">Null</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(()),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -1941,7 +1959,7 @@
             <span class="kw">let</span> <span class="ident">target_opt</span> <span class="op">=</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">target</span> {
                 <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="ident">map</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">token</span>),
                 <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">list</span>) <span class="op">=&gt;</span> <span class="ident">parse_index</span>(<span class="kw-2">&amp;</span><span class="ident">token</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">list</span>.<span class="ident">get</span>(<span class="ident">x</span>)),
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
             };
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">t</span>) <span class="op">=</span> <span class="ident">target_opt</span> {
                 <span class="ident">target</span> <span class="op">=</span> <span class="ident">t</span>;
@@ -1971,7 +1989,6 @@
     <span class="doccomment">/// extern crate serde_json;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// use serde_json::Value;</span>
-    <span class="doccomment">/// use std::mem;</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// fn main() {</span>
     <span class="doccomment">///     let s = r#&quot;{&quot;x&quot;: 1.0, &quot;y&quot;: 2.0}&quot;#;</span>
@@ -1985,7 +2002,7 @@
     <span class="doccomment">///     assert_eq!(value.pointer(&quot;/x&quot;), Some(&amp;1.5.into()));</span>
     <span class="doccomment">///</span>
     <span class="doccomment">///     // &quot;Steal&quot; ownership of a value. Can replace with any valid Value.</span>
-    <span class="doccomment">///     let old_x = value.pointer_mut(&quot;/x&quot;).map(|x| mem::replace(x, Value::Null)).unwrap();</span>
+    <span class="doccomment">///     let old_x = value.pointer_mut(&quot;/x&quot;).map(Value::take).unwrap();</span>
     <span class="doccomment">///     assert_eq!(old_x, 1.5);</span>
     <span class="doccomment">///     assert_eq!(value.pointer(&quot;/x&quot;).unwrap(), &amp;Value::Null);</span>
     <span class="doccomment">/// }</span>
@@ -2012,7 +2029,7 @@
                 <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">list</span>) <span class="op">=&gt;</span> {
                     <span class="ident">parse_index</span>(<span class="kw-2">&amp;</span><span class="ident">token</span>).<span class="ident">and_then</span>(<span class="kw">move</span> <span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">list</span>.<span class="ident">get_mut</span>(<span class="ident">x</span>))
                 }
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
             };
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">t</span>) <span class="op">=</span> <span class="ident">target_opt</span> {
                 <span class="ident">target</span> <span class="op">=</span> <span class="ident">t</span>;
@@ -2021,6 +2038,22 @@
             }
         }
         <span class="prelude-val">Some</span>(<span class="ident">target</span>)
+    }
+
+    <span class="doccomment">/// Takes the value out of the `Value`, leaving a `Null` in its place.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```rust</span>
+    <span class="doccomment">/// # #[macro_use]</span>
+    <span class="doccomment">/// # extern crate serde_json;</span>
+    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// # fn main() {</span>
+    <span class="doccomment">/// let mut v = json!({ &quot;x&quot;: &quot;y&quot; });</span>
+    <span class="doccomment">/// assert_eq!(v[&quot;x&quot;].take(), json!(&quot;y&quot;));</span>
+    <span class="doccomment">/// assert_eq!(v, json!({ &quot;x&quot;: null }));</span>
+    <span class="doccomment">/// # }</span>
+    <span class="doccomment">/// ```</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">take</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Value</span> {
+        <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="self">self</span>, <span class="ident">Value</span>::<span class="ident">Null</span>)
     }
 }
 

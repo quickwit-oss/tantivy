@@ -10,7 +10,8 @@
     <title>expull.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -346,7 +347,7 @@
     <span class="kw">fn</span> <span class="ident">bench_push_vec</span>(<span class="ident">bench</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="ident">bench</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vecs</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {
                 <span class="ident">vecs</span>.<span class="ident">push</span>(<span class="ident">Vec</span>::<span class="ident">new</span>());
             }
             <span class="kw">for</span> <span class="ident">s</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {
@@ -363,8 +364,8 @@
         <span class="kw">let</span> <span class="ident">heap</span> <span class="op">=</span> <span class="ident">Heap</span>::<span class="ident">with_capacity</span>(<span class="number">64_000_000</span>);
         <span class="ident">bench</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stacks</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {
-                <span class="kw">let</span> (_, <span class="ident">stack</span>) <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">allocate_object</span>::<span class="op">&lt;</span><span class="ident">ExpUnrolledLinkedList</span><span class="op">&gt;</span>();
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {
+                <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">stack</span>) <span class="op">=</span> <span class="ident">heap</span>.<span class="ident">allocate_object</span>::<span class="op">&lt;</span><span class="ident">ExpUnrolledLinkedList</span><span class="op">&gt;</span>();
                 <span class="ident">stacks</span>.<span class="ident">push</span>(<span class="ident">stack</span>);
             }
             <span class="kw">for</span> <span class="ident">s</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_STACK</span> {

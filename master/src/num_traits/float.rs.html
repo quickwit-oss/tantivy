@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.1/src/float.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.2/src/float.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>float.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -2623,7 +2624,7 @@
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">is_sign_negative</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">let</span> (_, _, <span class="ident">sign</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">integer_decode</span>();
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">sign</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">integer_decode</span>();
         <span class="ident">sign</span> <span class="op">&lt;</span> <span class="number">0</span>
     }
 
@@ -2829,10 +2830,10 @@
         <span class="kw">let</span> <span class="ident">bits</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>) };
         <span class="kw">match</span> (<span class="ident">bits</span> <span class="op">&amp;</span> <span class="ident">MAN_MASK</span>, <span class="ident">bits</span> <span class="op">&amp;</span> <span class="ident">EXP_MASK</span>) {
             (<span class="number">0</span>, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Zero</span>,
-            (_, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Subnormal</span>,
+            (<span class="kw">_</span>, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Subnormal</span>,
             (<span class="number">0</span>, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Infinite</span>,
-            (_, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Nan</span>,
-            _ <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Normal</span>,
+            (<span class="kw">_</span>, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Nan</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Normal</span>,
         }
     }
 
@@ -2899,10 +2900,10 @@
         <span class="kw">let</span> <span class="ident">bits</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="self">self</span>) };
         <span class="kw">match</span> (<span class="ident">bits</span> <span class="op">&amp;</span> <span class="ident">MAN_MASK</span>, <span class="ident">bits</span> <span class="op">&amp;</span> <span class="ident">EXP_MASK</span>) {
             (<span class="number">0</span>, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Zero</span>,
-            (_, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Subnormal</span>,
+            (<span class="kw">_</span>, <span class="number">0</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Subnormal</span>,
             (<span class="number">0</span>, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Infinite</span>,
-            (_, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Nan</span>,
-            _ <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Normal</span>,
+            (<span class="kw">_</span>, <span class="ident">EXP_MASK</span>) <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Nan</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">FpCategory</span>::<span class="ident">Normal</span>,
         }
     }
 

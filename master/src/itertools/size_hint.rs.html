@@ -10,7 +10,8 @@
     <title>size_hint.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -165,7 +166,7 @@
     <span class="kw">let</span> <span class="ident">min</span> <span class="op">=</span> <span class="ident">a</span>.<span class="number">0</span>.<span class="ident">checked_add</span>(<span class="ident">b</span>.<span class="number">0</span>).<span class="ident">unwrap_or</span>(<span class="ident">usize</span>::<span class="ident">MAX</span>);
     <span class="kw">let</span> <span class="ident">max</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">a</span>.<span class="number">1</span>, <span class="ident">b</span>.<span class="number">1</span>) {
         (<span class="prelude-val">Some</span>(<span class="ident">x</span>), <span class="prelude-val">Some</span>(<span class="ident">y</span>)) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">checked_add</span>(<span class="ident">y</span>),
-        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     };
 
     (<span class="ident">min</span>, <span class="ident">max</span>)
@@ -212,7 +213,7 @@
     <span class="kw">let</span> <span class="ident">hi</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">a</span>.<span class="number">1</span>, <span class="ident">b</span>.<span class="number">1</span>) {
         (<span class="prelude-val">Some</span>(<span class="ident">x</span>), <span class="prelude-val">Some</span>(<span class="ident">y</span>)) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">checked_mul</span>(<span class="ident">y</span>),
         (<span class="prelude-val">Some</span>(<span class="number">0</span>), <span class="prelude-val">None</span>) <span class="op">|</span> (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="number">0</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="number">0</span>),
-        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     };
     (<span class="ident">low</span>, <span class="ident">hi</span>)
 }
@@ -227,7 +228,7 @@
 
     <span class="kw">let</span> <span class="ident">upper</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">a_upper</span>, <span class="ident">b_upper</span>) {
         (<span class="prelude-val">Some</span>(<span class="ident">x</span>), <span class="prelude-val">Some</span>(<span class="ident">y</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">x</span>, <span class="ident">y</span>)),
-        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     };
 
     (<span class="ident">lower</span>, <span class="ident">upper</span>)
@@ -241,7 +242,7 @@
     <span class="kw">let</span> <span class="ident">lower</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">a_lower</span>, <span class="ident">b_lower</span>);
     <span class="kw">let</span> <span class="ident">upper</span> <span class="op">=</span> <span class="kw">match</span> (<span class="ident">a_upper</span>, <span class="ident">b_upper</span>) {
         (<span class="prelude-val">Some</span>(<span class="ident">u1</span>), <span class="prelude-val">Some</span>(<span class="ident">u2</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">u1</span>, <span class="ident">u2</span>)),
-        _ <span class="op">=&gt;</span> <span class="ident">a_upper</span>.<span class="ident">or</span>(<span class="ident">b_upper</span>),
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">a_upper</span>.<span class="ident">or</span>(<span class="ident">b_upper</span>),
     };
     (<span class="ident">lower</span>, <span class="ident">upper</span>)
 }

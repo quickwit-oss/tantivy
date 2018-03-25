@@ -10,7 +10,8 @@
     <title>ms_queue.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -629,7 +630,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Node</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">is_data</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Payload</span>::<span class="ident">Data</span>(_) <span class="op">=</span> <span class="self">self</span>.<span class="ident">payload</span> { <span class="bool-val">true</span> } <span class="kw">else</span> { <span class="bool-val">false</span> }
+        <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Payload</span>::<span class="ident">Data</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">payload</span> { <span class="bool-val">true</span> } <span class="kw">else</span> { <span class="bool-val">false</span> }
     }
 }
 
@@ -711,7 +712,7 @@
                     <span class="ident">Cache</span>::<span class="ident">Node</span>(<span class="ident">node</span>) <span class="op">=&gt;</span> {
                         <span class="kw">match</span> <span class="ident">node</span>.<span class="ident">into_inner</span>().<span class="ident">payload</span> {
                             <span class="ident">Payload</span>::<span class="ident">Data</span>(<span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>,
-                            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
                         }
                     }
                 }
@@ -734,7 +735,7 @@
                 <span class="comment">// `tail.next` has changed, which will always be the case if the</span>
                 <span class="comment">// queue has transitioned to blocking mode.</span>
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">push_internal</span>(<span class="kw-2">&amp;</span><span class="ident">guard</span>, <span class="ident">tail</span>, <span class="ident">cache</span>.<span class="ident">into_node</span>()) {
-                    <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span>,
+                    <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span>,
                     <span class="prelude-val">Err</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> {
                         <span class="comment">// replace the cache, retry whole thing</span>
                         <span class="ident">cache</span> <span class="op">=</span> <span class="ident">Cache</span>::<span class="ident">Node</span>(<span class="ident">n</span>)
@@ -748,7 +749,7 @@
                 <span class="kw">let</span> <span class="ident">request</span> <span class="op">=</span> <span class="ident">head</span>.<span class="ident">next</span>.<span class="ident">load</span>(<span class="ident">Acquire</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>).<span class="ident">and_then</span>(<span class="op">|</span><span class="ident">next</span><span class="op">|</span> {
                     <span class="kw">match</span> <span class="ident">next</span>.<span class="ident">payload</span> {
                         <span class="ident">Payload</span>::<span class="ident">Blocked</span>(<span class="ident">signal</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">next</span>, <span class="ident">signal</span>)),
-                        <span class="ident">Payload</span>::<span class="ident">Data</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+                        <span class="ident">Payload</span>::<span class="ident">Data</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
                     }
                 });
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">blocked_node</span>, <span class="ident">signal</span>)) <span class="op">=</span> <span class="ident">request</span> {
@@ -799,7 +800,7 @@
         <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">head</span>.<span class="ident">load</span>(<span class="ident">Acquire</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>).<span class="ident">unwrap</span>();
 
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">next</span>) <span class="op">=</span> <span class="ident">head</span>.<span class="ident">next</span>.<span class="ident">load</span>(<span class="ident">Acquire</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>) {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Payload</span>::<span class="ident">Data</span>(_) <span class="op">=</span> <span class="ident">next</span>.<span class="ident">payload</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Payload</span>::<span class="ident">Data</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">next</span>.<span class="ident">payload</span> {
                 <span class="bool-val">false</span>
             } <span class="kw">else</span> {
                 <span class="bool-val">true</span>
@@ -1061,7 +1062,7 @@
                         <span class="kw">match</span> <span class="ident">q</span>.<span class="ident">try_pop</span>() {
                             <span class="prelude-val">Some</span>(<span class="ident">LR</span>::<span class="ident">Left</span>(<span class="ident">x</span>)) <span class="op">=&gt;</span> <span class="ident">vl</span>.<span class="ident">push</span>(<span class="ident">x</span>),
                             <span class="prelude-val">Some</span>(<span class="ident">LR</span>::<span class="ident">Right</span>(<span class="ident">x</span>)) <span class="op">=&gt;</span> <span class="ident">vr</span>.<span class="ident">push</span>(<span class="ident">x</span>),
-                            _ <span class="op">=&gt;</span> {}
+                            <span class="kw">_</span> <span class="op">=&gt;</span> {}
                         }
                     }
 

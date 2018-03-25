@@ -10,7 +10,8 @@
     <title>futures::stream::repeat - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a></p><script>window.sidebarCurrent = {name: 'repeat', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a></p><script>window.sidebarCurrent = {name: 'repeat', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -68,7 +69,7 @@ available memory as it tries to just fill up all RAM.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="kw-2">*</span>;
 
-<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">stream</span>::<span class="ident">repeat</span>::<span class="op">&lt;</span>_, <span class="ident">bool</span><span class="op">&gt;</span>(<span class="number">10</span>);
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">stream</span>::<span class="ident">repeat</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">bool</span><span class="op">&gt;</span>(<span class="number">10</span>);
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="number">10</span>))), <span class="ident">stream</span>.<span class="ident">poll</span>());
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="number">10</span>))), <span class="ident">stream</span>.<span class="ident">poll</span>());
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Some</span>(<span class="number">10</span>))), <span class="ident">stream</span>.<span class="ident">poll</span>());</pre>

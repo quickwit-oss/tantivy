@@ -10,7 +10,8 @@
     <title>skiplist.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -284,12 +285,12 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">seek</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">key</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">u64</span>, <span class="ident">T</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">next_layer_skip</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">u64</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
         <span class="kw">for</span> <span class="ident">skip_layer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">skip_layers</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((_, <span class="ident">offset</span>)) <span class="op">=</span> <span class="ident">next_layer_skip</span> {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">offset</span>)) <span class="op">=</span> <span class="ident">next_layer_skip</span> {
                 <span class="ident">skip_layer</span>.<span class="ident">seek_offset</span>(<span class="ident">offset</span> <span class="kw">as</span> <span class="ident">usize</span>);
             }
             <span class="ident">next_layer_skip</span> <span class="op">=</span> <span class="ident">skip_layer</span>.<span class="ident">seek</span>(<span class="ident">key</span>);
         }
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((_, <span class="ident">offset</span>)) <span class="op">=</span> <span class="ident">next_layer_skip</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">offset</span>)) <span class="op">=</span> <span class="ident">next_layer_skip</span> {
             <span class="self">self</span>.<span class="ident">data_layer</span>.<span class="ident">seek_offset</span>(<span class="ident">offset</span> <span class="kw">as</span> <span class="ident">usize</span>);
         }
         <span class="self">self</span>.<span class="ident">data_layer</span>.<span class="ident">seek</span>(<span class="ident">key</span>)

@@ -10,7 +10,8 @@
     <title>treiber_stack.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -201,7 +202,7 @@
             <span class="kw">let</span> <span class="ident">head</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">head</span>.<span class="ident">load</span>(<span class="ident">Relaxed</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>);
             <span class="ident">n</span>.<span class="ident">next</span>.<span class="ident">store_shared</span>(<span class="ident">head</span>, <span class="ident">Relaxed</span>);
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">head</span>.<span class="ident">cas_and_ref</span>(<span class="ident">head</span>, <span class="ident">n</span>, <span class="ident">Release</span>, <span class="kw-2">&amp;</span><span class="ident">guard</span>) {
-                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">break</span>,
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">owned</span>) <span class="op">=&gt;</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">owned</span>,
             }
         }

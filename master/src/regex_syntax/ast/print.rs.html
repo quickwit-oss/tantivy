@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/ast/print.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/ast/print.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>print.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -640,11 +641,6 @@
 <span id="584">584</span>
 <span id="585">585</span>
 <span id="586">586</span>
-<span id="587">587</span>
-<span id="588">588</span>
-<span id="589">589</span>
-<span id="590">590</span>
-<span id="591">591</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -657,7 +653,7 @@
 <span class="comment">// except according to those terms.</span>
 
 <span class="doccomment">/*!
-This module provides a regular expression printer.
+This module provides a regular expression printer for `Ast`.
 */</span>
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
@@ -743,7 +739,7 @@ This module provides a regular expression printer.
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">ast</span>::<span class="ident">Class</span>::<span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="ident">x</span>)) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">fmt_class_bracketed_pre</span>(<span class="ident">x</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(())
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(())
         }
     }
 
@@ -751,10 +747,10 @@ This module provides a regular expression printer.
         <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">Class</span>;
 
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
             <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_set_flags</span>(<span class="ident">x</span>),
             <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_literal</span>(<span class="ident">x</span>),
-            <span class="ident">Ast</span>::<span class="ident">Dot</span>(_) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="string">&quot;.&quot;</span>),
+            <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="string">&quot;.&quot;</span>),
             <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_assertion</span>(<span class="ident">x</span>),
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">Class</span>::<span class="ident">Perl</span>(<span class="kw-2">ref</span> <span class="ident">x</span>)) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_class_perl</span>(<span class="ident">x</span>),
             <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="ident">Class</span>::<span class="ident">Unicode</span>(<span class="kw-2">ref</span> <span class="ident">x</span>)) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_class_unicode</span>(<span class="ident">x</span>),
@@ -763,8 +759,8 @@ This module provides a regular expression printer.
             }
             <span class="ident">Ast</span>::<span class="ident">Repetition</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_repetition</span>(<span class="ident">x</span>),
             <span class="ident">Ast</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_group_post</span>(<span class="ident">x</span>),
-            <span class="ident">Ast</span>::<span class="ident">Alternation</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
-            <span class="ident">Ast</span>::<span class="ident">Concat</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -780,7 +776,7 @@ This module provides a regular expression printer.
             <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">fmt_class_bracketed_pre</span>(<span class="ident">x</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -791,7 +787,7 @@ This module provides a regular expression printer.
         <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">ClassSetItem</span>::<span class="kw-2">*</span>;
 
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ast</span> {
-            <span class="ident">Empty</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">Empty</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
             <span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_literal</span>(<span class="ident">x</span>),
             <span class="ident">Range</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">fmt_literal</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">start</span>));
@@ -803,7 +799,7 @@ This module provides a regular expression printer.
             <span class="ident">Unicode</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_class_unicode</span>(<span class="ident">x</span>),
             <span class="ident">Perl</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_class_perl</span>(<span class="ident">x</span>),
             <span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">fmt_class_bracketed_post</span>(<span class="ident">x</span>),
-            <span class="ident">Union</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
+            <span class="ident">Union</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(()),
         }
     }
 
@@ -819,7 +815,7 @@ This module provides a regular expression printer.
     <span class="kw">fn</span> <span class="ident">fmt_group_pre</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">ast</span>: <span class="kw-2">&amp;</span><span class="ident">ast</span>::<span class="ident">Group</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
         <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">GroupKind</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="ident">ast</span>.<span class="ident">kind</span> {
-            <span class="ident">CaptureIndex</span>(_) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="string">&quot;(&quot;</span>),
+            <span class="ident">CaptureIndex</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="string">&quot;(&quot;</span>),
             <span class="ident">CaptureName</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="string">&quot;(?P&lt;&quot;</span>));
                 <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">wtr</span>.<span class="ident">write_str</span>(<span class="kw-2">&amp;</span><span class="ident">x</span>.<span class="ident">name</span>));
@@ -1070,7 +1066,7 @@ This module provides a regular expression printer.
     }
 
     <span class="kw">fn</span> <span class="ident">roundtrip_with</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(<span class="kw-2">mut</span> <span class="ident">f</span>: <span class="ident">F</span>, <span class="ident">given</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>)
-        <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ParserBuilder</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ParserBuilder</span>
+    <span class="kw">where</span> <span class="ident">F</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ParserBuilder</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ParserBuilder</span>
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">ParserBuilder</span>::<span class="ident">new</span>();
         <span class="ident">f</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">builder</span>);
@@ -1080,11 +1076,6 @@ This module provides a regular expression printer.
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">dst</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
         <span class="ident">printer</span>.<span class="ident">print</span>(<span class="kw-2">&amp;</span><span class="ident">ast</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">dst</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">given</span>, <span class="ident">dst</span>);
-    }
-
-    <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">scratch</span>() {
-        <span class="ident">roundtrip</span>(<span class="string">&quot;.&quot;</span>);
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>

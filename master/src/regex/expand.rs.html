@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/expand.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/expand.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>expand.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -432,7 +433,7 @@
     <span class="prelude-val">Some</span>(<span class="ident">CaptureRef</span> {
         <span class="ident">cap</span>: <span class="kw">match</span> <span class="ident">cap</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>() {
             <span class="prelude-val">Ok</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> <span class="ident">Ref</span>::<span class="ident">Number</span>(<span class="ident">i</span> <span class="kw">as</span> <span class="ident">usize</span>),
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="ident">Ref</span>::<span class="ident">Named</span>(<span class="ident">cap</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Ref</span>::<span class="ident">Named</span>(<span class="ident">cap</span>),
         },
         <span class="ident">end</span>: <span class="ident">cap_end</span>,
     })
@@ -442,7 +443,7 @@
 <span class="kw">fn</span> <span class="ident">is_valid_cap_letter</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">b</span> {
         <span class="string">b&#39;0&#39;</span> ... <span class="string">b&#39;9&#39;</span> <span class="op">|</span> <span class="string">b&#39;a&#39;</span> ... <span class="string">b&#39;z&#39;</span> <span class="op">|</span> <span class="string">b&#39;A&#39;</span> ... <span class="string">b&#39;Z&#39;</span> <span class="op">|</span> <span class="string">b&#39;_&#39;</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-        _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
 }
 

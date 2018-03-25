@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -186,7 +187,7 @@
     <span class="number">0x30A1</span>...<span class="number">0x30F4</span><span class="op">|</span><span class="number">0x30FC</span><span class="op">|</span><span class="number">0xFF71</span>...<span class="number">0xFF9D</span><span class="op">|</span><span class="number">0xFF9E</span><span class="op">|</span><span class="number">0xFF70</span> <span class="op">=&gt;</span> <span class="string">&#39;K&#39;</span>,
     <span class="number">0x61</span>...<span class="number">0x7A</span><span class="op">|</span><span class="number">0x41</span>...<span class="number">0x5A</span><span class="op">|</span><span class="number">0xFF41</span>...<span class="number">0xFF5A</span><span class="op">|</span><span class="number">0xFF21</span>...<span class="number">0xFF3A</span> <span class="op">=&gt;</span> <span class="string">&#39;A&#39;</span>,
     <span class="number">0x30</span>...<span class="number">0x3a</span><span class="op">|</span><span class="number">0xFF10</span>...<span class="number">0xFF19</span> <span class="op">=&gt;</span> <span class="string">&#39;N&#39;</span>,
-    _ <span class="op">=&gt;</span> <span class="string">&#39;O&#39;</span>,
+    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="string">&#39;O&#39;</span>,
   }
 }
 
@@ -201,13 +202,13 @@
     <span class="macro">vec</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">B3</span>, <span class="kw-2">*</span><span class="ident">B2</span>, <span class="kw-2">*</span><span class="ident">B1</span>).<span class="ident">into_iter</span>()
     .<span class="ident">chain</span>(<span class="ident">s</span>.<span class="ident">chars</span>())
     .<span class="ident">chain</span>(<span class="macro">vec</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">E1</span>, <span class="kw-2">*</span><span class="ident">E2</span>, <span class="kw-2">*</span><span class="ident">E3</span>).<span class="ident">into_iter</span>())
-    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
   <span class="kw">let</span> <span class="ident">ctypes</span> <span class="op">=</span>
     <span class="macro">vec</span><span class="macro">!</span>(<span class="string">&#39;O&#39;</span>; <span class="number">3</span>).<span class="ident">into_iter</span>()
     .<span class="ident">chain</span>(<span class="ident">s</span>.<span class="ident">chars</span>().<span class="ident">map</span>(<span class="ident">get_ctype</span>))
     .<span class="ident">chain</span>(<span class="macro">vec</span><span class="macro">!</span>(<span class="string">&#39;O&#39;</span>; <span class="number">3</span>).<span class="ident">into_iter</span>())
-    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">word</span> <span class="op">=</span> <span class="ident">segments</span>[<span class="number">3</span>].<span class="ident">to_string</span>();
   <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">p</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>(<span class="string">&#39;U&#39;</span>; <span class="number">3</span>);

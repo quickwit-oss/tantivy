@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1512,7 +1513,7 @@
             <span class="number">3</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Info</span>),
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Debug</span>),
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevel</span>::<span class="ident">Trace</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 
@@ -1638,7 +1639,7 @@
             <span class="number">3</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Info</span>),
             <span class="number">4</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Debug</span>),
             <span class="number">5</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">LogLevelFilter</span>::<span class="ident">Trace</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>
         }
     }
 
@@ -1753,9 +1754,9 @@
 <span class="kw">struct</span> <span class="ident">NopLogger</span>;
 
 <span class="kw">impl</span> <span class="ident">Log</span> <span class="kw">for</span> <span class="ident">NopLogger</span> {
-    <span class="kw">fn</span> <span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">LogMetadata</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">false</span> }
+    <span class="kw">fn</span> <span class="ident">enabled</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">LogMetadata</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> { <span class="bool-val">false</span> }
 
-    <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, _: <span class="kw-2">&amp;</span><span class="ident">LogRecord</span>) {}
+    <span class="kw">fn</span> <span class="ident">log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">LogRecord</span>) {}
 }
 
 <span class="doccomment">/// The location of a log message.</span>
@@ -1882,7 +1883,7 @@
             <span class="ident">STATE</span>.<span class="ident">store</span>(<span class="ident">INITIALIZED</span>, <span class="ident">Ordering</span>::<span class="ident">SeqCst</span>);
             <span class="prelude-val">Ok</span>(())
         }
-        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">SetLoggerError</span>(())),
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">SetLoggerError</span>(())),
     }
 }
 

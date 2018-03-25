@@ -10,7 +10,8 @@
     <title>writer.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -248,7 +249,7 @@
         }
         {
             <span class="comment">// writing the values themselves.</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value_serializer</span>: <span class="ident">FastSingleFieldSerializer</span><span class="op">&lt;</span>_<span class="op">&gt;</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">value_serializer</span>: <span class="ident">FastSingleFieldSerializer</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>;
             <span class="kw">match</span> <span class="ident">mapping_opt</span> {
                 <span class="prelude-val">Some</span>(<span class="ident">mapping</span>) <span class="op">=&gt;</span> {
                     <span class="ident">value_serializer</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(

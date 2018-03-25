@@ -10,7 +10,8 @@
     <title>serde_json::map::OccupiedEntry - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -79,7 +80,7 @@
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="ident">occupied</span>) <span class="op">=&gt;</span> {
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">occupied</span>.<span class="ident">key</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;serde&quot;</span>);
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }</pre>
 </div><h4 id='method.get' class="method"><span id='get.v' class='invisible'><code>pub fn <a href='#method.get' class='fnname'>get</a>(&amp;self) -&gt; &amp;<a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#582-584' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Gets a reference to the value in the entry.</p>
@@ -94,7 +95,7 @@
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="ident">occupied</span>) <span class="op">=&gt;</span> {
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">occupied</span>.<span class="ident">get</span>(), <span class="number">12</span>);
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }</pre>
 </div><h4 id='method.get_mut' class="method"><span id='get_mut.v' class='invisible'><code>pub fn <a href='#method.get_mut' class='fnname'>get_mut</a>(&amp;mut self) -&gt; &amp;mut <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#611-613' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Gets a mutable reference to the value in the entry.</p>
@@ -109,7 +110,7 @@
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="kw-2">mut</span> <span class="ident">occupied</span>) <span class="op">=&gt;</span> {
         <span class="ident">occupied</span>.<span class="ident">get_mut</span>().<span class="ident">as_array_mut</span>().<span class="ident">unwrap</span>().<span class="ident">push</span>(<span class="macro">json</span><span class="macro">!</span>(<span class="number">4</span>));
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }
 
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">map</span>[<span class="string">&quot;serde&quot;</span>].<span class="ident">as_array</span>().<span class="ident">unwrap</span>().<span class="ident">len</span>(), <span class="number">4</span>);</pre>
@@ -126,7 +127,7 @@
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="kw-2">mut</span> <span class="ident">occupied</span>) <span class="op">=&gt;</span> {
         <span class="ident">occupied</span>.<span class="ident">into_mut</span>().<span class="ident">as_array_mut</span>().<span class="ident">unwrap</span>().<span class="ident">push</span>(<span class="macro">json</span><span class="macro">!</span>(<span class="number">4</span>));
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }
 
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">map</span>[<span class="string">&quot;serde&quot;</span>].<span class="ident">as_array</span>().<span class="ident">unwrap</span>().<span class="ident">len</span>(), <span class="number">4</span>);</pre>
@@ -145,7 +146,7 @@ the entry's old value.</p>
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">occupied</span>.<span class="ident">insert</span>(<span class="macro">json</span><span class="macro">!</span>(<span class="number">13</span>)), <span class="number">12</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">occupied</span>.<span class="ident">get</span>(), <span class="number">13</span>);
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }</pre>
 </div><h4 id='method.remove' class="method"><span id='remove.v' class='invisible'><code>pub fn <a href='#method.remove' class='fnname'>remove</a>(self) -&gt; <a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/serde_json/map.rs.html#696-698' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Takes the value of the entry out of the map, and returns it.</p>
@@ -160,7 +161,7 @@ the entry's old value.</p>
     <span class="ident">Entry</span>::<span class="ident">Occupied</span>(<span class="ident">occupied</span>) <span class="op">=&gt;</span> {
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">occupied</span>.<span class="ident">remove</span>(), <span class="number">12</span>);
     }
-    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(_) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
+    <span class="ident">Entry</span>::<span class="ident">Vacant</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unimplemented</span><span class="macro">!</span>(),
 }</pre>
 </div></div>
             <h2 id='implementations' class='small-section-header'>
@@ -168,11 +169,11 @@ the entry's old value.</p>
             </h2>
             <div id='implementations-list'>
         </div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../serde_json/map/struct.OccupiedEntry.html" title="struct serde_json::map::OccupiedEntry">OccupiedEntry</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../serde_json/map/struct.OccupiedEntry.html" title="struct serde_json::map::OccupiedEntry">OccupiedEntry</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../serde_json/map/struct.OccupiedEntry.html" title="struct serde_json::map::OccupiedEntry">OccupiedEntry</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

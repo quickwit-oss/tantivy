@@ -10,7 +10,8 @@
     <title>strnom.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -569,7 +570,7 @@
                 <span class="kw">continue</span>
             } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/*&quot;</span>) <span class="op">&amp;&amp;</span> (<span class="op">!</span><span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/**&quot;</span>) <span class="op">||</span> <span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/***&quot;</span>)) <span class="op">&amp;&amp;</span>
                       <span class="op">!</span><span class="ident">s</span>.<span class="ident">starts_with</span>(<span class="string">&quot;/*!&quot;</span>) {
-                <span class="kw">let</span> (_, <span class="ident">com</span>) <span class="op">=</span> <span class="ident">block_comment</span>(<span class="ident">s</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">com</span>) <span class="op">=</span> <span class="ident">block_comment</span>(<span class="ident">s</span>)<span class="question-mark">?</span>;
                 <span class="ident">i</span> <span class="op">+=</span> <span class="ident">com</span>.<span class="ident">len</span>();
                 <span class="kw">continue</span>;
             }
@@ -580,7 +581,7 @@
                 <span class="kw">continue</span>;
             }
             <span class="ident">b</span> <span class="kw">if</span> <span class="ident">b</span> <span class="op">&lt;=</span> <span class="number">0x7f</span> <span class="op">=&gt;</span> {}
-            _ <span class="op">=&gt;</span> {
+            <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">ch</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">chars</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>();
                 <span class="kw">if</span> <span class="ident">is_whitespace</span>(<span class="ident">ch</span>) {
                     <span class="ident">i</span> <span class="op">+=</span> <span class="ident">ch</span>.<span class="ident">len_utf8</span>();
@@ -624,7 +625,7 @@
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">skip_whitespace</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">Cursor</span> {
     <span class="kw">match</span> <span class="ident">whitespace</span>(<span class="ident">input</span>) {
-        <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, _)) <span class="op">=&gt;</span> <span class="ident">rest</span>,
+        <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="ident">rest</span>,
         <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="ident">input</span>,
     }
 }
@@ -637,7 +638,7 @@
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">word_break</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">chars</span>().<span class="ident">next</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">ch</span>) <span class="kw">if</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">ch</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
-        <span class="prelude-val">Some</span>(_) <span class="op">|</span> <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">input</span>, ())),
+        <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">input</span>, ())),
     }
 }
 
@@ -656,8 +657,8 @@
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">subrule</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">|</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">subrule</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-            <span class="ident">res</span> @ <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="ident">res</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>)
+            <span class="ident">res</span> @ <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">res</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>)
         }
     };
 
@@ -704,7 +705,7 @@
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> ) <span class="op">&gt;&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
-            <span class="prelude-val">Ok</span>((<span class="ident">i</span>, _)) <span class="op">=&gt;</span> <span class="macro">do_parse</span><span class="macro">!</span>(<span class="ident">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>),
+            <span class="prelude-val">Ok</span>((<span class="ident">i</span>, <span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="macro">do_parse</span><span class="macro">!</span>(<span class="ident">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>),
         }
     };
 
@@ -726,7 +727,7 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">peek</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> )) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-            <span class="prelude-val">Ok</span>((_, <span class="ident">o</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, <span class="ident">o</span>)),
+            <span class="prelude-val">Ok</span>((<span class="kw">_</span>, <span class="ident">o</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, <span class="ident">o</span>)),
             <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
         }
     };
@@ -809,7 +810,7 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">not</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> )) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-            <span class="prelude-val">Ok</span>((_, _)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
+            <span class="prelude-val">Ok</span>((<span class="kw">_</span>, <span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
             <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, ())),
         }
     };
@@ -844,7 +845,7 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">preceded</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> ), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac2</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args2</span>:<span class="ident">tt</span>)<span class="op">*</span> )) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro">tuple</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac2</span><span class="op">!</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args2</span>)<span class="kw-2">*</span>)) {
-            <span class="prelude-val">Ok</span>((<span class="ident">remaining</span>, (_, <span class="ident">o</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">remaining</span>, <span class="ident">o</span>)),
+            <span class="prelude-val">Ok</span>((<span class="ident">remaining</span>, (<span class="kw">_</span>, <span class="ident">o</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">remaining</span>, <span class="ident">o</span>)),
             <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
         }
     };
@@ -858,7 +859,7 @@
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> ), $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="op">+</span>) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro">tuple_parser</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, (), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>), $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>) {
             <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
-            <span class="prelude-val">Ok</span>((<span class="ident">i1</span>, (_, <span class="ident">o</span>, _))) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">i1</span>, <span class="ident">o</span>))
+            <span class="prelude-val">Ok</span>((<span class="ident">i1</span>, (<span class="kw">_</span>, <span class="ident">o</span>, <span class="kw">_</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((<span class="ident">i1</span>, <span class="ident">o</span>))
         }
     };
 }

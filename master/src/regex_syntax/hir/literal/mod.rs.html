@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/hir/literal/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/hir/literal/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -1744,7 +1745,7 @@ Provides routines for extracting literal prefixes and suffixes from an `Hir`.
             <span class="kw">match</span> <span class="ident">min</span> {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">min</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">lit</span>.<span class="ident">len</span>()),
                 <span class="prelude-val">Some</span>(<span class="ident">m</span>) <span class="kw">if</span> <span class="ident">lit</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">m</span> <span class="op">=&gt;</span> <span class="ident">min</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">lit</span>.<span class="ident">len</span>()),
-                _ <span class="op">=&gt;</span> {}
+                <span class="kw">_</span> <span class="op">=&gt;</span> {}
             }
         }
         <span class="ident">min</span>
@@ -2287,7 +2288,7 @@ Provides routines for extracting literal prefixes and suffixes from an `Hir`.
         <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="kw-2">ref</span> <span class="ident">es</span>) <span class="op">=&gt;</span> {
             <span class="ident">alternate_literals</span>(<span class="ident">es</span>, <span class="ident">lits</span>, <span class="ident">prefixes</span>);
         }
-        _ <span class="op">=&gt;</span> <span class="ident">lits</span>.<span class="ident">cut</span>(),
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">lits</span>.<span class="ident">cut</span>(),
     }
 }
 
@@ -2370,7 +2371,7 @@ Provides routines for extracting literal prefixes and suffixes from an `Hir`.
         <span class="ident">HirKind</span>::<span class="ident">Alternation</span>(<span class="kw-2">ref</span> <span class="ident">es</span>) <span class="op">=&gt;</span> {
             <span class="ident">alternate_literals</span>(<span class="ident">es</span>, <span class="ident">lits</span>, <span class="ident">suffixes</span>);
         }
-        _ <span class="op">=&gt;</span> <span class="ident">lits</span>.<span class="ident">cut</span>(),
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">lits</span>.<span class="ident">cut</span>(),
     }
 }
 
@@ -2560,7 +2561,7 @@ Provides routines for extracting literal prefixes and suffixes from an `Hir`.
 <span class="kw">fn</span> <span class="ident">escape_unicode</span>(<span class="ident">bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">String</span> {
     <span class="kw">let</span> <span class="ident">show</span> <span class="op">=</span> <span class="kw">match</span> ::<span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="ident">bytes</span>) {
         <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>.<span class="ident">to_string</span>(),
-        <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="ident">escape_bytes</span>(<span class="ident">bytes</span>),
+        <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">escape_bytes</span>(<span class="ident">bytes</span>),
     };
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">space_escaped</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
     <span class="kw">for</span> <span class="ident">c</span> <span class="kw">in</span> <span class="ident">show</span>.<span class="ident">chars</span>() {

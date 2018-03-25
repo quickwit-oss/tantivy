@@ -10,7 +10,8 @@
     <title>chase_lev.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1065,7 +1066,7 @@
             }
         });
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">AMT</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">AMT</span> {
             <span class="ident">w</span>.<span class="ident">push</span>(<span class="number">1</span>);
         }
 
@@ -1087,7 +1088,7 @@
             }
         });
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">AMT</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">AMT</span> {
             <span class="ident">w</span>.<span class="ident">push</span>((<span class="number">1</span>, <span class="number">10</span>));
         }
 
@@ -1098,12 +1099,12 @@
                 <span class="ident">s</span>: <span class="ident">Stealer</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">isize</span><span class="op">&gt;&gt;</span>,
                 <span class="ident">nthreads</span>: <span class="ident">isize</span>,
                 <span class="ident">amt</span>: <span class="ident">usize</span>) {
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">amt</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">amt</span> {
             <span class="ident">w</span>.<span class="ident">push</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="number">20</span>));
         }
         <span class="kw">let</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="ident">amt</span>));
 
-        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">nthreads</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">nthreads</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">remaining</span>.<span class="ident">clone</span>();
             <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">clone</span>();
             <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
@@ -1120,7 +1121,7 @@
                     }
                 }
             })
-        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="kw">while</span> <span class="ident">remaining</span>.<span class="ident">load</span>(<span class="ident">SeqCst</span>) <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">val</span>) <span class="op">=</span> <span class="ident">w</span>.<span class="ident">try_pop</span>() {
@@ -1146,12 +1147,12 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">many_stampede</span>() {
         <span class="kw">static</span> <span class="ident">AMT</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">4</span>;
-        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">AMT</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">AMT</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
             <span class="kw">let</span> (<span class="ident">w</span>, <span class="ident">s</span>) <span class="op">=</span> <span class="ident">deque</span>();
             <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="op">||</span> {
                 <span class="ident">stampede</span>(<span class="ident">w</span>, <span class="ident">s</span>, <span class="number">4</span>, <span class="number">10000</span>);
             })
-        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="kw">for</span> <span class="ident">thread</span> <span class="kw">in</span> <span class="ident">threads</span>.<span class="ident">into_iter</span>() {
             <span class="ident">thread</span>.<span class="ident">join</span>().<span class="ident">unwrap</span>();
@@ -1166,19 +1167,19 @@
         <span class="kw">static</span> <span class="ident">HITS</span>: <span class="ident">AtomicUsize</span> <span class="op">=</span> <span class="ident">ATOMIC_USIZE_INIT</span>;
         <span class="kw">let</span> (<span class="ident">w</span>, <span class="ident">s</span>) <span class="op">=</span> <span class="ident">deque</span>();
 
-        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NTHREADS</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> {
+        <span class="kw">let</span> <span class="ident">threads</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NTHREADS</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">clone</span>();
             <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
                 <span class="kw">loop</span> {
                     <span class="kw">match</span> <span class="ident">s</span>.<span class="ident">steal</span>() {
                         <span class="ident">Steal</span>::<span class="ident">Data</span>(<span class="number">2</span>) <span class="op">=&gt;</span> { <span class="ident">HITS</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">SeqCst</span>); }
                         <span class="ident">Steal</span>::<span class="ident">Data</span>(..) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
-                        _ <span class="kw">if</span> <span class="ident">DONE</span>.<span class="ident">load</span>(<span class="ident">SeqCst</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
-                        _ <span class="op">=&gt;</span> {}
+                        <span class="kw">_</span> <span class="kw">if</span> <span class="ident">DONE</span>.<span class="ident">load</span>(<span class="ident">SeqCst</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {}
                     }
                 }
             })
-        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">expected</span> <span class="op">=</span> <span class="number">0</span>;
@@ -1187,7 +1188,7 @@
                 <span class="kw">match</span> <span class="ident">w</span>.<span class="ident">try_pop</span>() {
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
                     <span class="prelude-val">Some</span>(<span class="number">2</span>) <span class="op">=&gt;</span> { <span class="ident">HITS</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">SeqCst</span>); },
-                    <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
+                    <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
                 }
             } <span class="kw">else</span> {
                 <span class="ident">expected</span> <span class="op">+=</span> <span class="number">1</span>;
@@ -1199,7 +1200,7 @@
             <span class="kw">match</span> <span class="ident">w</span>.<span class="ident">try_pop</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
                 <span class="prelude-val">Some</span>(<span class="number">2</span>) <span class="op">=&gt;</span> { <span class="ident">HITS</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">SeqCst</span>); },
-                <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
+                <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
             }
         }
         <span class="ident">DONE</span>.<span class="ident">store</span>(<span class="bool-val">true</span>, <span class="ident">SeqCst</span>);
@@ -1218,7 +1219,7 @@
         <span class="kw">static</span> <span class="ident">DONE</span>: <span class="ident">AtomicBool</span> <span class="op">=</span> <span class="ident">ATOMIC_BOOL_INIT</span>;
         <span class="kw">let</span> (<span class="ident">w</span>, <span class="ident">s</span>) <span class="op">=</span> <span class="ident">deque</span>();
 
-        <span class="kw">let</span> (<span class="ident">threads</span>, <span class="ident">hits</span>): (<span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>) <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NTHREADS</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> {
+        <span class="kw">let</span> (<span class="ident">threads</span>, <span class="ident">hits</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>) <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NTHREADS</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">clone</span>();
             <span class="kw">let</span> <span class="ident">ctr</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">AtomicUsize</span>::<span class="ident">new</span>(<span class="number">0</span>));
             <span class="kw">let</span> <span class="ident">ctr2</span> <span class="op">=</span> <span class="ident">ctr</span>.<span class="ident">clone</span>();
@@ -1227,8 +1228,8 @@
                     <span class="kw">match</span> <span class="ident">s</span>.<span class="ident">steal</span>() {
                         <span class="ident">Steal</span>::<span class="ident">Data</span>((<span class="number">1</span>, <span class="number">2</span>)) <span class="op">=&gt;</span> { <span class="ident">ctr</span>.<span class="ident">fetch_add</span>(<span class="number">1</span>, <span class="ident">SeqCst</span>); }
                         <span class="ident">Steal</span>::<span class="ident">Data</span>(..) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
-                        _ <span class="kw">if</span> <span class="ident">DONE</span>.<span class="ident">load</span>(<span class="ident">SeqCst</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
-                        _ <span class="op">=&gt;</span> {}
+                        <span class="kw">_</span> <span class="kw">if</span> <span class="ident">DONE</span>.<span class="ident">load</span>(<span class="ident">SeqCst</span>) <span class="op">=&gt;</span> <span class="kw">break</span>,
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {}
                     }
                 }
             }), <span class="ident">ctr2</span>)
@@ -1237,12 +1238,12 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">myhit</span> <span class="op">=</span> <span class="bool-val">false</span>;
         <span class="lifetime">&#39;outer</span>: <span class="kw">loop</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="ident">AMT</span>) {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="ident">AMT</span>) {
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">myhit</span> <span class="op">&amp;&amp;</span> <span class="ident">rng</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">3</span>) <span class="op">==</span> <span class="number">2</span> {
                     <span class="kw">match</span> <span class="ident">w</span>.<span class="ident">try_pop</span>() {
                         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {}
                         <span class="prelude-val">Some</span>((<span class="number">1</span>, <span class="number">2</span>)) <span class="op">=&gt;</span> <span class="ident">myhit</span> <span class="op">=</span> <span class="bool-val">true</span>,
-                        <span class="prelude-val">Some</span>(_) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
+                        <span class="prelude-val">Some</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(),
                     }
                 } <span class="kw">else</span> {
                     <span class="ident">w</span>.<span class="ident">push</span>((<span class="number">1</span>, <span class="number">2</span>));

@@ -10,7 +10,8 @@
     <title>range_query.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -554,7 +555,7 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">6_000_000</span>).<span class="ident">unwrap</span>();
                 <span class="kw">for</span> <span class="ident">year</span> <span class="kw">in</span> <span class="number">1950u64</span>..<span class="number">2017u64</span> {
                     <span class="kw">let</span> <span class="ident">num_docs_within_year</span> <span class="op">=</span> <span class="number">10</span> <span class="op">+</span> (<span class="ident">year</span> <span class="op">-</span> <span class="number">1950</span>) <span class="op">*</span> (<span class="ident">year</span> <span class="op">-</span> <span class="number">1950</span>);
-                    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_docs_within_year</span> {
+                    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_docs_within_year</span> {
                         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">year_field</span> <span class="op">=&gt;</span> <span class="ident">year</span>));
                     }
                 }

@@ -10,7 +10,8 @@
     <title>signal.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1051,14 +1052,14 @@
 <span class="kw">impl</span> <span class="ident">SigSet</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">all</span>() <span class="op">-&gt;</span> <span class="ident">SigSet</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sigset</span>: <span class="ident">libc</span>::<span class="ident">sigset_t</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">sigfillset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>) };
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">sigfillset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>) };
 
         <span class="ident">SigSet</span> { <span class="ident">sigset</span>: <span class="ident">sigset</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="ident">SigSet</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sigset</span>: <span class="ident">libc</span>::<span class="ident">sigset_t</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">sigemptyset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>) };
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">sigemptyset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>) };
 
         <span class="ident">SigSet</span> { <span class="ident">sigset</span>: <span class="ident">sigset</span> }
     }
@@ -1081,7 +1082,7 @@
         <span class="kw">match</span> <span class="ident">res</span> {
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;unexpected value from sigismember&quot;</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(<span class="string">&quot;unexpected value from sigismember&quot;</span>),
         }
     }
 
@@ -1128,7 +1129,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">signum</span>: <span class="ident">libc</span>::<span class="ident">c_int</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">uninitialized</span>() };
         <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">libc</span>::<span class="ident">sigwait</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">sigset</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">sigset_t</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">signum</span>) };
 
-        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">Signal</span>::<span class="ident">from_c_int</span>(<span class="ident">signum</span>).<span class="ident">unwrap</span>())
+        <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Signal</span>::<span class="ident">from_c_int</span>(<span class="ident">signum</span>).<span class="ident">unwrap</span>())
     }
 }
 
@@ -1163,8 +1164,8 @@
             <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">f</span>) },
         };
         <span class="ident">s</span>.<span class="ident">sa_flags</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">handler</span> {
-            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(_) <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">|</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
-            _ <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">-</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
+            <span class="ident">SigHandler</span>::<span class="ident">SigAction</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">|</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> (<span class="ident">flags</span> <span class="op">-</span> <span class="ident">SA_SIGINFO</span>).<span class="ident">bits</span>(),
         };
         <span class="ident">s</span>.<span class="ident">sa_mask</span> <span class="op">=</span> <span class="ident">mask</span>.<span class="ident">sigset</span>;
 
@@ -1196,7 +1197,7 @@
     <span class="kw">let</span> <span class="ident">res</span> <span class="op">=</span>
         <span class="ident">libc</span>::<span class="ident">sigaction</span>(<span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>, <span class="kw-2">&amp;</span><span class="ident">sigaction</span>.<span class="ident">sigaction</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">libc</span>::<span class="ident">sigaction</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">oldact</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigaction</span>);
 
-    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">SigAction</span> { <span class="ident">sigaction</span>: <span class="ident">oldact</span> })
+    <span class="ident">Errno</span>::<span class="ident">result</span>(<span class="ident">res</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">SigAction</span> { <span class="ident">sigaction</span>: <span class="ident">oldact</span> })
 }
 
 <span class="doccomment">/// Manages the signal mask (set of blocked signals) for the calling thread.</span>
@@ -1322,7 +1323,7 @@
             <span class="ident">SigevNotify</span>::<span class="ident">SigevKevent</span>{ <span class="ident">kq</span>, ..} <span class="op">=&gt;</span> <span class="ident">kq</span>,
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;linux&quot;</span>, <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;freebsd&quot;</span>))]</span>
             <span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span>{ <span class="ident">signal</span>, .. } <span class="op">=&gt;</span> <span class="ident">signal</span> <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_int</span>,
-            _ <span class="op">=&gt;</span> <span class="number">0</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span>
         };
         <span class="ident">sev</span>.<span class="ident">sigev_value</span>.<span class="ident">sival_ptr</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
             <span class="ident">SigevNotify</span>::<span class="ident">SigevNone</span> <span class="op">=&gt;</span> <span class="ident">ptr</span>::<span class="ident">null_mut</span>::<span class="op">&lt;</span><span class="ident">libc</span>::<span class="ident">c_void</span><span class="op">&gt;</span>(),
@@ -1340,7 +1341,7 @@
     <span class="kw">fn</span> <span class="ident">set_tid</span>(<span class="ident">sev</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">sigevent</span>, <span class="ident">sigev_notify</span>: <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>) {
         <span class="ident">sev</span>.<span class="ident">sigev_notify_thread_id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">sigev_notify</span> {
             <span class="kw-2">&amp;</span><span class="ident">SigevNotify</span>::<span class="ident">SigevThreadId</span> { <span class="ident">thread_id</span>, .. } <span class="op">=&gt;</span> <span class="ident">thread_id</span>,
-            _ <span class="op">=&gt;</span> <span class="number">0</span> <span class="kw">as</span> <span class="ident">type_of_thread_id</span>
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="number">0</span> <span class="kw">as</span> <span class="ident">type_of_thread_id</span>
         };
     }
 
@@ -1485,9 +1486,9 @@
     <span class="kw">fn</span> <span class="ident">test_sigaction</span>() {
         <span class="kw">use</span> <span class="ident">libc</span>;
 
-        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_handler</span>(_: <span class="ident">libc</span>::<span class="ident">c_int</span>) {}
-        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_action</span>(_: <span class="ident">libc</span>::<span class="ident">c_int</span>,
-            _: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, _: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) {}
+        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_handler</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>) {}
+        <span class="kw">extern</span> <span class="kw">fn</span> <span class="ident">test_sigaction_action</span>(<span class="kw">_</span>: <span class="ident">libc</span>::<span class="ident">c_int</span>,
+            <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">siginfo_t</span>, <span class="kw">_</span>: <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">libc</span>::<span class="ident">c_void</span>) {}
 
         <span class="kw">let</span> <span class="ident">handler_sig</span> <span class="op">=</span> <span class="ident">SigHandler</span>::<span class="ident">Handler</span>(<span class="ident">test_sigaction_handler</span>);
 

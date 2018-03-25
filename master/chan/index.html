@@ -10,7 +10,8 @@
     <title>chan - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -120,7 +121,7 @@ on a channel!)</p>
     <span class="kw">for</span> <span class="ident">letter</span> <span class="kw">in</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&#39;a&#39;</span>, <span class="string">&#39;b&#39;</span>, <span class="string">&#39;c&#39;</span>, <span class="string">&#39;d&#39;</span>] {
         <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">clone</span>();
         <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
                 <span class="ident">s</span>.<span class="ident">send</span>(<span class="ident">letter</span>);
             }
         });
@@ -133,7 +134,7 @@ on a channel!)</p>
 
 <span class="comment">// A wait group lets us synchronize the completion of multiple threads.</span>
 <span class="kw">let</span> <span class="ident">wg</span> <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">WaitGroup</span>::<span class="ident">new</span>();
-<span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
+<span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
     <span class="ident">wg</span>.<span class="ident">add</span>(<span class="number">1</span>);
     <span class="kw">let</span> <span class="ident">wg</span> <span class="op">=</span> <span class="ident">wg</span>.<span class="ident">clone</span>();
     <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">r</span>.<span class="ident">clone</span>();
@@ -187,7 +188,7 @@ or receives.</p>
     <span class="comment">// Spawn a thread and ask for the first 10 numbers in the fibonacci</span>
     <span class="comment">// sequence.</span>
     <span class="ident">thread</span>::<span class="ident">spawn</span>(<span class="kw">move</span> <span class="op">||</span> {
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10</span> {
             <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">r</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>());
         }
         <span class="comment">// Dropping all sending channels causes the receive channel to</span>
@@ -203,7 +204,7 @@ send or receive. This can be done by telling select what to do when no
 synchronization events are available.</p>
 
 <pre class="rust rust-example-rendered">
-<span class="kw">let</span> (<span class="ident">s</span>, _) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">0</span>);
+<span class="kw">let</span> (<span class="ident">s</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">0</span>);
 <span class="macro">chan_select</span><span class="macro">!</span> {
     <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Send failed.&quot;</span>),
     <span class="ident">s</span>.<span class="ident">send</span>(<span class="string">&quot;some data&quot;</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Send succeeded.&quot;</span>),

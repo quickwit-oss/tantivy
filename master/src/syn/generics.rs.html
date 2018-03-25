@@ -10,7 +10,8 @@
     <title>generics.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1530,7 +1531,7 @@
                     (<span class="ident">lifetimes</span>, <span class="ident">ty_params</span>, <span class="prelude-val">Some</span>(<span class="ident">lt</span>), <span class="prelude-val">Some</span>(<span class="ident">gt</span>))
                 )
                 <span class="op">|</span>
-                <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> (<span class="ident">Punctuated</span>::<span class="ident">new</span>(), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) }
+                <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> (<span class="ident">Punctuated</span>::<span class="ident">new</span>(), <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>) }
             ),
             <span class="op">|</span>(<span class="ident">lifetimes</span>, <span class="ident">ty_params</span>, <span class="ident">lt</span>, <span class="ident">gt</span>)<span class="op">|</span> <span class="ident">Generics</span> {
                 <span class="ident">lt_token</span>: <span class="ident">lt</span>,
@@ -1681,7 +1682,7 @@
         <span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse</span> <span class="op">-&gt;</span> <span class="self">Self</span>, <span class="macro">alt</span><span class="macro">!</span>(
             <span class="macro">punct</span><span class="macro">!</span>(<span class="question-mark">?</span>) <span class="op">=&gt;</span> { <span class="ident">TraitBoundModifier</span>::<span class="ident">Maybe</span> }
             <span class="op">|</span>
-            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span> }
+            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span> }
         ));
 
         <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
@@ -1791,21 +1792,21 @@
             <span class="comment">// not been settled yet. https://github.com/rust-lang/rust/issues/44580</span>
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">params</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="ident">param</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="ident">param</span>.<span class="ident">punct</span>().<span class="ident">is_some</span>();
                 }
             }
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">params</span>.<span class="ident">pairs</span>() {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
-                    <span class="ident">GenericParam</span>::<span class="ident">Type</span>(_) <span class="op">|</span> <span class="ident">GenericParam</span>::<span class="ident">Const</span>(_) <span class="op">=&gt;</span> {
+                    <span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">GenericParam</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="op">!</span><span class="ident">trailing_or_empty</span> {
                             <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>::<span class="ident">default</span>().<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                             <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
                         }
                         <span class="ident">param</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     }
-                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=&gt;</span> {}
+                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
                 }
             }
 
@@ -1828,13 +1829,13 @@
             <span class="comment">// not been settled yet. https://github.com/rust-lang/rust/issues/44580</span>
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">params</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="ident">param</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                     <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="ident">param</span>.<span class="ident">punct</span>().<span class="ident">is_some</span>();
                 }
             }
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">params</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="kw">continue</span>;
                 }
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">trailing_or_empty</span> {
@@ -1842,7 +1843,7 @@
                     <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
                 }
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
-                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
                     <span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
                         <span class="comment">// Leave off the type parameter defaults</span>
                         <span class="ident">tokens</span>.<span class="ident">append_all</span>(<span class="ident">param</span>.<span class="ident">attrs</span>.<span class="ident">outer</span>());
@@ -1891,7 +1892,7 @@
                 }
             }
             <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">params</span>.<span class="ident">pairs</span>() {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
                     <span class="kw">continue</span>;
                 }
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">trailing_or_empty</span> {
@@ -1899,7 +1900,7 @@
                     <span class="ident">trailing_or_empty</span> <span class="op">=</span> <span class="bool-val">true</span>;
                 }
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">param</span>.<span class="ident">value</span>() {
-                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(_) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                    <span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
                     <span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
                         <span class="comment">// Leave off the type parameter defaults</span>
                         <span class="ident">param</span>.<span class="ident">ident</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);

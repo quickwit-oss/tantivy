@@ -10,7 +10,8 @@
     <title>error.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -386,7 +387,7 @@
 
     <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">StdError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">OpenWriteError</span>::<span class="ident">FileAlreadyExists</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">OpenWriteError</span>::<span class="ident">FileAlreadyExists</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">OpenWriteError</span>::<span class="ident">IOError</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>),
         }
     }
@@ -430,7 +431,7 @@
 
     <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">StdError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">OpenReadError</span>::<span class="ident">IOError</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>),
         }
     }
@@ -478,7 +479,7 @@
 
     <span class="kw">fn</span> <span class="ident">cause</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">StdError</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(_) <span class="op">|</span> <span class="ident">DeleteError</span>::<span class="ident">FileProtected</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">DeleteError</span>::<span class="ident">FileDoesNotExist</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">DeleteError</span>::<span class="ident">FileProtected</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">DeleteError</span>::<span class="ident">IOError</span>(<span class="kw-2">ref</span> <span class="ident">err</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">err</span>),
         }
     }

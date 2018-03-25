@@ -10,7 +10,8 @@
     <title>parsers.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1540,8 +1541,8 @@
         <span class="macro">eprintln</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot; -&gt; &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>), <span class="string">&quot; @ {:?}&quot;</span>), <span class="ident">i</span>);
         <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>(<span class="ident">i</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>);
         <span class="kw">match</span> <span class="ident">r</span> {
-            <span class="prelude-val">Ok</span>((_, <span class="ident">i</span>)) <span class="op">=&gt;</span> <span class="macro">eprintln</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;OK  &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>), <span class="string">&quot; @ {:?}&quot;</span>), <span class="ident">i</span>),
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">eprintln</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;ERR &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>), <span class="string">&quot; @ {:?}&quot;</span>), <span class="ident">i</span>),
+            <span class="prelude-val">Ok</span>((<span class="kw">_</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span> <span class="macro">eprintln</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;OK  &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>), <span class="string">&quot; @ {:?}&quot;</span>), <span class="ident">i</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">eprintln</span><span class="macro">!</span>(<span class="macro">concat</span><span class="macro">!</span>(<span class="string">&quot;ERR &quot;</span>, <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">fun</span>), <span class="string">&quot; @ {:?}&quot;</span>), <span class="ident">i</span>),
         }
         <span class="ident">r</span>
     }};
@@ -1675,8 +1676,8 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">not</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="op">*</span> )) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">parse_error</span>(),
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span>
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">parse_error</span>(),
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
                 ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(((), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>)),
         }
     };
@@ -1904,7 +1905,7 @@
             }
 
             <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="ident">input</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-                ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> {
+                ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                     <span class="ident">ret</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="ident">res</span>, <span class="ident">input</span>));
                     <span class="kw">break</span>;
                 }
@@ -1943,7 +1944,7 @@
         }
 
         <span class="kw">match</span> <span class="ident">f</span>(<span class="ident">input</span>) {
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> {
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">Ok</span>((<span class="ident">res</span>, <span class="ident">input</span>));
             }
             <span class="prelude-val">Ok</span>((<span class="ident">o</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span> {
@@ -2162,7 +2163,7 @@
 <span class="attribute">#[<span class="ident">macro_export</span>]</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">reject</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>,) <span class="op">=&gt;</span> {{
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>;
         <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">parse_error</span>()
     }}
 }
@@ -2314,8 +2315,8 @@
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">subrule</span>:<span class="macro">ident</span><span class="macro">!</span>( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">|</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">subrule</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
-            <span class="ident">res</span> @ ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="ident">res</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>)
+            <span class="ident">res</span> @ ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">res</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>)
         }
     };
 
@@ -2323,7 +2324,7 @@
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">subrule</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
             ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="ident">o</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span>
                 ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">parsers</span>::<span class="ident">invoke</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">gen</span>, <span class="ident">o</span>), <span class="ident">i</span>)),
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>),
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">alt</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>),
         }
     };
 
@@ -2414,7 +2415,7 @@
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
             ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span>
                 ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>),
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((_, <span class="ident">i</span>)) <span class="op">=&gt;</span>
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="kw">_</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span>
                 <span class="macro">do_parse</span><span class="macro">!</span>(<span class="ident">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>),
         }
     };
@@ -2569,7 +2570,7 @@
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">submac</span><span class="op">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>, $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">args</span>)<span class="kw-2">*</span>) {
             ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="ident">o</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span>
                 ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="prelude-val">Some</span>(<span class="ident">o</span>), <span class="ident">i</span>)),
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span>
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
                 ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="prelude-val">None</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>)),
         }
     };

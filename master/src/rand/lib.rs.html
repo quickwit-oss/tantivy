@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -441,7 +442,7 @@
             <span class="kw">match</span> (<span class="ident">i</span>.<span class="ident">next</span>(), <span class="ident">j</span>.<span class="ident">next</span>()) {
                 (<span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">ei</span>), <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">ej</span>)) <span class="kw">if</span> <span class="ident">ei</span> <span class="op">==</span> <span class="ident">ej</span> <span class="op">=&gt;</span> { }
                 (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">true</span>,
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="bool-val">false</span>,
             }
         }
     }
@@ -454,7 +455,7 @@
         <span class="kw">let</span> <span class="ident">lengths</span> <span class="op">=</span> [<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>,
                        <span class="number">80</span>, <span class="number">81</span>, <span class="number">82</span>, <span class="number">83</span>, <span class="number">84</span>, <span class="number">85</span>, <span class="number">86</span>, <span class="number">87</span>];
         <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">n</span> <span class="kw">in</span> <span class="ident">lengths</span>.<span class="ident">iter</span>() {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">repeat</span>(<span class="number">0u8</span>).<span class="ident">take</span>(<span class="ident">n</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">repeat</span>(<span class="number">0u8</span>).<span class="ident">take</span>(<span class="ident">n</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
             <span class="ident">r</span>.<span class="ident">fill_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>);
 
             <span class="comment">// use this to get nicer error messages.</span>
@@ -469,14 +470,14 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_gen_range</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span> <span class="op">=</span> <span class="ident">thread_rng</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="op">-</span><span class="number">3</span>, <span class="number">42</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a</span> <span class="op">&gt;=</span> <span class="op">-</span><span class="number">3</span> <span class="op">&amp;&amp;</span> <span class="ident">a</span> <span class="op">&lt;</span> <span class="number">42</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">1</span>), <span class="number">0</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="op">-</span><span class="number">12</span>, <span class="op">-</span><span class="number">11</span>), <span class="op">-</span><span class="number">12</span>);
         }
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">1000</span> {
             <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="number">10</span>, <span class="number">42</span>);
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">a</span> <span class="op">&gt;=</span> <span class="number">10</span> <span class="op">&amp;&amp;</span> <span class="ident">a</span> <span class="op">&lt;</span> <span class="number">42</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">1</span>), <span class="number">0</span>);
@@ -538,7 +539,7 @@
         <span class="ident">r</span>.<span class="ident">shuffle</span>(<span class="ident">empty</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">one</span> <span class="op">=</span> [<span class="number">1</span>];
         <span class="ident">r</span>.<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">one</span>);
-        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>];
+        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>];
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">one</span>, <span class="ident">b</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">two</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">2</span>];
@@ -547,7 +548,7 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">x</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
         <span class="ident">r</span>.<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">x</span>);
-        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
+        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">x</span>, <span class="ident">b</span>);
     }
 
@@ -557,7 +558,7 @@
         <span class="ident">r</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
         <span class="ident">r</span>.<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>);
-        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
+        <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>, <span class="ident">b</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">1</span>), <span class="number">0</span>);
     }
@@ -571,7 +572,7 @@
             (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span>).<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
             (<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span>).<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>);
-            <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
+            <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>, <span class="ident">b</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>((<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span>).<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">1</span>), <span class="number">0</span>);
         }
@@ -581,7 +582,7 @@
             <span class="ident">r</span>.<span class="ident">gen</span>::<span class="op">&lt;</span><span class="ident">i32</span><span class="op">&gt;</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
             <span class="ident">r</span>.<span class="ident">shuffle</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>);
-            <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
+            <span class="kw">let</span> <span class="ident">b</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">1</span>, <span class="number">1</span>];
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>, <span class="ident">b</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">r</span>.<span class="ident">gen_range</span>(<span class="number">0</span>, <span class="number">1</span>), <span class="number">0</span>);
         }

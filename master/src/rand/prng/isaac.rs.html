@@ -10,7 +10,8 @@
     <title>isaac.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -473,7 +474,7 @@
             }}
         }
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
             <span class="macro">mix</span><span class="macro">!</span>();
         }
 
@@ -671,7 +672,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_32_seeded</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">IsaacRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rb</span>: <span class="ident">IsaacRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="macro">assert</span><span class="macro">!</span>(::<span class="ident">test</span>::<span class="ident">iter_eq</span>(<span class="ident">ra</span>.<span class="ident">gen_ascii_chars</span>().<span class="ident">take</span>(<span class="number">100</span>),
@@ -692,20 +693,20 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_32_true_values</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">IsaacRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="comment">// Regression test that isaac is actually using the above vector</span>
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">2558573138</span>, <span class="number">873787463</span>, <span class="number">263499565</span>, <span class="number">2103644246</span>, <span class="number">3595684709</span>,
                         <span class="number">4203127393</span>, <span class="number">264982119</span>, <span class="number">2765226902</span>, <span class="number">2737944514</span>, <span class="number">3900253796</span>));
 
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">12345</span>, <span class="number">67890</span>, <span class="number">54321</span>, <span class="number">9876</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">12345</span>, <span class="number">67890</span>, <span class="number">54321</span>, <span class="number">9876</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rb</span>: <span class="ident">IsaacRng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="comment">// skip forward to the 10000th number</span>
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">10000</span> { <span class="ident">rb</span>.<span class="ident">next_u32</span>(); }
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10000</span> { <span class="ident">rb</span>.<span class="ident">next_u32</span>(); }
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">rb</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rb</span>.<span class="ident">next_u32</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">3676831399</span>, <span class="number">3183332890</span>, <span class="number">2834741178</span>, <span class="number">3854698763</span>, <span class="number">2717568474</span>,
                         <span class="number">1576568959</span>, <span class="number">3507990155</span>, <span class="number">179069555</span>, <span class="number">141456972</span>, <span class="number">2478885421</span>));

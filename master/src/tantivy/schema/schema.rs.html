@@ -10,7 +10,8 @@
     <title>schema.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -787,7 +788,7 @@
     <span class="doccomment">/// Build a document object from a json-object.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_document</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc_json</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Document</span>, <span class="ident">DocParsingError</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">json_obj</span>: <span class="ident">JsonObject</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">JsonValue</span><span class="op">&gt;</span> <span class="op">=</span>
-            <span class="ident">serde_json</span>::<span class="ident">from_str</span>(<span class="ident">doc_json</span>).<span class="ident">map_err</span>(<span class="op">|</span>_<span class="op">|</span> {
+            <span class="ident">serde_json</span>::<span class="ident">from_str</span>(<span class="ident">doc_json</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">doc_json_sample</span>: <span class="ident">String</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">doc_json</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="number">20</span> {
                     <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">doc_json</span>)
                 } <span class="kw">else</span> {
@@ -809,7 +810,7 @@
                                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="ident">field_name</span>.<span class="ident">clone</span>(), <span class="ident">e</span>))<span class="question-mark">?</span>;
                             <span class="ident">doc</span>.<span class="ident">add</span>(<span class="ident">FieldValue</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="ident">value</span>));
                         },
-                        _ <span class="op">=&gt;</span> {
+                        <span class="kw">_</span> <span class="op">=&gt;</span> {
                             <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">field_type</span>
                                 .<span class="ident">value_from_json</span>(<span class="ident">json_value</span>)
                                 .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="ident">field_name</span>.<span class="ident">clone</span>(), <span class="ident">e</span>))<span class="question-mark">?</span>;
@@ -1034,7 +1035,7 @@
                 &quot;jambon&quot;: &quot;bayonne&quot;
             }&quot;#</span>,
             );
-            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">NoSuchFieldInSchema</span>(_)));
+            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">NoSuchFieldInSchema</span>(<span class="kw">_</span>)));
         }
         {
             <span class="kw">let</span> <span class="ident">json_err</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">parse_document</span>(
@@ -1048,7 +1049,7 @@
             );
             <span class="macro">assert_matches</span><span class="macro">!</span>(
                 <span class="ident">json_err</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">TypeError</span>(_)))
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="kw">_</span>, <span class="ident">ValueParsingError</span>::<span class="ident">TypeError</span>(<span class="kw">_</span>)))
             );
         }
         {
@@ -1062,7 +1063,7 @@
             );
             <span class="macro">assert_matches</span><span class="macro">!</span>(
                 <span class="ident">json_err</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="kw">_</span>, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(<span class="kw">_</span>)))
             );
         }
         {
@@ -1076,7 +1077,7 @@
             );
             <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="macro">matches</span><span class="macro">!</span>(
                 <span class="ident">json_err</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="kw">_</span>, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(<span class="kw">_</span>)))
             ));
         }
         {
@@ -1090,7 +1091,7 @@
             );
             <span class="macro">assert_matches</span><span class="macro">!</span>(
                 <span class="ident">json_err</span>,
-                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(_, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(_)))
+                <span class="prelude-val">Err</span>(<span class="ident">DocParsingError</span>::<span class="ident">ValueError</span>(<span class="kw">_</span>, <span class="ident">ValueParsingError</span>::<span class="ident">OverflowError</span>(<span class="kw">_</span>)))
             );
         }
         {
@@ -1101,7 +1102,7 @@
                 &quot;count&quot;: 50,
             }&quot;#</span>,
             );
-            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">NotJSON</span>(_)));
+            <span class="macro">assert_matches</span><span class="macro">!</span>(<span class="ident">json_err</span>, <span class="prelude-val">Err</span>(<span class="ident">NotJSON</span>(<span class="kw">_</span>)));
         }
     }
 }

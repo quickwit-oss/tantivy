@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/sync/bilock.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/sync/bilock.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>bilock.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -454,7 +455,7 @@
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">state</span>.<span class="ident">compare_exchange</span>(<span class="number">1</span>, <span class="ident">me</span>, <span class="ident">SeqCst</span>, <span class="ident">SeqCst</span>) {
                 <span class="comment">// The lock is still locked, but we&#39;ve now parked ourselves, so</span>
                 <span class="comment">// just report that we&#39;re scheduled to receive a notification.</span>
-                <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">Async</span>::<span class="ident">NotReady</span>,
+                <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">Async</span>::<span class="ident">NotReady</span>,
 
                 <span class="comment">// Oops, looks like the lock was unlocked after our swap above</span>
                 <span class="comment">// and before the compare_exchange. Deallocate what we just</span>
@@ -493,7 +494,7 @@
     <span class="doccomment">/// recover the original value. Succeeds only if the two `BiLock&lt;T&gt;`s</span>
     <span class="doccomment">/// originated from the same call to `BiLock::new`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reunite</span>(<span class="self">self</span>, <span class="ident">other</span>: <span class="self">Self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">ReuniteError</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span> {
-        <span class="kw">if</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="op">==</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">inner</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ {
+        <span class="kw">if</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">other</span>.<span class="ident">inner</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> {
             <span class="ident">drop</span>(<span class="ident">other</span>);
             <span class="kw">let</span> <span class="ident">inner</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">try_unwrap</span>(<span class="self">self</span>.<span class="ident">inner</span>)
                 .<span class="ident">ok</span>()

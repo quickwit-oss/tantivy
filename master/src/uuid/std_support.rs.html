@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.1/src/std_support.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.2/src/std_support.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>std_support.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -62,10 +63,8 @@
 <span id="6">6</span>
 <span id="7">7</span>
 <span id="8">8</span>
-<span id="9">9</span>
 </pre><pre class="rust ">
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">std</span>;
-
+<span class="kw">use</span> <span class="ident">std</span>;
 <span class="kw">use</span> <span class="ident">ParseError</span>;
 
 <span class="kw">impl</span> <span class="ident">std</span>::<span class="ident">error</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">ParseError</span> {

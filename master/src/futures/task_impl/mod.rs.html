@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/task_impl/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/task_impl/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -855,7 +856,7 @@
     <span class="doccomment">/// Indicate that the task should attempt to poll its future in a timely</span>
     <span class="doccomment">/// fashion.</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">/// It&#39;s typically guaranteed that, for each call to `notify`, `poll` will</span>
+    <span class="doccomment">/// It&#39;s typically guaranteed that, after calling `notify`, `poll` will</span>
     <span class="doccomment">/// be called at least once subsequently (unless the future has terminated).</span>
     <span class="doccomment">/// If the task is currently polling its future when `notify` is called, it</span>
     <span class="doccomment">/// must poll the future *again* afterwards, ensuring that all relevant</span>
@@ -1405,24 +1406,24 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Notify</span><span class="op">&gt;</span> <span class="ident">Notify</span> <span class="kw">for</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">notify</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">id</span>: <span class="ident">usize</span>) {
-        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
+        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
         <span class="ident">me</span>.<span class="ident">notify</span>(<span class="ident">id</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">clone_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">id</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
+        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
         <span class="ident">me</span>.<span class="ident">clone_id</span>(<span class="ident">id</span>)
     }
 
     <span class="kw">fn</span> <span class="ident">drop_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">id</span>: <span class="ident">usize</span>) {
-        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
+        <span class="kw">let</span> <span class="ident">me</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">T</span>) };
         <span class="ident">me</span>.<span class="ident">drop_id</span>(<span class="ident">id</span>);
     }
 }
 
 <span class="kw">unsafe</span> <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Notify</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">UnsafeNotify</span> <span class="kw">for</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">clone_raw</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">NotifyHandle</span> {
-        <span class="ident">NotifyHandle</span>::<span class="ident">new</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>)
+        <span class="ident">NotifyHandle</span>::<span class="ident">new</span>(<span class="self">self</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>)
     }
 
     <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">drop_raw</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {}
@@ -1430,7 +1431,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Notify</span><span class="op">&gt;</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">NotifyHandle</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">src</span> : <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">NotifyHandle</span> {
-        <span class="kw">unsafe</span> { <span class="ident">NotifyHandle</span>::<span class="ident">new</span>(<span class="ident">src</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _ <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) }
+        <span class="kw">unsafe</span> { <span class="ident">NotifyHandle</span>::<span class="ident">new</span>(<span class="ident">src</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">StaticRef</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>) }
     }
 }
 </pre>

@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1018,7 +1019,7 @@ term `stream`.
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_term_dictionary_stream</span>() {
-        <span class="kw">let</span> <span class="ident">ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">10_000u32</span>)
+        <span class="kw">let</span> <span class="ident">ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">10_000u32</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> (<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;doc{:0&gt;6}&quot;</span>, <span class="ident">i</span>), <span class="ident">i</span>))
             .<span class="ident">collect</span>();
         <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="ident">TEXT</span>);
@@ -1083,7 +1084,7 @@ term `stream`.
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_stream_range</span>() {
-        <span class="kw">let</span> <span class="ident">ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">10_000u32</span>)
+        <span class="kw">let</span> <span class="ident">ids</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u32</span>..<span class="number">10_000u32</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> (<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;doc{:0&gt;6}&quot;</span>, <span class="ident">i</span>), <span class="ident">i</span>))
             .<span class="ident">collect</span>();
         <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="ident">TEXT</span>);
@@ -1103,7 +1104,7 @@ term `stream`.
         <span class="kw">let</span> <span class="ident">term_dictionary</span>: <span class="ident">TermDictionaryImpl</span> <span class="op">=</span> <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">source</span>);
         {
             <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0</span>..<span class="number">20</span>).<span class="ident">chain</span>(<span class="number">6000</span>..<span class="number">8_000</span>) {
-                <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">target_key</span>, _) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
+                <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">target_key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">streamer</span> <span class="op">=</span> <span class="ident">term_dictionary</span>
                     .<span class="ident">range</span>()
                     .<span class="ident">ge</span>(<span class="ident">target_key</span>.<span class="ident">as_bytes</span>())
@@ -1120,7 +1121,7 @@ term `stream`.
 
         {
             <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0</span>..<span class="number">20</span>).<span class="ident">chain</span>(<span class="ident">BLOCK_SIZE</span> <span class="op">-</span> <span class="number">10</span>..<span class="ident">BLOCK_SIZE</span> <span class="op">+</span> <span class="number">10</span>) {
-                <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">target_key</span>, _) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
+                <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">target_key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">streamer</span> <span class="op">=</span> <span class="ident">term_dictionary</span>
                     .<span class="ident">range</span>()
                     .<span class="ident">gt</span>(<span class="ident">target_key</span>.<span class="ident">as_bytes</span>())
@@ -1137,14 +1138,14 @@ term `stream`.
         {
             <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0</span>..<span class="number">20</span>).<span class="ident">chain</span>(<span class="ident">BLOCK_SIZE</span> <span class="op">-</span> <span class="number">10</span>..<span class="ident">BLOCK_SIZE</span> <span class="op">+</span> <span class="number">10</span>) {
                 <span class="kw">for</span> <span class="ident">j</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">3</span> {
-                    <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">fst_key</span>, _) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
-                    <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">last_key</span>, _) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span> <span class="op">+</span> <span class="ident">j</span>];
+                    <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">fst_key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span>];
+                    <span class="kw">let</span> <span class="kw-2">&amp;</span>(<span class="kw-2">ref</span> <span class="ident">last_key</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">ids</span>[<span class="ident">i</span> <span class="op">+</span> <span class="ident">j</span>];
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">streamer</span> <span class="op">=</span> <span class="ident">term_dictionary</span>
                         .<span class="ident">range</span>()
                         .<span class="ident">ge</span>(<span class="ident">fst_key</span>.<span class="ident">as_bytes</span>())
                         .<span class="ident">lt</span>(<span class="ident">last_key</span>.<span class="ident">as_bytes</span>())
                         .<span class="ident">into_stream</span>();
-                    <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">j</span> {
+                    <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">j</span> {
                         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">streamer</span>.<span class="ident">next</span>().<span class="ident">is_some</span>());
                     }
                     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">streamer</span>.<span class="ident">next</span>().<span class="ident">is_none</span>());
@@ -1196,7 +1197,7 @@ term `stream`.
 
         <span class="kw">let</span> <span class="ident">value_list</span> <span class="op">=</span> <span class="op">|</span><span class="kw-2">mut</span> <span class="ident">streamer</span>: <span class="ident">TermStreamerImpl</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">res</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((_, <span class="kw-2">ref</span> <span class="ident">v</span>)) <span class="op">=</span> <span class="ident">streamer</span>.<span class="ident">next</span>() {
+            <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">v</span>)) <span class="op">=</span> <span class="ident">streamer</span>.<span class="ident">next</span>() {
                 <span class="ident">res</span>.<span class="ident">push</span>(<span class="ident">v</span>.<span class="ident">doc_freq</span>);
             }
             <span class="ident">res</span>

@@ -10,7 +10,8 @@
     <title>itertools::Itertools - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -323,7 +324,7 @@ of references and other values that are cheap to copy.</p>
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">it</span>.<span class="ident">next</span>());
 
 <span class="comment">// this requires a type hint</span>
-<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">5</span>).<span class="ident">tuple_windows</span>::<span class="op">&lt;</span>(_, _, _)<span class="op">&gt;</span>();
+<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">5</span>).<span class="ident">tuple_windows</span>::<span class="op">&lt;</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">&gt;</span>();
 <span class="ident">itertools</span>::<span class="ident">assert_equal</span>(<span class="ident">it</span>, <span class="macro">vec</span><span class="macro">!</span>[(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>), (<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>)]);
 
 <span class="comment">// you can also specify the complete type</span>
@@ -350,7 +351,7 @@ of references and other values that are cheap to copy.</p>
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">it</span>.<span class="ident">next</span>());
 
 <span class="comment">// this requires a type hint</span>
-<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">7</span>).<span class="ident">tuples</span>::<span class="op">&lt;</span>(_, _, _)<span class="op">&gt;</span>();
+<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">7</span>).<span class="ident">tuples</span>::<span class="op">&lt;</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">&gt;</span>();
 <span class="ident">itertools</span>::<span class="ident">assert_equal</span>(<span class="ident">it</span>, <span class="macro">vec</span><span class="macro">!</span>[(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>), (<span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>)]);
 
 <span class="comment">// you can also specify the complete type</span>
@@ -573,7 +574,7 @@ size up to 4.</p>
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="prelude-val">None</span>, <span class="ident">it</span>.<span class="ident">next</span>());
 
 <span class="comment">// this requires a type hint</span>
-<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">5</span>).<span class="ident">tuple_combinations</span>::<span class="op">&lt;</span>(_, _, _)<span class="op">&gt;</span>();
+<span class="kw">let</span> <span class="ident">it</span> <span class="op">=</span> (<span class="number">1</span>..<span class="number">5</span>).<span class="ident">tuple_combinations</span>::<span class="op">&lt;</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">&gt;</span>();
 <span class="ident">itertools</span>::<span class="ident">assert_equal</span>(<span class="ident">it</span>, <span class="macro">vec</span><span class="macro">!</span>[(<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>), (<span class="number">1</span>, <span class="number">2</span>, <span class="number">4</span>), (<span class="number">1</span>, <span class="number">3</span>, <span class="number">4</span>), (<span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>)]);
 
 <span class="comment">// you can also specify the complete type</span>
@@ -786,7 +787,7 @@ this effetively results in <em>((0 + 1) + 2) + 3</em></p>
 <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> [<span class="number">1</span>, <span class="number">2</span>, <span class="op">-</span><span class="number">2</span>, <span class="op">-</span><span class="number">1</span>, <span class="number">2</span>, <span class="number">1</span>];
 <span class="macro">assert_eq</span><span class="macro">!</span>(
     <span class="ident">values</span>.<span class="ident">iter</span>()
-          .<span class="ident">map</span>(<span class="prelude-val">Ok</span>::<span class="op">&lt;</span>_, ()<span class="op">&gt;</span>)
+          .<span class="ident">map</span>(<span class="prelude-val">Ok</span>::<span class="op">&lt;</span><span class="kw">_</span>, ()<span class="op">&gt;</span>)
           .<span class="ident">fold_results</span>(<span class="number">0</span>, <span class="ident">Add</span>::<span class="ident">add</span>),
     <span class="prelude-val">Ok</span>(<span class="number">3</span>)
 );
@@ -896,7 +897,7 @@ have a distinct type.</p>
 
 <span class="kw">let</span> <span class="ident">successes_and_failures</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="prelude-val">Ok</span>(<span class="number">1</span>), <span class="prelude-val">Err</span>(<span class="bool-val">false</span>), <span class="prelude-val">Err</span>(<span class="bool-val">true</span>), <span class="prelude-val">Ok</span>(<span class="number">2</span>)];
 
-<span class="kw">let</span> (<span class="ident">successes</span>, <span class="ident">failures</span>): (<span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">successes_and_failures</span>
+<span class="kw">let</span> (<span class="ident">successes</span>, <span class="ident">failures</span>): (<span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>, <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">successes_and_failures</span>
     .<span class="ident">into_iter</span>()
     .<span class="ident">partition_map</span>(<span class="op">|</span><span class="ident">r</span><span class="op">|</span> {
         <span class="kw">match</span> <span class="ident">r</span> {

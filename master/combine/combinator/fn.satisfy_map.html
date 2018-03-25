@@ -10,7 +10,8 @@
     <title>combine::combinator::satisfy_map - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'satisfy_map', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a></p><script>window.sidebarCurrent = {name: 'satisfy_map', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -74,7 +75,7 @@ without consuming any input.</p>
     <span class="kw">match</span> <span class="ident">c</span> {
         <span class="string">&#39;Y&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">YesNo</span>::<span class="ident">Yes</span>),
         <span class="string">&#39;N&#39;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">YesNo</span>::<span class="ident">No</span>),
-        _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
     }
 });
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">parser</span>.<span class="ident">parse</span>(<span class="string">&quot;Y&quot;</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="number">0</span>), <span class="prelude-val">Ok</span>(<span class="ident">YesNo</span>::<span class="ident">Yes</span>));

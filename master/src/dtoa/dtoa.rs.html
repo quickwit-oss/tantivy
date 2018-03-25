@@ -10,7 +10,8 @@
     <title>dtoa.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -670,7 +671,7 @@ inline void DigitGen(const DiyFp&amp; W, const DiyFp&amp; Mp, uint64_t delta, ch
             <span class="number">3</span> <span class="op">=&gt;</span> { <span class="ident">d</span> <span class="op">=</span> <span class="ident">p1</span> <span class="op">/</span>        <span class="number">100</span>; <span class="ident">p1</span> <span class="op">%=</span>        <span class="number">100</span>; }
             <span class="number">2</span> <span class="op">=&gt;</span> { <span class="ident">d</span> <span class="op">=</span> <span class="ident">p1</span> <span class="op">/</span>         <span class="number">10</span>; <span class="ident">p1</span> <span class="op">%=</span>         <span class="number">10</span>; }
             <span class="number">1</span> <span class="op">=&gt;</span> { <span class="ident">d</span> <span class="op">=</span> <span class="ident">p1</span>;              <span class="ident">p1</span> <span class="op">=</span>           <span class="number">0</span>; }
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
         <span class="kw">if</span> <span class="ident">d</span> <span class="op">!=</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">len</span> <span class="op">!=</span> <span class="number">0</span> {
             <span class="kw-2">*</span><span class="ident">buffer</span>.<span class="ident">offset</span>(<span class="ident">len</span>) <span class="op">=</span> <span class="string">b&#39;0&#39;</span> <span class="op">+</span> <span class="ident">d</span> <span class="kw">as</span> <span class="ident">u8</span>;

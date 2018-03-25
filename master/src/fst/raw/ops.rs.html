@@ -10,7 +10,8 @@
     <title>ops.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1139,7 +1140,7 @@
                 <span class="kw">let</span> <span class="ident">op</span>: <span class="ident">OpBuilder</span> <span class="op">=</span> <span class="ident">fsts</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">op</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">op</span>().<span class="ident">into_stream</span>();
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">key</span>, _)) <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">next</span>() {
+                <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">key</span>, <span class="kw">_</span>)) <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">next</span>() {
                     <span class="ident">keys</span>.<span class="ident">push</span>(<span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">key</span>.<span class="ident">to_vec</span>()).<span class="ident">unwrap</span>());
                 }
                 <span class="ident">keys</span>

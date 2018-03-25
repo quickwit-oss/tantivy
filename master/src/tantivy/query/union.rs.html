@@ -10,7 +10,8 @@
     <title>union.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -758,7 +759,7 @@
                     .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ConstScorer</span><span class="op">&lt;</span><span class="ident">VecDocSet</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>(),
             )
         };
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">union</span>: <span class="ident">Union</span><span class="op">&lt;</span>_, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">make_union</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">union</span>: <span class="ident">Union</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">make_union</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">while</span> <span class="ident">union</span>.<span class="ident">advance</span>() {
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">union_expected</span>.<span class="ident">advance</span>());
@@ -798,13 +799,13 @@
             }
         }
         <span class="kw">let</span> <span class="ident">docset_factory</span> <span class="op">=</span> <span class="op">||</span> {
-            <span class="kw">let</span> <span class="ident">res</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DocSet</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">Union</span>::<span class="op">&lt;</span>_, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
+            <span class="kw">let</span> <span class="ident">res</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DocSet</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
                 <span class="ident">docs_list</span>
                     .<span class="ident">iter</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">docs</span><span class="op">|</span> <span class="ident">docs</span>.<span class="ident">clone</span>())
                     .<span class="ident">map</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>)
                     .<span class="ident">map</span>(<span class="ident">ConstScorer</span>::<span class="ident">new</span>)
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>(),
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>(),
             );
             <span class="ident">res</span>
         };
@@ -832,7 +833,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_union_skip_corner_case3</span>() {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">docset</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span>_, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">docset</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">ConstScorer</span>::<span class="ident">new</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u32</span>, <span class="number">5u32</span>])),
             <span class="ident">ConstScorer</span>::<span class="ident">new</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1u32</span>, <span class="number">4u32</span>])),
         ]);
@@ -881,12 +882,12 @@
             <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>(<span class="number">100_000</span>, <span class="number">0.2</span>, <span class="number">1</span>),
         ];
         <span class="ident">bench</span>.<span class="ident">iter</span>(<span class="op">||</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span>_, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
                 <span class="ident">union_docset</span>
                     .<span class="ident">iter</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc_ids</span><span class="op">|</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">doc_ids</span>.<span class="ident">clone</span>()))
                     .<span class="ident">map</span>(<span class="ident">ConstScorer</span>::<span class="ident">new</span>)
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>(),
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>(),
             );
             <span class="kw">while</span> <span class="ident">v</span>.<span class="ident">advance</span>() {}
         });
@@ -899,12 +900,12 @@
             <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>(<span class="number">100_000</span>, <span class="number">0.001</span>, <span class="number">2</span>),
         ];
         <span class="ident">bench</span>.<span class="ident">iter</span>(<span class="op">||</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span>_, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> <span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
                 <span class="ident">union_docset</span>
                     .<span class="ident">iter</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc_ids</span><span class="op">|</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">doc_ids</span>.<span class="ident">clone</span>()))
                     .<span class="ident">map</span>(<span class="ident">ConstScorer</span>::<span class="ident">new</span>)
-                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>(),
+                    .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>(),
             );
             <span class="kw">while</span> <span class="ident">v</span>.<span class="ident">advance</span>() {}
         });

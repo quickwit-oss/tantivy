@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
@@ -54,77 +55,125 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><pre class="line-numbers"><span id="1"> 1</span>
-<span id="2"> 2</span>
-<span id="3"> 3</span>
-<span id="4"> 4</span>
-<span id="5"> 5</span>
-<span id="6"> 6</span>
-<span id="7"> 7</span>
-<span id="8"> 8</span>
-<span id="9"> 9</span>
-<span id="10">10</span>
-<span id="11">11</span>
-<span id="12">12</span>
-<span id="13">13</span>
-<span id="14">14</span>
-<span id="15">15</span>
-<span id="16">16</span>
-<span id="17">17</span>
-<span id="18">18</span>
-<span id="19">19</span>
-<span id="20">20</span>
-<span id="21">21</span>
-<span id="22">22</span>
-<span id="23">23</span>
-<span id="24">24</span>
-<span id="25">25</span>
-<span id="26">26</span>
-<span id="27">27</span>
-<span id="28">28</span>
-<span id="29">29</span>
-<span id="30">30</span>
-<span id="31">31</span>
-<span id="32">32</span>
-<span id="33">33</span>
-<span id="34">34</span>
-<span id="35">35</span>
-<span id="36">36</span>
-<span id="37">37</span>
-<span id="38">38</span>
-<span id="39">39</span>
-<span id="40">40</span>
-<span id="41">41</span>
-<span id="42">42</span>
-<span id="43">43</span>
-<span id="44">44</span>
-<span id="45">45</span>
-<span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
-<span id="49">49</span>
-<span id="50">50</span>
-<span id="51">51</span>
-<span id="52">52</span>
-<span id="53">53</span>
-<span id="54">54</span>
-<span id="55">55</span>
-<span id="56">56</span>
-<span id="57">57</span>
-<span id="58">58</span>
-<span id="59">59</span>
-<span id="60">60</span>
-<span id="61">61</span>
-<span id="62">62</span>
-<span id="63">63</span>
-<span id="64">64</span>
-<span id="65">65</span>
-<span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">term_query</span>;
 <span class="kw">mod</span> <span class="ident">term_weight</span>;
@@ -134,22 +183,27 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_weight</span>::<span class="ident">TermWeight</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
 
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">NoDelete</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
+
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">TermScorerWithDeletes</span> <span class="op">=</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;&gt;</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">TermScorerNoDeletes</span> <span class="op">=</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;&gt;</span>;
+
+
+
+
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
-    <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Scorer</span>};
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::<span class="ident">TermScorer</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
+    <span class="kw">use</span> <span class="ident">Term</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">TEXT</span>, <span class="ident">STRING</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">IndexRecordOption</span>};
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">TopCollector</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">TermQuery</span>, <span class="ident">QueryParser</span>, <span class="ident">Query</span>, <span class="ident">Scorer</span>};
 
-    <span class="kw">fn</span> <span class="ident">abs_diff</span>(<span class="ident">left</span>: <span class="ident">f32</span>, <span class="ident">right</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">f32</span> {
-        (<span class="ident">right</span> <span class="op">-</span> <span class="ident">left</span>).<span class="ident">abs</span>()
-    }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_query_no_freq</span>() {
@@ -178,22 +232,65 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_scorer</span> <span class="op">=</span> <span class="ident">term_weight</span>.<span class="ident">scorer</span>(<span class="ident">segment_reader</span>).<span class="ident">unwrap</span>();
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">advance</span>());
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">doc</span>(), <span class="number">0</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">score</span>(), <span class="number">0.30685282</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">score</span>(), <span class="number">0.28768212</span>);
     }
 
+
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_scorer</span>() {
-        <span class="kw">let</span> <span class="ident">left_fieldnorms</span> <span class="op">=</span> <span class="ident">FastFieldReader</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">10</span>, <span class="number">4</span>]);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">0</span>), <span class="number">10</span>);
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">left_fieldnorms</span>.<span class="ident">get</span>(<span class="number">1</span>), <span class="number">4</span>);
-        <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">SegmentPostings</span>::<span class="ident">create_from_docs</span>(<span class="kw-2">&amp;</span>[<span class="number">1</span>]);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">left_scorer</span> <span class="op">=</span> <span class="ident">TermScorer</span> {
-            <span class="ident">idf</span>: <span class="number">0.30685282</span>,
-            <span class="ident">fieldnorm_reader_opt</span>: <span class="prelude-val">Some</span>(<span class="ident">left_fieldnorms</span>),
-            <span class="ident">postings</span>: <span class="ident">left</span>,
-        };
-        <span class="ident">left_scorer</span>.<span class="ident">advance</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">abs_diff</span>(<span class="ident">left_scorer</span>.<span class="ident">score</span>(), <span class="number">0.15342641</span>) <span class="op">&lt;</span> <span class="number">0.001f32</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_weight</span>() {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="ident">left_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;left&quot;</span>, <span class="ident">TEXT</span>);
+        <span class="kw">let</span> <span class="ident">right_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;right&quot;</span>, <span class="ident">TEXT</span>);
+        <span class="kw">let</span> <span class="ident">large_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;large&quot;</span>, <span class="ident">TEXT</span>);
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
+        <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">10_000_000</span>).<span class="ident">unwrap</span>();
+            <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(
+                <span class="ident">left_field</span> <span class="op">=&gt;</span> <span class="string">&quot;left1 left2 left2 left2f2 left2f2 left3 abcde abcde abcde abcde abcde abcde abcde abcde abcde abcewde abcde abcde&quot;</span>,
+                <span class="ident">right_field</span> <span class="op">=&gt;</span> <span class="string">&quot;right1 right2&quot;</span>,
+                <span class="ident">large_field</span> <span class="op">=&gt;</span> <span class="string">&quot;large0 large1 large2 large3 large4 large5 large6 large7 large8 large9 large10 large11 large12 large13 large14 large15 large16 large17 large18 large19 large20 large21 large22 large23 large24 large25 large26 large27 large28 large29 large30 large31 large32 large33 large34 large35 large36 large37 large38 large39 large40 large41 large42 large43 large44 large45 large46 large47 large48 large49 large50 large51 large52 large53 large54 large55 large56 large57 large58 large59 large60 large61 large62 large63 large64 large65 large66 large67 large68 large69 large70 large71 large72 large73 large74 large75 large76 large77 large78 large79 large80 large81 large82 large83 large84 large85 large86 large87 large88 large89 large90 large91 large92 large93 large94 large95 large96 large97 large98 large99 large100 large101 large102 large103 large104 large105 large106 large107 large108 large109 large110 large111 large112 large113 large114 large115 large116 large117 large118 large119 large120 large121 large122 large123 large124 large125 large126 large127 large128 large129 large130 large131 large132 large133 large134 large135 large136 large137 large138 large139 large140 large141 large142 large143 large144 large145 large146 large147 large148 large149 large150 large151 large152 large153 large154 large155 large156 large157 large158 large159 large160 large161 large162 large163 large164 large165 large166 large167 large168 large169 large170 large171 large172 large173 large174 large175 large176 large177 large178 large179 large180 large181 large182 large183 large184 large185 large186 large187 large188 large189 large190 large191 large192 large193 large194 large195 large196 large197 large198 large199 large200 large201 large202 large203 large204 large205 large206 large207 large208 large209 large210 large211 large212 large213 large214 large215 large216 large217 large218 large219 large220 large221 large222 large223 large224 large225 large226 large227 large228 large229 large230 large231 large232 large233 large234 large235 large236 large237 large238 large239 large240 large241 large242 large243 large244 large245 large246 large247 large248 large249 large250 large251 large252 large253 large254 large255 large256 large257 large258 large259 large260 large261 large262 large263 large264 large265 large266 large267 large268 large269 large270 large271 large272 large273 large274 large275 large276 large277 large278 large279 large280 large281 large282 large283 large284 large285 large286&quot;</span>
+            ));
+            <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">left_field</span> <span class="op">=&gt;</span> <span class="string">&quot;left4 left1&quot;</span>));
+            <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
+
+        }
+        <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">2</span>);
+            <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">left_field</span>, <span class="string">&quot;left2&quot;</span>);
+            <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>);
+            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">term_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">scored_docs</span> <span class="op">=</span> <span class="ident">collector</span>.<span class="ident">score_docs</span>();
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scored_docs</span>.<span class="ident">len</span>(), <span class="number">1</span>);
+            <span class="kw">let</span> (<span class="ident">score</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">scored_docs</span>[<span class="number">0</span>];
+            <span class="ident">assert_nearly_equals</span>(<span class="number">0.77802235</span>, <span class="ident">score</span>);
+        }
+        {
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">2</span>);
+            <span class="kw">let</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">left_field</span>, <span class="string">&quot;left1&quot;</span>);
+            <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>);
+            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">term_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">scored_docs</span> <span class="op">=</span> <span class="ident">collector</span>.<span class="ident">score_docs</span>();
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scored_docs</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+            <span class="kw">let</span> (<span class="ident">score1</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">scored_docs</span>[<span class="number">0</span>];
+            <span class="ident">assert_nearly_equals</span>(<span class="number">0.27101856</span>, <span class="ident">score1</span>);
+            <span class="kw">let</span> (<span class="ident">score2</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">scored_docs</span>[<span class="number">1</span>];
+            <span class="ident">assert_nearly_equals</span>(<span class="number">0.13736556</span>, <span class="ident">score2</span>);
+        }
+        {
+            <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[]);
+            <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;left:left2 left:left1&quot;</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collector</span> <span class="op">=</span> <span class="ident">TopCollector</span>::<span class="ident">with_limit</span>(<span class="number">2</span>);
+            <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">scored_docs</span> <span class="op">=</span> <span class="ident">collector</span>.<span class="ident">score_docs</span>();
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">scored_docs</span>.<span class="ident">len</span>(), <span class="number">2</span>);
+            <span class="kw">let</span> (<span class="ident">score1</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">scored_docs</span>[<span class="number">0</span>];
+            <span class="ident">assert_nearly_equals</span>(<span class="number">0.9153879</span>, <span class="ident">score1</span>);
+            <span class="kw">let</span> (<span class="ident">score2</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">scored_docs</span>[<span class="number">1</span>];
+            <span class="ident">assert_nearly_equals</span>(<span class="number">0.27101856</span>, <span class="ident">score2</span>);
+        }
     }
 
 }

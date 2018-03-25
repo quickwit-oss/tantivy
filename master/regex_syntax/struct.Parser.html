@@ -10,7 +10,8 @@
     <title>regex_syntax::Parser - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
     <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/regex_syntax/parser.rs.html#176-179' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../src/regex_syntax/parser.rs.html#181-184' title='goto source code'>[src]</a></span></h1>
 <pre class='rust struct'>pub struct Parser { /* fields omitted */ }</pre><div class='docblock'><p>A convenience parser for regular expressions.</p>
 <p>This parser takes as input a regular expression pattern string (the
 &quot;concrete syntax&quot;) and returns a high-level intermediate representation
@@ -75,15 +76,15 @@ see the <a href="ast/parse/index.html"><code>ast::parse</code></a> module.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#181-201' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#190-192' title='goto source code'>[src]</a></span></h4>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#186-206' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>() -&gt; <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#195-197' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Create a new parser with a default configuration.</p>
 <p>The parser can be run with <code>parse</code> method. The parse method returns
 a high level intermediate representation of the given regular
 expression.</p>
 <p>To set configuration options on the parser, use
 <a href="struct.ParserBuilder.html"><code>ParserBuilder</code></a>.</p>
-</div><h4 id='method.parse' class="method"><span id='parse.v' class='invisible'><code>pub fn <a href='#method.parse' class='fnname'>parse</a>(&amp;mut self, pattern: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="type" href="../regex_syntax/type.Result.html" title="type regex_syntax::Result">Result</a>&lt;<a class="struct" href="../regex_syntax/hir/struct.Hir.html" title="struct regex_syntax::hir::Hir">Hir</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#196-200' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.parse' class="method"><span id='parse.v' class='invisible'><code>pub fn <a href='#method.parse' class='fnname'>parse</a>(&amp;mut self, pattern: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="type" href="../regex_syntax/type.Result.html" title="type regex_syntax::Result">Result</a>&lt;<a class="struct" href="../regex_syntax/hir/struct.Hir.html" title="struct regex_syntax::hir::Hir">Hir</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#201-205' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Parse the regular expression into a high level intermediate
 representation.</p>
 </div></div>
@@ -91,20 +92,20 @@ representation.</p>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
             <div id='implementations-list'>
-        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#175' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#175' title='goto source code'>[src]</a></span></h4>
+        <h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#180' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#180' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
-</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#112-114' title='goto source code'>[src]</a></span></h4>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#117-119' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
-</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#175' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#175' title='goto source code'>[src]</a></span></h4>
+</div></div><h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#180' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, __arg_0: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/regex_syntax/parser.rs.html#180' title='goto source code'>[src]</a></span></h4>
 <div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
 </div></div></div>
-            <h2 id='synthetic-implementations' class='small-section-header'>
-              Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
-            </h2>
-            <div id='synthetic-implementations-list'>
-        <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
+                <h2 id='synthetic-implementations' class='small-section-header'>
+                  Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
+                </h2>
+                <div id='synthetic-implementations-list'>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../regex_syntax/struct.Parser.html" title="struct regex_syntax::Parser">Parser</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
 <div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>

@@ -10,7 +10,8 @@
     <title>zip_eq_impl.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -161,7 +162,7 @@
         <span class="kw">match</span> (<span class="self">self</span>.<span class="ident">a</span>.<span class="ident">next</span>(), <span class="self">self</span>.<span class="ident">b</span>.<span class="ident">next</span>()) {
             (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             (<span class="prelude-val">Some</span>(<span class="ident">a</span>), <span class="prelude-val">Some</span>(<span class="ident">b</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">a</span>, <span class="ident">b</span>)),
-            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(_)) <span class="op">|</span> (<span class="prelude-val">Some</span>(_), <span class="prelude-val">None</span>) <span class="op">=&gt;</span>
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(<span class="kw">_</span>)) <span class="op">|</span> (<span class="prelude-val">Some</span>(<span class="kw">_</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span>
             <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;itertools: .zip_eq() reached end of one iterator before the other&quot;</span>)
         }
     }

@@ -10,7 +10,8 @@
     <title>sys.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -1614,7 +1615,7 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">utc</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">local</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="macro">call</span><span class="macro">!</span>(<span class="ident">FileTimeToSystemTime</span>(<span class="kw-2">&amp;</span><span class="ident">ft</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">utc</span>));
-            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">SystemTimeToTzSpecificLocalTime</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _,
+            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">SystemTimeToTzSpecificLocalTime</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>,
                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">utc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">local</span>));
             <span class="ident">system_time_to_tm</span>(<span class="kw-2">&amp;</span><span class="ident">local</span>, <span class="ident">tm</span>);
 
@@ -1649,7 +1650,7 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ft</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">utc</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sys_time</span> <span class="op">=</span> <span class="ident">tm_to_system_time</span>(<span class="ident">tm</span>);
-            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">TzSpecificLocalTimeToSystemTime</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">TzSpecificLocalTimeToSystemTime</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                                                   <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">sys_time</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">utc</span>));
             <span class="macro">call</span><span class="macro">!</span>(<span class="ident">SystemTimeToFileTime</span>(<span class="kw-2">&amp;</span><span class="ident">utc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ft</span>));
             <span class="ident">file_time_to_unix_seconds</span>(<span class="kw-2">&amp;</span><span class="ident">ft</span>)
@@ -1792,7 +1793,7 @@
         }
 
         <span class="ident">INIT</span>.<span class="ident">call_once</span>(<span class="op">||</span> <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hToken</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">hToken</span> <span class="op">=</span> <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>;
             <span class="macro">call</span><span class="macro">!</span>(<span class="ident">OpenProcessToken</span>(<span class="ident">GetCurrentProcess</span>(),
                                    <span class="ident">TOKEN_ADJUST_PRIVILEGES</span> <span class="op">|</span> <span class="ident">TOKEN_QUERY</span>,
                                    <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">hToken</span>));
@@ -1800,12 +1801,12 @@
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tkp</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">zeroed</span>::<span class="op">&lt;</span><span class="ident">TKP</span><span class="op">&gt;</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">tkp</span>.<span class="ident">tkp</span>.<span class="ident">Privileges</span>.<span class="ident">len</span>(), <span class="number">0</span>);
             <span class="kw">let</span> <span class="ident">c</span> <span class="op">=</span> ::<span class="ident">std</span>::<span class="ident">ffi</span>::<span class="ident">CString</span>::<span class="ident">new</span>(<span class="string">&quot;SeTimeZonePrivilege&quot;</span>).<span class="ident">unwrap</span>();
-            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">LookupPrivilegeValueA</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _, <span class="ident">c</span>.<span class="ident">as_ptr</span>(),
+            <span class="macro">call</span><span class="macro">!</span>(<span class="ident">LookupPrivilegeValueA</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>, <span class="ident">c</span>.<span class="ident">as_ptr</span>(),
                                         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">tkp</span>.<span class="ident">laa</span>.<span class="ident">Luid</span>));
             <span class="ident">tkp</span>.<span class="ident">tkp</span>.<span class="ident">PrivilegeCount</span> <span class="op">=</span> <span class="number">1</span>;
             <span class="ident">tkp</span>.<span class="ident">laa</span>.<span class="ident">Attributes</span> <span class="op">=</span> <span class="ident">SE_PRIVILEGE_ENABLED</span>;
             <span class="macro">call</span><span class="macro">!</span>(<span class="ident">AdjustTokenPrivileges</span>(<span class="ident">hToken</span>, <span class="ident">FALSE</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">tkp</span>.<span class="ident">tkp</span>, <span class="number">0</span>,
-                                        <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _, <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _));
+                                        <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>, <span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>));
         });
     }
 

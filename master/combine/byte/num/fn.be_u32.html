@@ -10,7 +10,8 @@
     <title>combine::byte::num::be_u32 - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../../index.html'>combine</a>::<wbr><a href='../index.html'>byte</a>::<wbr><a href='index.html'>num</a></p><script>window.sidebarCurrent = {name: 'be_u32', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../../index.html'>combine</a>::<wbr><a href='../index.html'>byte</a>::<wbr><a href='index.html'>num</a></p><script>window.sidebarCurrent = {name: 'be_u32', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -67,8 +68,8 @@
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="ident">Parser</span>;
 <span class="kw">use</span> <span class="ident">combine</span>::<span class="ident">byte</span>::<span class="ident">num</span>::<span class="ident">u32</span>;
 
-<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">u32</span>::<span class="op">&lt;</span><span class="ident">LE</span>, _<span class="op">&gt;</span>().<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;\x01\0\0\0&quot;</span>[..]), <span class="prelude-val">Ok</span>((<span class="number">1</span>, <span class="kw-2">&amp;</span><span class="string">b&quot;&quot;</span>[..])));
-<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">u32</span>::<span class="op">&lt;</span><span class="ident">LE</span>, _<span class="op">&gt;</span>().<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;\x01\0\0&quot;</span>[..]).<span class="ident">is_err</span>());</pre>
+<span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">u32</span>::<span class="op">&lt;</span><span class="ident">LE</span>, <span class="kw">_</span><span class="op">&gt;</span>().<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;\x01\0\0\0&quot;</span>[..]), <span class="prelude-val">Ok</span>((<span class="number">1</span>, <span class="kw-2">&amp;</span><span class="string">b&quot;&quot;</span>[..])));
+<span class="macro">assert</span><span class="macro">!</span>(<span class="ident">u32</span>::<span class="op">&lt;</span><span class="ident">LE</span>, <span class="kw">_</span><span class="op">&gt;</span>().<span class="ident">parse</span>(<span class="kw-2">&amp;</span><span class="string">b&quot;\x01\0\0&quot;</span>[..]).<span class="ident">is_err</span>());</pre>
 </div></section>
     <section id='search' class="content hidden"></section>
 

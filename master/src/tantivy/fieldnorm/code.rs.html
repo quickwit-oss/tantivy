@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="Source to the Rust file `src/fieldnorm/code.rs`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang">
+
+    <title>code.rs.html -- source</title>
+
+    <link rel="stylesheet" type="text/css" href="../../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <script src="../../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc source">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        <a href='../../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
+        
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+</pre><pre class="rust ">
+
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">id_to_fieldnorm</span>(<span class="ident">id</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+    <span class="ident">FIELD_NORMS_TABLE</span>[<span class="ident">id</span> <span class="kw">as</span> <span class="ident">usize</span>]
+}
+
+
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fieldnorm_to_id</span>(<span class="ident">fieldnorm</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
+    <span class="ident">FIELD_NORMS_TABLE</span>
+        .<span class="ident">binary_search</span>(<span class="kw-2">&amp;</span><span class="ident">fieldnorm</span>)
+        .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">idx</span><span class="op">|</span> <span class="ident">idx</span> <span class="op">-</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u8</span>
+}
+
+
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">FIELD_NORMS_TABLE</span>: [<span class="ident">u32</span>; <span class="number">256</span>] <span class="op">=</span> [
+    <span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">8</span>, <span class="number">9</span>, <span class="number">10</span>, <span class="number">11</span>, <span class="number">12</span>, <span class="number">13</span>, <span class="number">14</span>, <span class="number">15</span>,
+    <span class="number">16</span>, <span class="number">17</span>, <span class="number">18</span>, <span class="number">19</span>, <span class="number">20</span>, <span class="number">21</span>, <span class="number">22</span>, <span class="number">23</span>, <span class="number">24</span>, <span class="number">25</span>, <span class="number">26</span>, <span class="number">27</span>, <span class="number">28</span>, <span class="number">29</span>, <span class="number">30</span>, <span class="number">31</span>,
+    <span class="number">32</span>, <span class="number">33</span>, <span class="number">34</span>, <span class="number">35</span>, <span class="number">36</span>, <span class="number">37</span>, <span class="number">38</span>, <span class="number">39</span>, <span class="number">40</span>, <span class="number">42</span>, <span class="number">44</span>, <span class="number">46</span>, <span class="number">48</span>, <span class="number">50</span>, <span class="number">52</span>, <span class="number">54</span>,
+    <span class="number">56</span>, <span class="number">60</span>, <span class="number">64</span>, <span class="number">68</span>, <span class="number">72</span>, <span class="number">76</span>, <span class="number">80</span>, <span class="number">84</span>, <span class="number">88</span>, <span class="number">96</span>, <span class="number">104</span>, <span class="number">112</span>, <span class="number">120</span>, <span class="number">128</span>, <span class="number">136</span>, <span class="number">144</span>,
+    <span class="number">152</span>, <span class="number">168</span>, <span class="number">184</span>, <span class="number">200</span>, <span class="number">216</span>, <span class="number">232</span>, <span class="number">248</span>, <span class="number">264</span>, <span class="number">280</span>, <span class="number">312</span>, <span class="number">344</span>, <span class="number">376</span>, <span class="number">408</span>, <span class="number">440</span>, <span class="number">472</span>, <span class="number">504</span>,
+    <span class="number">536</span>, <span class="number">600</span>, <span class="number">664</span>, <span class="number">728</span>, <span class="number">792</span>, <span class="number">856</span>, <span class="number">920</span>, <span class="number">984</span>,
+    <span class="number">1048</span>, <span class="number">1176</span>, <span class="number">1304</span>, <span class="number">1432</span>, <span class="number">1560</span>, <span class="number">1688</span>, <span class="number">1816</span>, <span class="number">1944</span>,
+    <span class="number">2072</span>, <span class="number">2328</span>, <span class="number">2584</span>, <span class="number">2840</span>, <span class="number">3096</span>, <span class="number">3352</span>, <span class="number">3608</span>, <span class="number">3864</span>, <span class="number">4120</span>,
+    <span class="number">4632</span>, <span class="number">5144</span>, <span class="number">5656</span>, <span class="number">6168</span>, <span class="number">6680</span>, <span class="number">7192</span>, <span class="number">7704</span>, <span class="number">8216</span>, <span class="number">9240</span>,
+    <span class="number">10264</span>, <span class="number">11288</span>, <span class="number">12312</span>, <span class="number">13336</span>, <span class="number">14360</span>, <span class="number">15384</span>,
+    <span class="number">16408</span>, <span class="number">18456</span>, <span class="number">20504</span>, <span class="number">22552</span>, <span class="number">24600</span>, <span class="number">26648</span>, <span class="number">28696</span>, <span class="number">30744</span>,
+    <span class="number">32792</span>, <span class="number">36888</span>, <span class="number">40984</span>, <span class="number">45080</span>, <span class="number">49176</span>, <span class="number">53272</span>, <span class="number">57368</span>, <span class="number">61464</span>,
+    <span class="number">65560</span>, <span class="number">73752</span>, <span class="number">81944</span>, <span class="number">90136</span>, <span class="number">98328</span>, <span class="number">106520</span>, <span class="number">114712</span>, <span class="number">122904</span>, <span class="number">131096</span>, <span class="number">147480</span>,
+    <span class="number">163864</span>,  <span class="number">180248</span>,  <span class="number">196632</span>,  <span class="number">213016</span>,  <span class="number">229400</span>,  <span class="number">245784</span>,  <span class="number">262168</span>,
+    <span class="number">294936</span>,  <span class="number">327704</span>,  <span class="number">360472</span>,  <span class="number">393240</span>,  <span class="number">426008</span>,  <span class="number">458776</span>,
+    <span class="number">491544</span>, <span class="number">524312</span>, <span class="number">589848</span>, <span class="number">655384</span>, <span class="number">720920</span>, <span class="number">786456</span>, <span class="number">851992</span>, <span class="number">917528</span>,
+    <span class="number">983064</span>, <span class="number">1048600</span>, <span class="number">1179672</span>, <span class="number">1310744</span>, <span class="number">1441816</span>, <span class="number">1572888</span>, <span class="number">1703960</span>, <span class="number">1835032</span>,
+    <span class="number">1966104</span>, <span class="number">2097176</span>, <span class="number">2359320</span>, <span class="number">2621464</span>, <span class="number">2883608</span>, <span class="number">3145752</span>, <span class="number">3407896</span>, <span class="number">3670040</span>, <span class="number">3932184</span>,
+    <span class="number">4194328</span>, <span class="number">4718616</span>, <span class="number">5242904</span>, <span class="number">5767192</span>, <span class="number">6291480</span>, <span class="number">6815768</span>, <span class="number">7340056</span>, <span class="number">7864344</span>, <span class="number">8388632</span>, <span class="number">9437208</span>,
+    <span class="number">10485784</span>, <span class="number">11534360</span>, <span class="number">12582936</span>, <span class="number">13631512</span>, <span class="number">14680088</span>, <span class="number">15728664</span>, <span class="number">16777240</span>, <span class="number">18874392</span>, <span class="number">20971544</span>,
+    <span class="number">23068696</span>, <span class="number">25165848</span>, <span class="number">27263000</span>, <span class="number">29360152</span>, <span class="number">31457304</span>, <span class="number">33554456</span>, <span class="number">37748760</span>, <span class="number">41943064</span>,
+    <span class="number">46137368</span>, <span class="number">50331672</span>, <span class="number">54525976</span>, <span class="number">58720280</span>, <span class="number">62914584</span>, <span class="number">67108888</span>, <span class="number">75497496</span>, <span class="number">83886104</span>,
+    <span class="number">92274712</span>, <span class="number">100663320</span>, <span class="number">109051928</span>, <span class="number">117440536</span>, <span class="number">125829144</span>, <span class="number">134217752</span>, <span class="number">150994968</span>, <span class="number">167772184</span>,
+    <span class="number">184549400</span>, <span class="number">201326616</span>, <span class="number">218103832</span>, <span class="number">234881048</span>, <span class="number">251658264</span>, <span class="number">268435480</span>, <span class="number">301989912</span>, <span class="number">335544344</span>,
+    <span class="number">369098776</span>, <span class="number">402653208</span>, <span class="number">436207640</span>, <span class="number">469762072</span>, <span class="number">503316504</span>, <span class="number">536870936</span>, <span class="number">603979800</span>, <span class="number">671088664</span>,
+    <span class="number">738197528</span>, <span class="number">805306392</span>, <span class="number">872415256</span>, <span class="number">939524120</span>, <span class="number">1006632984</span>, <span class="number">1073741848</span>, <span class="number">1207959576</span>, <span class="number">1342177304</span>,
+    <span class="number">1476395032</span>, <span class="number">1610612760</span>, <span class="number">1744830488</span>, <span class="number">1879048216</span>, <span class="number">2013265944</span>
+];
+
+
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">fieldnorm_to_id</span>, <span class="ident">id_to_fieldnorm</span>, <span class="ident">FIELD_NORMS_TABLE</span>};
+
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_decode_code</span>() {
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="number">0</span>), <span class="number">0</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="number">1</span>), <span class="number">1</span>);
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">41</span> {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="ident">i</span>), <span class="ident">i</span> <span class="kw">as</span> <span class="ident">u8</span>);
+        }
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="number">41</span>), <span class="number">40</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="number">42</span>), <span class="number">41</span>);
+        <span class="kw">for</span> <span class="ident">id</span> <span class="kw">in</span> <span class="number">43</span>..<span class="number">256</span> {
+            <span class="kw">let</span> <span class="ident">field_norm</span> <span class="op">=</span> <span class="ident">FIELD_NORMS_TABLE</span>[<span class="ident">id</span>];
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">id_to_fieldnorm</span>(<span class="ident">id</span> <span class="kw">as</span> <span class="ident">u8</span>), <span class="ident">field_norm</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="ident">field_norm</span>), <span class="ident">id</span> <span class="kw">as</span> <span class="ident">u8</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="ident">field_norm</span> <span class="op">-</span> <span class="number">1</span>), <span class="ident">id</span> <span class="kw">as</span> <span class="ident">u8</span> <span class="op">-</span> <span class="number">1</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="ident">field_norm</span> <span class="op">+</span> <span class="number">1</span>), <span class="ident">id</span> <span class="kw">as</span> <span class="ident">u8</span>);
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_u32_max</span>() {
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_to_id</span>(<span class="ident">u32</span>::<span class="ident">max_value</span>()), <span class="ident">u8</span>::<span class="ident">max_value</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_fieldnorm_byte</span>() {
+        <span class="comment">// const expression are not really a thing</span>
+        <span class="comment">// yet... Therefore we do things the other way around.</span>
+
+        <span class="comment">// The array is defined as a const,</span>
+        <span class="comment">// and we check in the unit test that the const</span>
+        <span class="comment">// value is matching the logic.</span>
+        <span class="kw">const</span> <span class="ident">IDENTITY_PART</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">24u8</span>;
+        <span class="kw">fn</span> <span class="ident">decode_field_norm_exp_part</span>(<span class="ident">b</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+            <span class="kw">let</span> <span class="ident">bits</span> <span class="op">=</span> (<span class="ident">b</span> <span class="op">&amp;</span> <span class="number">0b00000111</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+            <span class="kw">let</span> <span class="ident">shift</span> <span class="op">=</span> <span class="ident">b</span> <span class="op">&gt;&gt;</span> <span class="number">3</span>;
+            <span class="kw">if</span> <span class="ident">shift</span> <span class="op">==</span> <span class="number">0</span> {
+                <span class="ident">bits</span>
+            } <span class="kw">else</span> {
+                (<span class="ident">bits</span> <span class="op">|</span> <span class="number">8u32</span>) <span class="op">&lt;&lt;</span> ((<span class="ident">shift</span> <span class="op">-</span> <span class="number">1u8</span>) <span class="kw">as</span> <span class="ident">u32</span>)
+            }
+        }
+        <span class="kw">fn</span> <span class="ident">decode_fieldnorm_byte</span>(<span class="ident">b</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
+            <span class="kw">if</span> <span class="ident">b</span> <span class="op">&lt;</span> <span class="ident">IDENTITY_PART</span> {
+                <span class="ident">b</span> <span class="kw">as</span> <span class="ident">u32</span>
+            } <span class="kw">else</span> {
+                (<span class="ident">IDENTITY_PART</span> <span class="kw">as</span> <span class="ident">u32</span>) <span class="op">+</span> <span class="ident">decode_field_norm_exp_part</span>(<span class="ident">b</span> <span class="op">-</span> <span class="ident">IDENTITY_PART</span>)
+            }
+        }
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">256</span> {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">FIELD_NORMS_TABLE</span>[<span class="ident">i</span>], <span class="ident">decode_fieldnorm_byte</span>(<span class="ident">i</span> <span class="kw">as</span> <span class="ident">u8</span>));
+        }
+    }
+}</pre>
+</section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../../";
+        window.currentCrate = "tantivy";
+    </script>
+    <script src="../../../main.js"></script>
+    <script defer src="../../../search-index.js"></script>
+</body>
+</html>

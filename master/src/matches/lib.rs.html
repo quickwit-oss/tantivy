@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -220,7 +221,7 @@
         <span class="macro">_matches_tt_as_expr_hack</span><span class="macro">!</span> {
             <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">expression</span> {
                 $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">pattern</span>)<span class="op">+</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-                _ <span class="op">=&gt;</span> <span class="bool-val">false</span>
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>
             }
         }
     }

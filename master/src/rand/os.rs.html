@@ -10,7 +10,8 @@
     <title>os.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -969,7 +970,7 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s_len</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">len</span>();
                 <span class="kw">let</span> <span class="ident">ret</span> <span class="op">=</span> <span class="kw">unsafe</span> {
                     <span class="ident">libc</span>::<span class="ident">sysctl</span>(<span class="ident">mib</span>.<span class="ident">as_ptr</span>(), <span class="ident">mib</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">c_uint</span>,
-                                 <span class="ident">s</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_len</span>,
+                                 <span class="ident">s</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">s_len</span>,
                                  <span class="ident">ptr</span>::<span class="ident">null</span>(), <span class="number">0</span>)
                 };
                 <span class="kw">if</span> <span class="ident">ret</span> <span class="op">==</span> <span class="op">-</span><span class="number">1</span> <span class="op">||</span> <span class="ident">s_len</span> <span class="op">!=</span> <span class="ident">s</span>.<span class="ident">len</span>() {
@@ -1175,7 +1176,7 @@
                 <span class="ident">get_random_bytes</span>: <span class="prelude-val">None</span>,
             };
             <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-                <span class="ident">nacl_interface_query</span>(<span class="ident">INTERFACE</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> _,
+                <span class="ident">nacl_interface_query</span>(<span class="ident">INTERFACE</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span>,
                                      <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">iface</span>),
                                      <span class="ident">mem</span>::<span class="ident">size_of</span>::<span class="op">&lt;</span><span class="ident">NaClIRTRandom</span><span class="op">&gt;</span>() <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>)
             };
@@ -1203,9 +1204,9 @@
             <span class="kw">loop</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">r</span>: <span class="ident">libc</span>::<span class="ident">size_t</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">v</span>.<span class="ident">len</span>();
-                <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span>)(<span class="ident">v</span>[<span class="ident">read</span>..].<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _,
+                <span class="kw">let</span> <span class="ident">error</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span>)(<span class="ident">v</span>[<span class="ident">read</span>..].<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>,
                                      (<span class="ident">len</span> <span class="op">-</span> <span class="ident">read</span>) <span class="kw">as</span> <span class="ident">libc</span>::<span class="ident">size_t</span>,
-                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _);
+                                     <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">r</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>);
                 <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">error</span> <span class="op">==</span> <span class="number">0</span>, <span class="string">&quot;`get_random_bytes` failed!&quot;</span>);
                 <span class="ident">read</span> <span class="op">+=</span> <span class="ident">r</span> <span class="kw">as</span> <span class="ident">usize</span>;
 
@@ -1258,7 +1259,7 @@
     <span class="kw">fn</span> <span class="ident">test_os_rng_tasks</span>() {
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">txs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">20</span> {
             <span class="kw">let</span> (<span class="ident">tx</span>, <span class="ident">rx</span>) <span class="op">=</span> <span class="ident">channel</span>();
             <span class="ident">txs</span>.<span class="ident">push</span>(<span class="ident">tx</span>);
 
@@ -1272,7 +1273,7 @@
                 <span class="ident">thread</span>::<span class="ident">yield_now</span>();
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">v</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">1000</span>];
 
-                <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+                <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
                     <span class="ident">r</span>.<span class="ident">next_u32</span>();
                     <span class="ident">thread</span>::<span class="ident">yield_now</span>();
                     <span class="ident">r</span>.<span class="ident">next_u64</span>();

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/error.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/error.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>error.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -379,7 +380,7 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Error</span>::<span class="ident">Parse</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">description</span>(),
             <span class="ident">Error</span>::<span class="ident">Translate</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">description</span>(),
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 }
@@ -389,7 +390,7 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Error</span>::<span class="ident">Parse</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
             <span class="ident">Error</span>::<span class="ident">Translate</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">x</span>.<span class="ident">fmt</span>(<span class="ident">f</span>),
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 }
@@ -566,17 +567,17 @@
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">notes</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">line_number_padding</span>() {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">line_number_padding</span>() {
             <span class="ident">notes</span>.<span class="ident">push</span>(<span class="string">&#39; &#39;</span>);
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pos</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">for</span> <span class="ident">span</span> <span class="kw">in</span> <span class="ident">spans</span> {
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="ident">pos</span>..(<span class="ident">span</span>.<span class="ident">start</span>.<span class="ident">column</span> <span class="op">-</span> <span class="number">1</span>) {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="ident">pos</span>..(<span class="ident">span</span>.<span class="ident">start</span>.<span class="ident">column</span> <span class="op">-</span> <span class="number">1</span>) {
                 <span class="ident">notes</span>.<span class="ident">push</span>(<span class="string">&#39; &#39;</span>);
                 <span class="ident">pos</span> <span class="op">+=</span> <span class="number">1</span>;
             }
             <span class="kw">let</span> <span class="ident">note_len</span> <span class="op">=</span> <span class="ident">span</span>.<span class="ident">end</span>.<span class="ident">column</span>.<span class="ident">saturating_sub</span>(<span class="ident">span</span>.<span class="ident">start</span>.<span class="ident">column</span>);
-            <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="number">1</span>, <span class="ident">note_len</span>) {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">cmp</span>::<span class="ident">max</span>(<span class="number">1</span>, <span class="ident">note_len</span>) {
                 <span class="ident">notes</span>.<span class="ident">push</span>(<span class="string">&#39;^&#39;</span>);
                 <span class="ident">pos</span> <span class="op">+=</span> <span class="number">1</span>;
             }

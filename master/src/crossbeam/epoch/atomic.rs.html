@@ -10,7 +10,8 @@
     <title>atomic.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -275,7 +276,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">null</span>() <span class="op">-&gt;</span> <span class="ident">Atomic</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="ident">Atomic</span> {
-            <span class="ident">ptr</span>: <span class="ident">atomic</span>::<span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _),
+            <span class="ident">ptr</span>: <span class="ident">atomic</span>::<span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>),
             <span class="ident">_marker</span>: <span class="ident">PhantomData</span>
         }
     }
@@ -283,7 +284,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;nightly&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">null</span>() <span class="op">-&gt;</span> <span class="ident">Atomic</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="ident">Atomic</span> {
-            <span class="ident">ptr</span>: <span class="ident">atomic</span>::<span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> _),
+            <span class="ident">ptr</span>: <span class="ident">atomic</span>::<span class="ident">AtomicPtr</span>::<span class="ident">new</span>(<span class="number">0</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="kw">_</span>),
             <span class="ident">_marker</span>: <span class="ident">PhantomData</span>
         }
     }
@@ -307,7 +308,7 @@
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Panics if `ord` is `Release` or `AcqRel`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, _: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">Shared</span>::<span class="ident">from_raw</span>(<span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">load</span>(<span class="ident">ord</span>)) }
     }
 
@@ -333,7 +334,7 @@
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// Panics if `ord` is `Acquire` or `AcqRel`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">store_and_ref</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">val</span>: <span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, _: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">store_and_ref</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">val</span>: <span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
                              <span class="op">-&gt;</span> <span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>
     {
         <span class="kw">unsafe</span> {
@@ -381,7 +382,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// This operation is analogous to `store_and_ref`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">cas_and_ref</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">old</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">new</span>: <span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
-                           <span class="ident">ord</span>: <span class="ident">Ordering</span>, _: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
+                           <span class="ident">ord</span>: <span class="ident">Ordering</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
                            <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>
     {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">compare_and_swap</span>(<span class="ident">opt_shared_into_raw</span>(<span class="ident">old</span>), <span class="ident">new</span>.<span class="ident">as_raw</span>(), <span class="ident">ord</span>)
@@ -406,13 +407,13 @@
     }
 
     <span class="doccomment">/// Do an atomic swap with an `Owned` pointer with the given memory ordering.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">swap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, _: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">swap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Owned</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
                     <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">Shared</span>::<span class="ident">from_raw</span>(<span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">swap</span>(<span class="ident">opt_owned_into_raw</span>(<span class="ident">new</span>), <span class="ident">ord</span>)) }
     }
 
     <span class="doccomment">/// Do an atomic swap with a `Shared` pointer with the given memory ordering.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">swap_shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, _: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">swap_shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">new</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;&gt;</span>, <span class="ident">ord</span>: <span class="ident">Ordering</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Guard</span>)
                            <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Shared</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;&gt;</span> {
         <span class="kw">unsafe</span> { <span class="ident">Shared</span>::<span class="ident">from_raw</span>(<span class="self">self</span>.<span class="ident">ptr</span>.<span class="ident">swap</span>(<span class="ident">opt_shared_into_raw</span>(<span class="ident">new</span>), <span class="ident">ord</span>)) }
     }

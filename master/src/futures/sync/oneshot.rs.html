@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/sync/oneshot.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/sync/oneshot.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>oneshot.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -839,7 +840,7 @@
         <span class="comment">// under the hood. If it instead used `Release` / `Acquire` ordering,</span>
         <span class="comment">// then it would not necessarily synchronize with `inner.complete`</span>
         <span class="comment">// and deadlock might be possible, as was observed in</span>
-        <span class="comment">// https://github.com/alexcrichton/futures-rs/pull/219.</span>
+        <span class="comment">// https://github.com/rust-lang-nursery/futures-rs/pull/219.</span>
         <span class="self">self</span>.<span class="ident">complete</span>.<span class="ident">store</span>(<span class="bool-val">true</span>, <span class="ident">SeqCst</span>);
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">slot</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">rx_task</span>.<span class="ident">try_lock</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">task</span>) <span class="op">=</span> <span class="ident">slot</span>.<span class="ident">take</span>() {
@@ -1152,7 +1153,7 @@
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Ok</span>(<span class="ident">t</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">t</span>.<span class="ident">into</span>()),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>(<span class="prelude-val">Err</span>(<span class="ident">e</span>))) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>),
             <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Async</span>::<span class="ident">NotReady</span>),
-            <span class="prelude-val">Err</span>(_) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;future was canceled before completion&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;future was canceled before completion&quot;</span>),
         }
     }
 }

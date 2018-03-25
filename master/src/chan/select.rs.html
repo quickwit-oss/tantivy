@@ -10,7 +10,8 @@
     <title>select.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -591,7 +592,7 @@
         <span class="comment">// tell all of our channels to notify us when something</span>
         <span class="comment">// changes.</span>
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_subscribed</span>() {
-            <span class="kw">for</span> (_, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
+            <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
                 <span class="ident">choice</span>.<span class="ident">subscribe</span>(<span class="self">self</span>.<span class="ident">cond_mutex</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">cond</span>.<span class="ident">clone</span>());
             }
         }
@@ -631,17 +632,17 @@
         <span class="comment">//</span>
         <span class="comment">// Once the condition variable is notified, we repeat the process.</span>
         <span class="kw">loop</span> {
-            <span class="kw">for</span> (_, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
+            <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
                 <span class="ident">choice</span>.<span class="ident">lock</span>();
             }
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>) <span class="op">=</span> <span class="ident">try_sync</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">ids</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span>) {
-                <span class="kw">for</span> (_, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
+                <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
                     <span class="ident">choice</span>.<span class="ident">unlock</span>();
                 }
                 <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">key</span>);
             }
             <span class="kw">let</span> <span class="ident">cond_lock</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">cond_mutex</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>();
-            <span class="kw">for</span> (_, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
+            <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
                 <span class="ident">choice</span>.<span class="ident">unlock</span>();
             }
             <span class="ident">drop</span>(<span class="self">self</span>.<span class="ident">cond</span>.<span class="ident">wait</span>(<span class="ident">cond_lock</span>).<span class="ident">unwrap</span>());
@@ -703,7 +704,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span> <span class="ident">Drop</span> <span class="kw">for</span> <span class="ident">Select</span><span class="op">&lt;</span><span class="lifetime">&#39;c</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">drop</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="kw">for</span> (_, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
+        <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">choice</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">choices</span> {
             <span class="ident">choice</span>.<span class="ident">unsubscribe</span>();
         }
     }

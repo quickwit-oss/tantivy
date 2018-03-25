@@ -10,7 +10,8 @@
     <title>serde_json::de::from_reader - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'from_reader', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a></p><script>window.sidebarCurrent = {name: 'from_reader', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde_json/de.rs.html#1955-1961' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/serde_json/de.rs.html#2083-2089' title='goto source code'>[src]</a></span></h1>
 <pre class='rust fn'>pub fn from_reader&lt;R, T&gt;(rdr: R) -&gt; <a class="type" href="../../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="https://doc.rust-lang.org/nightly/std/io/trait.Read.html" title="trait std::io::Read">Read</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/de/trait.DeserializeOwned.html" title="trait serde::de::DeserializeOwned">DeserializeOwned</a>,&nbsp;</span></pre><div class='docblock'><p>Deserialize an instance of type <code>T</code> from an IO stream of JSON.</p>
 <h1 id="errors" class="section-header"><a href="#errors">Errors</a></h1>
 <p>This conversion can fail if the structure of the input does not match the

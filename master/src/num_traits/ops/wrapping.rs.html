@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.1/src/ops/wrapping.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/num-traits-0.2.2/src/ops/wrapping.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>wrapping.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -294,19 +295,19 @@
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">wrapping_is_wrappingadd</span>() {
-    <span class="kw">fn</span> <span class="ident">require_wrappingadd</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingAdd</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
+    <span class="kw">fn</span> <span class="ident">require_wrappingadd</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingAdd</span><span class="op">&gt;</span>(<span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
     <span class="ident">require_wrappingadd</span>(<span class="kw-2">&amp;</span><span class="ident">Wrapping</span>(<span class="number">42</span>));
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">wrapping_is_wrappingsub</span>() {
-    <span class="kw">fn</span> <span class="ident">require_wrappingsub</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingSub</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
+    <span class="kw">fn</span> <span class="ident">require_wrappingsub</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingSub</span><span class="op">&gt;</span>(<span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
     <span class="ident">require_wrappingsub</span>(<span class="kw-2">&amp;</span><span class="ident">Wrapping</span>(<span class="number">42</span>));
 }
 
 <span class="attribute">#[<span class="ident">test</span>]</span>
 <span class="kw">fn</span> <span class="ident">wrapping_is_wrappingmul</span>() {
-    <span class="kw">fn</span> <span class="ident">require_wrappingmul</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingMul</span><span class="op">&gt;</span>(_: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
+    <span class="kw">fn</span> <span class="ident">require_wrappingmul</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">WrappingMul</span><span class="op">&gt;</span>(<span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) {}
     <span class="ident">require_wrappingmul</span>(<span class="kw-2">&amp;</span><span class="ident">Wrapping</span>(<span class="number">42</span>));
 }
 </pre>

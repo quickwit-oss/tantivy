@@ -10,7 +10,8 @@
     <title>data.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -621,7 +622,7 @@
                 <span class="op">|</span>
                 <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">FieldsUnnamed</span>) <span class="op">=&gt;</span> { <span class="ident">Fields</span>::<span class="ident">Unnamed</span> }
                 <span class="op">|</span>
-                <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">Fields</span>::<span class="ident">Unit</span> }
+                <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Fields</span>::<span class="ident">Unit</span> }
             ) <span class="op">&gt;&gt;</span>
             <span class="ident">disr</span>: <span class="macro">option</span><span class="macro">!</span>(<span class="macro">tuple</span><span class="macro">!</span>(<span class="macro">punct</span><span class="macro">!</span>(<span class="op">=</span>), <span class="macro">syn</span><span class="macro">!</span>(<span class="ident">Expr</span>))) <span class="op">&gt;&gt;</span>
             (<span class="ident">Variant</span> {
@@ -750,7 +751,7 @@
                 })
             } }
             <span class="op">|</span>
-            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span>_<span class="op">|</span> <span class="ident">Visibility</span>::<span class="ident">Inherited</span> }
+            <span class="macro">epsilon</span><span class="macro">!</span>() <span class="op">=&gt;</span> { <span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Visibility</span>::<span class="ident">Inherited</span> }
         ));
 
         <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {

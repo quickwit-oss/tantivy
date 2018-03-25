@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.29/src/private/macros.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.34/src/private/macros.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>macros.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -250,7 +251,7 @@
 <span class="attribute">#[<span class="ident">macro_export</span>]</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">__serialize_unimplemented_method</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>:<span class="ident">ident</span> $(<span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ident</span><span class="op">&gt;</span>)<span class="op">*</span> ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>:<span class="ident">ty</span>),<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
-        <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span> $(<span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Serialize</span><span class="op">&gt;</span>)<span class="op">*</span> (<span class="self">self</span> $(, _: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>)<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span> $(<span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>: <span class="question-mark">?</span><span class="ident">Sized</span> <span class="op">+</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Serialize</span><span class="op">&gt;</span>)<span class="op">*</span> (<span class="self">self</span> $(, <span class="kw">_</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>)<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
             <span class="macro">unimplemented</span><span class="macro">!</span>()
         }
     };

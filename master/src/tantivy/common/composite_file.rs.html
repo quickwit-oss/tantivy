@@ -10,7 +10,8 @@
     <title>composite_file.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -357,7 +358,7 @@
         <span class="kw">let</span> <span class="ident">footer_offset</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">write</span>.<span class="ident">written_bytes</span>();
         <span class="ident">VInt</span>(<span class="self">self</span>.<span class="ident">offsets</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span>).<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">write</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset_fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">offsets</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset_fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">offsets</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">file_addr</span>, <span class="ident">offset</span>)<span class="op">|</span> (<span class="kw-2">*</span><span class="ident">offset</span>, <span class="kw-2">*</span><span class="ident">file_addr</span>))
             .<span class="ident">collect</span>();
@@ -409,7 +410,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_index</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offset</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_fields</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_fields</span> {
             <span class="ident">offset</span> <span class="op">+=</span> <span class="ident">VInt</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">footer_buffer</span>)<span class="question-mark">?</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>;
             <span class="kw">let</span> <span class="ident">file_addr</span> <span class="op">=</span> <span class="ident">FileAddr</span>::<span class="ident">deserialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">footer_buffer</span>)<span class="question-mark">?</span>;
             <span class="ident">offsets</span>.<span class="ident">push</span>(<span class="ident">offset</span>);

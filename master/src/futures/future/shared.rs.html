@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.18/src/future/shared.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/futures-0.1.19/src/future/shared.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>shared.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -453,7 +454,7 @@
                 <span class="prelude-val">Some</span>(<span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">clone_result</span>() })
             }
             <span class="ident">POISONED</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;inner future panicked during poll&quot;</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
@@ -466,7 +467,7 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">result</span>.<span class="ident">get</span>() {
             <span class="prelude-val">Some</span>(<span class="prelude-val">Ok</span>(<span class="kw-2">ref</span> <span class="ident">item</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">SharedItem</span> { <span class="ident">item</span>: <span class="ident">item</span>.<span class="ident">item</span>.<span class="ident">clone</span>() }),
             <span class="prelude-val">Some</span>(<span class="prelude-val">Err</span>(<span class="kw-2">ref</span> <span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">SharedError</span> { <span class="ident">error</span>: <span class="ident">e</span>.<span class="ident">error</span>.<span class="ident">clone</span>() }),
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 
@@ -500,7 +501,7 @@
                 <span class="kw">return</span> <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">clone_result</span>().<span class="ident">map</span>(<span class="ident">Async</span>::<span class="ident">Ready</span>) };
             }
             <span class="ident">POISONED</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;inner future panicked during poll&quot;</span>),
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
 
         <span class="kw">loop</span> {
@@ -536,7 +537,7 @@
                             <span class="kw">let</span> <span class="ident">prev</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">notifier</span>.<span class="ident">state</span>.<span class="ident">swap</span>(<span class="ident">POLLING</span>, <span class="ident">SeqCst</span>);
                             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">prev</span>, <span class="ident">REPOLL</span>);
                         }
-                        _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+                        <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
                     }
 
                 }
@@ -586,7 +587,7 @@
 
         <span class="kw">let</span> <span class="ident">waiters</span> <span class="op">=</span> <span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">waiters</span>.<span class="ident">lock</span>().<span class="ident">unwrap</span>(), <span class="ident">HashMap</span>::<span class="ident">new</span>());
 
-        <span class="kw">for</span> (_, <span class="ident">waiter</span>) <span class="kw">in</span> <span class="ident">waiters</span> {
+        <span class="kw">for</span> (<span class="kw">_</span>, <span class="ident">waiter</span>) <span class="kw">in</span> <span class="ident">waiters</span> {
             <span class="ident">waiter</span>.<span class="ident">notify</span>();
         }
     }

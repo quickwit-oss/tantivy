@@ -10,7 +10,8 @@
     <title>lifetime.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -331,7 +332,7 @@
         <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
             <span class="kw">let</span> (<span class="ident">span</span>, <span class="ident">term</span>, <span class="ident">rest</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">term</span>() {
                 <span class="prelude-val">Some</span>(<span class="ident">term</span>) <span class="op">=&gt;</span> <span class="ident">term</span>,
-                _ <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">parse_error</span>(),
+                <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="ident">parse_error</span>(),
             };
             <span class="kw">if</span> <span class="op">!</span><span class="ident">term</span>.<span class="ident">as_str</span>().<span class="ident">starts_with</span>(<span class="string">&#39;\&#39;&#39;</span>) {
                 <span class="kw">return</span> <span class="ident">parse_error</span>();

@@ -10,7 +10,8 @@
     <title>lib.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -652,12 +653,12 @@
         <span class="number">2</span> <span class="op">=&gt;</span> <span class="macro">hashmap</span><span class="macro">!</span>{<span class="number">1</span> <span class="op">=&gt;</span> <span class="number">1</span>,},
     };
 
-    <span class="kw">let</span> _: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">convert_args</span><span class="macro">!</span>(<span class="ident">keys</span><span class="op">=</span><span class="ident">String</span>::<span class="ident">from</span>, <span class="macro">hashmap</span><span class="macro">!</span>(
+    <span class="kw">let</span> <span class="kw">_</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">convert_args</span><span class="macro">!</span>(<span class="ident">keys</span><span class="op">=</span><span class="ident">String</span>::<span class="ident">from</span>, <span class="macro">hashmap</span><span class="macro">!</span>(
         <span class="string">&quot;one&quot;</span> <span class="op">=&gt;</span> <span class="number">1</span>,
         <span class="string">&quot;two&quot;</span> <span class="op">=&gt;</span> <span class="number">2</span>,
     ));
 
-    <span class="kw">let</span> _: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">convert_args</span><span class="macro">!</span>(<span class="ident">keys</span><span class="op">=</span><span class="ident">String</span>::<span class="ident">from</span>, <span class="ident">values</span><span class="op">=</span><span class="ident">__id</span>, <span class="macro">hashmap</span><span class="macro">!</span>(
+    <span class="kw">let</span> <span class="kw">_</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">i32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="macro">convert_args</span><span class="macro">!</span>(<span class="ident">keys</span><span class="op">=</span><span class="ident">String</span>::<span class="ident">from</span>, <span class="ident">values</span><span class="op">=</span><span class="ident">__id</span>, <span class="macro">hashmap</span><span class="macro">!</span>(
         <span class="string">&quot;one&quot;</span> <span class="op">=&gt;</span> <span class="number">1</span>,
         <span class="string">&quot;two&quot;</span> <span class="op">=&gt;</span> <span class="number">2</span>,
     ));

@@ -10,7 +10,8 @@
     <title>nix::unistd::mkdir - Rust</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -33,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'><a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a></p><script>window.sidebarCurrent = {name: 'mkdir', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script>
+        <div class="sidebar-elems"><p class='location'><a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a></p><script>window.sidebarCurrent = {name: 'mkdir', ty: 'fn', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
     </nav>
 
     <div class="theme-picker">
@@ -85,7 +86,7 @@
 
     <span class="comment">// create new directory and give read, write and execute rights to the owner</span>
     <span class="kw">match</span> <span class="ident">unistd</span>::<span class="ident">mkdir</span>(<span class="kw-2">&amp;</span><span class="ident">tmp_dir2</span>, <span class="ident">stat</span>::<span class="ident">S_IRWXU</span>) {
-       <span class="prelude-val">Ok</span>(_) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;created {:?}&quot;</span>, <span class="ident">tmp_dir2</span>),
+       <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;created {:?}&quot;</span>, <span class="ident">tmp_dir2</span>),
        <span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="macro">println</span><span class="macro">!</span>(<span class="string">&quot;Error creating directory: {}&quot;</span>, <span class="ident">err</span>),
     }
 }</pre>

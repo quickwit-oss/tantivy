@@ -10,7 +10,8 @@
     <title>merger.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -862,6 +863,36 @@
 <span id="806">806</span>
 <span id="807">807</span>
 <span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -871,7 +902,6 @@
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentSerializer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">InvertedIndexSerializer</span>;
 <span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
@@ -882,6 +912,40 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::{<span class="ident">max</span>, <span class="ident">min</span>};
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionary</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamer</span>;
+<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsSerializer</span>;
+<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsWriter</span>;
+<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">DeleteSet</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
+
+
+<span class="kw">fn</span> <span class="ident">compute_total_num_tokens</span>(<span class="ident">readers</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentReader</span>], <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_tokens</span> <span class="op">=</span> <span class="number">0u64</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span>: [<span class="ident">usize</span>; <span class="number">256</span>] <span class="op">=</span> [<span class="number">0</span>; <span class="number">256</span>];
+    <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="ident">readers</span> {
+        <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">has_deletes</span>() {
+            <span class="comment">// if there are deletes, then we use an approximation</span>
+            <span class="comment">// using the fieldnorm</span>
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fieldnorms_reader</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>) {
+                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
+                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);
+                        <span class="ident">count</span>[<span class="ident">fieldnorm_id</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">+=</span> <span class="number">1</span>;
+                    }
+                }
+            }
+        } <span class="kw">else</span> {
+            <span class="ident">total_tokens</span> <span class="op">+=</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">field</span>).<span class="ident">total_num_tokens</span>();
+        }
+    }
+    <span class="ident">total_tokens</span> <span class="op">+</span> <span class="ident">count</span>
+        .<span class="ident">iter</span>()
+        .<span class="ident">cloned</span>()
+        .<span class="ident">enumerate</span>()
+        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">fieldnorm_ord</span>, <span class="ident">count</span>)<span class="op">|</span> <span class="ident">count</span> <span class="kw">as</span> <span class="ident">u64</span> <span class="op">*</span> <span class="ident">FieldNormReader</span>::<span class="ident">id_to_fieldnorm</span>(<span class="ident">fieldnorm_ord</span> <span class="kw">as</span> <span class="ident">u8</span>) <span class="kw">as</span> <span class="ident">u64</span>)
+        .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>()
+}
+
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">IndexMerger</span> {
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
@@ -892,37 +956,29 @@
 <span class="kw">fn</span> <span class="ident">compute_min_max_val</span>(
     <span class="ident">u64_reader</span>: <span class="kw-2">&amp;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="ident">max_doc</span>: <span class="ident">DocId</span>,
-    <span class="ident">delete_bitset</span>: <span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span>,
+    <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">u64</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="ident">max_doc</span> <span class="op">==</span> <span class="number">0</span> {
         <span class="prelude-val">None</span>
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">delete_bitset</span>.<span class="ident">has_deletes</span>() {
-        <span class="comment">// no deleted documents,</span>
-        <span class="comment">// we can use the previous min_val, max_val.</span>
-        <span class="prelude-val">Some</span>((<span class="ident">u64_reader</span>.<span class="ident">min_value</span>(), <span class="ident">u64_reader</span>.<span class="ident">max_value</span>()))
     } <span class="kw">else</span> {
-        <span class="comment">// some deleted documents,</span>
-        <span class="comment">// we need to recompute the max / min</span>
-        (<span class="number">0</span>..<span class="ident">max_doc</span>)
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">doc_id</span><span class="op">|</span> <span class="op">!</span><span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="kw-2">*</span><span class="ident">doc_id</span>))
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc_id</span><span class="op">|</span> <span class="ident">u64_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>))
-            .<span class="ident">minmax</span>()
-            .<span class="ident">into_option</span>()
+        <span class="kw">match</span> <span class="ident">delete_bitset_opt</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">delete_bitset</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// some deleted documents,</span>
+                <span class="comment">// we need to recompute the max / min</span>
+                (<span class="number">0</span>..<span class="ident">max_doc</span>)
+                    .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">doc_id</span><span class="op">|</span> <span class="op">!</span><span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="kw-2">*</span><span class="ident">doc_id</span>))
+                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">doc_id</span><span class="op">|</span> <span class="ident">u64_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>))
+                    .<span class="ident">minmax</span>()
+                    .<span class="ident">into_option</span>()
+
+            }
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                <span class="comment">// no deleted documents,</span>
+                <span class="comment">// we can use the previous min_val, max_val.</span>
+                <span class="prelude-val">Some</span>((<span class="ident">u64_reader</span>.<span class="ident">min_value</span>(), <span class="ident">u64_reader</span>.<span class="ident">max_value</span>()))
+            }
+        }
     }
-}
-
-<span class="kw">fn</span> <span class="ident">extract_fieldnorm_reader</span>(
-    <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
-    <span class="ident">field</span>: <span class="ident">Field</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span> {
-    <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>)
-}
-
-<span class="kw">fn</span> <span class="ident">extract_fast_field_reader</span>(
-    <span class="ident">segment_reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>,
-    <span class="ident">field</span>: <span class="ident">Field</span>,
-) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span> {
-    <span class="ident">segment_reader</span>.<span class="ident">fast_field_reader</span>(<span class="ident">field</span>).<span class="ident">ok</span>()
 }
 
 <span class="kw">struct</span> <span class="ident">DeltaComputer</span> {
@@ -967,19 +1023,26 @@
         })
     }
 
-    <span class="kw">fn</span> <span class="ident">write_fieldnorms</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">fieldnorm_fastfields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>
-            .<span class="ident">fields</span>()
-            .<span class="ident">iter</span>()
-            .<span class="ident">enumerate</span>()
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="ident">field_entry</span>)<span class="op">|</span> <span class="ident">field_entry</span>.<span class="ident">is_indexed</span>())
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field_id</span>, _)<span class="op">|</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>))
-            .<span class="ident">collect</span>();
-        <span class="self">self</span>.<span class="ident">generic_write_fast_field</span>(
-            <span class="ident">fieldnorm_fastfields</span>,
-            <span class="kw-2">&amp;</span><span class="ident">extract_fieldnorm_reader</span>,
-            <span class="ident">fast_field_serializer</span>,
-        )
+    <span class="kw">fn</span> <span class="ident">write_fieldnorms</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fieldnorms_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldNormsSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">FieldNormsWriter</span>::<span class="ident">fields_with_fieldnorm</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">schema</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fieldnorms_data</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="self">self</span>.<span class="ident">max_doc</span> <span class="kw">as</span> <span class="ident">usize</span>);
+        <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
+            <span class="ident">fieldnorms_data</span>.<span class="ident">clear</span>();
+            <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
+                <span class="kw">let</span> <span class="ident">fieldnorms_reader_opt</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
+                <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
+                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
+                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader_opt</span>
+                            .<span class="ident">as_ref</span>()
+                            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">reader</span><span class="op">|</span> <span class="ident">reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>))
+                            .<span class="ident">unwrap_or</span>(<span class="number">0u8</span>);
+                        <span class="ident">fieldnorms_data</span>.<span class="ident">push</span>(<span class="ident">fieldnorm_id</span>);
+                    }
+                }
+            }
+            <span class="ident">fieldnorms_serializer</span>.<span class="ident">serialize_field</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">fieldnorms_data</span>[..])<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
     }
 
     <span class="kw">fn</span> <span class="ident">write_fast_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
@@ -987,35 +1050,22 @@
             .<span class="ident">fields</span>()
             .<span class="ident">iter</span>()
             .<span class="ident">enumerate</span>()
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(_, <span class="ident">field_entry</span>)<span class="op">|</span> <span class="ident">field_entry</span>.<span class="ident">is_int_fast</span>())
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field_id</span>, _)<span class="op">|</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>))
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="ident">field_entry</span>)<span class="op">|</span> <span class="ident">field_entry</span>.<span class="ident">is_int_fast</span>())
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field_id</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>))
             .<span class="ident">collect</span>();
-        <span class="self">self</span>.<span class="ident">generic_write_fast_field</span>(
-            <span class="ident">fast_fields</span>,
-            <span class="kw-2">&amp;</span><span class="ident">extract_fast_field_reader</span>,
-            <span class="ident">fast_field_serializer</span>,
-        )
-    }
 
-    <span class="comment">// used both to merge field norms and regular u64 fast fields.</span>
-    <span class="kw">fn</span> <span class="ident">generic_write_fast_field</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">fields</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span>,
-        <span class="ident">field_reader_extractor</span>: <span class="kw-2">&amp;</span><span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>, <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;&gt;</span>,
-        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
+        <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fast_fields</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">u64_readers</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">min_val</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">max_value</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">max_val</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">min_value</span>();
 
             <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
-                <span class="kw">match</span> <span class="ident">field_reader_extractor</span>(<span class="ident">reader</span>, <span class="ident">field</span>) {
-                    <span class="prelude-val">Some</span>(<span class="ident">u64_reader</span>) <span class="op">=&gt;</span> {
+                <span class="kw">match</span> <span class="ident">reader</span>.<span class="ident">fast_field_reader</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">field</span>) {
+                    <span class="prelude-val">Ok</span>(<span class="ident">u64_reader</span>) <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">seg_min_val</span>, <span class="ident">seg_max_val</span>)) <span class="op">=</span> <span class="ident">compute_min_max_val</span>(
                             <span class="kw-2">&amp;</span><span class="ident">u64_reader</span>,
                             <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
-                            <span class="ident">reader</span>.<span class="ident">delete_bitset</span>(),
+                            <span class="ident">reader</span>.<span class="ident">delete_bitset</span>()
                         ) {
                             <span class="comment">// the segment has some non-deleted documents</span>
                             <span class="ident">min_val</span> <span class="op">=</span> <span class="ident">min</span>(<span class="ident">min_val</span>, <span class="ident">seg_min_val</span>);
@@ -1027,9 +1077,10 @@
                             ));
                         }
                     }
-                    <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
+                    <span class="prelude-val">Err</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
+                        <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>);
                         <span class="kw">let</span> <span class="ident">error_msg</span> <span class="op">=</span>
-                            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Failed to find a u64_reader for field {:?}&quot;</span>, <span class="ident">field</span>);
+                            <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Failed to find a fast field reader for field {:?}&quot;</span>, <span class="ident">fieldname</span>);
                         <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">error_msg</span>);
                         <span class="macro">bail</span><span class="macro">!</span>(<span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="ident">error_msg</span>));
                     }
@@ -1046,12 +1097,15 @@
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">fast_single_field_serializer</span> <span class="op">=</span>
                 <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field</span>(<span class="ident">field</span>, <span class="ident">min_val</span>, <span class="ident">max_val</span>)<span class="question-mark">?</span>;
-            <span class="kw">for</span> (<span class="ident">max_doc</span>, <span class="ident">u64_reader</span>, <span class="ident">delete_bitset</span>) <span class="kw">in</span> <span class="ident">u64_readers</span> {
+            <span class="kw">for</span> (<span class="ident">max_doc</span>, <span class="ident">u64_reader</span>, <span class="ident">delete_bitset_opt</span>) <span class="kw">in</span> <span class="ident">u64_readers</span> {
                 <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">max_doc</span> {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
-                        <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">u64_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>);
-                        <span class="ident">fast_single_field_serializer</span>.<span class="ident">add_val</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
+                    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">delete_bitset</span>) <span class="op">=</span> <span class="ident">delete_bitset_opt</span> {
+                        <span class="kw">if</span> <span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
+                            <span class="kw">continue</span>;
+                        }
                     }
+                    <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">u64_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>);
+                    <span class="ident">fast_single_field_serializer</span>.<span class="ident">add_val</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
                 }
             }
 
@@ -1061,6 +1115,8 @@
     }
 
     <span class="kw">fn</span> <span class="ident">write_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions_buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">1_000</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">delta_computer</span> <span class="op">=</span> <span class="ident">DeltaComputer</span>::<span class="ident">new</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">indexed_fields</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
@@ -1074,7 +1130,7 @@
             <span class="kw">let</span> <span class="ident">field_readers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">readers</span>
                 .<span class="ident">iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">reader</span><span class="op">|</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">indexed_field</span>))
-                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+                .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
             <span class="kw">let</span> <span class="ident">field_term_streams</span> <span class="op">=</span> <span class="ident">field_readers</span>
                 .<span class="ident">iter</span>()
@@ -1101,6 +1157,11 @@
                 <span class="ident">merged_doc_id_map</span>.<span class="ident">push</span>(<span class="ident">segment_local_map</span>);
             }
 
+            <span class="comment">// The total number of tokens will only be exact when there has been no deletes.</span>
+            <span class="comment">//</span>
+            <span class="comment">// Otherwise, we approximate by removing deleted documents proportionally.</span>
+            <span class="kw">let</span> <span class="ident">total_num_tokens</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">compute_total_num_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span>, <span class="ident">indexed_field</span>);
+
             <span class="comment">// Create the total list of doc ids</span>
             <span class="comment">// by stacking the doc ids from the different segment.</span>
             <span class="comment">//</span>
@@ -1111,8 +1172,7 @@
             <span class="comment">// - Segment 2&#39;s doc ids become  [seg0.max_doc + seg1.max_doc,</span>
             <span class="comment">//                                seg0.max_doc + seg1.max_doc + seg2.max_doc]</span>
             <span class="comment">// ...</span>
-
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">new_field</span>(<span class="ident">indexed_field</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">new_field</span>(<span class="ident">indexed_field</span>, <span class="ident">total_num_tokens</span>)<span class="question-mark">?</span>;
 
             <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">indexed_field</span>);
 
@@ -1127,7 +1187,7 @@
                 <span class="kw">let</span> <span class="ident">term_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="ident">merged_terms</span>.<span class="ident">key</span>();
 
                 <span class="comment">// Let&#39;s compute the list of non-empty posting lists</span>
-                <span class="kw">let</span> <span class="ident">segment_postings</span>: <span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">merged_terms</span>
+                <span class="kw">let</span> <span class="ident">segment_postings</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">merged_terms</span>
                     .<span class="ident">current_kvs</span>()
                     .<span class="ident">iter</span>()
                     .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">heap_item</span><span class="op">|</span> {
@@ -1136,7 +1196,7 @@
                         <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span>[<span class="ident">heap_item</span>.<span class="ident">segment_ord</span>];
                         <span class="kw">let</span> <span class="ident">inverted_index</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">inverted_index</span>(<span class="ident">indexed_field</span>);
                         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
-                            .<span class="ident">read_postings_from_terminfo</span>(<span class="ident">term_info</span>, <span class="ident">segment_postings_option</span>);
+                            .<span class="ident">read_postings_from_terminfo</span>::<span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>(<span class="ident">term_info</span>, <span class="ident">segment_postings_option</span>);
                         <span class="kw">if</span> <span class="ident">segment_postings</span>.<span class="ident">advance</span>() {
                             <span class="prelude-val">Some</span>((<span class="ident">segment_ord</span>, <span class="ident">segment_postings</span>))
                         } <span class="kw">else</span> {
@@ -1169,9 +1229,10 @@
                             {
                                 <span class="comment">// we make sure to only write the term iff</span>
                                 <span class="comment">// there is at least one document.</span>
-                                <span class="kw">let</span> <span class="ident">positions</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>] <span class="op">=</span> <span class="ident">segment_postings</span>.<span class="ident">positions</span>();
                                 <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="ident">segment_postings</span>.<span class="ident">term_freq</span>();
-                                <span class="kw">let</span> <span class="ident">delta_positions</span> <span class="op">=</span> <span class="ident">delta_computer</span>.<span class="ident">compute_delta</span>(<span class="ident">positions</span>);
+                                <span class="ident">segment_postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions_buffer</span>);
+
+                                <span class="kw">let</span> <span class="ident">delta_positions</span> <span class="op">=</span> <span class="ident">delta_computer</span>.<span class="ident">compute_delta</span>(<span class="kw-2">&amp;</span><span class="ident">positions_buffer</span>);
                                 <span class="ident">field_serializer</span>.<span class="ident">write_doc</span>(
                                     <span class="ident">remapped_doc_id</span>,
                                     <span class="ident">term_freq</span>,

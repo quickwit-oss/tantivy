@@ -10,7 +10,8 @@
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -101,6 +102,8 @@
 <span id="45">45</span>
 <span id="46">46</span>
 <span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Query
@@ -121,6 +124,7 @@ Query
 <span class="kw">mod</span> <span class="ident">union</span>;
 <span class="kw">mod</span> <span class="ident">intersection</span>;
 <span class="kw">mod</span> <span class="ident">reqopt_scorer</span>;
+<span class="kw">mod</span> <span class="ident">bm25</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">vec_docset</span>;
@@ -149,6 +153,7 @@ Query
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">all_query</span>::{<span class="ident">AllQuery</span>, <span class="ident">AllScorer</span>, <span class="ident">AllWeight</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">range_query</span>::<span class="ident">RangeQuery</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">scorer</span>::<span class="ident">ConstScorer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">intersection</span>::<span class="ident">intersect_scorers</span>;
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.29/src/de/ignored_any.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.34/src/de/ignored_any.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ignored_any.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -387,25 +388,25 @@
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">visit_bool</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">x</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">x</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">x</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">visit_i64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">x</span>: <span class="ident">i64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">x</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">x</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">x</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">x</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">x</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">visit_f64</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">x</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">x</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">x</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 
@@ -414,7 +415,7 @@
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">Error</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">s</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">s</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 
@@ -471,7 +472,7 @@
     <span class="kw">where</span>
         <span class="ident">E</span>: <span class="ident">Error</span>,
     {
-        <span class="kw">let</span> _ <span class="op">=</span> <span class="ident">bytes</span>;
+        <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">bytes</span>;
         <span class="prelude-val">Ok</span>(<span class="ident">IgnoredAny</span>)
     }
 }

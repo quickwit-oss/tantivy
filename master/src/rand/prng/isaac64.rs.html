@@ -10,7 +10,8 @@
     <title>isaac64.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -481,7 +482,7 @@
             }}
         }
 
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">4</span> {
             <span class="macro">mix</span><span class="macro">!</span>();
         }
 
@@ -681,7 +682,7 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_64_seeded</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">Isaac64Rng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rb</span>: <span class="ident">Isaac64Rng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="macro">assert</span><span class="macro">!</span>(::<span class="ident">test</span>::<span class="ident">iter_eq</span>(<span class="ident">ra</span>.<span class="ident">gen_ascii_chars</span>().<span class="ident">take</span>(<span class="number">100</span>),
@@ -702,22 +703,22 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_64_true_values</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ra</span>: <span class="ident">Isaac64Rng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="comment">// Regression test that isaac is actually using the above vector</span>
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u64</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">ra</span>.<span class="ident">next_u64</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">547121783600835980</span>, <span class="number">14377643087320773276</span>, <span class="number">17351601304698403469</span>,
                         <span class="number">1238879483818134882</span>, <span class="number">11952566807690396487</span>, <span class="number">13970131091560099343</span>,
                         <span class="number">4469761996653280935</span>, <span class="number">15552757044682284409</span>, <span class="number">6860251611068737823</span>,
                         <span class="number">13722198873481261842</span>));
 
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">12345</span>, <span class="number">67890</span>, <span class="number">54321</span>, <span class="number">9876</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">12345</span>, <span class="number">67890</span>, <span class="number">54321</span>, <span class="number">9876</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rb</span>: <span class="ident">Isaac64Rng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="comment">// skip forward to the 10000th number</span>
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">10000</span> { <span class="ident">rb</span>.<span class="ident">next_u64</span>(); }
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">10000</span> { <span class="ident">rb</span>.<span class="ident">next_u64</span>(); }
 
-        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span>_<span class="op">|</span> <span class="ident">rb</span>.<span class="ident">next_u64</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>_<span class="op">&gt;&gt;</span>();
+        <span class="kw">let</span> <span class="ident">v</span> <span class="op">=</span> (<span class="number">0</span>..<span class="number">10</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rb</span>.<span class="ident">next_u64</span>()).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">v</span>,
                    <span class="macro">vec</span><span class="macro">!</span>(<span class="number">18143823860592706164</span>, <span class="number">8491801882678285927</span>, <span class="number">2699425367717515619</span>,
                         <span class="number">17196852593171130876</span>, <span class="number">2606123525235546165</span>, <span class="number">15790932315217671084</span>,
@@ -727,10 +728,10 @@
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_rng_clone</span>() {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[_] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="kw">_</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">23</span>, <span class="number">456</span>, <span class="number">7890</span>, <span class="number">12345</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">Isaac64Rng</span> <span class="op">=</span> <span class="ident">SeedableRng</span>::<span class="ident">from_seed</span>(<span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">clone</span> <span class="op">=</span> <span class="ident">rng</span>.<span class="ident">clone</span>();
-        <span class="kw">for</span> _ <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">16</span> {
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">rng</span>.<span class="ident">next_u64</span>(), <span class="ident">clone</span>.<span class="ident">next_u64</span>());
         }
     }

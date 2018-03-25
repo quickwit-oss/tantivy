@@ -10,7 +10,8 @@
     <title>rciter_impl.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -209,7 +210,7 @@
         <span class="comment">// To work sanely with other API that assume they own an iterator,</span>
         <span class="comment">// so it can&#39;t change in other places, we can&#39;t guarantee as much</span>
         <span class="comment">// in our size_hint. Other clones may drain values under our feet.</span>
-        <span class="kw">let</span> (_, <span class="ident">hi</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">rciter</span>.<span class="ident">borrow</span>().<span class="ident">size_hint</span>();
+        <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">hi</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">rciter</span>.<span class="ident">borrow</span>().<span class="ident">size_hint</span>();
         (<span class="number">0</span>, <span class="ident">hi</span>)
     }
 }

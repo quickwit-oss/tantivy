@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.0/src/ast/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/ast/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
@@ -1633,7 +1634,7 @@ Defines an abstract syntax for regular expressions.
             <span class="ident">FlagDuplicate</span> { <span class="kw-2">ref</span> <span class="ident">original</span> } <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">original</span>),
             <span class="ident">FlagRepeatedNegation</span> { <span class="kw-2">ref</span> <span class="ident">original</span>, .. } <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">original</span>),
             <span class="ident">GroupNameDuplicate</span> { <span class="kw-2">ref</span> <span class="ident">original</span>, .. } <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">original</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -1765,13 +1766,13 @@ Defines an abstract syntax for regular expressions.
             <span class="ident">GroupNameUnexpectedEof</span> <span class="op">=&gt;</span> <span class="string">&quot;unclosed capture group name&quot;</span>,
             <span class="ident">GroupUnclosed</span> <span class="op">=&gt;</span> <span class="string">&quot;unclosed group&quot;</span>,
             <span class="ident">GroupUnopened</span> <span class="op">=&gt;</span> <span class="string">&quot;unopened group&quot;</span>,
-            <span class="ident">NestLimitExceeded</span>(_) <span class="op">=&gt;</span> <span class="string">&quot;nest limit exceeded&quot;</span>,
+            <span class="ident">NestLimitExceeded</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="string">&quot;nest limit exceeded&quot;</span>,
             <span class="ident">RepetitionCountInvalid</span> <span class="op">=&gt;</span> <span class="string">&quot;invalid repetition count range&quot;</span>,
             <span class="ident">RepetitionCountUnclosed</span> <span class="op">=&gt;</span> <span class="string">&quot;unclosed counted repetition&quot;</span>,
             <span class="ident">RepetitionMissing</span> <span class="op">=&gt;</span> <span class="string">&quot;repetition operator missing expression&quot;</span>,
             <span class="ident">UnsupportedBackreference</span> <span class="op">=&gt;</span> <span class="string">&quot;backreferences are not supported&quot;</span>,
             <span class="ident">UnsupportedLookAround</span> <span class="op">=&gt;</span> <span class="string">&quot;look-around is not supported&quot;</span>,
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 }
@@ -1876,7 +1877,7 @@ Defines an abstract syntax for regular expressions.
                 <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;look-around, including look-ahead and look-behind, \
                            is not supported&quot;</span>)
             }
-            _ <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }
 }
@@ -2075,8 +2076,8 @@ Defines an abstract syntax for regular expressions.
     <span class="doccomment">/// Return true if and only if this Ast is empty.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -2084,16 +2085,16 @@ Defines an abstract syntax for regular expressions.
     <span class="doccomment">/// subexpressions.</span>
     <span class="kw">fn</span> <span class="ident">has_subexprs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-            <span class="ident">Ast</span>::<span class="ident">Class</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Repetition</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Group</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Repetition</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Group</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
         }
     }
 }
@@ -2132,7 +2133,7 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">asts</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="self">self</span>.<span class="ident">span</span>),
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">asts</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
-            _ <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="self">self</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="self">self</span>),
         }
     }
 }
@@ -2156,7 +2157,7 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">asts</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="self">self</span>.<span class="ident">span</span>),
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">asts</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
-            _ <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="self">self</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="self">self</span>),
         }
     }
 }
@@ -2383,7 +2384,7 @@ Defines an abstract syntax for regular expressions.
             <span class="string">&quot;upper&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Upper</span>),
             <span class="string">&quot;word&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Word</span>),
             <span class="string">&quot;xdigit&quot;</span> <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">Xdigit</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -2417,7 +2418,7 @@ Defines an abstract syntax for regular expressions.
             <span class="ident">ClassUnicodeKind</span>::<span class="ident">NamedValue</span> {
                 <span class="ident">op</span>: <span class="ident">ClassUnicodeOpKind</span>::<span class="ident">NotEqual</span>, ..
             } <span class="op">=&gt;</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">negated</span>,
-            _ <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">negated</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">negated</span>,
         }
     }
 }
@@ -2458,7 +2459,7 @@ Defines an abstract syntax for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_equal</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">ClassUnicodeOpKind</span>::<span class="ident">Equal</span><span class="op">|</span><span class="ident">ClassUnicodeOpKind</span>::<span class="ident">Colon</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -2508,8 +2509,8 @@ Defines an abstract syntax for regular expressions.
     <span class="doccomment">/// Return true if and only if this class set is empty.</span>
     <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">ClassSet</span>::<span class="ident">Item</span>(<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_)) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">ClassSet</span>::<span class="ident">Item</span>(<span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -2617,7 +2618,7 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">items</span>.<span class="ident">len</span>() {
             <span class="number">0</span> <span class="op">=&gt;</span> <span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="self">self</span>.<span class="ident">span</span>),
             <span class="number">1</span> <span class="op">=&gt;</span> <span class="self">self</span>.<span class="ident">items</span>.<span class="ident">pop</span>().<span class="ident">unwrap</span>(),
-            _ <span class="op">=&gt;</span> <span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(<span class="self">self</span>),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">ClassSetItem</span>::<span class="ident">Union</span>(<span class="self">self</span>),
         }
     }
 }
@@ -2733,7 +2734,7 @@ Defines an abstract syntax for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_valid</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">RepetitionRange</span>::<span class="ident">Bounded</span>(<span class="ident">s</span>, <span class="ident">e</span>) <span class="kw">if</span> <span class="ident">s</span> <span class="op">&gt;</span> <span class="ident">e</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
         }
     }
 }
@@ -2760,15 +2761,15 @@ Defines an abstract syntax for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flags</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">Flags</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
             <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>(<span class="kw-2">ref</span> <span class="ident">flags</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">flags</span>),
-            _ <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
     <span class="doccomment">/// Returns true if and only if this group is capturing.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_capturing</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
-            <span class="ident">GroupKind</span>::<span class="ident">CaptureIndex</span>(_) <span class="op">|</span> <span class="ident">GroupKind</span>::<span class="ident">CaptureName</span>(_) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>(_) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="ident">GroupKind</span>::<span class="ident">CaptureIndex</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">GroupKind</span>::<span class="ident">CaptureName</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">true</span>,
+            <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 
@@ -2779,7 +2780,7 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">kind</span> {
             <span class="ident">GroupKind</span>::<span class="ident">CaptureIndex</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>),
             <span class="ident">GroupKind</span>::<span class="ident">CaptureName</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">x</span>.<span class="ident">index</span>),
-            <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>(_) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">GroupKind</span>::<span class="ident">NonCapturing</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 }
@@ -2865,7 +2866,7 @@ Defines an abstract syntax for regular expressions.
                 <span class="ident">FlagsItemKind</span>::<span class="ident">Flag</span>(<span class="kw-2">ref</span> <span class="ident">xflag</span>) <span class="kw">if</span> <span class="ident">xflag</span> <span class="op">==</span> <span class="kw-2">&amp;</span><span class="ident">flag</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="op">!</span><span class="ident">negated</span>);
                 }
-                _ <span class="op">=&gt;</span> {}
+                <span class="kw">_</span> <span class="op">=&gt;</span> {}
             }
         }
         <span class="prelude-val">None</span>
@@ -2896,7 +2897,7 @@ Defines an abstract syntax for regular expressions.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_negation</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">FlagsItemKind</span>::<span class="ident">Negation</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-            _ <span class="op">=&gt;</span> <span class="bool-val">false</span>,
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
         }
     }
 }
@@ -2925,18 +2926,18 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Ast</span>::<span class="ident">Empty</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(_)
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(_)
+            <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>)
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw">_</span>)
             <span class="comment">// Classes are recursive, so they get their own Drop impl.</span>
-            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span>,
+            <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">Ast</span>::<span class="ident">Repetition</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">x</span>.<span class="ident">ast</span>.<span class="ident">has_subexprs</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">Ast</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="op">!</span><span class="ident">x</span>.<span class="ident">ast</span>.<span class="ident">has_subexprs</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">Ast</span>::<span class="ident">Alternation</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">asts</span>.<span class="ident">is_empty</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
             <span class="ident">Ast</span>::<span class="ident">Concat</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">asts</span>.<span class="ident">is_empty</span>() <span class="op">=&gt;</span> <span class="kw">return</span>,
-            _ <span class="op">=&gt;</span> {}
+            <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
 
         <span class="kw">let</span> <span class="ident">empty_span</span> <span class="op">=</span> <span class="op">||</span> <span class="ident">Span</span>::<span class="ident">splat</span>(<span class="ident">Position</span>::<span class="ident">new</span>(<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>));
@@ -2944,13 +2945,13 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stack</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="self">self</span>, <span class="ident">empty_ast</span>())];
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">mut</span> <span class="ident">ast</span>) <span class="op">=</span> <span class="ident">stack</span>.<span class="ident">pop</span>() {
             <span class="kw">match</span> <span class="ident">ast</span> {
-                <span class="ident">Ast</span>::<span class="ident">Empty</span>(_)
-                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(_)
-                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(_)
-                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(_)
-                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(_)
+                <span class="ident">Ast</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Flags</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Dot</span>(<span class="kw">_</span>)
+                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Assertion</span>(<span class="kw">_</span>)
                 <span class="comment">// Classes are recursive, so they get their own Drop impl.</span>
-                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(_) <span class="op">=&gt;</span> {}
+                <span class="op">|</span> <span class="ident">Ast</span>::<span class="ident">Class</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
                 <span class="ident">Ast</span>::<span class="ident">Repetition</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                     <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">x</span>.<span class="ident">ast</span>, <span class="ident">empty_ast</span>()));
                 }
@@ -2977,12 +2978,12 @@ Defines an abstract syntax for regular expressions.
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">ClassSet</span>::<span class="ident">Item</span>(<span class="kw-2">ref</span> <span class="ident">item</span>) <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">item</span> {
-                    <span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_)
-                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(_)
-                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(_)
-                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(_)
-                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(_)
-                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(_) <span class="op">=&gt;</span> <span class="kw">return</span>,
+                    <span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(<span class="kw">_</span>)
+                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(<span class="kw">_</span>)
+                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>)
+                    <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="kw">return</span>,
                     <span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="ident">x</span>.<span class="ident">kind</span>.<span class="ident">is_empty</span>() {
                             <span class="kw">return</span>;
@@ -3009,12 +3010,12 @@ Defines an abstract syntax for regular expressions.
             <span class="kw">match</span> <span class="ident">set</span> {
                 <span class="ident">ClassSet</span>::<span class="ident">Item</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">item</span>) <span class="op">=&gt;</span> {
                     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">item</span> {
-                        <span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(_)
-                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(_)
-                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(_)
-                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(_)
-                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(_)
-                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(_) <span class="op">=&gt;</span> {}
+                        <span class="ident">ClassSetItem</span>::<span class="ident">Empty</span>(<span class="kw">_</span>)
+                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Literal</span>(<span class="kw">_</span>)
+                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Range</span>(<span class="kw">_</span>)
+                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Ascii</span>(<span class="kw">_</span>)
+                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Unicode</span>(<span class="kw">_</span>)
+                        <span class="op">|</span> <span class="ident">ClassSetItem</span>::<span class="ident">Perl</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
                         <span class="ident">ClassSetItem</span>::<span class="ident">Bracketed</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">x</span>) <span class="op">=&gt;</span> {
                             <span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">mem</span>::<span class="ident">replace</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">x</span>.<span class="ident">kind</span>, <span class="ident">empty_set</span>()));
                         }

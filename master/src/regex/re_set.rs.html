@@ -4,13 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.7/src/re_set.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-0.2.10/src/re_set.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>re_set.rs.html -- source</title>
 
     <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
     <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
@@ -750,7 +751,7 @@ $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class=
         <span class="kw">loop</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-                <span class="prelude-val">Some</span>((_, <span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
+                <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
                 <span class="prelude-val">Some</span>((<span class="ident">i</span>, <span class="bool-val">true</span>)) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>),
             }
         }
@@ -762,7 +763,7 @@ $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class=
         <span class="kw">loop</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next_back</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-                <span class="prelude-val">Some</span>((_, <span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
+                <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
                 <span class="prelude-val">Some</span>((<span class="ident">i</span>, <span class="bool-val">true</span>)) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>),
             }
         }
@@ -782,7 +783,7 @@ $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class=
         <span class="kw">loop</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-                <span class="prelude-val">Some</span>((_, <span class="kw-2">&amp;</span><span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
+                <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
                 <span class="prelude-val">Some</span>((<span class="ident">i</span>, <span class="kw-2">&amp;</span><span class="bool-val">true</span>)) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>),
             }
         }
@@ -794,7 +795,7 @@ $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class=
         <span class="kw">loop</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span>.<span class="ident">next_back</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">None</span>,
-                <span class="prelude-val">Some</span>((_, <span class="kw-2">&amp;</span><span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
+                <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="kw-2">&amp;</span><span class="bool-val">false</span>)) <span class="op">=&gt;</span> {}
                 <span class="prelude-val">Some</span>((<span class="ident">i</span>, <span class="kw-2">&amp;</span><span class="bool-val">true</span>)) <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Some</span>(<span class="ident">i</span>),
             }
         }
