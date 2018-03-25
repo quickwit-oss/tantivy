@@ -17,6 +17,7 @@ mod exclude;
 mod union;
 mod intersection;
 mod reqopt_scorer;
+mod bm25;
 
 #[cfg(test)]
 mod vec_docset;

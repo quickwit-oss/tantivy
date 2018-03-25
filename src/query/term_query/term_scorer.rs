@@ -5,12 +5,12 @@ use query::Scorer;
 
 use postings::Postings;
 use fieldnorm::FieldNormReader;
+use query::bm25::BM25Weight;
 
 pub struct TermScorer<TPostings: Postings> {
-    pub fieldnorm_reader_opt: Option<FieldNormReader>,
+    pub fieldnorm_reader: FieldNormReader,
     pub postings: TPostings,
-    pub weight: f32,
-    pub cache: [f32; 256],
+    pub similarity_weight: BM25Weight,
 }
 
 impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
@@ -34,15 +34,8 @@ impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
 impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
     fn score(&mut self) -> Score {
         let doc = self.doc();
-        let fieldnorm_id = self.fieldnorm_reader_opt
-            .as_ref()
-            .map(|fieldnorm_reader| {
-                fieldnorm_reader.fieldnorm_id(doc)
-            })
-            .unwrap_or(0u8);
-        let norm = self.cache[fieldnorm_id as usize];
-        let term_freq = self.postings.term_freq() as f32;
-        self.weight * term_freq / (term_freq + norm)
+        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        self.similarity_weight.score(fieldnorm_id, self.postings.term_freq())
     }
 }
 

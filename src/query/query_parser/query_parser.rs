@@ -305,7 +305,7 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => box TermQuery::new(term, IndexRecordOption::WithFreqs),
-        LogicalLiteral::Phrase(terms) => box PhraseQuery::from(terms),
+        LogicalLiteral::Phrase(terms) => box PhraseQuery::new(terms),
     }
 }
 

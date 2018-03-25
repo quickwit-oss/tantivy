@@ -4,6 +4,7 @@ use core::searcher::Searcher;
 use super::PhraseWeight;
 use query::Weight;
 use Result;
+use query::bm25::BM25Weight;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -24,21 +25,37 @@ pub struct PhraseQuery {
     phrase_terms: Vec<Term>,
 }
 
+impl PhraseQuery {
+
+    /// Creates a new `PhraseQuery` given a list of terms.
+    ///
+    /// There must be at least two terms, and all terms
+    /// must belong to the same field.
+    pub fn new(terms: Vec<Term>) -> PhraseQuery {
+        assert!(terms.len() > 1, "A phrase query is required to have strictly more than one term.");
+        assert!(terms[1..].iter().all(|term| term.field() == terms[0].field()), "All terms from a phrase query must belong to the same field");
+        PhraseQuery {
+            phrase_terms: terms
+        }
+    }
+}
+
 impl Query for PhraseQuery {
     /// Create the weight associated to a query.
     ///
     /// See [`Weight`](./trait.Weight.html).
-    fn weight(&self, _searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
-        Ok(box PhraseWeight::new(
-            self.phrase_terms.clone(),
-            scoring_enabled,
-        ))
-    }
-}
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
+        let terms = self.phrase_terms.clone();
+        if scoring_enabled {
+            let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+            Ok(box PhraseWeight::new(
+                terms,
+                bm25_weight,
+                true
+            ))
+        } else {
+            Ok(box PhraseWeight::new(terms, BM25Weight::null(), false))
+        }
 
-impl From<Vec<Term>> for PhraseQuery {
-    fn from(phrase_terms: Vec<Term>) -> PhraseQuery {
-        assert!(phrase_terms.len() > 1);
-        PhraseQuery { phrase_terms }
     }
 }

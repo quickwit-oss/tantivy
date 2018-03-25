@@ -105,6 +105,7 @@ pub mod tests {
         offset: DocId,
         segment_max_doc: DocId,
         docs: Vec<DocId>,
+        scores: Vec<Score>,
     }
 
     impl TestCollector {
@@ -112,14 +113,19 @@ pub mod tests {
         pub fn docs(self) -> Vec<DocId> {
             self.docs
         }
+
+        pub fn scores(self) -> Vec<Score> {
+            self.scores
+        }
     }
 
     impl Default for TestCollector {
         fn default() -> TestCollector {
             TestCollector {
-                docs: Vec::new(),
                 offset: 0,
                 segment_max_doc: 0,
+                docs: Vec::new(),
+                scores: Vec::new(),
             }
         }
     }
@@ -131,12 +137,13 @@ pub mod tests {
             Ok(())
         }
 
-        fn collect(&mut self, doc: DocId, _score: Score) {
+        fn collect(&mut self, doc: DocId, score: Score) {
             self.docs.push(doc + self.offset);
+            self.scores.push(score);
         }
 
         fn requires_scoring(&self) -> bool {
-            false
+            true
         }
     }
 

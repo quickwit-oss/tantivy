@@ -2,6 +2,8 @@ use DocId;
 use docset::{DocSet, SkipResult};
 use postings::Postings;
 use query::{Intersection, Scorer};
+use query::bm25::BM25Weight;
+use fieldnorm::FieldNormReader;
 
 struct PostingsWithOffset<TPostings> {
     offset: u32,
@@ -43,11 +45,32 @@ pub struct PhraseScorer<TPostings: Postings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
     num_docsets: usize,
     left: Vec<u32>,
-    right: Vec<u32>
+    right: Vec<u32>,
+    phrase_count: u32,
+    fieldnorm_reader: FieldNormReader,
+    similarity_weight: BM25Weight,
+    score_needed: bool
 }
 
 
-/// Computes the length of the intersection of two sorted arrays.
+/// Returns true iff the two sorted array contain a common element
+fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
+    let mut left_i = 0;
+    let mut right_i = 0;
+    while left_i < left.len() && right_i < right.len() {
+        let left_val = left[left_i];
+        let right_val = right[right_i];
+        if left_val < right_val {
+            left_i += 1;
+        } else if right_val < left_val {
+            right_i += 1;
+        } else {
+            return true;
+        }
+    }
+    false
+}
+
 fn intersection_count(left: &[u32], right: &[u32]) -> usize {
     let mut left_i = 0;
     let mut right_i = 0;
@@ -98,7 +121,10 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
 
-    pub fn new(term_postings: Vec<TPostings>) -> PhraseScorer<TPostings> {
+    pub fn new(term_postings: Vec<TPostings>,
+               similarity_weight: BM25Weight,
+               fieldnorm_reader: FieldNormReader,
+               score_needed: bool) -> PhraseScorer<TPostings> {
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
@@ -109,12 +135,26 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             intersection_docset: Intersection::new(postings_with_offsets),
             num_docsets,
             left: Vec::with_capacity(100),
-            right: Vec::with_capacity(100)
+            right: Vec::with_capacity(100),
+            phrase_count: 0u32,
+            similarity_weight,
+            fieldnorm_reader,
+            score_needed,
         }
     }
 
     fn phrase_match(&mut self) -> bool {
-        // TODO early exit when we don't care about the phrase frequency
+        if self.score_needed {
+            let count = self.phrase_count();
+            self.phrase_count = count;
+            count > 0u32
+        } else {
+            self.phrase_exists()
+        }
+    }
+
+
+    fn phrase_exists(&mut self) -> bool {
         {
             self.intersection_docset
                 .docset_mut_specialized(0)
@@ -132,8 +172,28 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
 
         self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
-        intersection_len = intersection_count(&mut self.left[..intersection_len], &self.right[..]);
-        intersection_len > 0
+        intersection_exists(&self.left[..intersection_len], &self.right[..])
+    }
+
+    fn phrase_count(&mut self) -> u32 {
+        {
+            self.intersection_docset
+                .docset_mut_specialized(0)
+                .positions(&mut self.left);
+        }
+        let mut intersection_len = self.left.len();
+        for i in 1..self.num_docsets - 1 {
+            {
+                self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
+            }
+            intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
+            if intersection_len == 0 {
+                return 0u32;
+            }
+        }
+
+        self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
+        intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 }
 
@@ -176,7 +236,9 @@ impl<TPostings: Postings> DocSet for PhraseScorer<TPostings> {
 
 impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> f32 {
-        1f32
+        let doc = self.doc();
+        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
+        self.similarity_weight.score(fieldnorm_id, self.phrase_count)
     }
 }
 

@@ -5,6 +5,7 @@ use query::Query;
 use query::Weight;
 use schema::IndexRecordOption;
 use Searcher;
+use query::bm25::BM25Weight;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -36,26 +37,17 @@ impl TermQuery {
     /// this method return a specific implementation.
     /// This is useful for optimization purpose.
     pub fn specialized_weight(&self, searcher: &Searcher, scoring_enabled: bool) -> TermWeight {
-        let mut total_num_tokens = 0;
-        let mut total_num_docs = 0;
-        for segment_reader in searcher.segment_readers() {
-            let inverted_index = segment_reader.inverted_index(self.term.field());
-            total_num_tokens += inverted_index.total_num_tokens();
-            total_num_docs += segment_reader.max_doc();
-        }
-        let average_field_norm = total_num_tokens as f32 / total_num_docs as f32;
-
+        let term = self.term.clone();
+        let bm25_weight = BM25Weight::for_terms(searcher, &[term]);
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {
             IndexRecordOption::Basic
         };
         TermWeight::new(
-            searcher.doc_freq(&self.term),
-            searcher.num_docs(),
-            average_field_norm,
             self.term.clone(),
-            index_record_option
+            index_record_option,
+            bm25_weight
         )
     }
 }

@@ -6,26 +6,32 @@ use core::SegmentReader;
 use super::PhraseScorer;
 use query::EmptyScorer;
 use Result;
+use query::bm25::BM25Weight;
 
 pub struct PhraseWeight {
     phrase_terms: Vec<Term>,
+    similarity_weight: BM25Weight,
+    score_needed: bool,
 }
 
 impl PhraseWeight {
     /// Creates a new phrase weight.
-    ///
-    /// Right now `scoring_enabled` is actually ignored.
-    /// In the future, disabling scoring will result in a small performance boost.
-    // TODO use the scoring disable information to avoid compute the
-    // phrase freq in that case, and compute the phrase freq when scoring is enabled.
-    // Right now we never compute it :|
-    pub fn new(phrase_terms: Vec<Term>, _scoring_enabled: bool) -> PhraseWeight {
-        PhraseWeight { phrase_terms }
+    pub fn new(phrase_terms: Vec<Term>,
+               similarity_weight: BM25Weight,
+               score_needed: bool) -> PhraseWeight {
+        PhraseWeight {
+            phrase_terms,
+            similarity_weight,
+            score_needed
+        }
     }
 }
 
 impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+        let similarity_weight = self.similarity_weight.clone();
+        let field = self.phrase_terms[0].field();
+        let fieldnorm_reader = reader.get_fieldnorms_reader(field).expect("Failed to find fieldnorm for field");
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
             for term in &self.phrase_terms {
@@ -37,7 +43,7 @@ impl Weight for PhraseWeight {
                     return Ok(box EmptyScorer);
                 }
             }
-            Ok(box PhraseScorer::new(term_postings_list))
+            Ok(box PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed))
         } else {
             let mut term_postings_list = Vec::new();
             for term in &self.phrase_terms {
@@ -49,7 +55,7 @@ impl Weight for PhraseWeight {
                     return Ok(box EmptyScorer);
                 }
             }
-            Ok(box PhraseScorer::new(term_postings_list))
+            Ok(box PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed))
         }
     }
 }
