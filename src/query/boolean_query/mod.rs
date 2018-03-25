@@ -170,4 +170,31 @@ mod tests {
             assert_eq!(matching_docs(&boolean_query), Vec::<u32>::new());
         }
     }
+
+
+    #[test]
+    pub fn test_intersection_score() {
+        let (index, text_field) = aux_test_helper();
+
+        let make_term_query = |text: &str| {
+            let term_query = TermQuery::new(
+                Term::from_field_text(text_field, text),
+                IndexRecordOption::Basic,
+            );
+            let query: Box<Query> = box term_query;
+            query
+        };
+
+        let score_docs = |boolean_query: &Query| {
+            let searcher = index.searcher();
+            let mut test_collector = TestCollector::default();
+            searcher.search(boolean_query, &mut test_collector).unwrap();
+            test_collector.scores()
+        };
+
+        {
+            let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a")), (Occur::Must, make_term_query("b"))]);
+            assert_eq!(score_docs(&boolean_query), vec![0.977973, 0.84699446]);
+        }
+    }
 }
