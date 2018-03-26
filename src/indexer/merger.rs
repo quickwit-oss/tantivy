@@ -30,12 +30,11 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
         if reader.has_deletes() {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
-            if let Some(fieldnorms_reader) = reader.get_fieldnorms_reader(field) {
-                for doc in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc) {
-                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
-                        count[fieldnorm_id as usize] += 1;
-                    }
+            let fieldnorms_reader = reader.get_fieldnorms_reader(field);
+            for doc in 0..reader.max_doc() {
+                if !reader.is_deleted(doc) {
+                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
+                    count[fieldnorm_id as usize] += 1;
                 }
             }
         } else {
@@ -133,13 +132,10 @@ impl IndexMerger {
         for field in fields {
             fieldnorms_data.clear();
             for reader in &self.readers {
-                let fieldnorms_reader_opt = reader.get_fieldnorms_reader(field);
+                let fieldnorms_reader = reader.get_fieldnorms_reader(field);
                 for doc_id in 0..reader.max_doc() {
                     if !reader.is_deleted(doc_id) {
-                        let fieldnorm_id = fieldnorms_reader_opt
-                            .as_ref()
-                            .map(|reader| reader.fieldnorm_id(doc_id))
-                            .unwrap_or(0u8);
+                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
                         fieldnorms_data.push(fieldnorm_id);
                     }
                 }

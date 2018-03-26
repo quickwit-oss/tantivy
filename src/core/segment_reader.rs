@@ -85,6 +85,7 @@ impl SegmentReader {
             .unwrap_or(0u32)
     }
 
+    /// Returns true iff some of the documents of the segment have been deleted.
     pub fn has_deletes(&self) -> bool {
         self.delete_bitset().is_some()
     }
@@ -105,12 +106,12 @@ impl SegmentReader {
     ) -> fastfield::Result<FastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
         if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue)
-        {
-            self.fast_fields_composite
-                .open_read(field)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)
-        } else {
+            {
+                self.fast_fields_composite
+                    .open_read(field)
+                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                    .map(FastFieldReader::open)
+            } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
     }
@@ -123,17 +124,17 @@ impl SegmentReader {
     ) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
         if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues)
-        {
-            let idx_reader = self.fast_fields_composite
-                .open_read_with_idx(field, 0)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)?;
-            let vals_reader = self.fast_fields_composite
-                .open_read_with_idx(field, 1)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)?;
-            Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
-        } else {
+            {
+                let idx_reader = self.fast_fields_composite
+                    .open_read_with_idx(field, 0)
+                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                    .map(FastFieldReader::open)?;
+                let vals_reader = self.fast_fields_composite
+                    .open_read_with_idx(field, 1)
+                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                    .map(FastFieldReader::open)?;
+                Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
+            } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
     }
@@ -170,10 +171,15 @@ impl SegmentReader {
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
-    pub fn get_fieldnorms_reader(&self, field: Field) -> Option<FieldNormReader> {
-        self.fieldnorms_composite
-            .open_read(field)
-            .map(FieldNormReader::open)
+    pub fn get_fieldnorms_reader(&self, field: Field) -> FieldNormReader {
+        if let Some(fieldnorm_source) = self.fieldnorms_composite
+            .open_read(field) {
+            FieldNormReader::open(fieldnorm_source)
+        } else {
+            let field_name = self.schema.get_field_name(field);
+            let err_msg=  format!("Field norm not found for field {:?}. Was it market as indexed during indexing.", field_name);
+            panic!(err_msg);
+        }
     }
 
     /// Accessor to the segment's `StoreReader`.

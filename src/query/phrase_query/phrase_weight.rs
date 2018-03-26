@@ -31,7 +31,7 @@ impl Weight for PhraseWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let similarity_weight = self.similarity_weight.clone();
         let field = self.phrase_terms[0].field();
-        let fieldnorm_reader = reader.get_fieldnorms_reader(field).expect("Failed to find fieldnorm for field");
+        let fieldnorm_reader = reader.get_fieldnorms_reader(field);
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
             for term in &self.phrase_terms {

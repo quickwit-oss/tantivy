@@ -8,9 +8,22 @@ use fieldnorm::FieldNormReader;
 use query::bm25::BM25Weight;
 
 pub struct TermScorer<TPostings: Postings> {
-    pub fieldnorm_reader: FieldNormReader,
-    pub postings: TPostings,
-    pub similarity_weight: BM25Weight,
+    postings: TPostings,
+    fieldnorm_reader: FieldNormReader,
+    similarity_weight: BM25Weight,
+}
+
+
+impl<TPostings: Postings> TermScorer<TPostings> {
+    pub fn new(postings: TPostings,
+               fieldnorm_reader: FieldNormReader,
+               similarity_weight: BM25Weight) -> TermScorer<TPostings> {
+        TermScorer {
+            postings,
+            fieldnorm_reader,
+            similarity_weight,
+        }
+    }
 }
 
 impl<TPostings: Postings> DocSet for TermScorer<TPostings> {

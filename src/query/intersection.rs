@@ -7,12 +7,20 @@ use std::borrow::Borrow;
 use Score;
 use query::term_query::{TermScorerNoDeletes, TermScorerWithDeletes};
 
-pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
-    let num_docsets = docsets.len();
-    docsets.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-    let rarest_opt = docsets.pop();
-    let second_rarest_opt = docsets.pop();
-    docsets.reverse();
+/// Returns the intersection scorer.
+///
+/// The score associated to the documents is the sum of the
+/// score of the `Scorer`s given in argument.
+///
+/// For better performance, the function uses a
+/// specialized implementation if the two
+/// shortest scorers are `TermScorer`s.
+pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
+    let num_docsets = scorers.len();
+    scorers.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
+    let rarest_opt = scorers.pop();
+    let second_rarest_opt = scorers.pop();
+    scorers.reverse();
     match (rarest_opt, second_rarest_opt) {
         (None, None) => box EmptyScorer,
         (Some(single_docset), None) => single_docset,
@@ -27,7 +35,7 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                     return box Intersection {
                         left,
                         right,
-                        others: docsets,
+                        others: scorers,
                         num_docsets
                     }
                 }
@@ -43,7 +51,7 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                     return box Intersection {
                         left,
                         right,
-                        others: docsets,
+                        others: scorers,
                         num_docsets
                     }
                 }
@@ -52,7 +60,7 @@ pub fn intersect_scorers(mut docsets: Vec<Box<Scorer>>) -> Box<Scorer> {
                 return box Intersection {
                     left,
                     right,
-                    others: docsets,
+                    others: scorers,
                     num_docsets
                 }
             }

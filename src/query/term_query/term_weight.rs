@@ -22,44 +22,35 @@ impl Weight for TermWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
-        let fieldnorm_reader = reader.get_fieldnorms_reader(field).expect("Failed to find fieldnorm reader for field.");
-        let scorer: Box<Scorer>;
+        let fieldnorm_reader = reader.get_fieldnorms_reader(field);
+        let similarity_weight = self.similarity_weight.clone();
         if reader.has_deletes() {
             let postings_opt: Option<SegmentPostings<DeleteBitSet>> =
                 inverted_index.read_postings(&self.term, self.index_record_option);
-            scorer =
                 if let Some(segment_postings) = postings_opt {
-                    box TermScorer {
-                        fieldnorm_reader,
-                        postings: segment_postings,
-                        similarity_weight: self.similarity_weight.clone()
-                    }
+                    Ok(box TermScorer::new(segment_postings,
+                                        fieldnorm_reader,
+                                        similarity_weight))
                 } else {
-                    box TermScorer {
+                    Ok(box TermScorer::new(
+                        SegmentPostings::<NoDelete>::empty(),
                         fieldnorm_reader,
-                        postings: SegmentPostings::<NoDelete>::empty(),
-                        similarity_weight: self.similarity_weight.clone()
-                    }
-                };
+                        similarity_weight))
+                }
         } else {
             let postings_opt: Option<SegmentPostings<NoDelete>> =
-                inverted_index.read_postings_no_deletes(&self.term, self.index_record_option);
-            scorer =
-                if let Some(segment_postings) = postings_opt {
-                    box TermScorer {
-                        fieldnorm_reader,
-                        postings: segment_postings,
-                        similarity_weight: self.similarity_weight.clone()
-                    }
-                } else {
-                    box TermScorer {
-                        fieldnorm_reader,
-                        postings: SegmentPostings::<NoDelete>::empty(),
-                        similarity_weight: self.similarity_weight.clone()
-                    }
-                };
+            inverted_index.read_postings_no_deletes(&self.term, self.index_record_option);
+            if let Some(segment_postings) = postings_opt {
+                Ok(box TermScorer::new(segment_postings,
+                                    fieldnorm_reader,
+                                    similarity_weight))
+            } else {
+                Ok(box TermScorer::new(
+                    SegmentPostings::<NoDelete>::empty(),
+                    fieldnorm_reader,
+                    similarity_weight))
+            }
         }
-        Ok(scorer)
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
