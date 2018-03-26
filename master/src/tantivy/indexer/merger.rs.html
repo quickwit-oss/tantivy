@@ -889,10 +889,6 @@
 <span id="832">832</span>
 <span id="833">833</span>
 <span id="834">834</span>
-<span id="835">835</span>
-<span id="836">836</span>
-<span id="837">837</span>
-<span id="838">838</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -926,12 +922,11 @@
         <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">has_deletes</span>() {
             <span class="comment">// if there are deletes, then we use an approximation</span>
             <span class="comment">// using the fieldnorm</span>
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fieldnorms_reader</span>) <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>) {
-                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);
-                        <span class="ident">count</span>[<span class="ident">fieldnorm_id</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">+=</span> <span class="number">1</span>;
-                    }
+            <span class="kw">let</span> <span class="ident">fieldnorms_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
+            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
+                    <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);
+                    <span class="ident">count</span>[<span class="ident">fieldnorm_id</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">+=</span> <span class="number">1</span>;
                 }
             }
         } <span class="kw">else</span> {
@@ -1029,13 +1024,10 @@
         <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span> {
             <span class="ident">fieldnorms_data</span>.<span class="ident">clear</span>();
             <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
-                <span class="kw">let</span> <span class="ident">fieldnorms_reader_opt</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
+                <span class="kw">let</span> <span class="ident">fieldnorms_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
                 <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
-                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader_opt</span>
-                            .<span class="ident">as_ref</span>()
-                            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">reader</span><span class="op">|</span> <span class="ident">reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>))
-                            .<span class="ident">unwrap_or</span>(<span class="number">0u8</span>);
+                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>);
                         <span class="ident">fieldnorms_data</span>.<span class="ident">push</span>(<span class="ident">fieldnorm_id</span>);
                     }
                 }

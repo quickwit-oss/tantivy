@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.39/src/macros.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.40/src/macros.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>macros.rs.html -- source</title>
@@ -182,12 +182,12 @@
         $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>:<span class="ident">stmt</span>);<span class="op">*</span>
     })<span class="kw-2">*</span>) <span class="op">=&gt;</span> ($(
         <span class="attribute">#[<span class="ident">inline</span>]</span>
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">dox</span>))]</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">cross_platform_docs</span>))]</span>
         <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">argty</span>),<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span> {
             $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">body</span>);<span class="op">*</span>
         }
 
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">dox</span>)]</span>
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">cross_platform_docs</span>)]</span>
         <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
         <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">extern</span> <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">argty</span>),<span class="kw-2">*</span>) <span class="op">-&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ret</span> {
             <span class="kw">loop</span> {}

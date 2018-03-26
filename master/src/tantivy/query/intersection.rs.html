@@ -375,6 +375,14 @@
 <span id="318">318</span>
 <span id="319">319</span>
 <span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
@@ -385,12 +393,20 @@
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">term_query</span>::{<span class="ident">TermScorerNoDeletes</span>, <span class="ident">TermScorerWithDeletes</span>};
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">intersect_scorers</span>(<span class="kw-2">mut</span> <span class="ident">docsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">num_docsets</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">len</span>();
-    <span class="ident">docsets</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">left</span>, <span class="ident">right</span><span class="op">|</span> <span class="ident">right</span>.<span class="ident">size_hint</span>().<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">left</span>.<span class="ident">size_hint</span>()));
-    <span class="kw">let</span> <span class="ident">rarest_opt</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>();
-    <span class="kw">let</span> <span class="ident">second_rarest_opt</span> <span class="op">=</span> <span class="ident">docsets</span>.<span class="ident">pop</span>();
-    <span class="ident">docsets</span>.<span class="ident">reverse</span>();
+<span class="doccomment">/// Returns the intersection scorer.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The score associated to the documents is the sum of the</span>
+<span class="doccomment">/// score of the `Scorer`s given in argument.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For better performance, the function uses a</span>
+<span class="doccomment">/// specialized implementation if the two</span>
+<span class="doccomment">/// shortest scorers are `TermScorer`s.</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">intersect_scorers</span>(<span class="kw-2">mut</span> <span class="ident">scorers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;</span> {
+    <span class="kw">let</span> <span class="ident">num_docsets</span> <span class="op">=</span> <span class="ident">scorers</span>.<span class="ident">len</span>();
+    <span class="ident">scorers</span>.<span class="ident">sort_by</span>(<span class="op">|</span><span class="ident">left</span>, <span class="ident">right</span><span class="op">|</span> <span class="ident">right</span>.<span class="ident">size_hint</span>().<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">left</span>.<span class="ident">size_hint</span>()));
+    <span class="kw">let</span> <span class="ident">rarest_opt</span> <span class="op">=</span> <span class="ident">scorers</span>.<span class="ident">pop</span>();
+    <span class="kw">let</span> <span class="ident">second_rarest_opt</span> <span class="op">=</span> <span class="ident">scorers</span>.<span class="ident">pop</span>();
+    <span class="ident">scorers</span>.<span class="ident">reverse</span>();
     <span class="kw">match</span> (<span class="ident">rarest_opt</span>, <span class="ident">second_rarest_opt</span>) {
         (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">EmptyScorer</span>,
         (<span class="prelude-val">Some</span>(<span class="ident">single_docset</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="ident">single_docset</span>,
@@ -405,7 +421,7 @@
                     <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
                         <span class="ident">left</span>,
                         <span class="ident">right</span>,
-                        <span class="ident">others</span>: <span class="ident">docsets</span>,
+                        <span class="ident">others</span>: <span class="ident">scorers</span>,
                         <span class="ident">num_docsets</span>
                     }
                 }
@@ -421,7 +437,7 @@
                     <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
                         <span class="ident">left</span>,
                         <span class="ident">right</span>,
-                        <span class="ident">others</span>: <span class="ident">docsets</span>,
+                        <span class="ident">others</span>: <span class="ident">scorers</span>,
                         <span class="ident">num_docsets</span>
                     }
                 }
@@ -430,7 +446,7 @@
                 <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
                     <span class="ident">left</span>,
                     <span class="ident">right</span>,
-                    <span class="ident">others</span>: <span class="ident">docsets</span>,
+                    <span class="ident">others</span>: <span class="ident">scorers</span>,
                     <span class="ident">num_docsets</span>
                 }
             }

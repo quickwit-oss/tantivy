@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.39/src/dox.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/libc-0.2.40/src/dox.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>dox.rs.html -- source</title>
@@ -209,7 +209,7 @@
 </pre><pre class="rust ">
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">imp</span>::<span class="kw-2">*</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">dox</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">cross_platform_docs</span>))]</span>
 <span class="kw">mod</span> <span class="ident">imp</span> {
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">option</span>::<span class="prelude-ty">Option</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">clone</span>::<span class="ident">Clone</span>;
@@ -217,7 +217,7 @@
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">mem</span>;
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">dox</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">cross_platform_docs</span>)]</span>
 <span class="kw">mod</span> <span class="ident">imp</span> {
     <span class="kw">pub</span> <span class="kw">enum</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
         <span class="prelude-val">Some</span>(<span class="ident">T</span>),

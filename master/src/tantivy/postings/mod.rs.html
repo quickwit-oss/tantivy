@@ -984,7 +984,7 @@ Postings module (also called inverted index)
         {
             <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="ident">SegmentReader</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">segment</span>).<span class="ident">unwrap</span>();
             {
-                <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>).<span class="ident">unwrap</span>();
+                <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>) ;
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">0</span>), <span class="number">8</span> <span class="op">+</span> <span class="number">5</span>);
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">1</span>), <span class="number">2</span>);
                 <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">2</span>..<span class="number">1000</span> {

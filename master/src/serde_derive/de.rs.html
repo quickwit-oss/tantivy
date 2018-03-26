@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.34/src/de.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.35/src/de.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>de.rs.html -- source</title>
@@ -2848,56 +2848,6 @@
 <span id="2791">2791</span>
 <span id="2792">2792</span>
 <span id="2793">2793</span>
-<span id="2794">2794</span>
-<span id="2795">2795</span>
-<span id="2796">2796</span>
-<span id="2797">2797</span>
-<span id="2798">2798</span>
-<span id="2799">2799</span>
-<span id="2800">2800</span>
-<span id="2801">2801</span>
-<span id="2802">2802</span>
-<span id="2803">2803</span>
-<span id="2804">2804</span>
-<span id="2805">2805</span>
-<span id="2806">2806</span>
-<span id="2807">2807</span>
-<span id="2808">2808</span>
-<span id="2809">2809</span>
-<span id="2810">2810</span>
-<span id="2811">2811</span>
-<span id="2812">2812</span>
-<span id="2813">2813</span>
-<span id="2814">2814</span>
-<span id="2815">2815</span>
-<span id="2816">2816</span>
-<span id="2817">2817</span>
-<span id="2818">2818</span>
-<span id="2819">2819</span>
-<span id="2820">2820</span>
-<span id="2821">2821</span>
-<span id="2822">2822</span>
-<span id="2823">2823</span>
-<span id="2824">2824</span>
-<span id="2825">2825</span>
-<span id="2826">2826</span>
-<span id="2827">2827</span>
-<span id="2828">2828</span>
-<span id="2829">2829</span>
-<span id="2830">2830</span>
-<span id="2831">2831</span>
-<span id="2832">2832</span>
-<span id="2833">2833</span>
-<span id="2834">2834</span>
-<span id="2835">2835</span>
-<span id="2836">2836</span>
-<span id="2837">2837</span>
-<span id="2838">2838</span>
-<span id="2839">2839</span>
-<span id="2840">2840</span>
-<span id="2841">2841</span>
-<span id="2842">2842</span>
-<span id="2843">2843</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -3250,7 +3200,7 @@
         <span class="ident">split_with_de_lifetime</span>(<span class="ident">params</span>);
     <span class="kw">let</span> <span class="ident">delife</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">borrowed</span>.<span class="ident">de_lifetime</span>();
 
-    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
 
     <span class="comment">// If there are getters (implying private fields), construct the local type</span>
     <span class="comment">// and use an `Into` conversion to get the remote type. If there are no</span>
@@ -3347,7 +3297,7 @@
         <span class="ident">split_with_de_lifetime</span>(<span class="ident">params</span>);
     <span class="kw">let</span> <span class="ident">delife</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">borrowed</span>.<span class="ident">de_lifetime</span>();
 
-    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
 
     <span class="kw">let</span> <span class="ident">is_enum</span> <span class="op">=</span> <span class="ident">variant_ident</span>.<span class="ident">is_some</span>();
     <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">variant_ident</span> {
@@ -3824,7 +3774,7 @@
         <span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>);
 
     <span class="kw">let</span> <span class="ident">field_visitor</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">field_visitor</span>);
-    <span class="kw">let</span> <span class="ident">fields_stmt</span> <span class="op">=</span> <span class="ident">fields_stmt</span>.<span class="ident">map</span>(<span class="ident">Stmts</span>);
+    <span class="kw">let</span> <span class="ident">fields_stmt</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">fields_stmt</span>);
     <span class="kw">let</span> <span class="ident">visit_map</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">visit_map</span>);
 
     <span class="kw">let</span> <span class="ident">visitor_expr</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
@@ -5005,7 +4955,7 @@
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
 ) <span class="op">-&gt;</span> (<span class="ident">Fragment</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Fragment</span><span class="op">&gt;</span>, <span class="ident">Fragment</span>) {
-    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
 
     <span class="kw">let</span> <span class="ident">field_names_idents</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">fields</span>
         .<span class="ident">iter</span>()
@@ -5254,8 +5204,8 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
-) <span class="op">-&gt;</span> (<span class="ident">Fragment</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Fragment</span><span class="op">&gt;</span>, <span class="ident">Fragment</span>) {
-    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
+) <span class="op">-&gt;</span> (<span class="ident">Fragment</span>, <span class="ident">Fragment</span>, <span class="ident">Fragment</span>) {
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
 
     <span class="kw">let</span> <span class="ident">field_names_idents</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">fields</span>
         .<span class="ident">iter</span>()
@@ -5275,7 +5225,7 @@
 
     <span class="kw">let</span> <span class="ident">visit_map</span> <span class="op">=</span> <span class="ident">deserialize_map_in_place</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>);
 
-    (<span class="ident">field_visitor</span>, <span class="prelude-val">Some</span>(<span class="ident">fields_stmt</span>), <span class="ident">visit_map</span>)
+    (<span class="ident">field_visitor</span>, <span class="ident">fields_stmt</span>, <span class="ident">visit_map</span>)
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;deserialize_in_place&quot;</span>)]</span>
@@ -5284,7 +5234,7 @@
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
-    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
+    <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>());
 
     <span class="comment">// Create the field names for the fields.</span>
     <span class="kw">let</span> <span class="ident">fields_names</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">fields</span>
@@ -5302,18 +5252,6 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> #<span class="ident">name</span>: <span class="ident">bool</span> <span class="op">=</span> <span class="bool-val">false</span>;
             }
         });
-
-    <span class="comment">// Collect contents for flatten fields into a buffer</span>
-    <span class="kw">let</span> <span class="ident">let_collect</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
-        <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">__collect</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span>(
-                <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>,
-                <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>
-            )<span class="op">&gt;&gt;</span>::<span class="ident">new</span>();
-        })
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    };
 
     <span class="comment">// Match arms to extract a value for a field.</span>
     <span class="kw">let</span> <span class="ident">value_arms_from</span> <span class="op">=</span> <span class="ident">fields_names</span>
@@ -5349,13 +5287,7 @@
         });
 
     <span class="comment">// Visit ignored values to consume them</span>
-    <span class="kw">let</span> <span class="ident">ignored_arm</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
-        <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
-            <span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">__name</span>) <span class="op">=&gt;</span> {
-                <span class="ident">__collect</span>.<span class="ident">push</span>(<span class="prelude-val">Some</span>((<span class="ident">__name</span>, <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span>::<span class="ident">next_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__map</span>)))));
-            }
-        })
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">deny_unknown_fields</span>() {
+    <span class="kw">let</span> <span class="ident">ignored_arm</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">deny_unknown_fields</span>() {
         <span class="prelude-val">None</span>
     } <span class="kw">else</span> {
         <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
@@ -5363,7 +5295,7 @@
         })
     };
 
-    <span class="kw">let</span> <span class="ident">all_skipped</span> <span class="op">=</span> <span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() <span class="op">&amp;&amp;</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>());
+    <span class="kw">let</span> <span class="ident">all_skipped</span> <span class="op">=</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>());
 
     <span class="kw">let</span> <span class="ident">match_keys</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">deny_unknown_fields</span>() <span class="op">&amp;&amp;</span> <span class="ident">all_skipped</span> {
         <span class="macro">quote</span><span class="macro">!</span> {
@@ -5427,46 +5359,14 @@
         }
     };
 
-    <span class="kw">let</span> <span class="ident">extract_collected</span> <span class="op">=</span> <span class="ident">fields_names</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">filter</span>(<span class="op">|</span><span class="op">&amp;&amp;</span>(<span class="ident">field</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">flatten</span>())
-        .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">field</span>, <span class="kw-2">ref</span> <span class="ident">name</span>)<span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
-            <span class="macro">quote</span><span class="macro">!</span> {
-                <span class="kw">let</span> #<span class="ident">name</span>: #<span class="ident">field_ty</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Deserialize</span>::<span class="ident">deserialize</span>(
-                    <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">FlatMapDeserializer</span>(
-                        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__collect</span>,
-                        <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="ident">PhantomData</span>)));
-            }
-        });
-
-    <span class="kw">let</span> <span class="ident">collected_deny_unknown_fields</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">deny_unknown_fields</span>() {
-        <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
-            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Some</span>(<span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Some</span>((<span class="ident">__key</span>, <span class="kw">_</span>))) <span class="op">=</span>
-                <span class="ident">__collect</span>.<span class="ident">into_iter</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span>.<span class="ident">is_some</span>()).<span class="ident">next</span>()
-            {
-                <span class="kw">return</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Err</span>(
-                    <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown field `{}`&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">__key</span>)));
-            }
-        })
-    } <span class="kw">else</span> {
-        <span class="prelude-val">None</span>
-    };
-
     <span class="macro">quote_block</span><span class="macro">!</span> {
         #(#<span class="ident">let_flags</span>)<span class="op">*</span>
-
-        #<span class="ident">let_collect</span>
 
         #<span class="ident">match_keys</span>
 
         #<span class="ident">let_default</span>
 
         #(#<span class="ident">check_flags</span>)<span class="op">*</span>
-
-        #(#<span class="ident">extract_collected</span>)<span class="op">*</span>
-
-        #<span class="ident">collected_deny_unknown_fields</span>
 
         <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(())
     }

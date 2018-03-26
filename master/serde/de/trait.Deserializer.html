@@ -60,7 +60,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde/de/mod.rs.html#825-1113' title='goto source code'>[src]</a></span></h1>
+               </span><a class='srclink' href='../../src/serde/de/mod.rs.html#826-1114' title='goto source code'>[src]</a></span></h1>
 <pre class='rust trait'>pub trait Deserializer&lt;'de&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>;
     fn <a href='#tymethod.deserialize_any' class='fnname'>deserialize_any</a>&lt;V&gt;(self, visitor: V) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;V::<a class="type" href="../../serde/de/trait.Visitor.html#associatedtype.Value" title="type serde::de::Visitor::Value">Value</a>, Self::<a class="type" href="../../serde/trait.Deserializer.html#associatedtype.Error" title="type serde::Deserializer::Error">Error</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;V: <a class="trait" href="../../serde/de/trait.Visitor.html" title="trait serde::de::Visitor">Visitor</a>&lt;'de&gt;</span>;
