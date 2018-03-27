@@ -292,8 +292,7 @@ mod tests {
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use rand::distributions::{IndependentSample, Range};
-
-
+    
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(nearly_equals(val, expected), "Got {}, expected {}.", val, expected);
     }
@@ -460,6 +459,16 @@ mod tests {
         }
     }
 
+
+    fn advance_undeleted(docset: &mut DocSet, reader: &SegmentReader) -> bool {
+        while docset.advance() {
+            if !reader.is_deleted(docset.doc()) {
+                return true;
+            }
+        }
+        false
+    }
+
     #[test]
     fn test_delete_postings1() {
         let mut schema_builder = SchemaBuilder::default();
@@ -525,19 +534,19 @@ mod tests {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 5);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
             {
                 let mut postings = inverted_index
                     .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 3);
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 4);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
         }
         {
@@ -569,19 +578,19 @@ mod tests {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 5);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
             {
                 let mut postings = inverted_index
                     .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 3);
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 4);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
         }
         {
@@ -612,25 +621,25 @@ mod tests {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
             {
                 let mut postings = inverted_index
                     .read_postings(&term_b, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 3);
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 4);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
             {
                 let mut postings = inverted_index
                     .read_postings(&term_c, IndexRecordOption::WithFreqsAndPositions)
                     .unwrap();
-                assert!(postings.advance());
+                assert!(advance_undeleted(&mut postings, reader));
                 assert_eq!(postings.doc(), 4);
-                assert!(!postings.advance());
+                assert!(!advance_undeleted(&mut postings, reader));
             }
         }
     }

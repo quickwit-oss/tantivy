@@ -5,7 +5,7 @@ use DocId;
 use downcast::Downcast;
 use std::borrow::Borrow;
 use Score;
-use query::term_query::{TermScorerNoDeletes, TermScorerWithDeletes};
+use query::term_query::TermScorer;
 
 /// Returns the intersection scorer.
 ///
@@ -28,10 +28,10 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
             {
                 if [&left, &right].into_iter().all(|scorer| {
                     let scorer_ref: &Scorer = (*scorer).borrow();
-                    Downcast::<TermScorerWithDeletes>::is_type(scorer_ref)
+                    Downcast::<TermScorer>::is_type(scorer_ref)
                 }) {
-                    let left = *Downcast::<TermScorerWithDeletes>::downcast(left).unwrap();
-                    let right = *Downcast::<TermScorerWithDeletes>::downcast(right).unwrap();
+                    let left = *Downcast::<TermScorer>::downcast(left).unwrap();
+                    let right = *Downcast::<TermScorer>::downcast(right).unwrap();
                     return box Intersection {
                         left,
                         right,
@@ -40,29 +40,11 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
                     }
                 }
             }
-            {
-                if [&left, &right].into_iter()
-                        .all(|scorer| {
-                        let scorer_ref: &Scorer = (*scorer).borrow();
-                        Downcast::<TermScorerNoDeletes>::is_type(scorer_ref)
-                    }) {
-                    let left = *Downcast::<TermScorerNoDeletes>::downcast(left).unwrap();
-                    let right = *Downcast::<TermScorerNoDeletes>::downcast(right).unwrap();
-                    return box Intersection {
-                        left,
-                        right,
-                        others: scorers,
-                        num_docsets
-                    }
-                }
-            }
-            {
-                return box Intersection {
-                    left,
-                    right,
-                    others: scorers,
-                    num_docsets
-                }
+            return box Intersection {
+                left,
+                right,
+                others: scorers,
+                num_docsets
             }
         }
         _ => { unreachable!(); }

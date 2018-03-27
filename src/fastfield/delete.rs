@@ -5,7 +5,6 @@ use std::io;
 use directory::ReadOnlySource;
 use DocId;
 use common::HasLen;
-use postings::DeleteSet;
 
 /// Write a delete `BitSet`
 ///
@@ -52,19 +51,7 @@ impl DeleteBitSet {
         }
     }
 
-}
-
-
-impl DeleteSet for DeleteBitSet {
-
-    fn empty() -> DeleteBitSet {
-        DeleteBitSet {
-            data: ReadOnlySource::empty(),
-            len: 0,
-        }
-    }
-
-    fn is_deleted(&self, doc: DocId) -> bool {
+    pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false
         } else {
@@ -77,16 +64,6 @@ impl DeleteSet for DeleteBitSet {
 
 }
 
-
-impl From<Option<DeleteBitSet>> for DeleteBitSet {
-    fn from(delete_bitset_opt: Option<DeleteBitSet>) -> Self {
-        if let Some(delete_bitset) = delete_bitset_opt {
-            delete_bitset
-        } else {
-            DeleteBitSet::empty()
-        }
-    }
-}
 
 impl HasLen for DeleteBitSet {
     fn len(&self) -> usize {

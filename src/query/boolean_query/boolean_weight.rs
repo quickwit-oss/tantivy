@@ -12,7 +12,7 @@ use query::RequiredOptionalScorer;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use Result;
 use query::intersect_scorers;
-use query::term_query::{TermScorerWithDeletes, TermScorerNoDeletes};
+use query::term_query::TermScorer;
 
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
@@ -27,32 +27,18 @@ where
     {
         let is_all_term_queries = scorers.iter().all(|scorer| {
             let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorerWithDeletes>::is_type(scorer_ref)
+            Downcast::<TermScorer>::is_type(scorer_ref)
         });
         if is_all_term_queries {
-            let scorers: Vec<TermScorerWithDeletes> = scorers
+            let scorers: Vec<TermScorer> = scorers
                 .into_iter()
-                .map(|scorer| *Downcast::<TermScorerWithDeletes>::downcast(scorer).unwrap())
+                .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorerWithDeletes, TScoreCombiner>::from(scorers);
+            let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
             return scorer;
         }
     }
 
-    {
-        let is_all_term_queries = scorers.iter().all(|scorer| {
-            let scorer_ref: &Scorer = scorer.borrow();
-            Downcast::<TermScorerNoDeletes>::is_type(scorer_ref)
-        });
-        if is_all_term_queries {
-            let scorers: Vec<TermScorerNoDeletes> = scorers
-                .into_iter()
-                .map(|scorer| *Downcast::<TermScorerNoDeletes>::downcast(scorer).unwrap())
-                .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorerNoDeletes, TScoreCombiner>::from(scorers);
-            return scorer;
-        }
-    }
     let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
     return scorer;
 

@@ -6,18 +6,19 @@ use query::Scorer;
 use postings::Postings;
 use fieldnorm::FieldNormReader;
 use query::bm25::BM25Weight;
+use postings::SegmentPostings;
 
-pub struct TermScorer<TPostings: Postings> {
-    postings: TPostings,
+pub struct TermScorer {
+    postings: SegmentPostings,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: BM25Weight,
 }
 
 
-impl<TPostings: Postings> TermScorer<TPostings> {
-    pub fn new(postings: TPostings,
+impl TermScorer {
+    pub fn new(postings: SegmentPostings,
                fieldnorm_reader: FieldNormReader,
-               similarity_weight: BM25Weight) -> TermScorer<TPostings> {
+               similarity_weight: BM25Weight) -> TermScorer {
         TermScorer {
             postings,
             fieldnorm_reader,
@@ -26,7 +27,7 @@ impl<TPostings: Postings> TermScorer<TPostings> {
     }
 }
 
-impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
+impl DocSet for TermScorer {
     fn advance(&mut self) -> bool {
         self.postings.advance()
     }
@@ -44,7 +45,7 @@ impl<TPostings: Postings> DocSet for TermScorer<TPostings> {
     }
 }
 
-impl<TPostings: Postings> Scorer for TermScorer<TPostings> {
+impl Scorer for TermScorer {
     fn score(&mut self) -> Score {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);

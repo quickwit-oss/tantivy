@@ -1,7 +1,7 @@
 pub mod index_writer;
 pub mod segment_serializer;
 pub mod merger;
-mod merge_policy;
+pub mod merge_policy;
 mod log_merge_policy;
 mod segment_register;
 mod segment_writer;

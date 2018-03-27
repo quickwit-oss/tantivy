@@ -19,7 +19,6 @@ use termdict::TermStreamer;
 use fieldnorm::FieldNormsSerializer;
 use fieldnorm::FieldNormsWriter;
 use fieldnorm::FieldNormReader;
-use postings::DeleteSet;
 use postings::Postings;
 
 
@@ -296,12 +295,13 @@ impl IndexMerger {
                         let segment_reader = &self.readers[heap_item.segment_ord];
                         let inverted_index = segment_reader.inverted_index(indexed_field);
                         let mut segment_postings = inverted_index
-                            .read_postings_from_terminfo::<DeleteBitSet>(term_info, segment_postings_option);
-                        if segment_postings.advance() {
-                            Some((segment_ord, segment_postings))
-                        } else {
-                            None
+                            .read_postings_from_terminfo(term_info, segment_postings_option);
+                        while segment_postings.advance() {
+                            if !segment_reader.is_deleted(segment_postings.doc()) {
+                                return Some((segment_ord, segment_postings));
+                            }
                         }
+                        None
                     })
                     .collect();
 
@@ -309,7 +309,6 @@ impl IndexMerger {
                 // of all of the segments containing the given term.
                 //
                 // These segments are non-empty and advance has already been called.
-
                 if !segment_postings.is_empty() {
                     // If not, the `term` will be entirely removed.
 

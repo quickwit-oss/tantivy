@@ -7,7 +7,6 @@ use postings::Postings;
 use docset::{DocSet, SkipResult};
 use fst::Streamer;
 use compression::compressed_block_size;
-use postings::{NoDelete, DeleteSet};
 use directory::{ReadOnlySource, SourceRead};
 use postings::FreqReadingOption;
 use postings::serializer::PostingsSerializer;
@@ -53,20 +52,18 @@ impl PositionComputer {
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-pub struct  SegmentPostings<TDeleteSet: DeleteSet> {
+pub struct  SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
-    delete_bitset: TDeleteSet,
     position_computer: Option<PositionComputer>,
 }
 
-impl SegmentPostings<NoDelete> {
+impl SegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> Self {
         let empty_block_cursor = BlockSegmentPostings::empty();
         SegmentPostings {
             block_cursor: empty_block_cursor,
-            delete_bitset: NoDelete,
             cur: COMPRESSION_BLOCK_SIZE,
             position_computer: None,
         }
@@ -80,7 +77,7 @@ impl SegmentPostings<NoDelete> {
     /// It serializes the doc ids using tantivy's codec
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
-    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings<NoDelete> {
+    pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut counting_writer = CountingWriter::wrap(Vec::new());
         {
             let mut postings_serializer = PostingsSerializer::new(&mut counting_writer, false);
@@ -96,13 +93,11 @@ impl SegmentPostings<NoDelete> {
             SourceRead::from(data),
             FreqReadingOption::NoFreq,
         );
-        SegmentPostings::from_block_postings(block_segment_postings, NoDelete, None)
+        SegmentPostings::from_block_postings(block_segment_postings, None)
     }
 }
 
-impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
-
-
+impl SegmentPostings {
 
     /// Reads a Segment postings from an &[u8]
     ///
@@ -112,13 +107,11 @@ impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
     ///   frequencies and/or positions
     pub fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        delete_bitset: TDeleteSet,
         positions_stream_opt: Option<CompressedIntStream>,
-    ) -> SegmentPostings<TDeleteSet> {
+    ) -> SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
-            delete_bitset,
             position_computer: positions_stream_opt.map(PositionComputer::new),
         }
     }
@@ -142,9 +135,9 @@ fn exponential_search(target: u32, mut start: usize, arr: &[u32]) -> (usize, usi
     }
 }
 
-impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
+impl DocSet for SegmentPostings {
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if !self.adv    ance() {
+        if !self.advance() {
             return SkipResult::End;
         }
         if self.doc() == target {
@@ -188,42 +181,33 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
                 break;
             }
         }
-        {
-            // we're in the right block now, start with an exponential search
-            let block_docs = self.block_cursor.docs();
 
-            let (mut start, end) = exponential_search(target, self.cur, block_docs);
+        // we're in the right block now, start with an exponential search
+        let block_docs = self.block_cursor.docs();
 
-            start += block_docs[start..end]
-                .binary_search(&target)
-                .unwrap_or_else(|e| e);
+        let (mut start, end) = exponential_search(target, self.cur, block_docs);
 
-            // `doc` is now the first element >= `target`
-            let doc = block_docs[start];
-            debug_assert!(doc >= target);
+        start += block_docs[start..end]
+            .binary_search(&target)
+            .unwrap_or_else(|e| e);
 
-            if self.position_computer.is_some() {
-                let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
-                let sum_freqs: u32 = freqs_skipped.iter().sum();
-                self.position_computer.as_mut()
-                    .unwrap()
-                    .add_skip(sum_freqs as usize);
-            }
+        // `doc` is now the first element >= `target`
+        let doc = block_docs[start];
+        debug_assert!(doc >= target);
 
-            self.cur = start;
-
-            if !self.delete_bitset.is_deleted(doc) {
-                if doc == target {
-                    return SkipResult::Reached;
-                } else {
-                    return SkipResult::OverStep;
-                }
-            }
+        if self.position_computer.is_some() {
+            let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
+            let sum_freqs: u32 = freqs_skipped.iter().sum();
+            self.position_computer.as_mut()
+                .unwrap()
+                .add_skip(sum_freqs as usize);
         }
-        if self.advance() {
-            SkipResult::OverStep
+
+        self.cur = start;
+        if doc == target {
+            return SkipResult::Reached;
         } else {
-            SkipResult::End
+            return SkipResult::OverStep;
         }
     }
 
@@ -232,25 +216,19 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        loop {
-            {
-                if self.position_computer.is_some() {
-                    let term_freq = self.term_freq() as usize;
-                    self.position_computer.as_mut().unwrap().add_skip(term_freq);
-                }
-            }
-            self.cur += 1;
-            if self.cur >= self.block_cursor.block_len() {
-                self.cur = 0;
-                if !self.block_cursor.advance() {
-                    self.cur = COMPRESSION_BLOCK_SIZE;
-                    return false;
-                }
-            }
-            if !self.delete_bitset.is_deleted(self.doc()) {
-                return true;
+        if self.position_computer.is_some() {
+            let term_freq = self.term_freq() as usize;
+            self.position_computer.as_mut().unwrap().add_skip(term_freq);
+        }
+        self.cur += 1;
+        if self.cur >= self.block_cursor.block_len() {
+            self.cur = 0;
+            if !self.block_cursor.advance() {
+                self.cur = COMPRESSION_BLOCK_SIZE;
+                return false;
             }
         }
+        true
     }
 
     fn size_hint(&self) -> u32 {
@@ -285,13 +263,13 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
 }
 
 
-impl<TDeleteSet: DeleteSet> HasLen for SegmentPostings<TDeleteSet> {
+impl HasLen for SegmentPostings {
     fn len(&self) -> usize {
         self.block_cursor.doc_freq()
     }
 }
 
-impl<TDeleteSet: DeleteSet> Postings for SegmentPostings<TDeleteSet> {
+impl Postings for SegmentPostings {
     fn term_freq(&self) -> u32 {
         self.block_cursor.freq(self.cur)
     }

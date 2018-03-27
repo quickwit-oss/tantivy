@@ -19,7 +19,7 @@ mod tests {
     use query::QueryParser;
     use query::RequiredOptionalScorer;
     use query::score_combiner::SumWithCoordsCombiner;
-    use query::term_query::TermScorerNoDeletes;
+    use query::term_query::TermScorer;
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = SchemaBuilder::default();
@@ -71,7 +71,7 @@ mod tests {
         let searcher = index.searcher();
         let weight = query.weight(&*searcher, true).unwrap();
         let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-        assert!(Downcast::<TermScorerNoDeletes>::is_type(&*scorer));
+        assert!(Downcast::<TermScorer>::is_type(&*scorer));
     }
 
     #[test]
@@ -83,7 +83,7 @@ mod tests {
             let query = query_parser.parse_query("+a +b +c").unwrap();
             let weight = query.weight(&*searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<Intersection<TermScorerNoDeletes>>::is_type(&*scorer));
+            assert!(Downcast::<Intersection<TermScorer>>::is_type(&*scorer));
         }
         {
             let query = query_parser.parse_query("+a +(b c)").unwrap();
@@ -111,7 +111,7 @@ mod tests {
             let weight = query.weight(&*searcher, false).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             println!("{:?}", scorer.type_name());
-            assert!(Downcast::<TermScorerNoDeletes>::is_type(&*scorer));
+            assert!(Downcast::<TermScorer>::is_type(&*scorer));
         }
     }
 

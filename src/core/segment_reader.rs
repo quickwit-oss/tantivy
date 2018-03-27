@@ -26,7 +26,6 @@ use termdict::TermDictionary;
 use fastfield::{FastValue, MultiValueIntFastFieldReader};
 use schema::Cardinality;
 use fieldnorm::FieldNormReader;
-use postings::DeleteSet;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -285,7 +284,6 @@ impl SegmentReader {
             TermDictionaryImpl::from_source(termdict_source),
             postings_source,
             positions_source,
-            self.delete_bitset_opt.clone(),
             record_option,
         ));
 

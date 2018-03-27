@@ -79,11 +79,9 @@ pub trait Query: fmt::Debug {
                     let _ = segment_search_timer.open("set_segment");
                     collector.set_segment(segment_ord as SegmentLocalId, segment_reader)?;
                 }
+                let _collection_timer = segment_search_timer.open("collection");
                 let mut scorer = weight.scorer(segment_reader)?;
-                {
-                    let _collection_timer = segment_search_timer.open("collection");
-                    scorer.collect(collector);
-                }
+                scorer.collect(collector, segment_reader.delete_bitset());
             }
         }
         Ok(timer_tree)

@@ -13,13 +13,11 @@ mod serializer;
 mod postings_writer;
 mod term_info;
 mod segment_postings;
-mod delete_set;
 
 use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 
-pub use self::delete_set::{DeleteSet, NoDelete};
 pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
 
@@ -402,11 +400,9 @@ pub mod tests {
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer.delete_term(term_0);
-
             assert!(index_writer.commit().is_ok());
         }
         index.load_searchers().unwrap();
-
         let searcher = index.searcher();
         let segment_reader = searcher.segment_reader(0);
 
@@ -418,8 +414,9 @@ pub mod tests {
                 .unwrap();
 
             if i % 2 == 0 {
-                assert_eq!(segment_postings.skip_next(i), SkipResult::OverStep);
-                assert_eq!(segment_postings.doc(), i + 1);
+                assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
+                assert_eq!(segment_postings.doc(), i);
+                assert!(segment_reader.is_deleted(i));
             } else {
                 assert_eq!(segment_postings.skip_next(i), SkipResult::Reached);
                 assert_eq!(segment_postings.doc(), i);
@@ -453,7 +450,7 @@ pub mod tests {
         // delete everything else
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            index_writer.delete_term(term_1);
+                index_writer.delete_term(term_1);
 
             assert!(index_writer.commit().is_ok());
         }
@@ -469,7 +466,9 @@ pub mod tests {
                 .read_postings(&term_2, IndexRecordOption::Basic)
                 .unwrap();
 
-            assert_eq!(segment_postings.skip_next(0), SkipResult::End);
+            assert_eq!(segment_postings.skip_next(0), SkipResult::Reached);
+            assert_eq!(segment_postings.doc(), 0);
+            assert!(segment_reader.is_deleted(0));
 
             let mut segment_postings = segment_reader
                 .inverted_index(term_2.field())

@@ -5,6 +5,7 @@ use docset::{DocSet, SkipResult};
 use common::BitSet;
 use std::ops::DerefMut;
 use downcast;
+use fastfield::DeleteBitSet;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -17,12 +18,22 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
 
     /// Consumes the complete `DocSet` and
     /// push the scored documents to the collector.
-    fn collect(&mut self, collector: &mut Collector) {
-        while self.advance() {
-            collector.collect(self.doc(), self.score());
+    fn collect(&mut self, collector: &mut Collector, delete_bitset_opt: Option<&DeleteBitSet>) {
+        if let Some(delete_bitset) = delete_bitset_opt {
+            while self.advance() {
+                let doc = self.doc();
+                if !delete_bitset.is_deleted(doc) {
+                    collector.collect(doc, self.score());
+                }
+            }
+        } else {
+            while self.advance() {
+                collector.collect(self.doc(), self.score());
+            }
         }
     }
 }
+
 
 #[allow(missing_docs)]
 mod downcast_impl {
@@ -34,9 +45,9 @@ impl Scorer for Box<Scorer> {
         self.deref_mut().score()
     }
 
-    fn collect(&mut self, collector: &mut Collector) {
+    fn collect(&mut self, collector: &mut Collector, delete_bitset: Option<&DeleteBitSet>) {
         let scorer = self.deref_mut();
-        scorer.collect(collector);
+        scorer.collect(collector, delete_bitset);
     }
 }
 
@@ -49,6 +60,7 @@ impl DocSet for EmptyScorer {
     fn advance(&mut self) -> bool {
         false
     }
+
 
     fn doc(&self) -> DocId {
         panic!(

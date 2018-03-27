@@ -6,8 +6,6 @@ use docset::DocSet;
 use postings::SegmentPostings;
 use schema::IndexRecordOption;
 use super::term_scorer::TermScorer;
-use fastfield::DeleteBitSet;
-use postings::NoDelete;
 use Result;
 use query::bm25::BM25Weight;
 
@@ -24,33 +22,18 @@ impl Weight for TermWeight {
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);
         let similarity_weight = self.similarity_weight.clone();
-        if reader.has_deletes() {
-            let postings_opt: Option<SegmentPostings<DeleteBitSet>> =
+            let postings_opt: Option<SegmentPostings> =
                 inverted_index.read_postings(&self.term, self.index_record_option);
-                if let Some(segment_postings) = postings_opt {
-                    Ok(box TermScorer::new(segment_postings,
-                                        fieldnorm_reader,
-                                        similarity_weight))
-                } else {
-                    Ok(box TermScorer::new(
-                        SegmentPostings::<NoDelete>::empty(),
-                        fieldnorm_reader,
-                        similarity_weight))
-                }
-        } else {
-            let postings_opt: Option<SegmentPostings<NoDelete>> =
-            inverted_index.read_postings_no_deletes(&self.term, self.index_record_option);
             if let Some(segment_postings) = postings_opt {
                 Ok(box TermScorer::new(segment_postings,
                                     fieldnorm_reader,
                                     similarity_weight))
             } else {
                 Ok(box TermScorer::new(
-                    SegmentPostings::<NoDelete>::empty(),
+                    SegmentPostings::empty(),
                     fieldnorm_reader,
                     similarity_weight))
             }
-        }
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
