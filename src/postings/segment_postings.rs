@@ -5,7 +5,6 @@ use common::BitSet;
 use common::HasLen;
 use postings::Postings;
 use docset::{DocSet, SkipResult};
-use std::cmp;
 use fst::Streamer;
 use compression::compressed_block_size;
 use postings::{NoDelete, DeleteSet};
@@ -125,36 +124,31 @@ impl<TDeleteSet: DeleteSet> SegmentPostings<TDeleteSet> {
     }
 }
 
-impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
-    // goes to the next element.
-    // next needs to be called a first time to point to the correct element.
-    #[inline]
-    fn advance(&mut self) -> bool {
-        loop {
-            {
-                if self.position_computer.is_some() {
-                    let term_freq = self.term_freq() as usize;
-                    self.position_computer.as_mut().unwrap().add_skip(term_freq);
-                }
-            }
-            self.cur += 1;
-            if self.cur >= self.block_cursor.block_len() {
-                self.cur = 0;
-                if !self.block_cursor.advance() {
-                    self.cur = COMPRESSION_BLOCK_SIZE;
-                    return false;
-                }
-            }
-            if !self.delete_bitset.is_deleted(self.doc()) {
-                return true;
-            }
+fn exponential_search(target: u32, mut start: usize, arr: &[u32]) -> (usize, usize) {
+    let end = arr.len();
+    debug_assert!(target >= arr[start]);
+    debug_assert!(target <= arr[end - 1]);
+    let mut jump = 1;
+    loop {
+        let new = start + jump;
+        if new >= end {
+            return (start, end)
         }
+        if arr[new] > target {
+            return (start, new);
+        }
+        start = new;
+        jump *= 2;
     }
+}
 
-
+impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-        if !self.advance() {
+        if !self.adv    ance() {
             return SkipResult::End;
+        }
+        if self.doc() == target {
+            return SkipResult::Reached;
         }
 
         // in the following, thanks to the call to advance above,
@@ -197,41 +191,16 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
         {
             // we're in the right block now, start with an exponential search
             let block_docs = self.block_cursor.docs();
-            let block_len = block_docs.len();
 
-            debug_assert!(target >= block_docs[self.cur]);
-            debug_assert!(target <= block_docs[block_len - 1]);
+            let (mut start, end) = exponential_search(target, self.cur, block_docs);
 
-            let mut start = self.cur;
-            let mut end = block_len;
-            let mut count = 1;
-            loop {
-                let new = start + count;
-                if new < end && block_docs[new] < target {
-                    start = new;
-                    count *= 2;
-                } else {
-                    break;
-                }
-            }
-            end = cmp::min(start + count, end);
+            start += block_docs[start..end]
+                .binary_search(&target)
+                .unwrap_or_else(|e| e);
 
-            // now do a binary search
-            let mut count = end - start;
-            while count > 0 {
-                let step = count / 2;
-                let mid = start + step;
-                let doc = block_docs[mid];
-                if doc < target {
-                    start = mid + 1;
-                    count -= step + 1;
-                } else {
-                    count = step;
-                }
-            }
-
-            // `doc` is now >= `target`
+            // `doc` is now the first element >= `target`
             let doc = block_docs[start];
+            debug_assert!(doc >= target);
 
             if self.position_computer.is_some() {
                 let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
@@ -255,6 +224,32 @@ impl<TDeleteSet: DeleteSet> DocSet for SegmentPostings<TDeleteSet> {
             SkipResult::OverStep
         } else {
             SkipResult::End
+        }
+    }
+
+
+    // goes to the next element.
+    // next needs to be called a first time to point to the correct element.
+    #[inline]
+    fn advance(&mut self) -> bool {
+        loop {
+            {
+                if self.position_computer.is_some() {
+                    let term_freq = self.term_freq() as usize;
+                    self.position_computer.as_mut().unwrap().add_skip(term_freq);
+                }
+            }
+            self.cur += 1;
+            if self.cur >= self.block_cursor.block_len() {
+                self.cur = 0;
+                if !self.block_cursor.advance() {
+                    self.cur = COMPRESSION_BLOCK_SIZE;
+                    return false;
+                }
+            }
+            if !self.delete_bitset.is_deleted(self.doc()) {
+                return true;
+            }
         }
     }
 
