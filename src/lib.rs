@@ -292,7 +292,7 @@ mod tests {
     use Postings;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use rand::distributions::{IndependentSample, Range};
-    
+
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(nearly_equals(val, expected), "Got {}, expected {}.", val, expected);
     }

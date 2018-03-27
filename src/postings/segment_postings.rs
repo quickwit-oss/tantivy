@@ -52,7 +52,7 @@ impl PositionComputer {
 ///
 /// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.
 /// Positions on the other hand, are optionally entirely decoded upfront.
-pub struct  SegmentPostings {
+pub struct SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
     position_computer: Option<PositionComputer>,

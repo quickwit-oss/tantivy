@@ -51,6 +51,7 @@ impl DeleteBitSet {
         }
     }
 
+    /// Returns whether the document has been marked as deleted.
     pub fn is_deleted(&self, doc: DocId) -> bool {
         if self.len == 0 {
             false

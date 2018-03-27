@@ -321,11 +321,18 @@ impl IndexMerger {
                     for (segment_ord, mut segment_postings) in segment_postings {
                         let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
                         loop {
+                            let doc =  segment_postings.doc();
+
                             // `.advance()` has been called once before the loop.
-                            // Hence we cannot use a `while segment_postings.advance()` loop.
-                            if let Some(remapped_doc_id) =
-                                old_to_new_doc_id[segment_postings.doc() as usize]
-                            {
+                            //
+                            // It was required to make sure we only consider segments
+                            // that effectively contain at least one non-deleted document
+                            // and remove terms that do not have documents associated.
+                            //
+                            //  For this reason, we cannot use a `while segment_postings.advance()` loop.
+
+                            // deleted doc are skipped as they do not have a `remapped_doc_id`.
+                            if let Some(remapped_doc_id) = old_to_new_doc_id[doc as usize] {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
                                 let term_freq = segment_postings.term_freq();

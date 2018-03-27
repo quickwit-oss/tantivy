@@ -443,7 +443,6 @@ pub mod tests {
                 last = cur;
                 cur = next;
             }
-
             assert_eq!(cur, 377);
         }
 
