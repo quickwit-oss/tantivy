@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["IResult","The result of a parser."]],"fn":[["boolean",""],["byte",""],["byte_string",""],["character",""],["float",""],["ident",""],["int",""],["lifetime",""],["lit",""],["path",""],["string",""],["tt",""],["ty",""]]});

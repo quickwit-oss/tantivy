@@ -65,7 +65,44 @@
 <span id="8"> 8</span>
 <span id="9"> 9</span>
 <span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
 </pre><pre class="rust ">
+<span class="doccomment">//! The fieldnorm represents the length associated to</span>
+<span class="doccomment">//! a given Field of a given document.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This metric is important to compute the score of a</span>
+<span class="doccomment">//! document : a document having a query word in one its short fields</span>
+<span class="doccomment">//! (e.g. title)  is likely to be more relevant than in one of its longer field</span>
+<span class="doccomment">//! (e.g. body).</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! It encodes `fieldnorm` on one byte with some precision loss,</span>
+<span class="doccomment">//! using the exact same scheme as Lucene. Each value is place on a log-scale</span>
+<span class="doccomment">//! that takes values from `0` to `255`.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! A value on this scale is identified by a `fieldnorm_id`.</span>
+<span class="doccomment">//! Apart from compression, this scale also makes it possible to</span>
+<span class="doccomment">//! precompute computationally expensive functions of the fieldnorm</span>
+<span class="doccomment">//! in a very short array.</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This trick is used by the [BM25 similarity]().</span>
 <span class="kw">mod</span> <span class="ident">code</span>;
 <span class="kw">mod</span> <span class="ident">serializer</span>;
 <span class="kw">mod</span> <span class="ident">writer</span>;
@@ -75,7 +112,9 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::<span class="ident">FieldNormsWriter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::<span class="ident">FieldNormsSerializer</span>;
 
-<span class="kw">use</span> <span class="self">self</span>::<span class="ident">code</span>::{<span class="ident">fieldnorm_to_id</span>, <span class="ident">id_to_fieldnorm</span>};</pre>
+<span class="kw">use</span> <span class="self">self</span>::<span class="ident">code</span>::{<span class="ident">fieldnorm_to_id</span>, <span class="ident">id_to_fieldnorm</span>};
+
+</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

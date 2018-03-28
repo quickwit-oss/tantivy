@@ -109,6 +109,7 @@
 <span id="52">52</span>
 <span id="53">53</span>
 <span id="54">54</span>
+<span id="55">55</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -118,18 +119,19 @@
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">TPostings</span>: <span class="ident">Postings</span><span class="op">&gt;</span> {
-    <span class="ident">postings</span>: <span class="ident">TPostings</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermScorer</span> {
+    <span class="ident">postings</span>: <span class="ident">SegmentPostings</span>,
     <span class="ident">fieldnorm_reader</span>: <span class="ident">FieldNormReader</span>,
     <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>,
 }
 
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TPostings</span>: <span class="ident">Postings</span><span class="op">&gt;</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">TPostings</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">postings</span>: <span class="ident">TPostings</span>,
+<span class="kw">impl</span> <span class="ident">TermScorer</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">postings</span>: <span class="ident">SegmentPostings</span>,
                <span class="ident">fieldnorm_reader</span>: <span class="ident">FieldNormReader</span>,
-               <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>) <span class="op">-&gt;</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">TPostings</span><span class="op">&gt;</span> {
+               <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>) <span class="op">-&gt;</span> <span class="ident">TermScorer</span> {
         <span class="ident">TermScorer</span> {
             <span class="ident">postings</span>,
             <span class="ident">fieldnorm_reader</span>,
@@ -138,7 +140,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TPostings</span>: <span class="ident">Postings</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">TPostings</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">TermScorer</span> {
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">postings</span>.<span class="ident">advance</span>()
     }
@@ -156,7 +158,7 @@
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TPostings</span>: <span class="ident">Postings</span><span class="op">&gt;</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">TPostings</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Scorer</span> <span class="kw">for</span> <span class="ident">TermScorer</span> {
     <span class="kw">fn</span> <span class="ident">score</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Score</span> {
         <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">doc</span>();
         <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);

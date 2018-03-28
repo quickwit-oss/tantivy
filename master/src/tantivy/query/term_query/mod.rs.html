@@ -164,16 +164,6 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
-<span id="110">110</span>
-<span id="111">111</span>
-<span id="112">112</span>
-<span id="113">113</span>
-<span id="114">114</span>
-<span id="115">115</span>
-<span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">term_query</span>;
 <span class="kw">mod</span> <span class="ident">term_weight</span>;
@@ -182,16 +172,6 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_query</span>::<span class="ident">TermQuery</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_weight</span>::<span class="ident">TermWeight</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
-
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">NoDelete</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
-
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">TermScorerWithDeletes</span> <span class="op">=</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;&gt;</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">type</span> <span class="ident">TermScorerNoDeletes</span> <span class="op">=</span> <span class="ident">TermScorer</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;&gt;</span>;
-
-
-
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {

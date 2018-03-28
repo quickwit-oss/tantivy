@@ -387,8 +387,6 @@
 <span id="330">330</span>
 <span id="331">331</span>
 <span id="332">332</span>
-<span id="333">333</span>
-<span id="334">334</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
@@ -418,7 +416,6 @@
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">DeleteSet</span>;
 
 <span class="doccomment">/// Entry point to access all of the datastructures of the `Segment`</span>
 <span class="doccomment">///</span>
@@ -677,7 +674,6 @@
             <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
             <span class="ident">postings_source</span>,
             <span class="ident">positions_source</span>,
-            <span class="self">self</span>.<span class="ident">delete_bitset_opt</span>.<span class="ident">clone</span>(),
             <span class="ident">record_option</span>,
         ));
 

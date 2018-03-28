@@ -173,28 +173,6 @@
 <span id="116">116</span>
 <span id="117">117</span>
 <span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
-<span id="122">122</span>
-<span id="123">123</span>
-<span id="124">124</span>
-<span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
-<span id="129">129</span>
-<span id="130">130</span>
-<span id="131">131</span>
-<span id="132">132</span>
-<span id="133">133</span>
-<span id="134">134</span>
-<span id="135">135</span>
-<span id="136">136</span>
-<span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">bit_set</span>::<span class="ident">BitSet</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
@@ -203,7 +181,6 @@
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">DeleteSet</span>;
 
 <span class="doccomment">/// Write a delete `BitSet`</span>
 <span class="doccomment">///</span>
@@ -250,19 +227,8 @@
         }
     }
 
-}
-
-
-<span class="kw">impl</span> <span class="ident">DeleteSet</span> <span class="kw">for</span> <span class="ident">DeleteBitSet</span> {
-
-    <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="ident">DeleteBitSet</span> {
-        <span class="ident">DeleteBitSet</span> {
-            <span class="ident">data</span>: <span class="ident">ReadOnlySource</span>::<span class="ident">empty</span>(),
-            <span class="ident">len</span>: <span class="number">0</span>,
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">is_deleted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="doccomment">/// Returns whether the document has been marked as deleted.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_deleted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">len</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="bool-val">false</span>
         } <span class="kw">else</span> {
@@ -275,16 +241,6 @@
 
 }
 
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">DeleteBitSet</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">delete_bitset</span>) <span class="op">=</span> <span class="ident">delete_bitset_opt</span> {
-            <span class="ident">delete_bitset</span>
-        } <span class="kw">else</span> {
-            <span class="ident">DeleteBitSet</span>::<span class="ident">empty</span>()
-        }
-    }
-}
 
 <span class="kw">impl</span> <span class="ident">HasLen</span> <span class="kw">for</span> <span class="ident">DeleteBitSet</span> {
     <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {

@@ -60,14 +60,31 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/fieldnorm/mod.rs.html#1-10' title='goto source code'>[src]</a></span></h1>
-<h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+               </span><a class='srclink' href='../../src/tantivy/fieldnorm/mod.rs.html#1-28' title='goto source code'>[src]</a></span></h1>
+<div class='docblock'><p>The fieldnorm represents the length associated to
+a given Field of a given document.</p>
+<p>This metric is important to compute the score of a
+document : a document having a query word in one its short fields
+(e.g. title)  is likely to be more relevant than in one of its longer field
+(e.g. body).</p>
+<p>It encodes <code>fieldnorm</code> on one byte with some precision loss,
+using the exact same scheme as Lucene. Each value is place on a log-scale
+that takes values from <code>0</code> to <code>255</code>.</p>
+<p>A value on this scale is identified by a <code>fieldnorm_id</code>.
+Apart from compression, this scale also makes it possible to
+precompute computationally expensive functions of the fieldnorm
+in a very short array.</p>
+<p>This trick is used by the <a href="">BM25 similarity</a>.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.FieldNormReader.html"
                                   title='struct tantivy::fieldnorm::FieldNormReader'>FieldNormReader</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Reads the fieldnorm associated to a document.
+The fieldnorm represents the length associated to
+a given Field of a given document.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>

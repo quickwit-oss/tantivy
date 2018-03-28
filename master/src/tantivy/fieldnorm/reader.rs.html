@@ -105,39 +105,103 @@
 <span id="48">48</span>
 <span id="49">49</span>
 <span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">id_to_fieldnorm</span>, <span class="ident">fieldnorm_to_id</span>};
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 
+
+<span class="doccomment">/// Reads the fieldnorm associated to a document.</span>
+<span class="doccomment">/// The fieldnorm represents the length associated to</span>
+<span class="doccomment">/// a given Field of a given document.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// This metric is important to compute the score of a</span>
+<span class="doccomment">/// document : a document having a query word in one its short fields</span>
+<span class="doccomment">/// (e.g. title)  is likely to be more relevant than in one of its longer field</span>
+<span class="doccomment">/// (e.g. body).</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// tantivy encodes `fieldnorm` on one byte with some precision loss,</span>
+<span class="doccomment">/// using the same scheme as Lucene. Each value is place on a log-scale</span>
+<span class="doccomment">/// that takes values from `0` to `255`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// A value on this scale is identified by a `fieldnorm_id`.</span>
+<span class="doccomment">/// Apart from compression, this scale also makes it possible to</span>
+<span class="doccomment">/// precompute computationally expensive functions of the fieldnorm</span>
+<span class="doccomment">/// in a very short array.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FieldNormReader</span> {
     <span class="ident">data</span>: <span class="ident">ReadOnlySource</span>
 }
 
 <span class="kw">impl</span> <span class="ident">FieldNormReader</span> {
 
+    <span class="doccomment">/// Opens a field norm reader given its data source.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span>(<span class="ident">data</span>: <span class="ident">ReadOnlySource</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">FieldNormReader</span> {
             <span class="ident">data</span>
         }
     }
 
+    <span class="doccomment">/// Returns the `fieldnorm` associated to a doc id.</span>
+    <span class="doccomment">/// The fieldnorm is a value approximating the number</span>
+    <span class="doccomment">/// of tokens in a given field of the `doc_id`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// It is imprecise, and always lower than the actual</span>
+    <span class="doccomment">/// number of tokens.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The fieldnorm is effectively decoded from the</span>
+    <span class="doccomment">/// `fieldnorm_id` by doing a simple table lookup.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fieldnorm</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>);
         <span class="ident">id_to_fieldnorm</span>(<span class="ident">fieldnorm_id</span>)
     }
 
+    <span class="doccomment">/// Returns the `fieldnorm_id` associated to a document.</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fieldnorm_id</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc_id</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">let</span> <span class="ident">fielnorms_data</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">as_slice</span>();
         <span class="ident">fielnorms_data</span>[<span class="ident">doc_id</span> <span class="kw">as</span> <span class="ident">usize</span>]
     }
 
+    <span class="doccomment">/// Converts a `fieldnorm_id` into a fieldnorm.</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">id_to_fieldnorm</span>(<span class="ident">id</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="ident">id_to_fieldnorm</span>(<span class="ident">id</span>)
     }
 
+    <span class="doccomment">/// Converts a `fieldnorm` into a `fieldnorm_id`.</span>
+    <span class="doccomment">/// (This function is not injective).</span>
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fieldnorm_to_id</span>(<span class="ident">fieldnorm</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="ident">fieldnorm_to_id</span>(<span class="ident">fieldnorm</span>)

@@ -60,18 +60,44 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#5-7' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct FieldNormReader { /* fields omitted */ }</pre>
+               </span><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#23-25' title='goto source code'>[src]</a></span></h1>
+<pre class='rust struct'>pub struct FieldNormReader { /* fields omitted */ }</pre><div class='docblock'><p>Reads the fieldnorm associated to a document.
+The fieldnorm represents the length associated to
+a given Field of a given document.</p>
+<p>This metric is important to compute the score of a
+document : a document having a query word in one its short fields
+(e.g. title)  is likely to be more relevant than in one of its longer field
+(e.g. body).</p>
+<p>tantivy encodes <code>fieldnorm</code> on one byte with some precision loss,
+using the same scheme as Lucene. Each value is place on a log-scale
+that takes values from <code>0</code> to <code>255</code>.</p>
+<p>A value on this scale is identified by a <code>fieldnorm_id</code>.
+Apart from compression, this scale also makes it possible to
+precompute computationally expensive functions of the fieldnorm
+in a very short array.</p>
+</div>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#9-37' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><code>pub fn <a href='#method.open' class='fnname'>open</a>(data: <a class="enum" href="../../tantivy/directory/enum.ReadOnlySource.html" title="enum tantivy::directory::ReadOnlySource">ReadOnlySource</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#11-15' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.fieldnorm' class="method"><span id='fieldnorm.v' class='invisible'><code>pub fn <a href='#method.fieldnorm' class='fnname'>fieldnorm</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#17-20' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.fieldnorm_id' class="method"><span id='fieldnorm_id.v' class='invisible'><code>pub fn <a href='#method.fieldnorm_id' class='fnname'>fieldnorm_id</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#23-26' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.id_to_fieldnorm' class="method"><span id='id_to_fieldnorm.v' class='invisible'><code>pub fn <a href='#method.id_to_fieldnorm' class='fnname'>id_to_fieldnorm</a>(id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#29-31' title='goto source code'>[src]</a></span></h4>
-<h4 id='method.fieldnorm_to_id' class="method"><span id='fieldnorm_to_id.v' class='invisible'><code>pub fn <a href='#method.fieldnorm_to_id' class='fnname'>fieldnorm_to_id</a>(fieldnorm: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#34-36' title='goto source code'>[src]</a></span></h4>
-</div>
+                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#27-69' title='goto source code'>[src]</a></span></h3>
+<div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><code>pub fn <a href='#method.open' class='fnname'>open</a>(data: <a class="enum" href="../../tantivy/directory/enum.ReadOnlySource.html" title="enum tantivy::directory::ReadOnlySource">ReadOnlySource</a>) -&gt; Self</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#30-34' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Opens a field norm reader given its data source.</p>
+</div><h4 id='method.fieldnorm' class="method"><span id='fieldnorm.v' class='invisible'><code>pub fn <a href='#method.fieldnorm' class='fnname'>fieldnorm</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#45-48' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the <code>fieldnorm</code> associated to a doc id.
+The fieldnorm is a value approximating the number
+of tokens in a given field of the <code>doc_id</code>.</p>
+<p>It is imprecise, and always lower than the actual
+number of tokens.</p>
+<p>The fieldnorm is effectively decoded from the
+<code>fieldnorm_id</code> by doing a simple table lookup.</p>
+</div><h4 id='method.fieldnorm_id' class="method"><span id='fieldnorm_id.v' class='invisible'><code>pub fn <a href='#method.fieldnorm_id' class='fnname'>fieldnorm_id</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#52-55' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Returns the <code>fieldnorm_id</code> associated to a document.</p>
+</div><h4 id='method.id_to_fieldnorm' class="method"><span id='id_to_fieldnorm.v' class='invisible'><code>pub fn <a href='#method.id_to_fieldnorm' class='fnname'>id_to_fieldnorm</a>(id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#59-61' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Converts a <code>fieldnorm_id</code> into a fieldnorm.</p>
+</div><h4 id='method.fieldnorm_to_id' class="method"><span id='fieldnorm_to_id.v' class='invisible'><code>pub fn <a href='#method.fieldnorm_to_id' class='fnname'>fieldnorm_to_id</a>(fieldnorm: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#66-68' title='goto source code'>[src]</a></span></h4>
+<div class='docblock'><p>Converts a <code>fieldnorm</code> into a <code>fieldnorm_id</code>.
+(This function is not injective).</p>
+</div></div>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>

@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["FieldNormReader",""],["FieldNormsSerializer",""],["FieldNormsWriter",""]]});
+initSidebarItems({"struct":[["FieldNormReader","Reads the fieldnorm associated to a document. The fieldnorm represents the length associated to a given Field of a given document."],["FieldNormsSerializer",""],["FieldNormsWriter",""]]});

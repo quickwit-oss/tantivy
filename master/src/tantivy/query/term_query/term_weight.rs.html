@@ -121,23 +121,6 @@
 <span id="64">64</span>
 <span id="65">65</span>
 <span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
-<span id="72">72</span>
-<span id="73">73</span>
-<span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
-<span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">Term</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
@@ -147,8 +130,6 @@
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">NoDelete</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
 
@@ -165,33 +146,18 @@
         <span class="kw">let</span> <span class="ident">inverted_index</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">similarity_weight</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">similarity_weight</span>.<span class="ident">clone</span>();
-        <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">has_deletes</span>() {
-            <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
+            <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&gt;</span> <span class="op">=</span>
                 <span class="ident">inverted_index</span>.<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>, <span class="self">self</span>.<span class="ident">index_record_option</span>);
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">segment_postings</span>) <span class="op">=</span> <span class="ident">postings_opt</span> {
-                    <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(<span class="ident">segment_postings</span>,
-                                        <span class="ident">fieldnorm_reader</span>,
-                                        <span class="ident">similarity_weight</span>))
-                } <span class="kw">else</span> {
-                    <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(
-                        <span class="ident">SegmentPostings</span>::<span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;</span>::<span class="ident">empty</span>(),
-                        <span class="ident">fieldnorm_reader</span>,
-                        <span class="ident">similarity_weight</span>))
-                }
-        } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
-            <span class="ident">inverted_index</span>.<span class="ident">read_postings_no_deletes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>, <span class="self">self</span>.<span class="ident">index_record_option</span>);
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">segment_postings</span>) <span class="op">=</span> <span class="ident">postings_opt</span> {
                 <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(<span class="ident">segment_postings</span>,
                                     <span class="ident">fieldnorm_reader</span>,
                                     <span class="ident">similarity_weight</span>))
             } <span class="kw">else</span> {
                 <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(
-                    <span class="ident">SegmentPostings</span>::<span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;</span>::<span class="ident">empty</span>(),
+                    <span class="ident">SegmentPostings</span>::<span class="ident">empty</span>(),
                     <span class="ident">fieldnorm_reader</span>,
                     <span class="ident">similarity_weight</span>))
             }
-        }
     }
 
     <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {

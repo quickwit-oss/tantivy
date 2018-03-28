@@ -628,33 +628,6 @@
 <span id="571">571</span>
 <span id="572">572</span>
 <span id="573">573</span>
-<span id="574">574</span>
-<span id="575">575</span>
-<span id="576">576</span>
-<span id="577">577</span>
-<span id="578">578</span>
-<span id="579">579</span>
-<span id="580">580</span>
-<span id="581">581</span>
-<span id="582">582</span>
-<span id="583">583</span>
-<span id="584">584</span>
-<span id="585">585</span>
-<span id="586">586</span>
-<span id="587">587</span>
-<span id="588">588</span>
-<span id="589">589</span>
-<span id="590">590</span>
-<span id="591">591</span>
-<span id="592">592</span>
-<span id="593">593</span>
-<span id="594">594</span>
-<span id="595">595</span>
-<span id="596">596</span>
-<span id="597">597</span>
-<span id="598">598</span>
-<span id="599">599</span>
-<span id="600">600</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">BlockDecoder</span>, <span class="ident">CompressedIntStream</span>, <span class="ident">VIntDecoder</span>, <span class="ident">COMPRESSION_BLOCK_SIZE</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -663,10 +636,8 @@
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Streamer</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">compressed_block_size</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">NoDelete</span>, <span class="ident">DeleteSet</span>};
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">SourceRead</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FreqReadingOption</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">serializer</span>::<span class="ident">PostingsSerializer</span>;
@@ -712,20 +683,18 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// As we iterate through the `SegmentPostings`, the frequencies are optionally decoded.</span>
 <span class="doccomment">/// Positions on the other hand, are optionally entirely decoded upfront.</span>
-<span class="kw">pub</span> <span class="kw">struct</span>  <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SegmentPostings</span> {
     <span class="ident">block_cursor</span>: <span class="ident">BlockSegmentPostings</span>,
     <span class="ident">cur</span>: <span class="ident">usize</span>,
-    <span class="ident">delete_bitset</span>: <span class="ident">TDeleteSet</span>,
     <span class="ident">position_computer</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">PositionComputer</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">SegmentPostings</span> {
     <span class="doccomment">/// Returns an empty segment postings object</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">empty_block_cursor</span> <span class="op">=</span> <span class="ident">BlockSegmentPostings</span>::<span class="ident">empty</span>();
         <span class="ident">SegmentPostings</span> {
             <span class="ident">block_cursor</span>: <span class="ident">empty_block_cursor</span>,
-            <span class="ident">delete_bitset</span>: <span class="ident">NoDelete</span>,
             <span class="ident">cur</span>: <span class="ident">COMPRESSION_BLOCK_SIZE</span>,
             <span class="ident">position_computer</span>: <span class="prelude-val">None</span>,
         }
@@ -739,7 +708,7 @@
     <span class="doccomment">/// It serializes the doc ids using tantivy&#39;s codec</span>
     <span class="doccomment">/// and returns a `SegmentPostings` object that embeds a</span>
     <span class="doccomment">/// buffer with the serialized data.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_from_docs</span>(<span class="ident">docs</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">NoDelete</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_from_docs</span>(<span class="ident">docs</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">counting_writer</span> <span class="op">=</span> <span class="ident">CountingWriter</span>::<span class="ident">wrap</span>(<span class="ident">Vec</span>::<span class="ident">new</span>());
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings_serializer</span> <span class="op">=</span> <span class="ident">PostingsSerializer</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">counting_writer</span>, <span class="bool-val">false</span>);
@@ -755,13 +724,11 @@
             <span class="ident">SourceRead</span>::<span class="ident">from</span>(<span class="ident">data</span>),
             <span class="ident">FreqReadingOption</span>::<span class="ident">NoFreq</span>,
         );
-        <span class="ident">SegmentPostings</span>::<span class="ident">from_block_postings</span>(<span class="ident">block_segment_postings</span>, <span class="ident">NoDelete</span>, <span class="prelude-val">None</span>)
+        <span class="ident">SegmentPostings</span>::<span class="ident">from_block_postings</span>(<span class="ident">block_segment_postings</span>, <span class="prelude-val">None</span>)
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
-
-
+<span class="kw">impl</span> <span class="ident">SegmentPostings</span> {
 
     <span class="doccomment">/// Reads a Segment postings from an &amp;[u8]</span>
     <span class="doccomment">///</span>
@@ -771,48 +738,41 @@
     <span class="doccomment">///   frequencies and/or positions</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_block_postings</span>(
         <span class="ident">segment_block_postings</span>: <span class="ident">BlockSegmentPostings</span>,
-        <span class="ident">delete_bitset</span>: <span class="ident">TDeleteSet</span>,
         <span class="ident">positions_stream_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">CompressedIntStream</span><span class="op">&gt;</span>,
-    ) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
+    ) <span class="op">-&gt;</span> <span class="ident">SegmentPostings</span> {
         <span class="ident">SegmentPostings</span> {
             <span class="ident">block_cursor</span>: <span class="ident">segment_block_postings</span>,
             <span class="ident">cur</span>: <span class="ident">COMPRESSION_BLOCK_SIZE</span>, <span class="comment">// cursor within the block</span>
-            <span class="ident">delete_bitset</span>,
             <span class="ident">position_computer</span>: <span class="ident">positions_stream_opt</span>.<span class="ident">map</span>(<span class="ident">PositionComputer</span>::<span class="ident">new</span>),
         }
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
-    <span class="comment">// goes to the next element.</span>
-    <span class="comment">// next needs to be called a first time to point to the correct element.</span>
-    <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">loop</span> {
-            {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
-                    <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_freq</span>() <span class="kw">as</span> <span class="ident">usize</span>;
-                    <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">add_skip</span>(<span class="ident">term_freq</span>);
-                }
-            }
-            <span class="self">self</span>.<span class="ident">cur</span> <span class="op">+=</span> <span class="number">1</span>;
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">cur</span> <span class="op">&gt;=</span> <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">block_len</span>() {
-                <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="number">0</span>;
-                <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">advance</span>() {
-                    <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>;
-                    <span class="kw">return</span> <span class="bool-val">false</span>;
-                }
-            }
-            <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="self">self</span>.<span class="ident">doc</span>()) {
-                <span class="kw">return</span> <span class="bool-val">true</span>;
-            }
+<span class="kw">fn</span> <span class="ident">exponential_search</span>(<span class="ident">target</span>: <span class="ident">u32</span>, <span class="kw-2">mut</span> <span class="ident">start</span>: <span class="ident">usize</span>, <span class="ident">arr</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> (<span class="ident">usize</span>, <span class="ident">usize</span>) {
+    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">arr</span>.<span class="ident">len</span>();
+    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">target</span> <span class="op">&gt;=</span> <span class="ident">arr</span>[<span class="ident">start</span>]);
+    <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">target</span> <span class="op">&lt;=</span> <span class="ident">arr</span>[<span class="ident">end</span> <span class="op">-</span> <span class="number">1</span>]);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">jump</span> <span class="op">=</span> <span class="number">1</span>;
+    <span class="kw">loop</span> {
+        <span class="kw">let</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">jump</span>;
+        <span class="kw">if</span> <span class="ident">new</span> <span class="op">&gt;=</span> <span class="ident">end</span> {
+            <span class="kw">return</span> (<span class="ident">start</span>, <span class="ident">end</span>)
         }
+        <span class="kw">if</span> <span class="ident">arr</span>[<span class="ident">new</span>] <span class="op">&gt;</span> <span class="ident">target</span> {
+            <span class="kw">return</span> (<span class="ident">start</span>, <span class="ident">new</span>);
+        }
+        <span class="ident">start</span> <span class="op">=</span> <span class="ident">new</span>;
+        <span class="ident">jump</span> <span class="op">*=</span> <span class="number">2</span>;
     }
+}
 
-
+<span class="kw">impl</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span> {
     <span class="kw">fn</span> <span class="ident">skip_next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">target</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">SkipResult</span> {
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">advance</span>() {
             <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">End</span>;
+        }
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">doc</span>() <span class="op">==</span> <span class="ident">target</span> {
+            <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span>;
         }
 
         <span class="comment">// in the following, thanks to the call to advance above,</span>
@@ -852,68 +812,54 @@
                 <span class="kw">break</span>;
             }
         }
-        {
-            <span class="comment">// we&#39;re in the right block now, start with an exponential search</span>
-            <span class="kw">let</span> <span class="ident">block_docs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">docs</span>();
-            <span class="kw">let</span> <span class="ident">block_len</span> <span class="op">=</span> <span class="ident">block_docs</span>.<span class="ident">len</span>();
 
-            <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">target</span> <span class="op">&gt;=</span> <span class="ident">block_docs</span>[<span class="self">self</span>.<span class="ident">cur</span>]);
-            <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">target</span> <span class="op">&lt;=</span> <span class="ident">block_docs</span>[<span class="ident">block_len</span> <span class="op">-</span> <span class="number">1</span>]);
+        <span class="comment">// we&#39;re in the right block now, start with an exponential search</span>
+        <span class="kw">let</span> <span class="ident">block_docs</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">docs</span>();
 
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">cur</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">block_len</span>;
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span> <span class="op">=</span> <span class="number">1</span>;
-            <span class="kw">loop</span> {
-                <span class="kw">let</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">count</span>;
-                <span class="kw">if</span> <span class="ident">new</span> <span class="op">&lt;</span> <span class="ident">end</span> <span class="op">&amp;&amp;</span> <span class="ident">block_docs</span>[<span class="ident">new</span>] <span class="op">&lt;</span> <span class="ident">target</span> {
-                    <span class="ident">start</span> <span class="op">=</span> <span class="ident">new</span>;
-                    <span class="ident">count</span> <span class="op">*=</span> <span class="number">2</span>;
-                } <span class="kw">else</span> {
-                    <span class="kw">break</span>;
-                }
-            }
-            <span class="ident">end</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">start</span> <span class="op">+</span> <span class="ident">count</span>, <span class="ident">end</span>);
+        <span class="kw">let</span> (<span class="kw-2">mut</span> <span class="ident">start</span>, <span class="ident">end</span>) <span class="op">=</span> <span class="ident">exponential_search</span>(<span class="ident">target</span>, <span class="self">self</span>.<span class="ident">cur</span>, <span class="ident">block_docs</span>);
 
-            <span class="comment">// now do a binary search</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count</span> <span class="op">=</span> <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>;
-            <span class="kw">while</span> <span class="ident">count</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="kw">let</span> <span class="ident">step</span> <span class="op">=</span> <span class="ident">count</span> <span class="op">/</span> <span class="number">2</span>;
-                <span class="kw">let</span> <span class="ident">mid</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">step</span>;
-                <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">block_docs</span>[<span class="ident">mid</span>];
-                <span class="kw">if</span> <span class="ident">doc</span> <span class="op">&lt;</span> <span class="ident">target</span> {
-                    <span class="ident">start</span> <span class="op">=</span> <span class="ident">mid</span> <span class="op">+</span> <span class="number">1</span>;
-                    <span class="ident">count</span> <span class="op">-=</span> <span class="ident">step</span> <span class="op">+</span> <span class="number">1</span>;
-                } <span class="kw">else</span> {
-                    <span class="ident">count</span> <span class="op">=</span> <span class="ident">step</span>;
-                }
-            }
+        <span class="ident">start</span> <span class="op">+=</span> <span class="ident">block_docs</span>[<span class="ident">start</span>..<span class="ident">end</span>]
+            .<span class="ident">binary_search</span>(<span class="kw-2">&amp;</span><span class="ident">target</span>)
+            .<span class="ident">unwrap_or_else</span>(<span class="op">|</span><span class="ident">e</span><span class="op">|</span> <span class="ident">e</span>);
 
-            <span class="comment">// `doc` is now &gt;= `target`</span>
-            <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">block_docs</span>[<span class="ident">start</span>];
+        <span class="comment">// `doc` is now the first element &gt;= `target`</span>
+        <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">block_docs</span>[<span class="ident">start</span>];
+        <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">doc</span> <span class="op">&gt;=</span> <span class="ident">target</span>);
 
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
-                <span class="kw">let</span> <span class="ident">freqs_skipped</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">freqs</span>()[<span class="self">self</span>.<span class="ident">cur</span>..<span class="ident">start</span>];
-                <span class="kw">let</span> <span class="ident">sum_freqs</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">freqs_skipped</span>.<span class="ident">iter</span>().<span class="ident">sum</span>();
-                <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">add_skip</span>(<span class="ident">sum_freqs</span> <span class="kw">as</span> <span class="ident">usize</span>);
-            }
-
-            <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="ident">start</span>;
-
-            <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                <span class="kw">if</span> <span class="ident">doc</span> <span class="op">==</span> <span class="ident">target</span> {
-                    <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span>;
-                } <span class="kw">else</span> {
-                    <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>;
-                }
-            }
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
+            <span class="kw">let</span> <span class="ident">freqs_skipped</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">freqs</span>()[<span class="self">self</span>.<span class="ident">cur</span>..<span class="ident">start</span>];
+            <span class="kw">let</span> <span class="ident">sum_freqs</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">freqs_skipped</span>.<span class="ident">iter</span>().<span class="ident">sum</span>();
+            <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">add_skip</span>(<span class="ident">sum_freqs</span> <span class="kw">as</span> <span class="ident">usize</span>);
         }
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">advance</span>() {
-            <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>
+
+        <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="ident">start</span>;
+        <span class="kw">if</span> <span class="ident">doc</span> <span class="op">==</span> <span class="ident">target</span> {
+            <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">Reached</span>;
         } <span class="kw">else</span> {
-            <span class="ident">SkipResult</span>::<span class="ident">End</span>
+            <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>;
         }
+    }
+
+
+    <span class="comment">// goes to the next element.</span>
+    <span class="comment">// next needs to be called a first time to point to the correct element.</span>
+    <span class="attribute">#[<span class="ident">inline</span>]</span>
+    <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
+            <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_freq</span>() <span class="kw">as</span> <span class="ident">usize</span>;
+            <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">add_skip</span>(<span class="ident">term_freq</span>);
+        }
+        <span class="self">self</span>.<span class="ident">cur</span> <span class="op">+=</span> <span class="number">1</span>;
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">cur</span> <span class="op">&gt;=</span> <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">block_len</span>() {
+            <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">advance</span>() {
+                <span class="self">self</span>.<span class="ident">cur</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>;
+                <span class="kw">return</span> <span class="bool-val">false</span>;
+            }
+        }
+        <span class="bool-val">true</span>
     }
 
     <span class="kw">fn</span> <span class="ident">size_hint</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
@@ -948,13 +894,13 @@
 }
 
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span> <span class="ident">HasLen</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">HasLen</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span> {
     <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">doc_freq</span>()
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span>: <span class="ident">DeleteSet</span><span class="op">&gt;</span> <span class="ident">Postings</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span><span class="op">&lt;</span><span class="ident">TDeleteSet</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Postings</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span> {
     <span class="kw">fn</span> <span class="ident">term_freq</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">freq</span>(<span class="self">self</span>.<span class="ident">cur</span>)
     }

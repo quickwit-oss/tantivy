@@ -200,6 +200,18 @@
 <span id="143">143</span>
 <span id="144">144</span>
 <span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
@@ -208,6 +220,7 @@
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BitSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
 <span class="kw">use</span> <span class="ident">downcast</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 
 <span class="doccomment">/// Scored set of documents matching a query within a specific segment.</span>
 <span class="doccomment">///</span>
@@ -220,12 +233,22 @@
 
     <span class="doccomment">/// Consumes the complete `DocSet` and</span>
     <span class="doccomment">/// push the scored documents to the collector.</span>
-    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Collector</span>) {
-        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">advance</span>() {
-            <span class="ident">collector</span>.<span class="ident">collect</span>(<span class="self">self</span>.<span class="ident">doc</span>(), <span class="self">self</span>.<span class="ident">score</span>());
+    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Collector</span>, <span class="ident">delete_bitset_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">delete_bitset</span>) <span class="op">=</span> <span class="ident">delete_bitset_opt</span> {
+            <span class="kw">while</span> <span class="self">self</span>.<span class="ident">advance</span>() {
+                <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">doc</span>();
+                <span class="kw">if</span> <span class="op">!</span><span class="ident">delete_bitset</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
+                    <span class="ident">collector</span>.<span class="ident">collect</span>(<span class="ident">doc</span>, <span class="self">self</span>.<span class="ident">score</span>());
+                }
+            }
+        } <span class="kw">else</span> {
+            <span class="kw">while</span> <span class="self">self</span>.<span class="ident">advance</span>() {
+                <span class="ident">collector</span>.<span class="ident">collect</span>(<span class="self">self</span>.<span class="ident">doc</span>(), <span class="self">self</span>.<span class="ident">score</span>());
+            }
         }
     }
 }
+
 
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="kw">mod</span> <span class="ident">downcast_impl</span> {
@@ -237,9 +260,9 @@
         <span class="self">self</span>.<span class="ident">deref_mut</span>().<span class="ident">score</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Collector</span>) {
+    <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Collector</span>, <span class="ident">delete_bitset</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>) {
         <span class="kw">let</span> <span class="ident">scorer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">deref_mut</span>();
-        <span class="ident">scorer</span>.<span class="ident">collect</span>(<span class="ident">collector</span>);
+        <span class="ident">scorer</span>.<span class="ident">collect</span>(<span class="ident">collector</span>, <span class="ident">delete_bitset</span>);
     }
 }
 
@@ -252,6 +275,7 @@
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
+
 
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="macro">panic</span><span class="macro">!</span>(

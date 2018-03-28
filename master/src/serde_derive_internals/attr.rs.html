@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.22.1/src/attr.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.22.2/src/attr.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>attr.rs.html -- source</title>
@@ -1478,6 +1478,13 @@
 <span id="1421">1421</span>
 <span id="1422">1422</span>
 <span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1813,7 +1820,11 @@
                     <span class="comment">// Parse `#[serde(remote = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;remote&quot;</span> <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
-                            <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">path</span>);
+                            <span class="kw">if</span> <span class="ident">is_primitive_path</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>, <span class="string">&quot;Self&quot;</span>) {
+                                <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">into</span>());
+                            } <span class="kw">else</span> {
+                                <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">path</span>);
+                            }
                         }
                     }
 
@@ -2772,27 +2783,30 @@
 }
 
 <span class="kw">fn</span> <span class="ident">is_str</span>(<span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="ident">is_primitive_path</span>(<span class="ident">ty</span>, <span class="string">&quot;str&quot;</span>)
+    <span class="ident">is_primitive_type</span>(<span class="ident">ty</span>, <span class="string">&quot;str&quot;</span>)
 }
 
 <span class="kw">fn</span> <span class="ident">is_slice_u8</span>(<span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ty</span> {
-        <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Slice</span>(<span class="kw-2">ref</span> <span class="ident">ty</span>) <span class="op">=&gt;</span> <span class="ident">is_primitive_path</span>(<span class="kw-2">&amp;</span><span class="ident">ty</span>.<span class="ident">elem</span>, <span class="string">&quot;u8&quot;</span>),
+        <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Slice</span>(<span class="kw-2">ref</span> <span class="ident">ty</span>) <span class="op">=&gt;</span> <span class="ident">is_primitive_type</span>(<span class="kw-2">&amp;</span><span class="ident">ty</span>.<span class="ident">elem</span>, <span class="string">&quot;u8&quot;</span>),
         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
 }
 
-<span class="kw">fn</span> <span class="ident">is_primitive_path</span>(<span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>, <span class="ident">primitive</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+<span class="kw">fn</span> <span class="ident">is_primitive_type</span>(<span class="ident">ty</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>, <span class="ident">primitive</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">ty</span> {
         <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="kw-2">ref</span> <span class="ident">ty</span>) <span class="op">=&gt;</span> {
-            <span class="ident">ty</span>.<span class="ident">qself</span>.<span class="ident">is_none</span>()
-                <span class="op">&amp;&amp;</span> <span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">leading_colon</span>.<span class="ident">is_none</span>()
-                <span class="op">&amp;&amp;</span> <span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>
-                <span class="op">&amp;&amp;</span> <span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">ident</span> <span class="op">==</span> <span class="ident">primitive</span>
-                <span class="op">&amp;&amp;</span> <span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">arguments</span>.<span class="ident">is_empty</span>()
+            <span class="ident">ty</span>.<span class="ident">qself</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">is_primitive_path</span>(<span class="kw-2">&amp;</span><span class="ident">ty</span>.<span class="ident">path</span>, <span class="ident">primitive</span>)
         }
         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
     }
+}
+
+<span class="kw">fn</span> <span class="ident">is_primitive_path</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>, <span class="ident">primitive</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="ident">path</span>.<span class="ident">leading_colon</span>.<span class="ident">is_none</span>()
+        <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>
+        <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">ident</span> <span class="op">==</span> <span class="ident">primitive</span>
+        <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">arguments</span>.<span class="ident">is_empty</span>()
 }
 
 <span class="comment">// All lifetimes that this type could borrow from a Deserializer.</span>

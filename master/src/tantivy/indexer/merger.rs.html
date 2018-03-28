@@ -889,6 +889,12 @@
 <span id="832">832</span>
 <span id="833">833</span>
 <span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -911,7 +917,6 @@
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsSerializer</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsWriter</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">DeleteSet</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 
 
@@ -1188,12 +1193,13 @@
                         <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span>[<span class="ident">heap_item</span>.<span class="ident">segment_ord</span>];
                         <span class="kw">let</span> <span class="ident">inverted_index</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">inverted_index</span>(<span class="ident">indexed_field</span>);
                         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
-                            .<span class="ident">read_postings_from_terminfo</span>::<span class="op">&lt;</span><span class="ident">DeleteBitSet</span><span class="op">&gt;</span>(<span class="ident">term_info</span>, <span class="ident">segment_postings_option</span>);
-                        <span class="kw">if</span> <span class="ident">segment_postings</span>.<span class="ident">advance</span>() {
-                            <span class="prelude-val">Some</span>((<span class="ident">segment_ord</span>, <span class="ident">segment_postings</span>))
-                        } <span class="kw">else</span> {
-                            <span class="prelude-val">None</span>
+                            .<span class="ident">read_postings_from_terminfo</span>(<span class="ident">term_info</span>, <span class="ident">segment_postings_option</span>);
+                        <span class="kw">while</span> <span class="ident">segment_postings</span>.<span class="ident">advance</span>() {
+                            <span class="kw">if</span> <span class="op">!</span><span class="ident">segment_reader</span>.<span class="ident">is_deleted</span>(<span class="ident">segment_postings</span>.<span class="ident">doc</span>()) {
+                                <span class="kw">return</span> <span class="prelude-val">Some</span>((<span class="ident">segment_ord</span>, <span class="ident">segment_postings</span>));
+                            }
                         }
+                        <span class="prelude-val">None</span>
                     })
                     .<span class="ident">collect</span>();
 
@@ -1201,7 +1207,6 @@
                 <span class="comment">// of all of the segments containing the given term.</span>
                 <span class="comment">//</span>
                 <span class="comment">// These segments are non-empty and advance has already been called.</span>
-
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">segment_postings</span>.<span class="ident">is_empty</span>() {
                     <span class="comment">// If not, the `term` will be entirely removed.</span>
 
@@ -1214,11 +1219,18 @@
                     <span class="kw">for</span> (<span class="ident">segment_ord</span>, <span class="kw-2">mut</span> <span class="ident">segment_postings</span>) <span class="kw">in</span> <span class="ident">segment_postings</span> {
                         <span class="kw">let</span> <span class="ident">old_to_new_doc_id</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">merged_doc_id_map</span>[<span class="ident">segment_ord</span>];
                         <span class="kw">loop</span> {
+                            <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span>  <span class="ident">segment_postings</span>.<span class="ident">doc</span>();
+
                             <span class="comment">// `.advance()` has been called once before the loop.</span>
-                            <span class="comment">// Hence we cannot use a `while segment_postings.advance()` loop.</span>
-                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">remapped_doc_id</span>) <span class="op">=</span>
-                                <span class="ident">old_to_new_doc_id</span>[<span class="ident">segment_postings</span>.<span class="ident">doc</span>() <span class="kw">as</span> <span class="ident">usize</span>]
-                            {
+                            <span class="comment">//</span>
+                            <span class="comment">// It was required to make sure we only consider segments</span>
+                            <span class="comment">// that effectively contain at least one non-deleted document</span>
+                            <span class="comment">// and remove terms that do not have documents associated.</span>
+                            <span class="comment">//</span>
+                            <span class="comment">//  For this reason, we cannot use a `while segment_postings.advance()` loop.</span>
+
+                            <span class="comment">// deleted doc are skipped as they do not have a `remapped_doc_id`.</span>
+                            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">remapped_doc_id</span>) <span class="op">=</span> <span class="ident">old_to_new_doc_id</span>[<span class="ident">doc</span> <span class="kw">as</span> <span class="ident">usize</span>] {
                                 <span class="comment">// we make sure to only write the term iff</span>
                                 <span class="comment">// there is at least one document.</span>
                                 <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="ident">segment_postings</span>.<span class="ident">term_freq</span>();
