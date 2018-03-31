@@ -129,6 +129,7 @@ extern crate log;
 #[macro_use]
 extern crate error_chain;
 
+#[cfg(feature="mmap")]
 extern crate atomicwrites;
 extern crate bit_set;
 extern crate byteorder;
@@ -149,7 +150,6 @@ extern crate serde_json;
 extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
-extern crate time;
 extern crate uuid;
 extern crate bitpacking;
 
@@ -212,8 +212,6 @@ pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};
 pub use indexer::IndexWriter;
 pub use schema::{Document, Term};
 pub use core::{InvertedIndexReader, SegmentReader};
-pub use self::common::TimerTree;
-
 pub use postings::Postings;
 pub use core::SegmentComponent;
 

@@ -1,7 +1,6 @@
 use Result;
 use collector::Collector;
 use core::searcher::Searcher;
-use common::TimerTree;
 use SegmentLocalId;
 use super::Weight;
 use std::fmt;
@@ -67,23 +66,14 @@ pub trait Query: fmt::Debug {
     /// - creates a `Scorer` object associated for this segment
     /// - iterate throw the matched documents and push them to the collector.
     ///
-    fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<TimerTree> {
-        let mut timer_tree = TimerTree::default();
+    fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<()> {
         let scoring_enabled = collector.requires_scoring();
         let weight = self.weight(searcher, scoring_enabled)?;
-        {
-            let mut search_timer = timer_tree.open("search");
-            for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
-                let mut segment_search_timer = search_timer.open("segment_search");
-                {
-                    let _ = segment_search_timer.open("set_segment");
-                    collector.set_segment(segment_ord as SegmentLocalId, segment_reader)?;
-                }
-                let _collection_timer = segment_search_timer.open("collection");
-                let mut scorer = weight.scorer(segment_reader)?;
-                scorer.collect(collector, segment_reader.delete_bitset());
-            }
+        for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
+            collector.set_segment(segment_ord as SegmentLocalId, segment_reader)?;
+            let mut scorer = weight.scorer(segment_reader)?;
+            scorer.collect(collector, segment_reader.delete_bitset());
         }
-        Ok(timer_tree)
+        Ok(())
     }
 }

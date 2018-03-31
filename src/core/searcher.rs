@@ -2,7 +2,6 @@ use Result;
 use core::SegmentReader;
 use schema::Document;
 use collector::Collector;
-use common::TimerTree;
 use query::Query;
 use DocAddress;
 use schema::{Field, Term};
@@ -59,7 +58,7 @@ impl Searcher {
     }
 
     /// Runs a query on the segment readers wrapped by the searcher
-    pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<TimerTree> {
+    pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<()> {
         query.search(self, collector)
     }
 

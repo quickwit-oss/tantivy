@@ -1,5 +1,4 @@
-mod serialize;
-mod timer;
+    mod serialize;
 mod vint;
 mod counting_writer;
 mod composite_file;
@@ -8,9 +7,6 @@ mod bitset;
 
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::serialize::{BinarySerializable, FixedSize};
-pub use self::timer::Timing;
-pub use self::timer::TimerTree;
-pub use self::timer::OpenTimer;
 pub use self::vint::VInt;
 pub use self::counting_writer::CountingWriter;
 pub use self::bitset::BitSet;
