@@ -140,7 +140,7 @@ extern crate fst;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate itertools;
-extern crate lz4;
+extern crate snap;
 extern crate num_cpus;
 extern crate owning_ref;
 extern crate regex;
@@ -149,6 +149,7 @@ extern crate serde;
 extern crate serde_json;
 extern crate stable_deref_trait;
 extern crate tempdir;
+#[cfg(test)]
 extern crate tempfile;
 extern crate uuid;
 extern crate bitpacking;

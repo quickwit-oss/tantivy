@@ -9,7 +9,7 @@ use std::mem::size_of;
 use std::io::{self, Read};
 use common::VInt;
 use datastruct::SkipList;
-use lz4;
+use snap;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]
@@ -61,9 +61,9 @@ impl StoreReader {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
             let compressed_block = self.compressed_block(block_offset);
-            let mut lz4_decoder = lz4::Decoder::new(compressed_block)?;
+            let mut snap_decoder = snap::Reader::new(compressed_block);
             *self.current_block_offset.borrow_mut() = usize::max_value();
-            lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())?;
+            snap_decoder.read_to_end(&mut current_block_mut).map(|_| ())?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
         Ok(())

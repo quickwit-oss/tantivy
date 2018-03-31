@@ -86,6 +86,7 @@ impl Index {
     /// The temp directory is only used for testing the `MmapDirectory`.
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
     #[cfg(feature="mmap")]
+    #[cfg(test)]
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         let directory = ManagedDirectory::new(mmap_directory)?;
