@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>store</a>::<wbr><a class="struct" href=''>StoreWriter</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>store</a>::<wbr><a class="struct" href=''>StoreWriter</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/store/writer.rs.html#21-27' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct StoreWriter { /* fields omitted */ }</pre><div class='docblock'><p>Write tantivy's <a href="./index.html"><code>Store</code></a></p>
+               </span><a class='srclink' href='../../src/tantivy/store/writer.rs.html#21-27' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct StoreWriter { /* fields omitted */ }</pre></div><div class='docblock'><p>Write tantivy's <a href="./index.html"><code>Store</code></a></p>
 <p>Contrary to the other components of <code>tantivy</code>,
 the store is written to disc as document as being added,
 as opposed to when the segment is getting finalized.</p>
@@ -70,22 +68,17 @@ as opposed to when the segment is getting finalized.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#29-118' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><code>pub fn <a href='#method.new' class='fnname'>new</a>(writer: <a class="type" href="../../tantivy/directory/type.WritePtr.html" title="type tantivy::directory::WritePtr">WritePtr</a>) -&gt; <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#34-42' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Create a store writer.</p>
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#29-118' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.new' class="method"><span id='new.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.new' class='fnname'>new</a>(writer: <a class="type" href="../../tantivy/directory/type.WritePtr.html" title="type tantivy::directory::WritePtr">WritePtr</a>) -&gt; <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#34-42' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Create a store writer.</p>
 <p>The store writer will writes blocks on disc as
 document are added.</p>
-</div><h4 id='method.store' class="method"><span id='store.v' class='invisible'><code>pub fn <a href='#method.store' class='fnname'>store</a>(&amp;mut self, stored_document: &amp;<a class="struct" href="../../tantivy/struct.Document.html" title="struct tantivy::Document">Document</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#49-60' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Store a new document.</p>
+</div><h4 id='method.store' class="method"><span id='store.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.store' class='fnname'>store</a>(&amp;mut self, stored_document: &amp;<a class="struct" href="../../tantivy/struct.Document.html" title="struct tantivy::Document">Document</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#49-60' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Store a new document.</p>
 <p>The document id is implicitely the number of times
 this method has been called.</p>
-</div><h4 id='method.stack' class="method"><span id='stack.v' class='invisible'><code>pub fn <a href='#method.stack' class='fnname'>stack</a>(&amp;mut self, store_reader: &amp;<a class="struct" href="../../tantivy/store/struct.StoreReader.html" title="struct tantivy::store::StoreReader">StoreReader</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#66-86' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Stacks a store reader on top of the documents written so far.
+</div><h4 id='method.stack' class="method"><span id='stack.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.stack' class='fnname'>stack</a>(&amp;mut self, store_reader: &amp;<a class="struct" href="../../tantivy/store/struct.StoreReader.html" title="struct tantivy::store::StoreReader">StoreReader</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#66-86' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Stacks a store reader on top of the documents written so far.
 This method is an optimization compared to iterating over the documents
 in the store and adding them one by one, as the store's data will
 not be decompressed and then recompressed.</p>
-</div><h4 id='method.close' class="method"><span id='close.v' class='invisible'><code>pub fn <a href='#method.close' class='fnname'>close</a>(self) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#108-117' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Finalized the store writer.</p>
+</div><h4 id='method.close' class="method"><span id='close.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.close' class='fnname'>close</a>(self) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/store/writer.rs.html#108-117' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Finalized the store writer.</p>
 <p>Compress the last unfinished block if any,
 and serializes the skip list index on disc.</p>
 </div></div>
@@ -98,9 +91,7 @@ and serializes the skip list index on disc.</p>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/store/struct.StoreWriter.html" title="struct tantivy::store::StoreWriter">StoreWriter</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

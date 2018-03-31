@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -449,7 +449,7 @@
 
 <span class="doccomment">/// Returns the size in bytes of a compressed block, given `num_bits`.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compressed_block_size</span>(<span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-    <span class="number">1</span> <span class="op">+</span> (<span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">*</span> <span class="ident">BitPackerImpl</span>::<span class="ident">BLOCK_LEN</span> <span class="op">/</span> <span class="number">8</span>
+    <span class="number">1</span> <span class="op">+</span> (<span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">*</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span> <span class="op">/</span> <span class="number">8</span>
 }
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BlockEncoder</span> {

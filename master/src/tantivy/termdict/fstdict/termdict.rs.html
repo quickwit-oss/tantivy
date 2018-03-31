@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../../light.css" id="themeStyle">
     <script src="../../../../storage.js"></script>
     
 
@@ -228,6 +228,7 @@
 <span id="171">171</span>
 <span id="172">172</span>
 <span id="173">173</span>
+<span id="174">174</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">fst</span>;
@@ -317,6 +318,7 @@
         <span class="ident">ReadOnlySource</span>::<span class="ident">Anonymous</span>(<span class="ident">data</span>) <span class="op">=&gt;</span> {
             <span class="ident">Fst</span>::<span class="ident">from_shared_bytes</span>(<span class="ident">data</span>.<span class="ident">data</span>, <span class="ident">data</span>.<span class="ident">start</span>, <span class="ident">data</span>.<span class="ident">len</span>).<span class="ident">expect</span>(<span class="string">&quot;FST data is corrupted&quot;</span>)
         }
+        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
         <span class="ident">ReadOnlySource</span>::<span class="ident">Mmap</span>(<span class="ident">mmap_readonly</span>) <span class="op">=&gt;</span> {
             <span class="ident">Fst</span>::<span class="ident">from_mmap</span>(<span class="ident">mmap_readonly</span>).<span class="ident">expect</span>(<span class="string">&quot;FST data is corrupted&quot;</span>)
         }

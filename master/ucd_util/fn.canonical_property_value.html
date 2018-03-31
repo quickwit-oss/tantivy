@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>ucd_util</a>::<wbr><a class="fn" href=''>canonical_property_value</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='index.html'>ucd_util</a>::<wbr><a class="fn" href=''>canonical_property_value</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/ucd_util/property.rs.html#76-82' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn canonical_property_value(<br>&nbsp;&nbsp;&nbsp;&nbsp;property_values: <a class="type" href="../ucd_util/type.PropertyValues.html" title="type ucd_util::PropertyValues">PropertyValues</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;normalized_property_value: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</pre><div class='docblock'><p>Find the canonical property value for the given normalized property
+               </span><a class='srclink' href='../src/ucd_util/property.rs.html#76-82' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn canonical_property_value(<br>&nbsp;&nbsp;&nbsp;&nbsp;property_values: <a class="type" href="../ucd_util/type.PropertyValues.html" title="type ucd_util::PropertyValues">PropertyValues</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;normalized_property_value: &amp;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a><br>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>&gt;</pre><div class='docblock'><p>Find the canonical property value for the given normalized property
 value.</p>
 <p>The given property values should correspond to the values for the property
 under question, which can be found using <code>property_values</code>.</p>

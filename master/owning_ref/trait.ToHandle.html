@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,16 +55,14 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandle</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandle</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/owning_ref/lib.rs.html#781-788' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait ToHandle {
+               </span><a class='srclink' href='../src/owning_ref/lib.rs.html#781-788' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ToHandle {
     type <a href='#associatedtype.Handle' class="type">Handle</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html" title="trait core::ops::deref::Deref">Deref</a>;
     unsafe fn <a href='#tymethod.to_handle' class='fnname'>to_handle</a>(x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const Self</a>) -&gt; Self::<a class="type" href="../owning_ref/trait.ToHandle.html#associatedtype.Handle" title="type owning_ref::ToHandle::Handle">Handle</a>;
-}</pre><div class='docblock'><p>Trait to implement the conversion of owner to handle for common types.</p>
+}</pre></div><div class='docblock'><p>Trait to implement the conversion of owner to handle for common types.</p>
 </div>
             <h2 id='associated-types' class='small-section-header'>
               Associated Types<a href='#associated-types' class='anchor'></a>
@@ -82,10 +80,8 @@ handle to be encapsulated by the <code>OwningHandle</code>.</p>
                 <h2 id='foreign-impls' class='small-section-header'>
                   Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
                 </h2>
-            <h3 id='impl-ToHandle' class='impl'><span class='in-band'><code>impl&lt;T:&nbsp;'static&gt; <a class="trait" href="../owning_ref/trait.ToHandle.html" title="trait owning_ref::ToHandle">ToHandle</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html" title="struct core::cell::RefCell">RefCell</a>&lt;T&gt;</code><a href='#impl-ToHandle' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/owning_ref/lib.rs.html#1073-1076' title='goto source code'>[src]</a></span></h3>
-<span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Handle-1' class="type"><span id='Handle.t-1' class='invisible'><code>type <a href='#associatedtype.Handle' class="type">Handle</a> = <a class="struct" href="https://doc.rust-lang.org/nightly/core/cell/struct.Ref.html" title="struct core::cell::Ref">Ref</a>&lt;'static, T&gt;</code></span></h4>
-<h4 id='method.to_handle' class="method"><span id='to_handle.v-1' class='invisible'><code>unsafe fn <a href='#method.to_handle' class='fnname'>to_handle</a>(x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const Self</a>) -&gt; Self::<a class="type" href="../owning_ref/trait.ToHandle.html#associatedtype.Handle" title="type owning_ref::ToHandle::Handle">Handle</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/owning_ref/lib.rs.html#1075' title='goto source code'>[src]</a></span></h4>
-</div></span>
+            <h3 id='impl-ToHandle' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;T:&nbsp;'static&gt; <a class="trait" href="../owning_ref/trait.ToHandle.html" title="trait owning_ref::ToHandle">ToHandle</a> for <a class="struct" href="https://doc.rust-lang.org/nightly/core/cell/struct.RefCell.html" title="struct core::cell::RefCell">RefCell</a>&lt;T&gt;</code><a href='#impl-ToHandle' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/owning_ref/lib.rs.html#1073-1076' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><span class='docblock autohide'><div class='impl-items'><h4 id='associatedtype.Handle-1' class="type"><span id='Handle.t-1' class='invisible'><code>type <a href='#associatedtype.Handle' class="type">Handle</a> = <a class="struct" href="https://doc.rust-lang.org/nightly/core/cell/struct.Ref.html" title="struct core::cell::Ref">Ref</a>&lt;'static, T&gt;</code></span></h4>
+<h4 id='method.to_handle' class="method"><span id='to_handle.v-1' class='invisible'><table class='table-display'><tbody><tr><td><code>unsafe fn <a href='#method.to_handle' class='fnname'>to_handle</a>(x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const Self</a>) -&gt; Self::<a class="type" href="../owning_ref/trait.ToHandle.html#associatedtype.Handle" title="type owning_ref::ToHandle::Handle">Handle</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/owning_ref/lib.rs.html#1075' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4></div></span>
         <h2 id='implementors' class='small-section-header'>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>

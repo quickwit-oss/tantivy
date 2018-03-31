@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>tantivy</a>::<wbr><a class="enum" href=''>SegmentComponent</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Enum <a href='index.html'>tantivy</a>::<wbr><a class="enum" href=''>SegmentComponent</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#6-25' title='goto source code'>[src]</a></span></h1>
-<pre class='rust enum'>pub enum SegmentComponent {
+               </span><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#6-25' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust enum'>pub enum SegmentComponent {
     POSTINGS,
     POSITIONS,
     FASTFIELDS,
@@ -69,7 +67,7 @@
     TERMS,
     STORE,
     DELETE,
-}</pre><div class='docblock'><p>Enum describing each component of a tantivy segment.
+}</pre></div><div class='docblock'><p>Enum describing each component of a tantivy segment.
 Each component is stored in its own file,
 using the pattern <code>segment_uuid</code>.<code>component_extension</code>,
 except the delete component that takes an <code>segment_uuid</code>.<code>delete_opstamp</code>.<code>component_extension</code></p>
@@ -90,28 +88,20 @@ requires to decompress the entire block it belongs to.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#27-41' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.iterator' class="method"><span id='iterator.v' class='invisible'><code>pub fn <a href='#method.iterator' class='fnname'>iterator</a>() -&gt; impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a>&lt;Item = &amp;'static <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#29-40' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Iterates through the components.</p>
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#27-41' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.iterator' class="method"><span id='iterator.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.iterator' class='fnname'>iterator</a>(<br>) -&gt; impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a>&lt;Item = &amp;'static <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#29-40' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Iterates through the components.</p>
 </div></div>
             <h2 id='implementations' class='small-section-header'>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
             <div id='implementations-list'>
-        <h3 id='impl-Copy' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Copy' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Clone' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
-</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#117-119' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
+        <h3 id='impl-Copy' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Copy' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Clone' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Clone' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.clone' class="method"><span id='clone.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone' class='fnname'>clone</a>(&amp;self) -&gt; <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/tantivy/core/segment_component.rs.html#5' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns a copy of the value. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#tymethod.clone">Read more</a></p>
+</div><h4 id='method.clone_from' class="method"><span id='clone_from.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from' class='fnname'>clone_from</a>(&amp;mut self, source: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>Self)</code></span></td><td><span class='out-of-band'><div class='ghost'></div><div class='since' title='Stable since Rust version 1.0.0'>1.0.0</div><a class='srclink' href='https://doc.rust-lang.org/nightly/src/core/clone.rs.html#117-119' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Performs copy-assignment from <code>source</code>. <a href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html#method.clone_from">Read more</a></p>
 </div></div></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="enum" href="../tantivy/enum.SegmentComponent.html" title="enum tantivy::SegmentComponent">SegmentComponent</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

@@ -68,4 +68,4 @@ function switchTheme(styleElem, mainStyleElem, newTheme) {
     }
 }
 
-switchTheme(currentTheme, mainTheme, getCurrentValue('rustdoc-theme') || 'main');
+switchTheme(currentTheme, mainTheme, getCurrentValue('rustdoc-theme') || 'light');

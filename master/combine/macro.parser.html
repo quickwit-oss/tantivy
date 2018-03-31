@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>combine</a>::<wbr><a class="macro" href=''>parser</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>combine</a>::<wbr><a class="macro" href=''>parser</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/combine/lib.rs.html#272-365' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/combine/lib.rs.html#272-365' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">parser</span> {
     (
         $(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span>
@@ -106,7 +104,7 @@
         { $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">parser</span>: <span class="ident">tt</span>)<span class="op">*</span> }
     ) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Declares a named parser which can easily be reused.</p>
+</div><div class='docblock'><p>Declares a named parser which can easily be reused.</p>
 <p>The expression which creates the parser should have no side effects as it may be called
 multiple times even during a single parse attempt.</p>
 

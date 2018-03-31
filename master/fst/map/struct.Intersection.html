@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a>::<wbr><a class="struct" href=''>Intersection</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>fst</a>::<wbr><a href='index.html'>map</a>::<wbr><a class="struct" href=''>Intersection</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/fst/map.rs.html#960' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct Intersection&lt;'m&gt;(_);</pre><div class='docblock'><p>A stream of set intersection over multiple map streams in lexicographic
+               </span><a class='srclink' href='../../src/fst/map.rs.html#960' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Intersection&lt;'m&gt;(_);</pre></div><div class='docblock'><p>A stream of set intersection over multiple map streams in lexicographic
 order.</p>
 <p>The <code>'m</code> lifetime parameter refers to the lifetime of the underlying map.</p>
 </div>
@@ -69,19 +67,15 @@ order.</p>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
             <div id='implementations-list'>
-        <h3 id='impl-Streamer%3C%27a%3E' class='impl'><span class='in-band'><code>impl&lt;'a, 'm&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a&gt; for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Streamer%3C%27a%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#962-968' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../fst/trait.Streamer.html#associatedtype.Item' class="type">Item</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="struct" href="../../fst/raw/struct.IndexedValue.html" title="struct fst::raw::IndexedValue">IndexedValue</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a></code></span></h4>
+        <h3 id='impl-Streamer%3C%27a%3E' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a, 'm&gt; <a class="trait" href="../../fst/trait.Streamer.html" title="trait fst::Streamer">Streamer</a>&lt;'a&gt; for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Streamer%3C%27a%3E' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#962-968' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../fst/trait.Streamer.html#associatedtype.Item' class="type">Item</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="struct" href="../../fst/raw/struct.IndexedValue.html" title="struct fst::raw::IndexedValue">IndexedValue</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a></code></span></h4>
 <div class='docblock'><p>The type of the item emitted by this stream.</p>
-</div><h4 id='method.next' class="method"><span id='next.v' class='invisible'><code>fn <a href='../../fst/trait.Streamer.html#tymethod.next' class='fnname'>next</a>(&amp;'a mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="../../fst/trait.Streamer.html#associatedtype.Item" title="type fst::Streamer::Item">Item</a>&gt;</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#965-967' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Emits the next element in this stream, or <code>None</code> to indicate the stream has been exhausted. <a href="../../fst/trait.Streamer.html#tymethod.next">Read more</a></p>
+</div><h4 id='method.next' class="method"><span id='next.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='../../fst/trait.Streamer.html#tymethod.next' class='fnname'>next</a>(&amp;'a mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self::<a class="type" href="../../fst/trait.Streamer.html#associatedtype.Item" title="type fst::Streamer::Item">Item</a>&gt;</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/fst/map.rs.html#965-967' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Emits the next element in this stream, or <code>None</code> to indicate the stream has been exhausted. <a href="../../fst/trait.Streamer.html#tymethod.next">Read more</a></p>
 </div></div></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'m&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'m&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'m&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'m&gt; !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../fst/map/struct.Intersection.html" title="struct fst::map::Intersection">Intersection</a>&lt;'m&gt;</code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

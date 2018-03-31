@@ -1171,6 +1171,10 @@
             return h1.innerHTML;
         }
 
+        function pathSplitter(path) {
+            return '<span>' + path.replace(/::/g, '::</span><span>');
+        }
+
         function addTab(array, query, display) {
             var extraStyle = '';
             if (display === false) {
@@ -1225,7 +1229,7 @@
 
                     output += '<tr class="' + type + ' result"><td>' +
                               '<a href="' + href + '">' +
-                              displayPath + '<span class="' + type + '">' +
+                              pathSplitter(displayPath) + '<span class="' + type + '">' +
                               name + '</span></a></td><td>' +
                               '<a href="' + href + '">' +
                               '<span class="desc">' + escape(item.desc) +
@@ -1713,19 +1717,20 @@
             // we are collapsing the impl block
             function implHider(addOrRemove) {
                 return function(n) {
-                    if (hasClass(n, "method")) {
-                        if (addOrRemove) {
-                            addClass(n, "hidden-by-impl-hider");
-                        } else {
-                            removeClass(n, "hidden-by-impl-hider");
+                    var is_method = hasClass(n, "method");
+                    if (is_method || hasClass(n, "type")) {
+                        if (is_method === true) {
+                            if (addOrRemove) {
+                                addClass(n, "hidden-by-impl-hider");
+                            } else {
+                                removeClass(n, "hidden-by-impl-hider");
+                            }
                         }
                         var ns = n.nextElementSibling;
                         while (true) {
                             if (ns && (
                                     hasClass(ns, "docblock") ||
-                                    hasClass(ns, "stability") ||
-                                    false
-                                    )) {
+                                    hasClass(ns, "stability"))) {
                                 if (addOrRemove) {
                                     addClass(ns, "hidden-by-impl-hider");
                                 } else {
@@ -1741,12 +1746,13 @@
             }
 
             var relatedDoc = toggle.parentNode;
+            var docblock = relatedDoc.nextElementSibling;
 
             while (!hasClass(relatedDoc, "impl-items")) {
                 relatedDoc = relatedDoc.nextElementSibling;
             }
 
-            if (!relatedDoc) {
+            if (!relatedDoc && !hasClass(docblock, "docblock")) {
                 return;
             }
 
@@ -1754,7 +1760,8 @@
 
             var action = mode;
             if (action === "toggle") {
-                if (hasClass(relatedDoc, "fns-now-collapsed")) {
+                if (hasClass(relatedDoc, "fns-now-collapsed") ||
+                    hasClass(docblock,  "hidden-by-impl-hider")) {
                     action = "show";
                 } else {
                     action = "hide";
@@ -1763,10 +1770,12 @@
 
             if (action === "show") {
                 removeClass(relatedDoc, "fns-now-collapsed");
+                removeClass(docblock, "hidden-by-usual-hider");
                 onEach(toggle.childNodes, adjustToggle(false));
                 onEach(relatedDoc.childNodes, implHider(false));
             } else if (action === "hide") {
                 addClass(relatedDoc, "fns-now-collapsed");
+                addClass(docblock, "hidden-by-usual-hider");
                 onEach(toggle.childNodes, adjustToggle(true));
                 onEach(relatedDoc.childNodes, implHider(true));
             }
@@ -1816,6 +1825,9 @@
 
     var func = function(e) {
         var next = e.nextElementSibling;
+        if (hasClass(e, 'impl') && next && hasClass(next, 'docblock')) {
+            next = next.nextElementSibling;
+        }
         if (!next) {
             return;
         }
@@ -1833,11 +1845,16 @@
         onEach(e.getElementsByClassName('associatedconstant'), func);
     });
 
-    function createToggle() {
+    function createToggle(otherMessage) {
         var span = document.createElement('span');
         span.className = 'toggle-label';
         span.style.display = 'none';
-        span.innerHTML = '&nbsp;Expand&nbsp;description';
+        if (!otherMessage) {
+            span.innerHTML = '&nbsp;Expand&nbsp;description';
+        } else {
+            span.innerHTML = otherMessage;
+            span.style.fontSize = '20px';
+        }
 
         var mainToggle = toggle.cloneNode(true);
         mainToggle.appendChild(span);
@@ -1850,7 +1867,14 @@
 
     onEach(document.getElementById('main').getElementsByClassName('docblock'), function(e) {
         if (e.parentNode.id === "main") {
-            e.parentNode.insertBefore(createToggle(), e);
+            var otherMessage;
+            if (hasClass(e, "type-decl")) {
+                otherMessage = '&nbsp;Show&nbsp;type&nbsp;declaration';
+            }
+            e.parentNode.insertBefore(createToggle(otherMessage), e);
+            if (otherMessage) {
+                collapseDocs(e.previousSibling.childNodes[0], "toggle");
+            }
         }
     });
 

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>task</a>::<wbr><a class="fn" href=''>with_unpark_event</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>task</a>::<wbr><a class="fn" href=''>with_unpark_event</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#596-609' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn with_unpark_event&lt;F, R&gt;(event: <a class="struct" href="../../futures/task/struct.UnparkEvent.html" title="struct futures::task::UnparkEvent">UnparkEvent</a>, f: F) -&gt; R <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>() -&gt; R,&nbsp;</span></pre><div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>FuturesUnordered</code> instead</p>
+               </span><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#596-609' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn with_unpark_event&lt;F, R&gt;(event: <a class="struct" href="../../futures/task/struct.UnparkEvent.html" title="struct futures::task::UnparkEvent">UnparkEvent</a>, f: F) -&gt; R <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>() -&gt; R,&nbsp;</span></pre><div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>FuturesUnordered</code> instead</p>
 </div></div><div class='docblock'><p>For the duration of the given callback, add an &quot;unpark event&quot; to be
 triggered when the task handle is used to unpark the task.</p>
 <p>Unpark events are used to pass information about what event caused a task to

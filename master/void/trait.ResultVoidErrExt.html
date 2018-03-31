@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,15 +55,13 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>void</a>::<wbr><a class="trait" href=''>ResultVoidErrExt</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>void</a>::<wbr><a class="trait" href=''>ResultVoidErrExt</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/void/lib.rs.html#104-107' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait ResultVoidErrExt&lt;E&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+               </span><a class='srclink' href='../src/void/lib.rs.html#104-107' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ResultVoidErrExt&lt;E&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     fn <a href='#tymethod.void_unwrap_err' class='fnname'>void_unwrap_err</a>(self) -&gt; E;
-}</pre><div class='docblock'><p>Extensions to <code>Result&lt;Void, E&gt;</code></p>
+}</pre></div><div class='docblock'><p>Extensions to <code>Result&lt;Void, E&gt;</code></p>
 </div>
             <h2 id='required-methods' class='small-section-header'>
               Required Methods<a href='#required-methods' class='anchor'></a>
@@ -74,9 +72,7 @@
                 <h2 id='foreign-impls' class='small-section-header'>
                   Implementations on Foreign Types<a href='#foreign-impls' class='anchor'></a>
                 </h2>
-            <h3 id='impl-ResultVoidErrExt%3CE%3E' class='impl'><span class='in-band'><code>impl&lt;E&gt; <a class="trait" href="../void/trait.ResultVoidErrExt.html" title="trait void::ResultVoidErrExt">ResultVoidErrExt</a>&lt;E&gt; for <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../void/enum.Void.html" title="enum void::Void">Void</a>, E&gt;</code><a href='#impl-ResultVoidErrExt%3CE%3E' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/void/lib.rs.html#109-120' title='goto source code'>[src]</a></span></h3>
-<span class='docblock autohide'><div class='impl-items'><h4 id='method.void_unwrap_err' class="method"><span id='void_unwrap_err.v-1' class='invisible'><code>fn <a href='#method.void_unwrap_err' class='fnname'>void_unwrap_err</a>(self) -&gt; E</code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/void/lib.rs.html#114-119' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Get the error out of an always-err Result.</p>
+            <h3 id='impl-ResultVoidErrExt%3CE%3E' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;E&gt; <a class="trait" href="../void/trait.ResultVoidErrExt.html" title="trait void::ResultVoidErrExt">ResultVoidErrExt</a>&lt;E&gt; for <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../void/enum.Void.html" title="enum void::Void">Void</a>, E&gt;</code><a href='#impl-ResultVoidErrExt%3CE%3E' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/void/lib.rs.html#109-120' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><span class='docblock autohide'><div class='impl-items'><h4 id='method.void_unwrap_err' class="method"><span id='void_unwrap_err.v-1' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='#method.void_unwrap_err' class='fnname'>void_unwrap_err</a>(self) -&gt; E</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/void/lib.rs.html#114-119' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Get the error out of an always-err Result.</p>
 <p>Never panics, since it is statically known to be Err.</p>
 </div></div></span>
         <h2 id='implementors' class='small-section-header'>

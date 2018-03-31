@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>combine</a>::<wbr><a class="fn" href=''>chainl1</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='index.html'>combine</a>::<wbr><a class="fn" href=''>chainl1</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/combine/combinator.rs.html#1630-1637' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn chainl1&lt;P, Op&gt;(parser: P, op: Op) -&gt; <a class="struct" href="../combine/combinator/struct.Chainl1.html" title="struct combine::combinator::Chainl1">Chainl1</a>&lt;P, Op&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;Op: <a class="trait" href="../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>&lt;Input = P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;Op::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>, P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>) -&gt; P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>,&nbsp;</span></pre><div class='docblock'><p>Parses <code>p</code> 1 or more times separated by <code>op</code>. The value returned is the one produced by the
+               </span><a class='srclink' href='../src/combine/combinator.rs.html#1630-1637' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn chainl1&lt;P, Op&gt;(parser: P, op: Op) -&gt; <a class="struct" href="../combine/combinator/struct.Chainl1.html" title="struct combine::combinator::Chainl1">Chainl1</a>&lt;P, Op&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;Op: <a class="trait" href="../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>&lt;Input = P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;Op::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>, P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>) -&gt; P::<a class="type" href="../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>,&nbsp;</span></pre><div class='docblock'><p>Parses <code>p</code> 1 or more times separated by <code>op</code>. The value returned is the one produced by the
 left associative application of the function returned by the parser <code>op</code>.</p>
 
 <pre class="rust rust-example-rendered">

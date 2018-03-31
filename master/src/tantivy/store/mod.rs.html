@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -184,6 +184,7 @@
 <span id="127">127</span>
 <span id="128">128</span>
 <span id="129">129</span>
+<span id="130">130</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Compressed/slow/row-oriented storage for documents.
@@ -235,7 +236,7 @@ and should rely on either
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldValue</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
-    <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">MmapDirectory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
+    <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
 
     <span class="kw">fn</span> <span class="ident">write_lorem_ipsum_store</span>(<span class="ident">writer</span>: <span class="ident">WritePtr</span>, <span class="ident">num_docs</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Schema</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
@@ -293,8 +294,9 @@ and should rely on either
     }
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">bench_store_encode</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">RAMDirectory</span>::<span class="ident">create</span>();
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;store&quot;</span>);
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="ident">write_lorem_ipsum_store</span>(<span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">path</span>).<span class="ident">unwrap</span>(), <span class="number">1_000</span>);
@@ -304,7 +306,7 @@ and should rely on either
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_store_decode</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">RAMDirectory</span>::<span class="ident">create</span>();
         <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;store&quot;</span>);
         <span class="ident">write_lorem_ipsum_store</span>(<span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="ident">path</span>).<span class="ident">unwrap</span>(), <span class="number">1_000</span>);
         <span class="kw">let</span> <span class="ident">store_source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="ident">path</span>).<span class="ident">unwrap</span>();

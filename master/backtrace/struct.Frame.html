@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>backtrace</a>::<wbr><a class="struct" href=''>Frame</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>backtrace</a>::<wbr><a class="struct" href=''>Frame</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#51-53' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct Frame { /* fields omitted */ }</pre><div class='docblock'><p>A trait representing one frame of a backtrace, yielded to the <code>trace</code>
+               </span><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#51-53' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Frame { /* fields omitted */ }</pre></div><div class='docblock'><p>A trait representing one frame of a backtrace, yielded to the <code>trace</code>
 function of this crate.</p>
 <p>The tracing function's closure will be yielded frames, and the frame is
 virtually dispatched as the underlying implementation is not always known
@@ -70,16 +68,13 @@ until runtime.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#55-79' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.ip' class="method"><span id='ip.v' class='invisible'><code>pub fn <a href='#method.ip' class='fnname'>ip</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="enum" href="https://doc.rust-lang.org/nightly/std/os/raw/enum.c_void.html" title="enum std::os::raw::c_void">c_void</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#64-66' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Returns the current instruction pointer of this frame.</p>
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#55-79' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.ip' class="method"><span id='ip.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.ip' class='fnname'>ip</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="enum" href="https://doc.rust-lang.org/nightly/std/os/raw/enum.c_void.html" title="enum std::os::raw::c_void">c_void</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#64-66' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the current instruction pointer of this frame.</p>
 <p>This is normally the next instruction to execute in the frame, but not
 all implementations list this with 100% accuracy (but it's generally
 pretty close).</p>
 <p>It is recommended to pass this value to <code>backtrace::resolve</code> to turn it
 into a symbol name.</p>
-</div><h4 id='method.symbol_address' class="method"><span id='symbol_address.v' class='invisible'><code>pub fn <a href='#method.symbol_address' class='fnname'>symbol_address</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="enum" href="https://doc.rust-lang.org/nightly/std/os/raw/enum.c_void.html" title="enum std::os::raw::c_void">c_void</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#76-78' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Returns the starting symbol address of the frame of this function.</p>
+</div><h4 id='method.symbol_address' class="method"><span id='symbol_address.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.symbol_address' class='fnname'>symbol_address</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="enum" href="https://doc.rust-lang.org/nightly/std/os/raw/enum.c_void.html" title="enum std::os::raw::c_void">c_void</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#76-78' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the starting symbol address of the frame of this function.</p>
 <p>This will attempt to rewind the instruction pointer returned by <code>ip</code> to
 the start of the function, returning that value. In some cases, however,
 backends will just return <code>ip</code> from this function.</p>
@@ -90,17 +85,13 @@ on the <code>ip</code> given above.</p>
               Trait Implementations<a href='#implementations' class='anchor'></a>
             </h2>
             <div id='implementations-list'>
-        <h3 id='impl-Debug' class='impl'><span class='in-band'><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Debug' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#81-88' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#82-87' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
+        <h3 id='impl-Debug' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Debug' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#81-88' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.fmt' class="method"><span id='fmt.v' class='invisible'><table class='table-display'><tbody><tr><td><code>fn <a href='https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt' class='fnname'>fmt</a>(&amp;self, f: &amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/core/fmt/struct.Formatter.html" title="struct core::fmt::Formatter">Formatter</a>) -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/core/fmt/type.Result.html" title="type core::fmt::Result">Result</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/backtrace/backtrace/mod.rs.html#82-87' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Formats the value using the given formatter. <a href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html#tymethod.fmt">Read more</a></p>
 </div></div></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl !<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../backtrace/struct.Frame.html" title="struct backtrace::Frame">Frame</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

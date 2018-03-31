@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>chan</a>::<wbr><a class="macro" href=''>chan_select</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>chan</a>::<wbr><a class="macro" href=''>chan_select</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/chan/lib.rs.html#1470-1530' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/chan/lib.rs.html#1470-1530' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">chan_select</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">select</span>:<span class="ident">ident</span>, <span class="ident">default</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">default</span>:<span class="ident">expr</span>, $(
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">chan</span>:<span class="ident">ident</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">meth</span>:<span class="ident">ident</span>($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">send</span>:<span class="ident">expr</span>)<span class="kw-2">*</span>)
@@ -87,7 +85,7 @@
     () <span class="op">=&gt;</span> { ... };
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Synchronize on at most one channel send or receive operation.</p>
+</div><div class='docblock'><p>Synchronize on at most one channel send or receive operation.</p>
 <p>This is a <em>heterogeneous</em> select. Namely, it supports any mix of
 asynchronous, synchronous or rendezvous channels, any mix of send or
 receive operations and any mix of types on channels.</p>

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>tempfile</a>::<wbr><a class="fn" href=''>tempfile</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='index.html'>tempfile</a>::<wbr><a class="fn" href=''>tempfile</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/tempfile/unnamed.rs.html#28-30' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn tempfile() -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/std/fs/struct.File.html" title="struct std::fs::File">File</a>&gt;</pre><div class='docblock'><p>Create an unnamed temporary file.</p>
+               </span><a class='srclink' href='../src/tempfile/unnamed.rs.html#28-30' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn tempfile() -&gt; <a class="type" href="https://doc.rust-lang.org/nightly/std/io/error/type.Result.html" title="type std::io::error::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/std/fs/struct.File.html" title="struct std::fs::File">File</a>&gt;</pre><div class='docblock'><p>Create an unnamed temporary file.</p>
 <p>This method is secure/reliable in the presence of a pathological temporary file cleaner.</p>
 <h1 id="deletion" class="section-header"><a href="#deletion">Deletion:</a></h1><h2 id="linux--311" class="section-header"><a href="#linux--311">Linux &gt;= 3.11**</a></h2>
 <p>The temporary file is never linked into the filesystem so it can't be leaked.</p>

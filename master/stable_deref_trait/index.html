@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>stable_deref_trait</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>stable_deref_trait</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/stable_deref_trait/lib.rs.html#9-172' title='goto source code'>[src]</a></span></h1>
-<div class='docblock'><p>This module defines an unsafe marker trait, StableDeref, for container types that deref to a fixed address which is valid even when the containing type is moved. For example, Box, Vec, Rc, Arc and String implement this trait. Additionally, it defines CloneStableDeref for types like Rc where clones deref to the same address.</p>
+               </span><a class='srclink' href='../src/stable_deref_trait/lib.rs.html#9-172' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>This module defines an unsafe marker trait, StableDeref, for container types that deref to a fixed address which is valid even when the containing type is moved. For example, Box, Vec, Rc, Arc and String implement this trait. Additionally, it defines CloneStableDeref for types like Rc where clones deref to the same address.</p>
 <p>It is intended to be used by crates such as <a href="https://crates.io/crates/owning_ref">owning_ref</a> and <a href="https://crates.io/crates/rental">rental</a>, as well as library authors who wish to make their code interoperable with such crates. For example, if you write a custom Vec type, you can implement StableDeref, and then users will be able to use your custom type together with owning_ref and rental.</p>
 <p>no_std support can be enabled by disabling default features (specifically &quot;std&quot;). In this case, the trait will not be implemented for the std types mentioned above, but you can still use it for your own types.</p>
 </div><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.14/src/synom.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.15/src/synom.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>synom.rs.html -- source</title>
@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -287,6 +287,35 @@
 <span id="230">230</span>
 <span id="231">231</span>
 <span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -457,6 +486,35 @@
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Synom</span>: <span class="ident">Sized</span> {
     <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>;
 
+    <span class="doccomment">/// A short name of the type being parsed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The description should only be used for a simple name.  It should not</span>
+    <span class="doccomment">/// contain newlines or sentence-ending punctuation, to facilitate embedding in</span>
+    <span class="doccomment">/// larger user-facing strings.  Syn will use this description when building</span>
+    <span class="doccomment">/// error messages about parse failures.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// # use syn::buffer::Cursor;</span>
+    <span class="doccomment">/// # use syn::synom::{Synom, PResult};</span>
+    <span class="doccomment">/// #</span>
+    <span class="doccomment">/// struct ExprMacro {</span>
+    <span class="doccomment">///     // ...</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// impl Synom for ExprMacro {</span>
+    <span class="doccomment">/// #   fn parse(input: Cursor) -&gt; PResult&lt;Self&gt; { unimplemented!() }</span>
+    <span class="doccomment">///     // fn parse(...) -&gt; ... { ... }</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">///     fn description() -&gt; Option&lt;&amp;&#39;static str&gt; {</span>
+    <span class="doccomment">///         // Will result in messages like</span>
+    <span class="doccomment">///         //</span>
+    <span class="doccomment">///         //     &quot;failed to parse macro invocation expression: $reason&quot;</span>
+    <span class="doccomment">///         Some(&quot;macro invocation expression&quot;)</span>
+    <span class="doccomment">///     }</span>
+    <span class="doccomment">/// }</span>
+    <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">description</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> {
         <span class="prelude-val">None</span>
     }

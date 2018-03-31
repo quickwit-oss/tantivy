@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="fn" href=''>ptsname</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="fn" href=''>ptsname</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/nix/pty.rs.html#133-143' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn ptsname(fd: &amp;<a class="struct" href="../../nix/pty/struct.PtyMaster.html" title="struct nix::pty::PtyMaster">PtyMaster</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</pre><div class='docblock'><p>Get the name of the slave pseudoterminal (see
+               </span><a class='srclink' href='../../src/nix/pty.rs.html#133-143' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn ptsname(fd: &amp;<a class="struct" href="../../nix/pty/struct.PtyMaster.html" title="struct nix::pty::PtyMaster">PtyMaster</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/string/struct.String.html" title="struct alloc::string::String">String</a>&gt;</pre><div class='docblock'><p>Get the name of the slave pseudoterminal (see
 <a href="http://man7.org/linux/man-pages/man3/ptsname.3.html">ptsname(3)</a>)</p>
 <p><code>ptsname()</code> returns the name of the slave pseudoterminal device corresponding to the master
 referred to by <code>fd</code>. Note that this function is <em>not</em> threadsafe. For that see <code>ptsname_r()</code>.</p>

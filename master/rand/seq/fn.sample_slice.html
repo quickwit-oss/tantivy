@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>rand</a>::<wbr><a href='index.html'>seq</a>::<wbr><a class="fn" href=''>sample_slice</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>rand</a>::<wbr><a href='index.html'>seq</a>::<wbr><a class="fn" href=''>sample_slice</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/rand/seq.rs.html#86-95' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn sample_slice&lt;R, T&gt;(rng: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R, slice: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[T]</a>, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../../rand/trait.Rng.html" title="trait rand::Rng">Rng</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></pre><div class='docblock'><p>Randomly sample exactly <code>amount</code> values from <code>slice</code>.</p>
+               </span><a class='srclink' href='../../src/rand/seq.rs.html#86-95' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn sample_slice&lt;R, T&gt;(rng: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R, slice: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[T]</a>, amount: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>) -&gt; <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../../rand/trait.Rng.html" title="trait rand::Rng">Rng</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a>,&nbsp;</span></pre><div class='docblock'><p>Randomly sample exactly <code>amount</code> values from <code>slice</code>.</p>
 <p>The values are non-repeating and in random order.</p>
 <p>This implementation uses <code>O(amount)</code> time and memory.</p>
 <p>Panics if <code>amount &gt; slice.len()</code></p>

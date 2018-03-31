@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,18 +55,16 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>downcast</a>::<wbr><a class="macro" href=''>impl_downcast</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>downcast</a>::<wbr><a class="macro" href=''>impl_downcast</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/downcast/lib.rs.html#193-204' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/downcast/lib.rs.html#193-204' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">impl_downcast</span> {
     (<span class="op">&lt;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">params</span>:<span class="ident">ident</span>),<span class="op">+</span> $(,)<span class="kw-2">*</span><span class="op">&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">base</span>:<span class="ident">ty</span> $(<span class="kw">where</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bounds</span>:<span class="ident">tt</span>)<span class="op">+</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">base</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Implements <a href="trait.Downcast.html"><code>Downcast</code></a> for your trait-object-type.</p>
+</div><div class='docblock'><p>Implements <a href="trait.Downcast.html"><code>Downcast</code></a> for your trait-object-type.</p>
 
 <div class='information'><div class='tooltip ignore'>ⓘ<span class='tooltiptext'>This example is not tested</span></div></div><pre class="rust rust-example-rendered ignore">
 <span class="macro">impl_downcast</span><span class="macro">!</span>(<span class="ident">Foo</span>);

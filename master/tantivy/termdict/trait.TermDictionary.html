@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>termdict</a>::<wbr><a class="trait" href=''>TermDictionary</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>termdict</a>::<wbr><a class="trait" href=''>TermDictionary</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#75-133' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait TermDictionary&lt;'a&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Self: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span>{
+               </span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#75-133' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait TermDictionary&lt;'a&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Self: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>,&nbsp;</span>{
     type <a href='#associatedtype.Streamer' class="type">Streamer</a>: <a class="trait" href="../../tantivy/termdict/trait.TermStreamer.html" title="trait tantivy::termdict::TermStreamer">TermStreamer</a> + 'a;
     type <a href='#associatedtype.StreamBuilder' class="type">StreamBuilder</a>: <a class="trait" href="../../tantivy/termdict/trait.TermStreamerBuilder.html" title="trait tantivy::termdict::TermStreamerBuilder">TermStreamerBuilder</a>&lt;Streamer = Self::<a class="type" href="../../tantivy/termdict/trait.TermDictionary.html#associatedtype.Streamer" title="type tantivy::termdict::TermDictionary::Streamer">Streamer</a>&gt; + 'a;
     fn <a href='#tymethod.from_source' class='fnname'>from_source</a>(source: <a class="enum" href="../../tantivy/directory/enum.ReadOnlySource.html" title="enum tantivy::directory::ReadOnlySource">ReadOnlySource</a>) -&gt; Self;
@@ -75,7 +73,7 @@
 
     fn <a href='#method.stream' class='fnname'>stream</a>(&amp;'a self) -&gt; Self::<a class="type" href="../../tantivy/termdict/trait.TermDictionary.html#associatedtype.Streamer" title="type tantivy::termdict::TermDictionary::Streamer">Streamer</a> { ... }
 <div class='item-spacer'></div>    fn <a href='#method.stream_field' class='fnname'>stream_field</a>(&amp;'a self, field: <a class="struct" href="../../tantivy/schema/struct.Field.html" title="struct tantivy::schema::Field">Field</a>) -&gt; Self::<a class="type" href="../../tantivy/termdict/trait.TermDictionary.html#associatedtype.Streamer" title="type tantivy::termdict::TermDictionary::Streamer">Streamer</a> { ... }
-}</pre><div class='docblock'><p>Dictionary associating sorted <code>&amp;[u8]</code> to values</p>
+}</pre></div><div class='docblock'><p>Dictionary associating sorted <code>&amp;[u8]</code> to values</p>
 </div>
             <h2 id='associated-types' class='small-section-header'>
               Associated Types<a href='#associated-types' class='anchor'></a>
@@ -115,7 +113,7 @@ within an interval.</p>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/tantivy/termdict/fstdict/termdict.rs.html#102-173' title='goto source code'>[src]</a></div><code>impl&lt;'a&gt; TermDictionary&lt;'a&gt; for <a class="struct" href="../../tantivy/termdict/struct.TermDictionaryImpl.html" title="struct tantivy::termdict::TermDictionaryImpl">TermDictionaryImpl</a><span class="where fmt-newline">  type <a href='#associatedtype.Streamer' class="type">Streamer</a> = <a class="struct" href="../../tantivy/termdict/struct.TermStreamerImpl.html" title="struct tantivy::termdict::TermStreamerImpl">TermStreamerImpl</a>&lt;'a&gt;;</span><span class="where fmt-newline">  type <a href='#associatedtype.StreamBuilder' class="type">StreamBuilder</a> = <a class="struct" href="../../tantivy/termdict/struct.TermStreamerBuilderImpl.html" title="struct tantivy::termdict::TermStreamerBuilderImpl">TermStreamerBuilderImpl</a>&lt;'a&gt;;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; TermDictionary&lt;'a&gt; for <a class="struct" href="../../tantivy/termdict/struct.TermDictionaryImpl.html" title="struct tantivy::termdict::TermDictionaryImpl">TermDictionaryImpl</a><span class="where fmt-newline">  type <a href='#associatedtype.Streamer' class="type">Streamer</a> = <a class="struct" href="../../tantivy/termdict/struct.TermStreamerImpl.html" title="struct tantivy::termdict::TermStreamerImpl">TermStreamerImpl</a>&lt;'a&gt;;</span><span class="where fmt-newline">  type <a href='#associatedtype.StreamBuilder' class="type">StreamBuilder</a> = <a class="struct" href="../../tantivy/termdict/struct.TermStreamerBuilderImpl.html" title="struct tantivy::termdict::TermStreamerBuilderImpl">TermStreamerBuilderImpl</a>&lt;'a&gt;;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/tantivy/termdict/fstdict/termdict.rs.html#103-174' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/tantivy/termdict/trait.TermDictionary.js">
                  </script></section>

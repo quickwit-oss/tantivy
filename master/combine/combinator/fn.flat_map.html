@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>flat_map</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>flat_map</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/combine/combinator.rs.html#2023-2029' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn flat_map&lt;P, F, B&gt;(p: P, f: F) -&gt; <a class="struct" href="../../combine/combinator/struct.FlatMap.html" title="struct combine::combinator::FlatMap">FlatMap</a>&lt;P, F&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;B, <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a>&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Equivalent to <a href="../primitives/trait.Parser.html#method.flat_map"><code>p.flat_map(f)</code></a>.</p>
+               </span><a class='srclink' href='../../src/combine/combinator.rs.html#2023-2029' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn flat_map&lt;P, F, B&gt;(p: P, f: F) -&gt; <a class="struct" href="../../combine/combinator/struct.FlatMap.html" title="struct combine::combinator::FlatMap">FlatMap</a>&lt;P, F&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Output" title="type combine::Parser::Output">Output</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;B, <a class="struct" href="../../combine/primitives/struct.ParseError.html" title="struct combine::primitives::ParseError">ParseError</a>&lt;P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a>&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Equivalent to <a href="../primitives/trait.Parser.html#method.flat_map"><code>p.flat_map(f)</code></a>.</p>
 </div></section>
     <section id='search' class="content hidden"></section>
 

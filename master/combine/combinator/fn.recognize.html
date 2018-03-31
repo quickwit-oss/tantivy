@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>recognize</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>recognize</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/combine/combinator.rs.html#2504-2510' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn recognize&lt;F, P&gt;(parser: P) -&gt; <a class="struct" href="../../combine/combinator/struct.Recognize.html" title="struct combine::combinator::Recognize">Recognize</a>&lt;F, P&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.FromIterator.html" title="trait core::iter::traits::FromIterator">FromIterator</a>&lt;&lt;P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a> as <a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt;::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>&gt;,&nbsp;</span></pre><div class='docblock'><p>Constructs a parser which returns the tokens parsed by <code>parser</code> accumulated in
+               </span><a class='srclink' href='../../src/combine/combinator.rs.html#2504-2510' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn recognize&lt;F, P&gt;(parser: P) -&gt; <a class="struct" href="../../combine/combinator/struct.Recognize.html" title="struct combine::combinator::Recognize">Recognize</a>&lt;F, P&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.FromIterator.html" title="trait core::iter::traits::FromIterator">FromIterator</a>&lt;&lt;P::<a class="type" href="../../combine/trait.Parser.html#associatedtype.Input" title="type combine::Parser::Input">Input</a> as <a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt;::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>&gt;,&nbsp;</span></pre><div class='docblock'><p>Constructs a parser which returns the tokens parsed by <code>parser</code> accumulated in
 <code>F: FromIterator&lt;P::Input::Item&gt;</code> instead of <code>P::Output</code>.</p>
 
 <pre class="rust rust-example-rendered">

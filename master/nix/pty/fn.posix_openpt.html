@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="fn" href=''>posix_openpt</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="fn" href=''>posix_openpt</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/nix/pty.rs.html#112-122' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn posix_openpt(flags: <a class="struct" href="../../nix/fcntl/struct.OFlag.html" title="struct nix::fcntl::OFlag">OFlag</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="struct" href="../../nix/pty/struct.PtyMaster.html" title="struct nix::pty::PtyMaster">PtyMaster</a>&gt;</pre><div class='docblock'><p>Open a pseudoterminal device (see
+               </span><a class='srclink' href='../../src/nix/pty.rs.html#112-122' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn posix_openpt(flags: <a class="struct" href="../../nix/fcntl/struct.OFlag.html" title="struct nix::fcntl::OFlag">OFlag</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="struct" href="../../nix/pty/struct.PtyMaster.html" title="struct nix::pty::PtyMaster">PtyMaster</a>&gt;</pre><div class='docblock'><p>Open a pseudoterminal device (see
 <a href="http://man7.org/linux/man-pages/man3/posix_openpt.3.html">posix_openpt(3)</a>)</p>
 <p><code>posix_openpt()</code> returns a file descriptor to an existing unused pseuterminal master device.</p>
 <h1 id="examples" class="section-header"><a href="#examples">Examples</a></h1>

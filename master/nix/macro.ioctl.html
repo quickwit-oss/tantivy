@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>nix</a>::<wbr><a class="macro" href=''>ioctl</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>nix</a>::<wbr><a class="macro" href=''>ioctl</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/nix/sys/ioctl/mod.rs.html#258-361' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/nix/sys/ioctl/mod.rs.html#258-361' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">ioctl</span> {
     ($(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span> <span class="ident">bad</span> <span class="ident">none</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span> <span class="ident">with</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nr</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> { ... };
     ($(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span> <span class="ident">bad</span> <span class="ident">read</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span> <span class="ident">with</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nr</span>:<span class="ident">expr</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> { ... };
@@ -77,7 +75,7 @@
     ($(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span> <span class="ident">write_buf</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span> <span class="ident">with</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ioty</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nr</span>:<span class="ident">expr</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> { ... };
     ($(<span class="attribute">#[<span class="macro-nonterminal">$</span><span class="macro-nonterminal">attr</span>:<span class="ident">meta</span>]</span>)<span class="op">*</span> <span class="ident">readwrite_buf</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span> <span class="ident">with</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ioty</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">nr</span>:<span class="ident">expr</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Generates ioctl functions. See <a href="sys/ioctl/index.html">::sys::ioctl</a>.</p>
+</div><div class='docblock'><p>Generates ioctl functions. See <a href="sys/ioctl/index.html">::sys::ioctl</a>.</p>
 </div></section>
     <section id='search' class="content hidden"></section>
 

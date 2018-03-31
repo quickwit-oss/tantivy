@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>futures</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>oneshot</a>::<wbr><a class="fn" href=''>spawn</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>futures</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>oneshot</a>::<wbr><a class="fn" href=''>spawn</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/futures/sync/oneshot.rs.html#474-487' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn spawn&lt;F, E&gt;(future: F, executor: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>E) -&gt; <a class="struct" href="../../../futures/sync/oneshot/struct.SpawnHandle.html" title="struct futures::sync::oneshot::SpawnHandle">SpawnHandle</a>&lt;F::<a class="type" href="../../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, F::<a class="type" href="../../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="../../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../../futures/future/trait.Executor.html" title="trait futures::future::Executor">Executor</a>&lt;<a class="struct" href="../../../futures/sync/oneshot/struct.Execute.html" title="struct futures::sync::oneshot::Execute">Execute</a>&lt;F&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Spawns a <code>future</code> onto the instance of <code>Executor</code> provided, <code>executor</code>,
+               </span><a class='srclink' href='../../../src/futures/sync/oneshot.rs.html#474-487' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn spawn&lt;F, E&gt;(future: F, executor: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>E) -&gt; <a class="struct" href="../../../futures/sync/oneshot/struct.SpawnHandle.html" title="struct futures::sync::oneshot::SpawnHandle">SpawnHandle</a>&lt;F::<a class="type" href="../../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, F::<a class="type" href="../../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="../../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;E: <a class="trait" href="../../../futures/future/trait.Executor.html" title="trait futures::future::Executor">Executor</a>&lt;<a class="struct" href="../../../futures/sync/oneshot/struct.Execute.html" title="struct futures::sync::oneshot::Execute">Execute</a>&lt;F&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Spawns a <code>future</code> onto the instance of <code>Executor</code> provided, <code>executor</code>,
 returning a handle representing the completion of the future.</p>
 <p>The <code>SpawnHandle</code> returned is a future that is a proxy for <code>future</code> itself.
 When <code>future</code> completes on <code>executor</code> then the <code>SpawnHandle</code> will itself be

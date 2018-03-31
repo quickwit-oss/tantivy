@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>syn</a>::<wbr><a href='index.html'>visit</a>::<wbr><a class="trait" href=''>Visit</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>syn</a>::<wbr><a href='index.html'>visit</a>::<wbr><a class="trait" href=''>Visit</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/syn/gen/visit.rs.html#33-415' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Visit&lt;'ast&gt; {
+               </span><a class='srclink' href='../../src/syn/gen/visit.rs.html#33-415' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Visit&lt;'ast&gt; {
     fn <a href='#method.visit_abi' class='fnname'>visit_abi</a>(&amp;mut self, i: &amp;'ast <a class="struct" href="../../syn/struct.Abi.html" title="struct syn::Abi">Abi</a>) { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_angle_bracketed_generic_arguments' class='fnname'>visit_angle_bracketed_generic_arguments</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;i: &amp;'ast <a class="struct" href="../../syn/struct.AngleBracketedGenericArguments.html" title="struct syn::AngleBracketedGenericArguments">AngleBracketedGenericArguments</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_attr_style' class='fnname'>visit_attr_style</a>(&amp;mut self, i: &amp;'ast <a class="enum" href="../../syn/enum.AttrStyle.html" title="enum syn::AttrStyle">AttrStyle</a>) { ... }
@@ -152,7 +150,7 @@
 <div class='item-spacer'></div>    fn <a href='#method.visit_visibility' class='fnname'>visit_visibility</a>(&amp;mut self, i: &amp;'ast <a class="enum" href="../../syn/enum.Visibility.html" title="enum syn::Visibility">Visibility</a>) { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_where_clause' class='fnname'>visit_where_clause</a>(&amp;mut self, i: &amp;'ast <a class="struct" href="../../syn/struct.WhereClause.html" title="struct syn::WhereClause">WhereClause</a>) { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_where_predicate' class='fnname'>visit_where_predicate</a>(&amp;mut self, i: &amp;'ast <a class="enum" href="../../syn/enum.WherePredicate.html" title="enum syn::WherePredicate">WherePredicate</a>) { ... }
-}</pre><div class='docblock'><p>Syntax tree traversal to walk a shared borrow of a syntax tree.</p>
+}</pre></div><div class='docblock'><p>Syntax tree traversal to walk a shared borrow of a syntax tree.</p>
 <p>See the <a href="index.html">module documentation</a> for details.</p>
 <p><em>This trait is available if Syn is built with the <code>&quot;visit&quot;</code> feature.</em></p>
 </div>

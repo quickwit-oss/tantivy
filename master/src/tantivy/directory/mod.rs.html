@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -215,13 +215,22 @@
 <span id="158">158</span>
 <span id="159">159</span>
 <span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 
 WORM directory abstraction.
 
 */</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">mmap_directory</span>;
+
 <span class="kw">mod</span> <span class="ident">ram_directory</span>;
 <span class="kw">mod</span> <span class="ident">directory</span>;
 <span class="kw">mod</span> <span class="ident">read_only_source</span>;
@@ -236,6 +245,8 @@ WORM directory abstraction.
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">directory</span>::<span class="ident">Directory</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ram_directory</span>::<span class="ident">RAMDirectory</span>;
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">mmap_directory</span>::<span class="ident">MmapDirectory</span>;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">SourceRead</span>;
@@ -269,6 +280,7 @@ WORM directory abstraction.
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_mmap_directory</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>().<span class="ident">unwrap</span>();
         <span class="ident">test_directory</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mmap_directory</span>);

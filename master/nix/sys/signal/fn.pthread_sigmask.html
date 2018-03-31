@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>signal</a>::<wbr><a class="fn" href=''>pthread_sigmask</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>signal</a>::<wbr><a class="fn" href=''>pthread_sigmask</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/nix/sys/signal.rs.html#423-440' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn pthread_sigmask(<br>&nbsp;&nbsp;&nbsp;&nbsp;how: <a class="enum" href="../../../nix/sys/signal/enum.SigmaskHow.html" title="enum nix::sys::signal::SigmaskHow">SigmaskHow</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;set: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="struct" href="../../../nix/sys/signal/struct.SigSet.html" title="struct nix::sys::signal::SigSet">SigSet</a>&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;oldset: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;mut <a class="struct" href="../../../nix/sys/signal/struct.SigSet.html" title="struct nix::sys::signal::SigSet">SigSet</a>&gt;<br>) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</pre><div class='docblock'><p>Manages the signal mask (set of blocked signals) for the calling thread.</p>
+               </span><a class='srclink' href='../../../src/nix/sys/signal.rs.html#423-440' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn pthread_sigmask(<br>&nbsp;&nbsp;&nbsp;&nbsp;how: <a class="enum" href="../../../nix/sys/signal/enum.SigmaskHow.html" title="enum nix::sys::signal::SigmaskHow">SigmaskHow</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;set: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;<a class="struct" href="../../../nix/sys/signal/struct.SigSet.html" title="struct nix::sys::signal::SigSet">SigSet</a>&gt;, <br>&nbsp;&nbsp;&nbsp;&nbsp;oldset: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;&amp;mut <a class="struct" href="../../../nix/sys/signal/struct.SigSet.html" title="struct nix::sys::signal::SigSet">SigSet</a>&gt;<br>) -&gt; <a class="type" href="../../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>&gt;</pre><div class='docblock'><p>Manages the signal mask (set of blocked signals) for the calling thread.</p>
 <p>If the <code>set</code> parameter is <code>Some(..)</code>, then the signal mask will be updated with the signal set.
 The <code>how</code> flag decides the type of update. If <code>set</code> is <code>None</code>, <code>how</code> will be ignored,
 and no modification will take place.</p>

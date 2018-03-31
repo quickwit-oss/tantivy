@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,15 +55,13 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>rand</a>::<wbr><a href='index.html'>reseeding</a>::<wbr><a class="trait" href=''>Reseeder</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>rand</a>::<wbr><a href='index.html'>reseeding</a>::<wbr><a class="trait" href=''>Reseeder</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/rand/reseeding.rs.html#129-132' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Reseeder&lt;R&gt; {
+               </span><a class='srclink' href='../../src/rand/reseeding.rs.html#129-132' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Reseeder&lt;R&gt; {
     fn <a href='#tymethod.reseed' class='fnname'>reseed</a>(&amp;mut self, rng: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;mut </a>R);
-}</pre><div class='docblock'><p>Something that can be used to reseed an RNG via <code>ReseedingRng</code>.</p>
+}</pre></div><div class='docblock'><p>Something that can be used to reseed an RNG via <code>ReseedingRng</code>.</p>
 <h1 id="example" class="section-header"><a href="#example">Example</a></h1>
 <pre class="rust rust-example-rendered">
 <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">StdRng</span>};
@@ -99,7 +97,7 @@
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/rand/reseeding.rs.html#139-143' title='goto source code'>[src]</a></div><code>impl&lt;R&gt; Reseeder&lt;R&gt; for <a class="struct" href="../../rand/reseeding/struct.ReseedWithDefault.html" title="struct rand::reseeding::ReseedWithDefault">ReseedWithDefault</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../../rand/trait.Rng.html" title="trait rand::Rng">Rng</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a>,&nbsp;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl&lt;R&gt; Reseeder&lt;R&gt; for <a class="struct" href="../../rand/reseeding/struct.ReseedWithDefault.html" title="struct rand::reseeding::ReseedWithDefault">ReseedWithDefault</a> <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;R: <a class="trait" href="../../rand/trait.Rng.html" title="trait rand::Rng">Rng</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/default/trait.Default.html" title="trait core::default::Default">Default</a>,&nbsp;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/rand/reseeding.rs.html#139-143' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/rand/reseeding/trait.Reseeder.js">
                  </script></section>

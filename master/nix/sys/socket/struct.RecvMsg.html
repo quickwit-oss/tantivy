@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -55,18 +55,16 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>RecvMsg</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>RecvMsg</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#112-118' title='goto source code'>[src]</a></span></h1>
-<pre class='rust struct'>pub struct RecvMsg&lt;'a&gt; {
+               </span><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#112-118' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct RecvMsg&lt;'a&gt; {
     pub bytes: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>,
     pub address: <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="enum" href="../../../nix/sys/socket/enum.SockAddr.html" title="enum nix::sys::socket::SockAddr">SockAddr</a>&gt;,
     pub flags: <a class="struct" href="../../../nix/sys/socket/struct.MsgFlags.html" title="struct nix::sys::socket::MsgFlags">MsgFlags</a>,
     // some fields omitted
-}</pre><h2 id='fields' class='fields small-section-header'>
+}</pre></div><h2 id='fields' class='fields small-section-header'>
                        Fields<a href='#fields' class='anchor'></a></h2><span id="structfield.bytes" class="structfield small-section-header">
                            <a href="#structfield.bytes" class="anchor field"></a>
                            <span id="bytes.v" class='invisible'>
@@ -83,9 +81,7 @@
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#120-126' title='goto source code'>[src]</a></span></h3>
-<div class='impl-items'><h4 id='method.cmsgs' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="enum" href="../../../nix/sys/socket/enum.ControlMessage.html" title="enum nix::sys::socket::ControlMessage">ControlMessage</a>&lt;'a&gt;;</span></code></div></div><span id='cmsgs.v' class='invisible'><code>pub fn <a href='#method.cmsgs' class='fnname'>cmsgs</a>(&amp;self) -&gt; <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a></code></span><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#123-125' title='goto source code'>[src]</a></span></h4>
-<div class='docblock'><p>Iterate over the valid control messages pointed to by this
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#120-126' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.cmsgs' class="method"><div class="important-traits"><div class='tooltip'>ⓘ<span class='tooltiptext'>Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span></div><div class="content hidden"><h3 class="important">Important traits for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</h3><code class="content"><span class="where fmt-newline">impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html" title="trait core::iter::iterator::Iterator">Iterator</a> for <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a>&lt;'a&gt;</span><span class="where fmt-newline">    type <a href='https://doc.rust-lang.org/nightly/core/iter/iterator/trait.Iterator.html#associatedtype.Item' class="type">Item</a> = <a class="enum" href="../../../nix/sys/socket/enum.ControlMessage.html" title="enum nix::sys::socket::ControlMessage">ControlMessage</a>&lt;'a&gt;;</span></code></div></div><span id='cmsgs.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.cmsgs' class='fnname'>cmsgs</a>(&amp;self) -&gt; <a class="struct" href="../../../nix/sys/socket/struct.CmsgIterator.html" title="struct nix::sys::socket::CmsgIterator">CmsgIterator</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#123-125' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Iterate over the valid control messages pointed to by this
 msghdr.</p>
 </div></div>
             <h2 id='implementations' class='small-section-header'>
@@ -97,9 +93,7 @@ msghdr.</p>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span><span class='out-of-band'></span></h3>
-<div class='impl-items'></div></div></section>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;'a&gt; <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../../nix/sys/socket/struct.RecvMsg.html" title="struct nix::sys::socket::RecvMsg">RecvMsg</a>&lt;'a&gt;</code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
     <section id='search' class="content hidden"></section>
 
     <section class="footer"></section>

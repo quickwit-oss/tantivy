@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='index.html'>itertools</a>::<wbr><a class="fn" href=''>assert_equal</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='index.html'>itertools</a>::<wbr><a class="fn" href=''>assert_equal</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/itertools/lib.rs.html#1613-1636' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn assert_equal&lt;I, J&gt;(a: I, b: J) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;J: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;I::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>&lt;J::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;J::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,&nbsp;</span></pre><div class='docblock'><p>Assert that two iterators produce equal sequences, with the same
+               </span><a class='srclink' href='../src/itertools/lib.rs.html#1613-1636' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn assert_equal&lt;I, J&gt;(a: I, b: J) <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;J: <a class="trait" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html" title="trait core::iter::traits::IntoIterator">IntoIterator</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;I::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialEq.html" title="trait core::cmp::PartialEq">PartialEq</a>&lt;J::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>&gt;,<br>&nbsp;&nbsp;&nbsp;&nbsp;J::<a class="type" href="https://doc.rust-lang.org/nightly/core/iter/traits/trait.IntoIterator.html#associatedtype.Item" title="type core::iter::traits::IntoIterator::Item">Item</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Debug.html" title="trait core::fmt::Debug">Debug</a>,&nbsp;</span></pre><div class='docblock'><p>Assert that two iterators produce equal sequences, with the same
 semantics as <em>equal(a, b)</em>.</p>
 <p><strong>Panics</strong> on assertion failure with a message that shows the
 two iteration elements.</p>

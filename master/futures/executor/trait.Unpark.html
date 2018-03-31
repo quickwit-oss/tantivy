@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,15 +55,13 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="trait" href=''>Unpark</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="trait" href=''>Unpark</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#403-410' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Unpark: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> {
+               </span><a class='srclink' href='../../src/futures/task_impl/std/mod.rs.html#403-410' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Unpark: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> {
     fn <a href='#tymethod.unpark' class='fnname'>unpark</a>(&amp;self);
-}</pre><div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>Notify</code> instead</p>
+}</pre></div><div class='stability'><div class='stab deprecated'>Deprecated<p>: recommended to use <code>Notify</code> instead</p>
 </div></div><div class='docblock'><p>A trait which represents a sink of notifications that a future is ready to
 make progress.</p>
 <p>This trait is provided as an argument to the <code>Spawn::poll_future</code> and

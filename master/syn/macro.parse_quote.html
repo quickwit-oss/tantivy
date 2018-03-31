@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,17 +55,15 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>syn</a>::<wbr><a class="macro" href=''>parse_quote</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>syn</a>::<wbr><a class="macro" href=''>parse_quote</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/syn/parse_quote.rs.html#82-86' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/syn/parse_quote.rs.html#82-86' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">parse_quote</span> {
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Quasi-quotation macro that accepts input like the <a href="https://docs.rs/quote/0.4/quote/index.html"><code>quote!</code></a> macro but uses
+</div><div class='docblock'><p>Quasi-quotation macro that accepts input like the <a href="https://docs.rs/quote/0.4/quote/index.html"><code>quote!</code></a> macro but uses
 type inference to figure out a return type for those tokens.</p>
 <p>The return type can be any syntax tree node that implements the <a href="synom/trait.Synom.html"><code>Synom</code></a>
 trait.</p>

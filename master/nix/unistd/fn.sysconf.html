@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a>::<wbr><a class="fn" href=''>sysconf</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>nix</a>::<wbr><a href='index.html'>unistd</a>::<wbr><a class="fn" href=''>sysconf</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/nix/unistd.rs.html#1588-1602' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn sysconf(var: <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../libc/unix/notbsd/linux/other/b64/not_x32/type.c_long.html" title="type libc::unix::notbsd::linux::other::b64::not_x32::c_long">c_long</a>&gt;&gt;</pre><div class='docblock'><p>Get configurable system variables (see
+               </span><a class='srclink' href='../../src/nix/unistd.rs.html#1588-1602' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn sysconf(var: <a class="enum" href="../../nix/unistd/enum.SysconfVar.html" title="enum nix::unistd::SysconfVar">SysconfVar</a>) -&gt; <a class="type" href="../../nix/type.Result.html" title="type nix::Result">Result</a>&lt;<a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="type" href="../../libc/unix/notbsd/linux/other/b64/not_x32/type.c_long.html" title="type libc::unix::notbsd::linux::other::b64::not_x32::c_long">c_long</a>&gt;&gt;</pre><div class='docblock'><p>Get configurable system variables (see
 <a href="http://pubs.opengroup.org/onlinepubs/9699919799/functions/sysconf.html">sysconf(3)</a>)</p>
 <p>Returns the value of a configurable system variable.  Most supported
 variables also have associated compile-time constants, but POSIX

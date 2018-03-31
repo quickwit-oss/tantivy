@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,16 +55,14 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="trait" href=''>UnsafeNotify</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="trait" href=''>UnsafeNotify</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#530-572' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub unsafe trait UnsafeNotify: <a class="trait" href="../../futures/executor/trait.Notify.html" title="trait futures::executor::Notify">Notify</a> {
+               </span><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#530-572' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub unsafe trait UnsafeNotify: <a class="trait" href="../../futures/executor/trait.Notify.html" title="trait futures::executor::Notify">Notify</a> {
     unsafe fn <a href='#tymethod.clone_raw' class='fnname'>clone_raw</a>(&amp;self) -&gt; <a class="struct" href="../../futures/executor/struct.NotifyHandle.html" title="struct futures::executor::NotifyHandle">NotifyHandle</a>;
 <div class='item-spacer'></div>    unsafe fn <a href='#tymethod.drop_raw' class='fnname'>drop_raw</a>(&amp;self);
-}</pre><div class='docblock'><p>An unsafe trait for implementing custom forms of memory management behind a
+}</pre></div><div class='docblock'><p>An unsafe trait for implementing custom forms of memory management behind a
 <code>Task</code>.</p>
 <p>The <code>futures</code> critically relies on &quot;notification handles&quot; to extract for
 futures to contain and then later inform that they're ready to make

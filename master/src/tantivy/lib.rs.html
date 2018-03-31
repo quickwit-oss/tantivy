@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -1004,6 +1004,7 @@
 <span id="947">947</span>
 <span id="948">948</span>
 <span id="949">949</span>
+<span id="950">950</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
@@ -1341,6 +1342,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_indexing</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);

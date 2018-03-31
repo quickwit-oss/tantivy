@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,20 +55,18 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="trait" href=''>SerializeStruct</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="trait" href=''>SerializeStruct</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde/ser/mod.rs.html#1767-1792' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait SerializeStruct {
+               </span><a class='srclink' href='../../src/serde/ser/mod.rs.html#1767-1792' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait SerializeStruct {
     type <a href='#associatedtype.Ok' class="type">Ok</a>;
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>;
     fn <a href='#tymethod.serialize_field' class='fnname'>serialize_field</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T<br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeStruct.html#associatedtype.Error" title="type serde::ser::SerializeStruct::Error">Error</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/trait.Serialize.html" title="trait serde::Serialize">Serialize</a></span>;
 <div class='item-spacer'></div>    fn <a href='#tymethod.end' class='fnname'>end</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/ser/trait.SerializeStruct.html#associatedtype.Ok" title="type serde::ser::SerializeStruct::Ok">Ok</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeStruct.html#associatedtype.Error" title="type serde::ser::SerializeStruct::Error">Error</a>&gt;;
 
     fn <a href='#method.skip_field' class='fnname'>skip_field</a>(&amp;mut self, key: &amp;'static <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../serde/ser/trait.SerializeStruct.html#associatedtype.Error" title="type serde::ser::SerializeStruct::Error">Error</a>&gt; { ... }
-}</pre><div class='docblock'><p>Returned from <code>Serializer::serialize_struct</code>.</p>
+}</pre></div><div class='docblock'><p>Returned from <code>Serializer::serialize_struct</code>.</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>, <span class="ident">SerializeStruct</span>};
@@ -115,7 +113,7 @@
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../src/serde/ser/impossible.rs.html#187-206' title='goto source code'>[src]</a></div><code>impl&lt;Ok, Error&gt; SerializeStruct for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Ok' class="type">Ok</a> = Ok;</span><span class="where fmt-newline">  type <a href='#associatedtype.Error' class="type">Error</a> = Error;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl&lt;Ok, Error&gt; SerializeStruct for <a class="struct" href="../../serde/ser/struct.Impossible.html" title="struct serde::ser::Impossible">Impossible</a>&lt;Ok, Error&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;Error: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Ok' class="type">Ok</a> = Ok;</span><span class="where fmt-newline">  type <a href='#associatedtype.Error' class="type">Error</a> = Error;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/serde/ser/impossible.rs.html#187-206' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/serde/ser/trait.SerializeStruct.js">
                  </script></section>

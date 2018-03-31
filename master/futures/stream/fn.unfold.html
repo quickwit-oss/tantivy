@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a>::<wbr><a class="fn" href=''>unfold</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a>::<wbr><a class="fn" href=''>unfold</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/futures/stream/unfold.rs.html#50-58' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn unfold&lt;T, F, Fut, It&gt;(init: T, f: F) -&gt; <a class="struct" href="../../futures/stream/struct.Unfold.html" title="struct futures::stream::Unfold">Unfold</a>&lt;T, F, Fut&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(T) -&gt; Fut,<br>&nbsp;&nbsp;&nbsp;&nbsp;Fut: <a class="trait" href="../../futures/future/trait.IntoFuture.html" title="trait futures::future::IntoFuture">IntoFuture</a>&lt;Item = <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a>It, T<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a>&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Creates a <code>Stream</code> from a seed and a closure returning a <code>Future</code>.</p>
+               </span><a class='srclink' href='../../src/futures/stream/unfold.rs.html#50-58' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn unfold&lt;T, F, Fut, It&gt;(init: T, f: F) -&gt; <a class="struct" href="../../futures/stream/struct.Unfold.html" title="struct futures::stream::Unfold">Unfold</a>&lt;T, F, Fut&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnMut.html" title="trait core::ops::function::FnMut">FnMut</a>(T) -&gt; Fut,<br>&nbsp;&nbsp;&nbsp;&nbsp;Fut: <a class="trait" href="../../futures/future/trait.IntoFuture.html" title="trait futures::future::IntoFuture">IntoFuture</a>&lt;Item = <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">(</a>It, T<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.tuple.html">)</a>&gt;&gt;,&nbsp;</span></pre><div class='docblock'><p>Creates a <code>Stream</code> from a seed and a closure returning a <code>Future</code>.</p>
 <p>This function is the dual for the <code>Stream::fold()</code> adapter: while
 <code>Stream::fold()</code> reduces a <code>Stream</code> to one single value, <code>unfold()</code> creates a
 <code>Stream</code> from a seed value.</p>

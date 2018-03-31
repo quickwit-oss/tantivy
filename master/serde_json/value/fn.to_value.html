@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>value</a>::<wbr><a class="fn" href=''>to_value</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>value</a>::<wbr><a class="fn" href=''>to_value</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde_json/value/mod.rs.html#1032-1037' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn to_value&lt;T&gt;(value: T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>, <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a>,&nbsp;</span></pre><div class='docblock'><p>Convert a <code>T</code> into <code>serde_json::Value</code> which is an enum that can represent
+               </span><a class='srclink' href='../../src/serde_json/value/mod.rs.html#1032-1037' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn to_value&lt;T&gt;(value: T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="enum" href="../../serde_json/value/enum.Value.html" title="enum serde_json::value::Value">Value</a>, <a class="struct" href="../../serde_json/error/struct.Error.html" title="struct serde_json::error::Error">Error</a>&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/ser/trait.Serialize.html" title="trait serde::ser::Serialize">Serialize</a>,&nbsp;</span></pre><div class='docblock'><p>Convert a <code>T</code> into <code>serde_json::Value</code> which is an enum that can represent
 any valid JSON data.</p>
 
 <pre class="rust rust-example-rendered">

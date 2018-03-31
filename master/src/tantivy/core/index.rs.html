@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -311,6 +311,13 @@
 <span id="254">254</span>
 <span id="255">255</span>
 <span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="ident">ResultExt</span>};
@@ -320,7 +327,11 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">BorrowMut</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">MmapDirectory</span>, <span class="ident">RAMDirectory</span>};
+
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">MmapDirectory</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>};
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">open_index_writer</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">From</span>;
@@ -375,6 +386,7 @@
     <span class="doccomment">/// The index will use the `MMapDirectory`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If a previous index was in this directory, then its meta file will be destroyed.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">directory_path</span>: <span class="ident">P</span>, <span class="ident">schema</span>: <span class="ident">Schema</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">open</span>(<span class="ident">directory_path</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;
@@ -394,6 +406,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The temp directory is only used for testing the `MmapDirectory`.</span>
     <span class="doccomment">/// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_from_tempdir</span>(<span class="ident">schema</span>: <span class="ident">Schema</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;
@@ -421,6 +434,7 @@
     }
 
     <span class="doccomment">/// Opens a new directory from an index path.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">directory_path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">open</span>(<span class="ident">directory_path</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;

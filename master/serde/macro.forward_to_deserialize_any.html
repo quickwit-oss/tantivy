@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,18 +55,16 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>serde</a>::<wbr><a class="macro" href=''>forward_to_deserialize_any</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>serde</a>::<wbr><a class="macro" href=''>forward_to_deserialize_any</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/serde/macros.rs.html#128-136' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/serde/macros.rs.html#128-136' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">forward_to_deserialize_any</span> {
     (<span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">visitor</span>:<span class="ident">ident</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">lifetime</span>:<span class="ident">tt</span><span class="op">&gt;&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>Helper macro when implementing the <code>Deserializer</code> part of a new data format
+</div><div class='docblock'><p>Helper macro when implementing the <code>Deserializer</code> part of a new data format
 for Serde.</p>
 <p>Some <a href="trait.Deserializer.html"><code>Deserializer</code></a> implementations for self-describing formats do not
 care what hint the <a href="de/trait.Visitor.html"><code>Visitor</code></a> gives them, they just want to blindly call

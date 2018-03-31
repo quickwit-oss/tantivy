@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>regex_syntax</a>::<wbr><a href='index.html'>hir</a>::<wbr><a class="trait" href=''>Visitor</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>regex_syntax</a>::<wbr><a href='index.html'>hir</a>::<wbr><a class="trait" href=''>Visitor</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/regex_syntax/hir/visitor.rs.html#23-52' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Visitor {
+               </span><a class='srclink' href='../../src/regex_syntax/hir/visitor.rs.html#23-52' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Visitor {
     type <a href='#associatedtype.Output' class="type">Output</a>;
     type <a href='#associatedtype.Err' class="type">Err</a>;
     fn <a href='#tymethod.finish' class='fnname'>finish</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../regex_syntax/hir/trait.Visitor.html#associatedtype.Output" title="type regex_syntax::hir::Visitor::Output">Output</a>, Self::<a class="type" href="../../regex_syntax/hir/trait.Visitor.html#associatedtype.Err" title="type regex_syntax::hir::Visitor::Err">Err</a>&gt;;
@@ -70,7 +68,7 @@
 <div class='item-spacer'></div>    fn <a href='#method.visit_pre' class='fnname'>visit_pre</a>(&amp;mut self, _hir: &amp;<a class="struct" href="../../regex_syntax/hir/struct.Hir.html" title="struct regex_syntax::hir::Hir">Hir</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../regex_syntax/hir/trait.Visitor.html#associatedtype.Err" title="type regex_syntax::hir::Visitor::Err">Err</a>&gt; { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_post' class='fnname'>visit_post</a>(&amp;mut self, _hir: &amp;<a class="struct" href="../../regex_syntax/hir/struct.Hir.html" title="struct regex_syntax::hir::Hir">Hir</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../regex_syntax/hir/trait.Visitor.html#associatedtype.Err" title="type regex_syntax::hir::Visitor::Err">Err</a>&gt; { ... }
 <div class='item-spacer'></div>    fn <a href='#method.visit_alternation_in' class='fnname'>visit_alternation_in</a>(&amp;mut self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.unit.html">()</a>, Self::<a class="type" href="../../regex_syntax/hir/trait.Visitor.html#associatedtype.Err" title="type regex_syntax::hir::Visitor::Err">Err</a>&gt; { ... }
-}</pre><div class='docblock'><p>A trait for visiting the high-level IR (HIR) in depth first order.</p>
+}</pre></div><div class='docblock'><p>A trait for visiting the high-level IR (HIR) in depth first order.</p>
 <p>The principle aim of this trait is to enable callers to perform case
 analysis on a high-level intermediate representation of a regular
 expression without necessarily using recursion. In particular, this permits

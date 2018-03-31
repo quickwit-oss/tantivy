@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>ser</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde/ser/mod.rs.html#312-1419' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+               </span><a class='srclink' href='../../src/serde/ser/mod.rs.html#312-1419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Ok' class="type">Ok</a>;
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>;
     type <a href='#associatedtype.SerializeSeq' class="type">SerializeSeq</a>: <a class="trait" href="../../serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a>&lt;Ok = Self::<a class="type" href="../../serde/trait.Serializer.html#associatedtype.Ok" title="type serde::Serializer::Ok">Ok</a>, Error = Self::<a class="type" href="../../serde/trait.Serializer.html#associatedtype.Error" title="type serde::Serializer::Error">Error</a>&gt;;
@@ -107,7 +105,7 @@
 <div class='item-spacer'></div>    fn <a href='#method.collect_str' class='fnname'>collect_str</a>&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a>&gt;(self, value: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.reference.html">&amp;</a>T) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../serde/trait.Serializer.html#associatedtype.Ok" title="type serde::Serializer::Ok">Ok</a>, Self::<a class="type" href="../../serde/trait.Serializer.html#associatedtype.Error" title="type serde::Serializer::Error">Error</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="https://doc.rust-lang.org/nightly/core/fmt/trait.Display.html" title="trait core::fmt::Display">Display</a></span>,
     { ... }
 <div class='item-spacer'></div>    fn <a href='#method.is_human_readable' class='fnname'>is_human_readable</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a> { ... }
-}</pre><div class='docblock'><p>A <strong>data format</strong> that can serialize any data structure supported by Serde.</p>
+}</pre></div><div class='docblock'><p>A <strong>data format</strong> that can serialize any data structure supported by Serde.</p>
 <p>The role of this trait is to define the serialization half of the Serde data
 model, which is a way to categorize every Rust data structure into one of 27
 possible types. Each method of the <code>Serializer</code> trait corresponds to one of

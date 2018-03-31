@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>task</a>::<wbr><a class="fn" href=''>init</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>task</a>::<wbr><a class="fn" href=''>init</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/futures/task_impl/core.rs.html#130-137' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub unsafe fn init(get: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.fn.html">fn</a>() -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, set: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.fn.html">fn</a>(_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>)) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></pre><div class='docblock'><p>Initialize the <code>futures</code> task system.</p>
+               </span><a class='srclink' href='../../src/futures/task_impl/core.rs.html#130-137' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub unsafe fn init(get: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.fn.html">fn</a>() -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, set: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.fn.html">fn</a>(_: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*mut </a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>)) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.bool.html">bool</a></pre><div class='docblock'><p>Initialize the <code>futures</code> task system.</p>
 <p>This function is an unsafe low-level implementation detail typically only
 used by crates using <code>futures</code> in <code>no_std</code> context. Users of this crate
 who also use the standard library never need to invoke this function.</p>

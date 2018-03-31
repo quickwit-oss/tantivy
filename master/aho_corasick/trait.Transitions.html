@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,18 +55,16 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>aho_corasick</a>::<wbr><a class="trait" href=''>Transitions</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>aho_corasick</a>::<wbr><a class="trait" href=''>Transitions</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/aho_corasick/lib.rs.html#410-419' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait Transitions {
+               </span><a class='srclink' href='../src/aho_corasick/lib.rs.html#410-419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Transitions {
     fn <a href='#tymethod.new' class='fnname'>new</a>(depth: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; Self;
 <div class='item-spacer'></div>    fn <a href='#tymethod.goto' class='fnname'>goto</a>(&amp;self, alpha: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="type" href="../aho_corasick/type.StateIdx.html" title="type aho_corasick::StateIdx">StateIdx</a>;
 <div class='item-spacer'></div>    fn <a href='#tymethod.set_goto' class='fnname'>set_goto</a>(&amp;mut self, alpha: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, si: <a class="type" href="../aho_corasick/type.StateIdx.html" title="type aho_corasick::StateIdx">StateIdx</a>);
 <div class='item-spacer'></div>    fn <a href='#tymethod.heap_bytes' class='fnname'>heap_bytes</a>(&amp;self) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>;
-}</pre><div class='docblock'><p>An abstraction over state transition strategies.</p>
+}</pre></div><div class='docblock'><p>An abstraction over state transition strategies.</p>
 <p>This is an attempt to let the caller choose the space/time trade offs
 used for state transitions.</p>
 <p>(It's possible that this interface is merely good enough for just the two
@@ -85,8 +83,8 @@ implementations in this crate.)</p>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../src/aho_corasick/lib.rs.html#433-469' title='goto source code'>[src]</a></div><code>impl Transitions for <a class="struct" href="../aho_corasick/struct.Dense.html" title="struct aho_corasick::Dense">Dense</a></code></li>
-<li><div class='out-of-band'><a class='srclink' href='../src/aho_corasick/lib.rs.html#478-495' title='goto source code'>[src]</a></div><code>impl Transitions for <a class="struct" href="../aho_corasick/struct.Sparse.html" title="struct aho_corasick::Sparse">Sparse</a></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl Transitions for <a class="struct" href="../aho_corasick/struct.Dense.html" title="struct aho_corasick::Dense">Dense</a></code><td><div class='out-of-band'><a class='srclink' href='../src/aho_corasick/lib.rs.html#433-469' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl Transitions for <a class="struct" href="../aho_corasick/struct.Sparse.html" title="struct aho_corasick::Sparse">Sparse</a></code><td><div class='out-of-band'><a class='srclink' href='../src/aho_corasick/lib.rs.html#478-495' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../implementors/aho_corasick/trait.Transitions.js">
                  </script></section>

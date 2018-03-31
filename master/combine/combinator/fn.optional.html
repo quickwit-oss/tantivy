@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>optional</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>optional</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/combine/combinator.rs.html#1546-1551' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn optional&lt;P&gt;(parser: P) -&gt; <a class="struct" href="../../combine/combinator/struct.Optional.html" title="struct combine::combinator::Optional">Optional</a>&lt;P&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,&nbsp;</span></pre><div class='docblock'><p>Parses <code>parser</code> and outputs <code>Some(value)</code> if it succeeds, <code>None</code> if it fails without
+               </span><a class='srclink' href='../../src/combine/combinator.rs.html#1546-1551' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn optional&lt;P&gt;(parser: P) -&gt; <a class="struct" href="../../combine/combinator/struct.Optional.html" title="struct combine::combinator::Optional">Optional</a>&lt;P&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;P: <a class="trait" href="../../combine/trait.Parser.html" title="trait combine::Parser">Parser</a>,&nbsp;</span></pre><div class='docblock'><p>Parses <code>parser</code> and outputs <code>Some(value)</code> if it succeeds, <code>None</code> if it fails without
 consuming any input. Fails if <code>parser</code> fails after having consumed some input.</p>
 
 <pre class="rust rust-example-rendered">

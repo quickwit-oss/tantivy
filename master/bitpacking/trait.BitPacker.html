@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>bitpacking</a>::<wbr><a class="trait" href=''>BitPacker</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>bitpacking</a>::<wbr><a class="trait" href=''>BitPacker</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/bitpacking/lib.rs.html#52-84' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait BitPacker {
+               </span><a class='srclink' href='../src/bitpacking/lib.rs.html#52-84' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait BitPacker {
     type <a href='#associatedtype.DataType' class="type">DataType</a>;
 
     const <a href='#associatedconstant.BLOCK_LEN' class="constant"><b>BLOCK_LEN</b></a>: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>;
@@ -73,7 +71,7 @@
 <div class='item-spacer'></div>    fn <a href='#tymethod.decompress_sorted' class='fnname'>decompress_sorted</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;compressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;mut [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;num_bits: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><br>&nbsp;&nbsp;&nbsp;&nbsp;);
 <div class='item-spacer'></div>    fn <a href='#tymethod.num_bits' class='fnname'>num_bits</a>(decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>;
 <div class='item-spacer'></div>    fn <a href='#tymethod.num_bits_sorted' class='fnname'>num_bits_sorted</a>(initial: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>, decompressed: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;[</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>;
-}</pre><div class='docblock'><h1 id="example" class="section-header"><a href="#example">Example</a></h1>
+}</pre></div><div class='docblock'><h1 id="example" class="section-header"><a href="#example">Example</a></h1>
 <pre class="rust rust-example-rendered">
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitpacking</span>;
 
@@ -115,8 +113,8 @@
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.ScalarBitPacker.html" title="struct bitpacking::ScalarBitPacker">ScalarBitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;</span></code></li>
-<li><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.SSE3BitPacker.html" title="struct bitpacking::SSE3BitPacker">SSE3BitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="struct" href="https://doc.rust-lang.org/nightly/core/coresimd/x86/struct.__m128i.html" title="struct core::coresimd::x86::__m128i">DataType</a>;</span></code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.ScalarBitPacker.html" title="struct bitpacking::ScalarBitPacker">ScalarBitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>;</span></code><td><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl BitPacker for <a class="struct" href="../bitpacking/struct.SSE3BitPacker.html" title="struct bitpacking::SSE3BitPacker">SSE3BitPacker</a><span class="where fmt-newline">  type <a href='#associatedtype.DataType' class="type">DataType</a> = <a class="struct" href="https://doc.rust-lang.org/nightly/core/coresimd/x86/struct.__m128i.html" title="struct core::coresimd::x86::__m128i">DataType</a>;</span></code><td><div class='out-of-band'><a class='srclink' href='../src/bitpacking/macros.rs.html#209-362' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../implementors/bitpacking/trait.BitPacker.js">
                  </script></section>

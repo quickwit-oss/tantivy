@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../dark.css">
-    <link rel="stylesheet" type="text/css" href="../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle">
     <script src="../storage.js"></script>
     
 
@@ -55,17 +55,15 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>futures</a>::<wbr><a class="macro" href=''>task_local</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Macro <a href='index.html'>futures</a>::<wbr><a class="macro" href=''>task_local</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/futures/task_impl/std/data.rs.html#18-32' title='goto source code'>[src]</a></span></h1>
-<pre class="rust macro">
+               </span><a class='srclink' href='../src/futures/task_impl/std/data.rs.html#18-32' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">task_local</span> {
     (<span class="kw">static</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">NAME</span>:<span class="ident">ident</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ty</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
-<div class='docblock'><p>A macro to create a <code>static</code> of type <code>LocalKey</code></p>
+</div><div class='docblock'><p>A macro to create a <code>static</code> of type <code>LocalKey</code></p>
 <p>This macro is intentionally similar to the <code>thread_local!</code>, and creates a
 <code>static</code> which has a <code>with</code> method to access the data on a task.</p>
 <p>The data associated with each task local is per-task, so different tasks

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
     <script src="../../storage.js"></script>
     
 
@@ -55,13 +55,11 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="fn" href=''>from_slice</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>serde_json</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="fn" href=''>from_slice</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/serde_json/de.rs.html#2127-2132' title='goto source code'>[src]</a></span></h1>
-<pre class='rust fn'>pub fn from_slice&lt;'a, T&gt;(v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="type" href="../../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/de/trait.Deserialize.html" title="trait serde::de::Deserialize">Deserialize</a>&lt;'a&gt;,&nbsp;</span></pre><div class='docblock'><p>Deserialize an instance of type <code>T</code> from bytes of JSON text.</p>
+               </span><a class='srclink' href='../../src/serde_json/de.rs.html#2127-2132' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn from_slice&lt;'a, T&gt;(v: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">&amp;'a [</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a><a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.slice.html">]</a>) -&gt; <a class="type" href="../../serde_json/type.Result.html" title="type serde_json::Result">Result</a>&lt;T&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;T: <a class="trait" href="../../serde/de/trait.Deserialize.html" title="trait serde::de::Deserialize">Deserialize</a>&lt;'a&gt;,&nbsp;</span></pre><div class='docblock'><p>Deserialize an instance of type <code>T</code> from bytes of JSON text.</p>
 <h1 id="errors" class="section-header"><a href="#errors">Errors</a></h1>
 <p>This conversion can fail if the structure of the input does not match the
 structure expected by <code>T</code>, for example if <code>T</code> is a struct type but the input

@@ -14,7 +14,7 @@
           id="mainThemeStyle">
     
     <link rel="stylesheet" type="text/css" href="../../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../../main.css" id="themeStyle">
+    <link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle">
     <script src="../../../storage.js"></script>
     
 
@@ -55,15 +55,13 @@
         </form>
     </nav>
 
-    <section id='main' class="content">
-<h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>num_traits</a>::<wbr><a href='../index.html'>ops</a>::<wbr><a href='index.html'>checked</a>::<wbr><a class="trait" href=''>CheckedDiv</a></span><span class='out-of-band'><span id='render-detail'>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>num_traits</a>::<wbr><a href='../index.html'>ops</a>::<wbr><a href='index.html'>checked</a>::<wbr><a class="trait" href=''>CheckedDiv</a></span><span class='out-of-band'><span id='render-detail'>
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#75-79' title='goto source code'>[src]</a></span></h1>
-<pre class='rust trait'>pub trait CheckedDiv: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/arith/trait.Div.html" title="trait core::ops::arith::Div">Div</a>&lt;Self, Output = Self&gt; {
+               </span><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#75-79' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait CheckedDiv: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/arith/trait.Div.html" title="trait core::ops::arith::Div">Div</a>&lt;Self, Output = Self&gt; {
     fn <a href='#tymethod.checked_div' class='fnname'>checked_div</a>(&amp;self, v: &amp;Self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self&gt;;
-}</pre><div class='docblock'><p>Performs division that returns <code>None</code> instead of panicking on division by zero and instead of
+}</pre></div><div class='docblock'><p>Performs division that returns <code>None</code> instead of panicking on division by zero and instead of
 wrapping around on underflow and overflow.</p>
 </div>
             <h2 id='required-methods' class='small-section-header'>
@@ -77,16 +75,16 @@ zero. If any of that happens, <code>None</code> is returned.</p>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for u8</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for u16</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for u32</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for u64</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for usize</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for i8</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for i16</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for i32</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for i64</code></li>
-<li><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div><code>impl CheckedDiv for isize</code></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for u8</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for u16</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for u32</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for u64</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for usize</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for i8</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for i16</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for i32</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for i64</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+<li><table class='table-display'><tbody><tr><td><code>impl CheckedDiv for isize</code><td><div class='out-of-band'><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#13-18' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../../implementors/num_traits/ops/checked/trait.CheckedDiv.js">
                  </script></section>
