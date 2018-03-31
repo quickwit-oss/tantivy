@@ -24,7 +24,7 @@ const MINI_BLOCK: usize = 1;
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
 pub fn compressed_block_size(num_bits: u8) -> usize {
-    1 + (num_bits as usize) * BitPackerImpl::BLOCK_LEN / 8
+    1 + (num_bits as usize) * COMPRESSION_BLOCK_SIZE / 8
 }
 
 pub struct BlockEncoder {

@@ -23,7 +23,7 @@ mod tests {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", STRING);
         let schema = schema_builder.build();
-        let index = Index::create_from_tempdir(schema).unwrap();
+        let index = Index::create_in_ram(schema);
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();

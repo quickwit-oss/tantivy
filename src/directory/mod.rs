@@ -3,7 +3,10 @@
 WORM directory abstraction.
 
 */
+
+#[cfg(feature="mmap")]
 mod mmap_directory;
+
 mod ram_directory;
 mod directory;
 mod read_only_source;
@@ -18,6 +21,8 @@ use std::io::{BufWriter, Seek, Write};
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
+
+#[cfg(feature="mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
 pub(crate) use self::read_only_source::SourceRead;
@@ -51,6 +56,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="mmap")]
     fn test_mmap_directory() {
         let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         test_directory(&mut mmap_directory);

@@ -48,7 +48,7 @@ mod tests {
     use schema::TextOptions;
     use schema::FieldValue;
     use schema::Document;
-    use directory::{Directory, MmapDirectory, RAMDirectory, WritePtr};
+    use directory::{Directory, RAMDirectory, WritePtr};
 
     fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
         let mut schema_builder = SchemaBuilder::default();
@@ -106,8 +106,9 @@ mod tests {
     }
 
     #[bench]
+    #[cfg(feature="mmap")]
     fn bench_store_encode(b: &mut Bencher) {
-        let mut directory = MmapDirectory::create_from_tempdir().unwrap();
+        let mut directory = RAMDirectory::create();
         let path = Path::new("store");
         b.iter(|| {
             write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
@@ -117,7 +118,7 @@ mod tests {
 
     #[bench]
     fn bench_store_decode(b: &mut Bencher) {
-        let mut directory = MmapDirectory::create_from_tempdir().unwrap();
+        let mut directory = RAMDirectory::create();
         let path = Path::new("store");
         write_lorem_ipsum_store(directory.open_write(path).unwrap(), 1_000);
         let store_source = directory.open_read(path).unwrap();

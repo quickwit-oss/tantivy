@@ -86,6 +86,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
         ReadOnlySource::Anonymous(data) => {
             Fst::from_shared_bytes(data.data, data.start, data.len).expect("FST data is corrupted")
         }
+        #[cfg(feature="mmap")]
         ReadOnlySource::Mmap(mmap_readonly) => {
             Fst::from_mmap(mmap_readonly).expect("FST data is corrupted")
         }

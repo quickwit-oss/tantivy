@@ -13,6 +13,7 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 
 #[test]
 #[ignore]
+#[cfg(feature="mmap")]
 fn test_indexing() {
     let mut schema_builder = SchemaBuilder::default();
 

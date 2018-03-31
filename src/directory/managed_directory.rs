@@ -282,6 +282,7 @@ impl Clone for ManagedDirectory {
 mod tests {
 
     use super::*;
+    #[cfg(feature="mmap")]
     use directory::MmapDirectory;
     use std::path::Path;
     use std::io::Write;
@@ -293,6 +294,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="mmap")]
     fn test_managed_directory() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
@@ -341,6 +343,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="mmap ")]
     fn test_managed_directory_gc_while_mmapped() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
@@ -370,6 +373,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="mmap")]
     fn test_managed_directory_protect() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());

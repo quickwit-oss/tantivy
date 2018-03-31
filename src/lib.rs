@@ -334,6 +334,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature="mmap")]
     fn test_indexing() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);

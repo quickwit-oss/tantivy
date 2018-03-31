@@ -6,7 +6,11 @@ use std::sync::Arc;
 use std::borrow::BorrowMut;
 use std::fmt;
 use core::SegmentId;
-use directory::{Directory, MmapDirectory, RAMDirectory};
+
+
+#[cfg(feature="mmap")]
+use directory::MmapDirectory;
+use directory::{Directory, RAMDirectory};
 use indexer::index_writer::open_index_writer;
 use core::searcher::Searcher;
 use std::convert::From;
@@ -61,6 +65,7 @@ impl Index {
     /// The index will use the `MMapDirectory`.
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
+    #[cfg(feature="mmap")]
     pub fn create<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
@@ -80,6 +85,7 @@ impl Index {
     ///
     /// The temp directory is only used for testing the `MmapDirectory`.
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
+    #[cfg(feature="mmap")]
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         let directory = ManagedDirectory::new(mmap_directory)?;
@@ -107,6 +113,7 @@ impl Index {
     }
 
     /// Opens a new directory from an index path.
+    #[cfg(feature="mmap")]
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
