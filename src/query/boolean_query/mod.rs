@@ -110,7 +110,6 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&*searcher, false).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            println!("{:?}", scorer.type_name());
             assert!(Downcast::<TermScorer>::is_type(&*scorer));
         }
     }
