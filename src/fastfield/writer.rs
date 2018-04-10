@@ -68,12 +68,11 @@ impl FastFieldsWriter {
     ///
     /// Returns None if the field does not exist, or is not
     /// configured as a multivalued fastfield in the schema.
-    pub(crate) fn get_multivalue_writer(
+    pub fn get_multivalue_writer(
         &mut self,
         field: Field,
     ) -> Option<&mut MultiValueIntFastFieldWriter> {
         // TODO optimize
-        // TODO expose for users
         self.multi_values_writers
             .iter_mut()
             .find(|multivalue_writer| multivalue_writer.field() == field)
