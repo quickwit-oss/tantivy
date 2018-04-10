@@ -122,6 +122,13 @@ impl Index {
         Index::create_from_metas(directory, &metas)
     }
 
+    pub fn open_directory<TDirectory: Directory>(directory: TDirectory) -> Result<Index> {
+        let directory = ManagedDirectory::new(directory)?;
+        let metas = load_metas(&directory)?;
+        Index::create_from_metas(directory, &metas)
+    }
+
+
     /// Reads the index meta file from the directory.
     pub fn load_metas(&self) -> Result<IndexMeta> {
         load_metas(self.directory())

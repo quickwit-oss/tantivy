@@ -12,12 +12,15 @@ mod directory;
 mod read_only_source;
 mod shared_vec_slice;
 mod managed_directory;
+mod static_directory;
 
 /// Errors specific to the directory module.
 pub mod error;
 
 use std::io::{BufWriter, Seek, Write};
 
+pub use self::static_directory::StaticDirectory;
+pub use self::static_directory::write_static_from_directory;
 pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
