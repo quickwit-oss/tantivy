@@ -40,7 +40,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9", features = ["nightly"]}
 matches = "0.1"
-bitpacking = {path="../bitpacking", default-features=false}
+bitpacking = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
@@ -57,8 +57,7 @@ debug-assertions = false
 
 
 [features]
-default = ["mmap", "simdcompression"]
-simdcompression = ["bitpacking/sse3"]
+default = ["mmap"]
 streamdict = []
 mmap = ["fst/mmap", "atomicwrites"]
 
