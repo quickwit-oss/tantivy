@@ -276,7 +276,6 @@
 <span id="219">219</span>
 <span id="220">220</span>
 <span id="221">221</span>
-<span id="222">222</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
@@ -348,12 +347,11 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// Returns None if the field does not exist, or is not</span>
     <span class="doccomment">/// configured as a multivalued fastfield in the schema.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">get_multivalue_writer</span>(
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_multivalue_writer</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MultiValueIntFastFieldWriter</span><span class="op">&gt;</span> {
         <span class="comment">// TODO optimize</span>
-        <span class="comment">// TODO expose for users</span>
         <span class="self">self</span>.<span class="ident">multi_values_writers</span>
             .<span class="ident">iter_mut</span>()
             .<span class="ident">find</span>(<span class="op">|</span><span class="ident">multivalue_writer</span><span class="op">|</span> <span class="ident">multivalue_writer</span>.<span class="ident">field</span>() <span class="op">==</span> <span class="ident">field</span>)
