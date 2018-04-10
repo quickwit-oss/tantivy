@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.22.2/src/ast.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.0/src/ast.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ast.rs.html -- source</title>
@@ -227,6 +227,9 @@
 <span id="170">170</span>
 <span id="171">171</span>
 <span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -298,6 +301,9 @@
             <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">variants</span> {
                 <span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">rename_by_rule</span>(<span class="ident">attrs</span>.<span class="ident">rename_all</span>());
                 <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">variant</span>.<span class="ident">fields</span> {
+                    <span class="kw">if</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">flatten</span>() {
+                        <span class="ident">has_flatten</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                    }
                     <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">rename_by_rule</span>(<span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">rename_all</span>());
                 }
             },

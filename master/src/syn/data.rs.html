@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.15/src/data.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.1/src/data.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>data.rs.html -- source</title>
@@ -445,12 +445,6 @@
 <span id="388">388</span>
 <span id="389">389</span>
 <span id="390">390</span>
-<span id="391">391</span>
-<span id="392">392</span>
-<span id="393">393</span>
-<span id="394">394</span>
-<span id="395">395</span>
-<span id="396">396</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -525,7 +519,7 @@
     <span class="doccomment">/// fields uniformly.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// [`Field`]: struct.Field.html</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">punctuated</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">punctuated</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Fields</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> <span class="ident">punctuated</span>::<span class="ident">Iter</span>::<span class="ident">private_empty</span>(),
             <span class="ident">Fields</span>::<span class="ident">Named</span>(<span class="kw-2">ref</span> <span class="ident">f</span>) <span class="op">=&gt;</span> <span class="ident">f</span>.<span class="ident">named</span>.<span class="ident">iter</span>(),
@@ -536,7 +530,7 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Fields</span> {
     <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Field</span>;
-    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">punctuated</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Field</span>, <span class="macro">Token</span><span class="macro">!</span>[,]<span class="op">&gt;</span>;
+    <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">punctuated</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Field</span><span class="op">&gt;</span>;
 
     <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
         <span class="self">self</span>.<span class="ident">iter</span>()
@@ -588,18 +582,16 @@
             <span class="kw">pub</span> <span class="ident">pub_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">pub</span>],
         }),
 
-        <span class="doccomment">/// A crate-level visibility: `pub(crate)`.</span>
+        <span class="doccomment">/// A crate-level visibility: `crate`.</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Crate</span>(<span class="ident">VisCrate</span> {
-            <span class="kw">pub</span> <span class="ident">pub_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">pub</span>],
-            <span class="kw">pub</span> <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>,
             <span class="kw">pub</span> <span class="ident">crate_token</span>: <span class="macro">Token</span><span class="macro">!</span>[<span class="kw">crate</span>],
         }),
 
         <span class="doccomment">/// A visibility level restricted to some path: `pub(self)` or</span>
-        <span class="doccomment">/// `pub(super)` or `pub(in some::module)`.</span>
+        <span class="doccomment">/// `pub(super)` or `pub(crate)` or `pub(in some::module)`.</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// *This type is available if Syn is built with the `&quot;derive&quot;` or</span>
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
@@ -709,17 +701,16 @@
             <span class="macro">do_parse</span><span class="macro">!</span>(
                 <span class="ident">pub_token</span>: <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">pub</span>) <span class="op">&gt;&gt;</span>
                 <span class="ident">other</span>: <span class="macro">parens</span><span class="macro">!</span>(<span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">crate</span>)) <span class="op">&gt;&gt;</span>
-                (<span class="ident">Visibility</span>::<span class="ident">Crate</span>(<span class="ident">VisCrate</span> {
+                (<span class="ident">Visibility</span>::<span class="ident">Restricted</span>(<span class="ident">VisRestricted</span> {
                     <span class="ident">pub_token</span>: <span class="ident">pub_token</span>,
                     <span class="ident">paren_token</span>: <span class="ident">other</span>.<span class="number">0</span>,
-                    <span class="ident">crate_token</span>: <span class="ident">other</span>.<span class="number">1</span>,
+                    <span class="ident">in_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">path</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">other</span>.<span class="number">1</span>.<span class="ident">into</span>()),
                 }))
             )
             <span class="op">|</span>
             <span class="macro">keyword</span><span class="macro">!</span>(<span class="kw">crate</span>) <span class="op">=&gt;</span> { <span class="op">|</span><span class="ident">tok</span><span class="op">|</span> {
                 <span class="ident">Visibility</span>::<span class="ident">Crate</span>(<span class="ident">VisCrate</span> {
-                    <span class="ident">pub_token</span>: <span class="op">&lt;</span><span class="macro">Token</span><span class="macro">!</span>[<span class="kw">pub</span>]<span class="op">&gt;</span>::<span class="ident">default</span>(),
-                    <span class="ident">paren_token</span>: <span class="ident">token</span>::<span class="ident">Paren</span>::<span class="ident">default</span>(),
                     <span class="ident">crate_token</span>: <span class="ident">tok</span>,
                 })
             } }
@@ -829,10 +820,7 @@
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">VisCrate</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="self">self</span>.<span class="ident">pub_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-            <span class="self">self</span>.<span class="ident">paren_token</span>.<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
-                <span class="self">self</span>.<span class="ident">crate_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
-            })
+            <span class="self">self</span>.<span class="ident">crate_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
@@ -840,8 +828,8 @@
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
             <span class="self">self</span>.<span class="ident">pub_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
             <span class="self">self</span>.<span class="ident">paren_token</span>.<span class="ident">surround</span>(<span class="ident">tokens</span>, <span class="op">|</span><span class="ident">tokens</span><span class="op">|</span> {
-                <span class="comment">// XXX: If we have a path which is not &quot;self&quot; or &quot;super&quot;,</span>
-                <span class="comment">// automatically add the &quot;in&quot; token.</span>
+                <span class="comment">// XXX: If we have a path which is not &quot;self&quot; or &quot;super&quot; or</span>
+                <span class="comment">// &quot;crate&quot;, automatically add the &quot;in&quot; token.</span>
                 <span class="self">self</span>.<span class="ident">in_token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
                 <span class="self">self</span>.<span class="ident">path</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
             });

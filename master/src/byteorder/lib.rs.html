@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/byteorder-1.2.1/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/byteorder-1.2.2/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -3153,21 +3153,128 @@
 <span id="3096">3096</span>
 <span id="3097">3097</span>
 <span id="3098">3098</span>
+<span id="3099">3099</span>
+<span id="3100">3100</span>
+<span id="3101">3101</span>
+<span id="3102">3102</span>
+<span id="3103">3103</span>
+<span id="3104">3104</span>
+<span id="3105">3105</span>
+<span id="3106">3106</span>
+<span id="3107">3107</span>
+<span id="3108">3108</span>
+<span id="3109">3109</span>
+<span id="3110">3110</span>
+<span id="3111">3111</span>
+<span id="3112">3112</span>
+<span id="3113">3113</span>
+<span id="3114">3114</span>
+<span id="3115">3115</span>
+<span id="3116">3116</span>
+<span id="3117">3117</span>
+<span id="3118">3118</span>
+<span id="3119">3119</span>
+<span id="3120">3120</span>
+<span id="3121">3121</span>
+<span id="3122">3122</span>
+<span id="3123">3123</span>
+<span id="3124">3124</span>
+<span id="3125">3125</span>
+<span id="3126">3126</span>
+<span id="3127">3127</span>
+<span id="3128">3128</span>
+<span id="3129">3129</span>
+<span id="3130">3130</span>
+<span id="3131">3131</span>
+<span id="3132">3132</span>
+<span id="3133">3133</span>
+<span id="3134">3134</span>
+<span id="3135">3135</span>
+<span id="3136">3136</span>
+<span id="3137">3137</span>
+<span id="3138">3138</span>
+<span id="3139">3139</span>
+<span id="3140">3140</span>
+<span id="3141">3141</span>
+<span id="3142">3142</span>
+<span id="3143">3143</span>
+<span id="3144">3144</span>
+<span id="3145">3145</span>
+<span id="3146">3146</span>
+<span id="3147">3147</span>
+<span id="3148">3148</span>
+<span id="3149">3149</span>
+<span id="3150">3150</span>
+<span id="3151">3151</span>
+<span id="3152">3152</span>
+<span id="3153">3153</span>
+<span id="3154">3154</span>
+<span id="3155">3155</span>
+<span id="3156">3156</span>
+<span id="3157">3157</span>
+<span id="3158">3158</span>
+<span id="3159">3159</span>
+<span id="3160">3160</span>
+<span id="3161">3161</span>
+<span id="3162">3162</span>
+<span id="3163">3163</span>
+<span id="3164">3164</span>
+<span id="3165">3165</span>
+<span id="3166">3166</span>
+<span id="3167">3167</span>
+<span id="3168">3168</span>
+<span id="3169">3169</span>
+<span id="3170">3170</span>
+<span id="3171">3171</span>
+<span id="3172">3172</span>
+<span id="3173">3173</span>
+<span id="3174">3174</span>
+<span id="3175">3175</span>
+<span id="3176">3176</span>
+<span id="3177">3177</span>
+<span id="3178">3178</span>
+<span id="3179">3179</span>
+<span id="3180">3180</span>
+<span id="3181">3181</span>
+<span id="3182">3182</span>
+<span id="3183">3183</span>
+<span id="3184">3184</span>
+<span id="3185">3185</span>
+<span id="3186">3186</span>
+<span id="3187">3187</span>
+<span id="3188">3188</span>
+<span id="3189">3189</span>
+<span id="3190">3190</span>
+<span id="3191">3191</span>
+<span id="3192">3192</span>
+<span id="3193">3193</span>
+<span id="3194">3194</span>
+<span id="3195">3195</span>
+<span id="3196">3196</span>
+<span id="3197">3197</span>
+<span id="3198">3198</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 This crate provides convenience methods for encoding and decoding numbers
-in either big-endian or little-endian order.
+in either [big-endian or little-endian order].
 
-The organization of the crate is pretty simple. A trait, `ByteOrder`, specifies
+The organization of the crate is pretty simple. A trait, [`ByteOrder`], specifies
 byte conversion methods for each type of number in Rust (sans numbers that have
-a platform dependent size like `usize` and `isize`). Two types, `BigEndian`
-and `LittleEndian` implement these methods. Finally, `ReadBytesExt` and
-`WriteBytesExt` provide convenience methods available to all types that
-implement `Read` and `Write`.
+a platform dependent size like `usize` and `isize`). Two types, [`BigEndian`]
+and [`LittleEndian`] implement these methods. Finally, [`ReadBytesExt`] and
+[`WriteBytesExt`] provide convenience methods available to all types that
+implement [`Read`] and [`Write`].
+
+An alias, [`NetworkEndian`], for [`BigEndian`] is provided to help improve
+code clarity.
+
+An additional alias, [`NativeEndian`], is provided for the endianness of the
+local platform. This is convenient when serializing data for use and
+conversions are not desired.
 
 # Examples
 
-Read unsigned 16 bit big-endian integers from a `Read` type:
+Read unsigned 16 bit big-endian integers from a [`Read`] type:
 
 ```rust
 use std::io::Cursor;
@@ -3180,7 +3287,7 @@ assert_eq!(517, rdr.read_u16::&lt;BigEndian&gt;().unwrap());
 assert_eq!(768, rdr.read_u16::&lt;BigEndian&gt;().unwrap());
 ```
 
-Write unsigned 16 bit little-endian integers to a `Write` type:
+Write unsigned 16 bit little-endian integers to a [`Write`] type:
 
 ```rust
 use byteorder::{LittleEndian, WriteBytesExt};
@@ -3190,6 +3297,24 @@ wtr.write_u16::&lt;LittleEndian&gt;(517).unwrap();
 wtr.write_u16::&lt;LittleEndian&gt;(768).unwrap();
 assert_eq!(wtr, vec![5, 2, 0, 3]);
 ```
+
+# Optional Features
+
+This crate optionally provides support for 128 bit values (`i128` and `u128`)
+when built with the `i128` feature enabled.
+
+This crate can also be used without the standard library.
+
+[big-endian or little-endian order]: https://en.wikipedia.org/wiki/Endianness
+[`ByteOrder`]: trait.ByteOrder.html
+[`BigEndian`]: enum.BigEndian.html
+[`LittleEndian`]: enum.LittleEndian.html
+[`ReadBytesExt`]: trait.ReadBytesExt.html
+[`WriteBytesExt`]: trait.WriteBytesExt.html
+[`NetworkEndian`]: type.NetworkEndian.html
+[`NativeEndian`]: type.NativeEndian.html
+[`Read`]: https://doc.rust-lang.org/std/io/trait.Read.html
+[`Write`]: https://doc.rust-lang.org/std/io/trait.Write.html
 */</span>
 
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
@@ -3203,8 +3328,8 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
 
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">fmt</span>::<span class="ident">Debug</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">hash</span>::<span class="ident">Hash</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">mem</span>::<span class="ident">transmute</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">ptr</span>::<span class="ident">copy_nonoverlapping</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">slice</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">io</span>::{<span class="ident">ReadBytesExt</span>, <span class="ident">WriteBytesExt</span>};
@@ -3305,14 +3430,14 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="kw">impl</span> <span class="ident">Sealed</span> <span class="kw">for</span> <span class="kw">super</span>::<span class="ident">BigEndian</span> {}
 }
 
-<span class="doccomment">/// ByteOrder describes types that can serialize integers as bytes.</span>
+<span class="doccomment">/// `ByteOrder` describes types that can serialize integers as bytes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Note that `Self` does not appear anywhere in this trait&#39;s definition!</span>
 <span class="doccomment">/// Therefore, in order to use it, you&#39;ll need to use syntax like</span>
 <span class="doccomment">/// `T::read_u16(&amp;[0, 1])` where `T` implements `ByteOrder`.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// This crate provides two types that implement `ByteOrder`: `BigEndian`</span>
-<span class="doccomment">/// and `LittleEndian`.</span>
+<span class="doccomment">/// This crate provides two types that implement `ByteOrder`: [`BigEndian`]</span>
+<span class="doccomment">/// and [`LittleEndian`].</span>
 <span class="doccomment">/// This trait is sealed and cannot be implemented for callers to avoid</span>
 <span class="doccomment">/// breaking backwards compatibility when adding new derived traits.</span>
 <span class="doccomment">///</span>
@@ -3337,6 +3462,9 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
 <span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -50_000);</span>
 <span class="doccomment">/// assert_eq!(-50_000, BigEndian::read_i16(&amp;buf));</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
+<span class="doccomment">/// [`LittleEndian`]: enum.LittleEndian.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">ByteOrder</span>
     : <span class="ident">Clone</span> <span class="op">+</span> <span class="ident">Copy</span> <span class="op">+</span> <span class="ident">Debug</span> <span class="op">+</span> <span class="ident">Default</span> <span class="op">+</span> <span class="ident">Eq</span> <span class="op">+</span> <span class="ident">Hash</span> <span class="op">+</span> <span class="ident">Ord</span> <span class="op">+</span> <span class="ident">PartialEq</span> <span class="op">+</span> <span class="ident">PartialOrd</span>
     <span class="op">+</span> <span class="ident">private</span>::<span class="ident">Sealed</span>
@@ -3785,7 +3913,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_f32</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">f32</span> {
-        <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="self">Self</span>::<span class="ident">read_u32</span>(<span class="ident">buf</span>)) }
+        <span class="kw">unsafe</span> { <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">read_u32</span>(<span class="ident">buf</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span>) }
     }
 
     <span class="doccomment">/// Reads a IEEE754 double-precision (8 bytes) floating point number.</span>
@@ -3808,7 +3936,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_f64</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">f64</span> {
-        <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="self">Self</span>::<span class="ident">read_u64</span>(<span class="ident">buf</span>)) }
+        <span class="kw">unsafe</span> { <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="self">Self</span>::<span class="ident">read_u64</span>(<span class="ident">buf</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span>) }
     }
 
     <span class="doccomment">/// Writes a signed 16 bit integer `n` to `buf`.</span>
@@ -3989,7 +4117,8 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_f32</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">f32</span>) {
-        <span class="self">Self</span>::<span class="ident">write_u32</span>(<span class="ident">buf</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">n</span>) })
+        <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>) };
+        <span class="self">Self</span>::<span class="ident">write_u32</span>(<span class="ident">buf</span>, <span class="ident">n</span>)
     }
 
     <span class="doccomment">/// Writes a IEEE754 double-precision (8 bytes) floating point number.</span>
@@ -4012,7 +4141,8 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_f64</span>(<span class="ident">buf</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">n</span>: <span class="ident">f64</span>) {
-        <span class="self">Self</span>::<span class="ident">write_u64</span>(<span class="ident">buf</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">n</span>) })
+        <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) };
+        <span class="self">Self</span>::<span class="ident">write_u64</span>(<span class="ident">buf</span>, <span class="ident">n</span>)
     }
 
     <span class="doccomment">/// Reads unsigned 16 bit integers from `src` into `dst`.</span>
@@ -4131,7 +4261,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i16_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i16</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u16_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u16</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u16_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>)
     }
 
     <span class="doccomment">/// Reads signed 32 bit integers from `src` into `dst`.</span>
@@ -4157,7 +4290,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i32_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i32</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u32</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Reads signed 64 bit integers from `src` into `dst`.</span>
@@ -4183,7 +4319,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i64_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i64</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Reads signed 128 bit integers from `src` into `dst`.</span>
@@ -4210,7 +4349,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_i128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i128</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u128_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u128</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u128_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Reads IEEE754 single-precision (4 bytes) floating point numbers from</span>
@@ -4237,7 +4379,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_f32_into_unchecked</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f32</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u32</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Reads IEEE754 single-precision (4 bytes) floating point numbers from</span>
@@ -4264,7 +4409,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">read_f64_into_unchecked</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f64</span>]) {
-        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">dst</span>) });
+        <span class="kw">let</span> <span class="ident">dst</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">dst</span>.<span class="ident">as_mut_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">dst</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">read_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes unsigned 16 bit integers from `src` into `dst`.</span>
@@ -4382,7 +4530,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_i16_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">i16</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u16_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u16</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u16_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes signed 32 bit integers from `src` into `dst`.</span>
@@ -4407,7 +4558,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_i32_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">i32</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u32_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes signed 64 bit integers from `src` into `dst`.</span>
@@ -4432,7 +4586,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_i64_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">i64</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u64_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes signed 128 bit integers from `src` into `dst`.</span>
@@ -4458,7 +4615,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">write_i128_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">i128</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u128_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u128</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u128_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes IEEE754 single-precision (4 bytes) floating point numbers from</span>
@@ -4486,7 +4646,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_f32_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">f32</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u32_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u32_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Writes IEEE754 double-precision (8 bytes) floating point numbers from</span>
@@ -4514,7 +4677,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// assert_eq!(numbers_given, numbers_got);</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">write_f64_into</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span>[<span class="ident">f64</span>], <span class="ident">dst</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>]) {
-        <span class="self">Self</span>::<span class="ident">write_u64_into</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">src</span>) }, <span class="ident">dst</span>);
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">write_u64_into</span>(<span class="ident">src</span>, <span class="ident">dst</span>);
     }
 
     <span class="doccomment">/// Converts the given slice of unsigned 16 bit integers to a particular</span>
@@ -4634,8 +4800,11 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_slice_i16</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i16</span>]) {
-        <span class="self">Self</span>::<span class="ident">from_slice_u16</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">numbers</span>) });
+    <span class="kw">fn</span> <span class="ident">from_slice_i16</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i16</span>]) {
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u16</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">from_slice_u16</span>(<span class="ident">src</span>);
     }
 
     <span class="doccomment">/// Converts the given slice of signed 32 bit integers to a particular</span>
@@ -4660,8 +4829,11 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_slice_i32</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i32</span>]) {
-        <span class="self">Self</span>::<span class="ident">from_slice_u32</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">numbers</span>) });
+    <span class="kw">fn</span> <span class="ident">from_slice_i32</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i32</span>]) {
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u32</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">from_slice_u32</span>(<span class="ident">src</span>);
     }
 
     <span class="doccomment">/// Converts the given slice of signed 64 bit integers to a particular</span>
@@ -4686,8 +4858,11 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_slice_i64</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i64</span>]) {
-        <span class="self">Self</span>::<span class="ident">from_slice_u64</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">numbers</span>) });
+    <span class="kw">fn</span> <span class="ident">from_slice_i64</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i64</span>]) {
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u64</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">from_slice_u64</span>(<span class="ident">src</span>);
     }
 
     <span class="doccomment">/// Converts the given slice of signed 128 bit integers to a particular</span>
@@ -4715,8 +4890,11 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="doccomment">/// ```</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;i128&quot;</span>)]</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">from_slice_i128</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i128</span>]) {
-        <span class="self">Self</span>::<span class="ident">from_slice_u128</span>(<span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">numbers</span>) });
+    <span class="kw">fn</span> <span class="ident">from_slice_i128</span>(<span class="ident">src</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">i128</span>]) {
+        <span class="kw">let</span> <span class="ident">src</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+            <span class="ident">slice</span>::<span class="ident">from_raw_parts_mut</span>(<span class="ident">src</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw-2">mut</span> <span class="ident">u128</span>, <span class="ident">src</span>.<span class="ident">len</span>())
+        };
+        <span class="self">Self</span>::<span class="ident">from_slice_u128</span>(<span class="ident">src</span>);
     }
 
     <span class="doccomment">/// Converts the given slice of IEEE754 single-precision (4 bytes) floating</span>
@@ -4759,7 +4937,9 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     }
 }
 
-<span class="doccomment">/// A type alias for `BigEndian`.</span>
+<span class="doccomment">/// A type alias for [`BigEndian`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">BE</span> <span class="op">=</span> <span class="ident">BigEndian</span>;
 
 <span class="doccomment">/// Defines little-endian serialization.</span>
@@ -4787,14 +4967,16 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     }
 }
 
-<span class="doccomment">/// A type alias for `LittleEndian`.</span>
+<span class="doccomment">/// A type alias for [`LittleEndian`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`LittleEndian`]: enum.LittleEndian.html</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">LE</span> <span class="op">=</span> <span class="ident">LittleEndian</span>;
 
 <span class="doccomment">/// Defines network byte order serialization.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Network byte order is defined by [RFC 1700][1] to be big-endian, and is</span>
 <span class="doccomment">/// referred to in several protocol specifications.  This type is an alias of</span>
-<span class="doccomment">/// BigEndian.</span>
+<span class="doccomment">/// [`BigEndian`].</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [1]: https://tools.ietf.org/html/rfc1700</span>
 <span class="doccomment">///</span>
@@ -4812,12 +4994,18 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
 <span class="doccomment">/// BigEndian::write_i16(&amp;mut buf, -50_000);</span>
 <span class="doccomment">/// assert_eq!(-50_000, NetworkEndian::read_i16(&amp;buf));</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">NetworkEndian</span> <span class="op">=</span> <span class="ident">BigEndian</span>;
 
 <span class="doccomment">/// Defines system native-endian serialization.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Note that this type has no value constructor. It is used purely at the</span>
 <span class="doccomment">/// type level.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// On this platform, this is an alias for [`LittleEndian`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`LittleEndian`]: enum.LittleEndian.html</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;little&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">NativeEndian</span> <span class="op">=</span> <span class="ident">LittleEndian</span>;
 
@@ -4825,6 +5013,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
 <span class="doccomment">///</span>
 <span class="doccomment">/// Note that this type has no value constructor. It is used purely at the</span>
 <span class="doccomment">/// type level.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// On this platform, this is an alias for [`BigEndian`].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`BigEndian`]: enum.BigEndian.html</span>
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;big&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">NativeEndian</span> <span class="op">=</span> <span class="ident">BigEndian</span>;
 
@@ -4848,7 +5040,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span> <span class="op">&lt;=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>.<span class="ident">len</span>());
         <span class="kw">unsafe</span> {
             <span class="comment">// N.B. https://github.com/rust-lang/rust/issues/22776</span>
-            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">transmute</span>::<span class="op">&lt;</span><span class="kw">_</span>, [<span class="ident">u8</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>]<span class="op">&gt;</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">which</span>());
+            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">which</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="kw">_</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>]);
             <span class="ident">copy_nonoverlapping</span>((<span class="kw-2">&amp;</span><span class="ident">bytes</span>).<span class="ident">as_ptr</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">dst</span>.<span class="ident">as_mut_ptr</span>(), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>);
         }
     });
@@ -4968,7 +5160,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size</span>(<span class="ident">n</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">8</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="ident">bytes</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="ident">transmute</span>(<span class="ident">n</span>.<span class="ident">to_be</span>());
+            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span>.<span class="ident">to_be</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>; <span class="number">8</span>]);
             <span class="ident">copy_nonoverlapping</span>(
                 <span class="ident">bytes</span>.<span class="ident">as_ptr</span>().<span class="ident">offset</span>((<span class="number">8</span> <span class="op">-</span> <span class="ident">nbytes</span>) <span class="kw">as</span> <span class="ident">isize</span>),
                 <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(),
@@ -4982,7 +5174,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size128</span>(<span class="ident">n</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="ident">bytes</span>: [<span class="ident">u8</span>; <span class="number">16</span>] <span class="op">=</span> <span class="ident">transmute</span>(<span class="ident">n</span>.<span class="ident">to_be</span>());
+            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span>.<span class="ident">to_be</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u128</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>; <span class="number">16</span>]);
             <span class="ident">copy_nonoverlapping</span>(
                 <span class="ident">bytes</span>.<span class="ident">as_ptr</span>().<span class="ident">offset</span>((<span class="number">16</span> <span class="op">-</span> <span class="ident">nbytes</span>) <span class="kw">as</span> <span class="ident">isize</span>),
                 <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(),
@@ -5089,8 +5281,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="kw">fn</span> <span class="ident">from_slice_f32</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f32</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;little&quot;</span>) {
             <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="ident">numbers</span> {
-                <span class="kw">let</span> <span class="ident">int</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="kw-2">*</span><span class="ident">n</span>) };
-                <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">int</span>.<span class="ident">to_be</span>()) };
+                <span class="kw">unsafe</span> {
+                    <span class="kw">let</span> <span class="ident">int</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>);
+                    <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">int</span>.<span class="ident">to_be</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span>);
+                }
             }
         }
     }
@@ -5099,8 +5293,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="kw">fn</span> <span class="ident">from_slice_f64</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f64</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;little&quot;</span>) {
             <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="ident">numbers</span> {
-                <span class="kw">let</span> <span class="ident">int</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="kw-2">*</span><span class="ident">n</span>) };
-                <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">int</span>.<span class="ident">to_be</span>()) };
+                <span class="kw">unsafe</span> {
+                    <span class="kw">let</span> <span class="ident">int</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>);
+                    <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">int</span>.<span class="ident">to_be</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span>);
+                }
             }
         }
     }
@@ -5177,7 +5373,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">u64</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">8</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="ident">bytes</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="ident">transmute</span>(<span class="ident">n</span>.<span class="ident">to_le</span>());
+            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span>.<span class="ident">to_le</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>; <span class="number">8</span>]);
             <span class="ident">copy_nonoverlapping</span>(<span class="ident">bytes</span>.<span class="ident">as_ptr</span>(), <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(), <span class="ident">nbytes</span>);
         }
     }
@@ -5188,7 +5384,7 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">pack_size128</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">u128</span>) <span class="op">&lt;=</span> <span class="ident">nbytes</span> <span class="op">&amp;&amp;</span> <span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="number">16</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nbytes</span> <span class="op">&lt;=</span> <span class="ident">buf</span>.<span class="ident">len</span>());
         <span class="kw">unsafe</span> {
-            <span class="kw">let</span> <span class="ident">bytes</span>: [<span class="ident">u8</span>; <span class="number">16</span>] <span class="op">=</span> <span class="ident">transmute</span>(<span class="ident">n</span>.<span class="ident">to_le</span>());
+            <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">n</span>.<span class="ident">to_le</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u128</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> [<span class="ident">u8</span>; <span class="number">16</span>]);
             <span class="ident">copy_nonoverlapping</span>(<span class="ident">bytes</span>.<span class="ident">as_ptr</span>(), <span class="ident">buf</span>.<span class="ident">as_mut_ptr</span>(), <span class="ident">nbytes</span>);
         }
     }
@@ -5292,8 +5488,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="kw">fn</span> <span class="ident">from_slice_f32</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f32</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;big&quot;</span>) {
             <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="ident">numbers</span> {
-                <span class="kw">let</span> <span class="ident">int</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="kw-2">*</span><span class="ident">n</span>) };
-                <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">int</span>.<span class="ident">to_le</span>()) };
+                <span class="kw">unsafe</span> {
+                    <span class="kw">let</span> <span class="ident">int</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>);
+                    <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">int</span>.<span class="ident">to_le</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f32</span>);
+                }
             }
         }
     }
@@ -5302,8 +5500,10 @@ assert_eq!(wtr, vec![5, 2, 0, 3]);
     <span class="kw">fn</span> <span class="ident">from_slice_f64</span>(<span class="ident">numbers</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">f64</span>]) {
         <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">target_endian</span> <span class="op">=</span> <span class="string">&quot;big&quot;</span>) {
             <span class="kw">for</span> <span class="ident">n</span> <span class="kw">in</span> <span class="ident">numbers</span> {
-                <span class="kw">let</span> <span class="ident">int</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="kw-2">*</span><span class="ident">n</span>) };
-                <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">transmute</span>(<span class="ident">int</span>.<span class="ident">to_le</span>()) };
+                <span class="kw">unsafe</span> {
+                    <span class="kw">let</span> <span class="ident">int</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>);
+                    <span class="kw-2">*</span><span class="ident">n</span> <span class="op">=</span> <span class="kw-2">*</span>(<span class="kw-2">&amp;</span><span class="ident">int</span>.<span class="ident">to_le</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">f64</span>);
+                }
             }
         }
     }

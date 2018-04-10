@@ -192,13 +192,8 @@
 <span id="135">135</span>
 <span id="136">136</span>
 <span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
 </pre><pre class="rust ">
-<span class="kw">mod</span> <span class="ident">serialize</span>;
-<span class="kw">mod</span> <span class="ident">timer</span>;
+    <span class="kw">mod</span> <span class="ident">serialize</span>;
 <span class="kw">mod</span> <span class="ident">vint</span>;
 <span class="kw">mod</span> <span class="ident">counting_writer</span>;
 <span class="kw">mod</span> <span class="ident">composite_file</span>;
@@ -207,9 +202,6 @@
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">composite_file</span>::{<span class="ident">CompositeFile</span>, <span class="ident">CompositeWrite</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serialize</span>::{<span class="ident">BinarySerializable</span>, <span class="ident">FixedSize</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">timer</span>::<span class="ident">Timing</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">timer</span>::<span class="ident">TimerTree</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">timer</span>::<span class="ident">OpenTimer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vint</span>::<span class="ident">VInt</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">counting_writer</span>::<span class="ident">CountingWriter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">bitset</span>::<span class="ident">BitSet</span>;

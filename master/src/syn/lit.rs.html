@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.15/src/lit.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.1/src/lit.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lit.rs.html -- source</title>
@@ -1083,6 +1083,25 @@
 <span id="1026">1026</span>
 <span id="1027">1027</span>
 <span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -1092,7 +1111,7 @@
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
 
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">TokenNode</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Literal</span>, <span class="ident">Span</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>)]</span>
@@ -1103,7 +1122,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">use</span> {<span class="ident">ParseError</span>, <span class="ident">Synom</span>};
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">TokenTree</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;extra-traits&quot;</span>)]</span>
@@ -1127,7 +1146,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Str</span>(<span class="ident">LitStr</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// A byte string literal: `b&quot;foo&quot;`.</span>
@@ -1136,7 +1154,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">ByteStr</span>(<span class="ident">LitByteStr</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// A byte literal: `b&#39;f&#39;`.</span>
@@ -1145,7 +1162,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Byte</span>(<span class="ident">LitByte</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// A character literal: `&#39;a&#39;`.</span>
@@ -1154,7 +1170,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Char</span>(<span class="ident">LitChar</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// An integer literal: `1` or `1u16`.</span>
@@ -1166,7 +1181,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Int</span>(<span class="ident">LitInt</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// A floating point literal: `1f64` or `1.0e10f64`.</span>
@@ -1177,7 +1191,6 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Float</span>(<span class="ident">LitFloat</span> #<span class="ident">manual_extra_traits</span> {
             <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
 
         <span class="doccomment">/// A boolean literal: `true` or `false`.</span>
@@ -1196,16 +1209,16 @@
         <span class="doccomment">/// `&quot;full&quot;` feature.*</span>
         <span class="kw">pub</span> <span class="ident">Verbatim</span>(<span class="ident">LitVerbatim</span> #<span class="ident">manual_extra_traits</span> {
             <span class="kw">pub</span> <span class="ident">token</span>: <span class="ident">Literal</span>,
-            <span class="kw">pub</span> <span class="ident">span</span>: <span class="ident">Span</span>,
         }),
     }
 }
 
 <span class="kw">impl</span> <span class="ident">LitStr</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">lit</span> <span class="op">=</span> <span class="ident">Literal</span>::<span class="ident">string</span>(<span class="ident">value</span>);
+        <span class="ident">lit</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
         <span class="ident">LitStr</span> {
-            <span class="ident">token</span>: <span class="ident">Literal</span>::<span class="ident">string</span>(<span class="ident">value</span>),
-            <span class="ident">span</span>: <span class="ident">span</span>,
+            <span class="ident">token</span>: <span class="ident">lit</span>,
         }
     }
 
@@ -1218,11 +1231,13 @@
     <span class="doccomment">/// All spans in the syntax tree will point to the span of this `LitStr`.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Synom</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">ParseError</span><span class="op">&gt;</span> {
+        <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">Group</span>;
+
         <span class="comment">// Parse string literal into a token stream with every span equal to the</span>
         <span class="comment">// original literal&#39;s span.</span>
         <span class="kw">fn</span> <span class="ident">spanned_tokens</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">LitStr</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenStream</span>, <span class="ident">ParseError</span><span class="op">&gt;</span> {
             <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> ::<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">value</span>())<span class="question-mark">?</span>;
-            <span class="prelude-val">Ok</span>(<span class="ident">respan_token_stream</span>(<span class="ident">stream</span>, <span class="ident">s</span>.<span class="ident">span</span>))
+            <span class="prelude-val">Ok</span>(<span class="ident">respan_token_stream</span>(<span class="ident">stream</span>, <span class="ident">s</span>.<span class="ident">span</span>()))
         }
 
         <span class="comment">// Token stream with every span replaced by the given one.</span>
@@ -1231,81 +1246,109 @@
         }
 
         <span class="comment">// Token tree with every span replaced by the given one.</span>
-        <span class="kw">fn</span> <span class="ident">respan_token_tree</span>(<span class="ident">token</span>: <span class="ident">TokenTree</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
-            <span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="kw">match</span> <span class="ident">token</span>.<span class="ident">kind</span> {
-                    <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">delimiter</span>, <span class="ident">nested</span>) <span class="op">=&gt;</span> {
-                        <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">delimiter</span>, <span class="ident">respan_token_stream</span>(<span class="ident">nested</span>, <span class="ident">span</span>))
-                    }
-                    <span class="ident">other</span> <span class="op">=&gt;</span> <span class="ident">other</span>,
-                },
+        <span class="kw">fn</span> <span class="ident">respan_token_tree</span>(<span class="kw-2">mut</span> <span class="ident">token</span>: <span class="ident">TokenTree</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
+            <span class="kw">match</span> <span class="ident">token</span> {
+                <span class="ident">TokenTree</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">g</span>) <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">respan_token_stream</span>(<span class="ident">g</span>.<span class="ident">stream</span>().<span class="ident">clone</span>(), <span class="ident">span</span>);
+                    <span class="kw-2">*</span><span class="ident">g</span> <span class="op">=</span> <span class="ident">Group</span>::<span class="ident">new</span>(<span class="ident">g</span>.<span class="ident">delimiter</span>(), <span class="ident">stream</span>);
+                    <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+                }
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">other</span> <span class="op">=&gt;</span> <span class="ident">other</span>.<span class="ident">set_span</span>(<span class="ident">span</span>),
             }
+            <span class="ident">token</span>
         }
 
         <span class="ident">spanned_tokens</span>(<span class="self">self</span>).<span class="ident">and_then</span>(::<span class="ident">parse2</span>)
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">LitByteStr</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">LitByteStr</span> {
-            <span class="ident">token</span>: <span class="ident">Literal</span>::<span class="ident">byte_string</span>(<span class="ident">value</span>),
-            <span class="ident">span</span>: <span class="ident">span</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="ident">Literal</span>::<span class="ident">byte_string</span>(<span class="ident">value</span>);
+        <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+        <span class="ident">LitByteStr</span> { <span class="ident">token</span>: <span class="ident">token</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="ident">value</span>::<span class="ident">parse_lit_byte_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_string</span>())
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">LitByte</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">u8</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">LitByte</span> {
-            <span class="ident">token</span>: <span class="ident">Literal</span>::<span class="ident">byte_char</span>(<span class="ident">value</span>),
-            <span class="ident">span</span>: <span class="ident">span</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="ident">Literal</span>::<span class="ident">u8_suffixed</span>(<span class="ident">value</span>);
+        <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+        <span class="ident">LitByte</span> { <span class="ident">token</span>: <span class="ident">token</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="ident">value</span>::<span class="ident">parse_lit_byte</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_string</span>())
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">LitChar</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">char</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">LitChar</span> {
-            <span class="ident">token</span>: <span class="ident">Literal</span>::<span class="ident">character</span>(<span class="ident">value</span>),
-            <span class="ident">span</span>: <span class="ident">span</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="ident">Literal</span>::<span class="ident">character</span>(<span class="ident">value</span>);
+        <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+        <span class="ident">LitChar</span> { <span class="ident">token</span>: <span class="ident">token</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">char</span> {
         <span class="ident">value</span>::<span class="ident">parse_lit_char</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_string</span>())
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">LitInt</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">u64</span>, <span class="ident">suffix</span>: <span class="ident">IntSuffix</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">LitInt</span> {
-            <span class="ident">token</span>: <span class="kw">match</span> <span class="ident">suffix</span> {
-                <span class="ident">IntSuffix</span>::<span class="ident">Isize</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">isize</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">isize</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">I8</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i8</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i8</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">I16</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i16</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i16</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">I32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i32</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i32</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">I64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i64</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">I128</span> <span class="op">=&gt;</span> <span class="ident">value</span>::<span class="ident">to_literal</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}i128&quot;</span>, <span class="ident">value</span>)),
-                <span class="ident">IntSuffix</span>::<span class="ident">Usize</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">usize</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">usize</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">U8</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u8</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u8</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">U16</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u16</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u16</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">U32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u32</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u32</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">U64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u64</span>(<span class="ident">value</span>),
-                <span class="ident">IntSuffix</span>::<span class="ident">U128</span> <span class="op">=&gt;</span> <span class="ident">value</span>::<span class="ident">to_literal</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}u128&quot;</span>, <span class="ident">value</span>)),
-                <span class="ident">IntSuffix</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">integer</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>),
-            },
-            <span class="ident">span</span>: <span class="ident">span</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">suffix</span> {
+            <span class="ident">IntSuffix</span>::<span class="ident">Isize</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">isize_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">isize</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">I8</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i8_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i8</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">I16</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i16_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i16</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">I32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i32_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i32</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">I64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">i64_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">i64</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">I128</span> <span class="op">=&gt;</span> <span class="ident">value</span>::<span class="ident">to_literal</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}i128&quot;</span>, <span class="ident">value</span>)),
+            <span class="ident">IntSuffix</span>::<span class="ident">Usize</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">usize_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">usize</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">U8</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u8_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u8</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">U16</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u16_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u16</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">U32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u32_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">u32</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">U64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u64_suffixed</span>(<span class="ident">value</span>),
+            <span class="ident">IntSuffix</span>::<span class="ident">U128</span> <span class="op">=&gt;</span> <span class="ident">value</span>::<span class="ident">to_literal</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}u128&quot;</span>, <span class="ident">value</span>)),
+            <span class="ident">IntSuffix</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">u64_unsuffixed</span>(<span class="ident">value</span>),
+        };
+        <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+        <span class="ident">LitInt</span> { <span class="ident">token</span>: <span class="ident">token</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
@@ -1334,18 +1377,25 @@
         }
         <span class="ident">IntSuffix</span>::<span class="prelude-val">None</span>
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">LitFloat</span> {
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">value</span>: <span class="ident">f64</span>, <span class="ident">suffix</span>: <span class="ident">FloatSuffix</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">LitFloat</span> {
-            <span class="ident">token</span>: <span class="kw">match</span> <span class="ident">suffix</span> {
-                <span class="ident">FloatSuffix</span>::<span class="ident">F32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">f32</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">f32</span>),
-                <span class="ident">FloatSuffix</span>::<span class="ident">F64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">f64</span>(<span class="ident">value</span>),
-                <span class="ident">FloatSuffix</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">float</span>(<span class="ident">value</span>),
-            },
-            <span class="ident">span</span>: <span class="ident">span</span>,
-        }
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">suffix</span> {
+            <span class="ident">FloatSuffix</span>::<span class="ident">F32</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">f32_suffixed</span>(<span class="ident">value</span> <span class="kw">as</span> <span class="ident">f32</span>),
+            <span class="ident">FloatSuffix</span>::<span class="ident">F64</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">f64_suffixed</span>(<span class="ident">value</span>),
+            <span class="ident">FloatSuffix</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">Literal</span>::<span class="ident">f64_unsuffixed</span>(<span class="ident">value</span>),
+        };
+        <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+        <span class="ident">LitFloat</span> { <span class="ident">token</span>: <span class="ident">token</span> }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">f64</span> {
@@ -1360,6 +1410,14 @@
             }
         }
         <span class="ident">FloatSuffix</span>::<span class="prelude-val">None</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
     }
 }
 
@@ -1384,6 +1442,16 @@
                 <span class="self">self</span>.<span class="macro-nonterminal">$</span><span class="macro-nonterminal">field</span>.<span class="ident">to_string</span>().<span class="ident">hash</span>(<span class="ident">state</span>);
             }
         }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">LitVerbatim</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">span</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">set_span</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) {
+        <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>)
     }
 }
 
@@ -1458,16 +1526,16 @@
     <span class="kw">impl</span> <span class="ident">Synom</span> <span class="kw">for</span> <span class="ident">Lit</span> {
         <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
             <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">literal</span>() {
-                <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">lit</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> {
+                <span class="prelude-val">Some</span>((<span class="ident">lit</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">lit</span>.<span class="ident">to_string</span>().<span class="ident">starts_with</span>(<span class="string">&#39;/&#39;</span>) {
                         <span class="comment">// Doc comment literal which is not a Syn literal</span>
                         <span class="ident">parse_error</span>()
                     } <span class="kw">else</span> {
-                        <span class="prelude-val">Ok</span>((<span class="ident">Lit</span>::<span class="ident">new</span>(<span class="ident">lit</span>, <span class="ident">span</span>), <span class="ident">rest</span>))
+                        <span class="prelude-val">Ok</span>((<span class="ident">Lit</span>::<span class="ident">new</span>(<span class="ident">lit</span>), <span class="ident">rest</span>))
                     }
                 }
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">input</span>.<span class="ident">term</span>() {
-                    <span class="prelude-val">Some</span>((<span class="ident">span</span>, <span class="ident">term</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((
+                    <span class="prelude-val">Some</span>((<span class="ident">term</span>, <span class="ident">rest</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>((
                         <span class="ident">Lit</span>::<span class="ident">Bool</span>(<span class="ident">LitBool</span> {
                             <span class="ident">value</span>: <span class="kw">if</span> <span class="ident">term</span>.<span class="ident">as_str</span>() <span class="op">==</span> <span class="string">&quot;true&quot;</span> {
                                 <span class="bool-val">true</span>
@@ -1476,7 +1544,7 @@
                             } <span class="kw">else</span> {
                                 <span class="kw">return</span> <span class="ident">parse_error</span>();
                             },
-                            <span class="ident">span</span>: <span class="ident">span</span>,
+                            <span class="ident">span</span>: <span class="ident">term</span>.<span class="ident">span</span>(),
                         }),
                         <span class="ident">rest</span>,
                     )),
@@ -1547,73 +1615,50 @@
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitStr</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitByteStr</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitByte</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitChar</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitInt</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitFloat</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitBool</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="ident">Term</span>::<span class="ident">intern</span>(<span class="kw">if</span> <span class="self">self</span>.<span class="ident">value</span> { <span class="string">&quot;true&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;false&quot;</span> })),
-            });
+            <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">value</span> { <span class="string">&quot;true&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;false&quot;</span> };
+            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">Term</span>::<span class="ident">new</span>(<span class="ident">s</span>, <span class="self">self</span>.<span class="ident">span</span>));
         }
     }
 
     <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">LitVerbatim</span> {
         <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-            <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">TokenTree</span> {
-                <span class="ident">span</span>: <span class="self">self</span>.<span class="ident">span</span>,
-                <span class="ident">kind</span>: <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">token</span>.<span class="ident">clone</span>()),
-            });
+            <span class="self">self</span>.<span class="ident">token</span>.<span class="ident">to_tokens</span>(<span class="ident">tokens</span>);
         }
     }
 }
@@ -1636,27 +1681,24 @@
         <span class="doccomment">/// # Panics</span>
         <span class="doccomment">///</span>
         <span class="doccomment">/// Panics if the input is a doc comment literal.</span>
-        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">token</span>: <span class="ident">Literal</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">token</span>: <span class="ident">Literal</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
             <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="ident">token</span>.<span class="ident">to_string</span>();
 
             <span class="kw">match</span> <span class="ident">value</span>::<span class="ident">byte</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>, <span class="number">0</span>) {
                 <span class="string">b&#39;&quot;&#39;</span> <span class="op">|</span> <span class="string">b&#39;r&#39;</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Str</span>(<span class="ident">LitStr</span> {
                         <span class="ident">token</span>: <span class="ident">token</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
                     })
                 }
                 <span class="string">b&#39;b&#39;</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">value</span>::<span class="ident">byte</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>, <span class="number">1</span>) {
                     <span class="string">b&#39;&quot;&#39;</span> <span class="op">|</span> <span class="string">b&#39;r&#39;</span> <span class="op">=&gt;</span> {
                         <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">ByteStr</span>(<span class="ident">LitByteStr</span> {
                             <span class="ident">token</span>: <span class="ident">token</span>,
-                            <span class="ident">span</span>: <span class="ident">span</span>,
                         })
                     }
                     <span class="string">b&#39;\&#39;&#39;</span> <span class="op">=&gt;</span> {
                         <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Byte</span>(<span class="ident">LitByte</span> {
                             <span class="ident">token</span>: <span class="ident">token</span>,
-                            <span class="ident">span</span>: <span class="ident">span</span>,
                         })
                     }
                     <span class="kw">_</span> <span class="op">=&gt;</span> {}
@@ -1664,30 +1706,26 @@
                 <span class="string">b&#39;\&#39;&#39;</span> <span class="op">=&gt;</span> {
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Char</span>(<span class="ident">LitChar</span> {
                         <span class="ident">token</span>: <span class="ident">token</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
                     })
                 }
                 <span class="string">b&#39;0&#39;</span>...<span class="string">b&#39;9&#39;</span> <span class="op">=&gt;</span> <span class="kw">if</span> <span class="ident">number_is_int</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>) {
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Int</span>(<span class="ident">LitInt</span> {
                         <span class="ident">token</span>: <span class="ident">token</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
                     });
                 } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">number_is_float</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>) {
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Float</span>(<span class="ident">LitFloat</span> {
                         <span class="ident">token</span>: <span class="ident">token</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
                     });
                 } <span class="kw">else</span> {
                     <span class="comment">// number overflow</span>
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Verbatim</span>(<span class="ident">LitVerbatim</span> {
                         <span class="ident">token</span>: <span class="ident">token</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
                     });
                 },
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">if</span> <span class="ident">value</span> <span class="op">==</span> <span class="string">&quot;true&quot;</span> <span class="op">||</span> <span class="ident">value</span> <span class="op">==</span> <span class="string">&quot;false&quot;</span> {
                     <span class="kw">return</span> <span class="ident">Lit</span>::<span class="ident">Bool</span>(<span class="ident">LitBool</span> {
                         <span class="ident">value</span>: <span class="ident">value</span> <span class="op">==</span> <span class="string">&quot;true&quot;</span>,
-                        <span class="ident">span</span>: <span class="ident">span</span>,
+                        <span class="ident">span</span>: <span class="ident">token</span>.<span class="ident">span</span>(),
                     });
                 },
             }
@@ -2106,8 +2144,8 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_literal</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Literal</span> {
         <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">parse</span>::<span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>();
-        <span class="kw">match</span> <span class="ident">stream</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>().<span class="ident">kind</span> {
-            <span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">l</span>,
+        <span class="kw">match</span> <span class="ident">stream</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>() {
+            <span class="ident">TokenTree</span>::<span class="ident">Literal</span>(<span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">l</span>,
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
     }

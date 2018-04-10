@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.36/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.37/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -123,6 +123,14 @@
 <span id="66">66</span>
 <span id="67">67</span>
 <span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -148,7 +156,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [https://serde.rs/derive.html]: https://serde.rs/derive.html</span>
 
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde_derive/1.0.36&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde_derive/1.0.37&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">enum_variant_names</span>, <span class="ident">redundant_field_names</span>,
                                             <span class="ident">too_many_arguments</span>, <span class="ident">used_underscore_binding</span>))]</span>
 <span class="comment">// The `quote!` macro requires deep recursion.</span>
@@ -166,6 +174,14 @@
 
 <span class="kw">use</span> <span class="ident">proc_macro</span>::<span class="ident">TokenStream</span>;
 <span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">DeriveInput</span>;
+
+<span class="comment">// Quote&#39;s default is def_site but it appears call_site is likely to stabilize</span>
+<span class="comment">// before def_site. Thus we try to use only call_site.</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">quote</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+        <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">proc_macro2</span>::<span class="ident">Span</span>::<span class="ident">call_site</span>()<span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>)<span class="kw-2">*</span>)
+    }
+}
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">mod</span> <span class="ident">bound</span>;

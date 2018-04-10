@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/quote-0.4.2/src/to_tokens.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/quote-0.5.1/src/to_tokens.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>to_tokens.rs.html -- source</title>
@@ -222,27 +222,12 @@
 <span id="165">165</span>
 <span id="166">166</span>
 <span id="167">167</span>
-<span id="168">168</span>
-<span id="169">169</span>
-<span id="170">170</span>
-<span id="171">171</span>
-<span id="172">172</span>
-<span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Tokens</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Cow</span>;
 
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">Term</span>, <span class="ident">TokenNode</span>, <span class="ident">TokenTree</span>, <span class="ident">TokenStream</span>};
-
-<span class="kw">fn</span> <span class="ident">tt</span>(<span class="ident">kind</span>: <span class="ident">TokenNode</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
-    <span class="ident">TokenTree</span> {
-        <span class="ident">span</span>: <span class="ident">Span</span>::<span class="ident">def_site</span>(),
-        <span class="ident">kind</span>: <span class="ident">kind</span>,
-    }
-}
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">Term</span>, <span class="ident">TokenStream</span>, <span class="ident">TokenTree</span>};
 
 <span class="doccomment">/// Types that can be interpolated inside a [`quote!`] invocation.</span>
 <span class="doccomment">///</span>
@@ -258,7 +243,7 @@
     <span class="doccomment">/// use quote::{Tokens, ToTokens};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// extern crate proc_macro2;</span>
-    <span class="doccomment">/// use proc_macro2::{TokenTree, TokenNode, Spacing, Span};</span>
+    <span class="doccomment">/// use proc_macro2::{TokenTree, Spacing, Span, Op};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// pub struct Path {</span>
     <span class="doccomment">///     pub global: bool,</span>
@@ -270,14 +255,8 @@
     <span class="doccomment">///         for (i, segment) in self.segments.iter().enumerate() {</span>
     <span class="doccomment">///             if i &gt; 0 || self.global {</span>
     <span class="doccomment">///                 // Double colon `::`</span>
-    <span class="doccomment">///                 tokens.append(TokenTree {</span>
-    <span class="doccomment">///                     span: Span::def_site(),</span>
-    <span class="doccomment">///                     kind: TokenNode::Op(&#39;:&#39;, Spacing::Joint),</span>
-    <span class="doccomment">///                 });</span>
-    <span class="doccomment">///                 tokens.append(TokenTree {</span>
-    <span class="doccomment">///                     span: Span::def_site(),</span>
-    <span class="doccomment">///                     kind: TokenNode::Op(&#39;:&#39;, Spacing::Alone),</span>
-    <span class="doccomment">///                 });</span>
+    <span class="doccomment">///                 tokens.append(Op::new(&#39;:&#39;, Spacing::Joint));</span>
+    <span class="doccomment">///                 tokens.append(Op::new(&#39;:&#39;, Spacing::Alone));</span>
     <span class="doccomment">///             }</span>
     <span class="doccomment">///             segment.to_tokens(tokens);</span>
     <span class="doccomment">///         }</span>
@@ -338,7 +317,7 @@
 
 <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">str</span> {
     <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">Literal</span>::<span class="ident">string</span>(<span class="self">self</span>))));
+        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">Literal</span>::<span class="ident">string</span>(<span class="self">self</span>));
     }
 }
 
@@ -349,49 +328,54 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">primitive</span> {
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> ($(
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ident</span> <span class="op">=&gt;</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> ($(
         <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> {
             <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-                <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">Literal</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>(<span class="kw-2">*</span><span class="self">self</span>))));
+                <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">Literal</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>(<span class="kw-2">*</span><span class="self">self</span>));
             }
         }
     )<span class="kw-2">*</span>)
 }
 
 <span class="macro">primitive</span><span class="macro">!</span> {
-    <span class="ident">i8</span> <span class="ident">i16</span> <span class="ident">i32</span> <span class="ident">i64</span> <span class="ident">isize</span>
-    <span class="ident">u8</span> <span class="ident">u16</span> <span class="ident">u32</span> <span class="ident">u64</span> <span class="ident">usize</span>
-    <span class="ident">f32</span> <span class="ident">f64</span>
+    <span class="ident">i8</span> <span class="op">=&gt;</span> <span class="ident">i8_suffixed</span>
+    <span class="ident">i16</span> <span class="op">=&gt;</span> <span class="ident">i16_suffixed</span>
+    <span class="ident">i32</span> <span class="op">=&gt;</span> <span class="ident">i32_suffixed</span>
+    <span class="ident">i64</span> <span class="op">=&gt;</span> <span class="ident">i64_suffixed</span>
+    <span class="ident">isize</span> <span class="op">=&gt;</span> <span class="ident">isize_suffixed</span>
+
+    <span class="ident">u8</span> <span class="op">=&gt;</span> <span class="ident">u8_suffixed</span>
+    <span class="ident">u16</span> <span class="op">=&gt;</span> <span class="ident">u16_suffixed</span>
+    <span class="ident">u32</span> <span class="op">=&gt;</span> <span class="ident">u32_suffixed</span>
+    <span class="ident">u64</span> <span class="op">=&gt;</span> <span class="ident">u64_suffixed</span>
+    <span class="ident">usize</span> <span class="op">=&gt;</span> <span class="ident">usize_suffixed</span>
+
+    <span class="ident">f32</span> <span class="op">=&gt;</span> <span class="ident">f32_suffixed</span>
+    <span class="ident">f64</span> <span class="op">=&gt;</span> <span class="ident">f64_suffixed</span>
 }
 
 <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">char</span> {
     <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="ident">Literal</span>::<span class="ident">character</span>(<span class="kw-2">*</span><span class="self">self</span>))));
+        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">Literal</span>::<span class="ident">character</span>(<span class="kw-2">*</span><span class="self">self</span>));
     }
 }
 
 <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">bool</span> {
     <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
         <span class="kw">let</span> <span class="ident">word</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw-2">*</span><span class="self">self</span> { <span class="string">&quot;true&quot;</span> } <span class="kw">else</span> { <span class="string">&quot;false&quot;</span> };
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="ident">Term</span>::<span class="ident">intern</span>(<span class="ident">word</span>))));
+        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">Term</span>::<span class="ident">new</span>(<span class="ident">word</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()));
     }
 }
 
 <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">Term</span> {
     <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Term</span>(<span class="kw-2">*</span><span class="self">self</span>)));
+        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="self">self</span>.<span class="ident">clone</span>());
     }
 }
 
 <span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">Literal</span> {
     <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="ident">TokenNode</span>::<span class="ident">Literal</span>(<span class="self">self</span>.<span class="ident">clone</span>())));
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">ToTokens</span> <span class="kw">for</span> <span class="ident">TokenNode</span> {
-    <span class="kw">fn</span> <span class="ident">to_tokens</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Tokens</span>) {
-        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="ident">tt</span>(<span class="self">self</span>.<span class="ident">clone</span>()));
+        <span class="ident">tokens</span>.<span class="ident">append</span>(<span class="self">self</span>.<span class="ident">clone</span>());
     }
 }
 

@@ -164,13 +164,11 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
-<span id="110">110</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">TimerTree</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
 <span class="kw">use</span> <span class="ident">DocAddress</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
@@ -227,7 +225,7 @@
     }
 
     <span class="doccomment">/// Runs a query on the segment readers wrapped by the searcher</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">search</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">Collector</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">query</span>: <span class="kw-2">&amp;</span><span class="ident">Query</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">C</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TimerTree</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">search</span><span class="op">&lt;</span><span class="ident">C</span>: <span class="ident">Collector</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">query</span>: <span class="kw-2">&amp;</span><span class="ident">Query</span>, <span class="ident">collector</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">C</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="ident">query</span>.<span class="ident">search</span>(<span class="self">self</span>, <span class="ident">collector</span>)
     }
 

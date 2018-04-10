@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/quote/lib.rs.html#311-320' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
+               </span><a class='srclink' href='../src/quote/lib.rs.html#313-322' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">quote_spanned</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">expr</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
@@ -80,6 +80,11 @@ more than a few characters. There should be no space before the <code>=&gt;</cod
 <span class="kw">let</span> <span class="ident">tokens</span> <span class="op">=</span> <span class="macro">quote_spanned</span><span class="macro">!</span> {<span class="ident">span</span><span class="op">=&gt;</span>
     <span class="ident">Box</span>::<span class="ident">into_raw</span>(<span class="ident">Box</span>::<span class="ident">new</span>(#<span class="ident">init</span>))
 };</pre>
+<p>The lack of space before the <code>=&gt;</code> should look jarring to Rust programmers
+and this is intentional. The formatting is designed to be visibly
+off-balance and draw the eye a particular way, due to the span expression
+being evaluated in the context of the procedural macro and the remaining
+tokens being evaluated in the generated code.</p>
 <h1 id="hygiene" class="section-header"><a href="#hygiene">Hygiene</a></h1>
 <p>Any interpolated tokens preserve the <code>Span</code> information provided by their
 <code>ToTokens</code> implementation. Tokens that originate within the <code>quote_spanned!</code>
@@ -90,7 +95,7 @@ particular Rust type implements the <a href="https://doc.rust-lang.org/std/marke
 safely shared between threads.</p>
 
 <pre class="rust rust-example-rendered">
-<span class="kw">let</span> <span class="ident">ty_span</span> <span class="op">=</span> <span class="ident">ty</span>.<span class="ident">span</span>().<span class="ident">resolved_at</span>(<span class="ident">def_site</span>);
+<span class="kw">let</span> <span class="ident">ty_span</span> <span class="op">=</span> <span class="ident">ty</span>.<span class="ident">span</span>();
 <span class="kw">let</span> <span class="ident">assert_sync</span> <span class="op">=</span> <span class="macro">quote_spanned</span><span class="macro">!</span> {<span class="ident">ty_span</span><span class="op">=&gt;</span>
     <span class="kw">struct</span> <span class="ident">_AssertSync</span> <span class="kw">where</span> #<span class="ident">ty</span>: <span class="ident">Sync</span>;
 };</pre>

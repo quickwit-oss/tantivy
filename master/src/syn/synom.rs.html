@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.15/src/synom.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.1/src/synom.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>synom.rs.html -- source</title>
@@ -316,6 +316,8 @@
 <span id="259">259</span>
 <span id="260">260</span>
 <span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -468,6 +470,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! *This module is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">proc_macro</span>;
 <span class="kw">use</span> <span class="ident">proc_macro2</span>;
 
@@ -544,6 +547,7 @@
     <span class="kw">fn</span> <span class="ident">parse2</span>(<span class="self">self</span>, <span class="ident">tokens</span>: <span class="ident">proc_macro2</span>::<span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Output</span>, <span class="ident">ParseError</span><span class="op">&gt;</span>;
 
     <span class="doccomment">/// Parse tokens of source code into the chosen syntax tree node.</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">parse</span>(<span class="self">self</span>, <span class="ident">tokens</span>: <span class="ident">proc_macro</span>::<span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Output</span>, <span class="ident">ParseError</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">parse2</span>(<span class="ident">tokens</span>.<span class="ident">into</span>())
     }

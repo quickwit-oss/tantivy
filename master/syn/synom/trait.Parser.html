@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/syn/synom.rs.html#221-244' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Parser: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+               </span><a class='srclink' href='../../src/syn/synom.rs.html#222-246' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Parser: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Output' class="type">Output</a>;
     fn <a href='#tymethod.parse2' class='fnname'>parse2</a>(self, tokens: <a class="struct" href="../../proc_macro2/struct.TokenStream.html" title="struct proc_macro2::TokenStream">TokenStream</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../syn/synom/trait.Parser.html#associatedtype.Output" title="type syn::synom::Parser::Output">Output</a>, <a class="struct" href="../../syn/synom/struct.ParseError.html" title="struct syn::synom::ParseError">ParseError</a>&gt;;
 
@@ -94,7 +94,7 @@ macro call site.</p>
           Implementors<a href='#implementors' class='anchor'></a>
         </h2>
         <ul class='item-list' id='implementors-list'>
-    <li><table class='table-display'><tbody><tr><td><code>impl&lt;F, T&gt; Parser for F <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(<a class="struct" href="../../syn/buffer/struct.Cursor.html" title="struct syn::buffer::Cursor">Cursor</a>) -&gt; <a class="type" href="../../syn/synom/type.PResult.html" title="type syn::synom::PResult">PResult</a>&lt;T&gt;,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Output' class="type">Output</a> = T;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/syn/synom.rs.html#246-261' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+    <li><table class='table-display'><tbody><tr><td><code>impl&lt;F, T&gt; Parser for F <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(<a class="struct" href="../../syn/buffer/struct.Cursor.html" title="struct syn::buffer::Cursor">Cursor</a>) -&gt; <a class="type" href="../../syn/synom/type.PResult.html" title="type syn::synom::PResult">PResult</a>&lt;T&gt;,&nbsp;</span><span class="where fmt-newline">  type <a href='#associatedtype.Output' class="type">Output</a> = T;</span></code><td><div class='out-of-band'><a class='srclink' href='../../src/syn/synom.rs.html#248-263' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/syn/synom/trait.Parser.js">
                  </script></section>

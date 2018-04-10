@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.36/src/de/impls.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.37/src/de/impls.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>impls.rs.html -- source</title>
@@ -2147,6 +2147,50 @@
 <span id="2090">2090</span>
 <span id="2091">2091</span>
 <span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
+<span id="2096">2096</span>
+<span id="2097">2097</span>
+<span id="2098">2098</span>
+<span id="2099">2099</span>
+<span id="2100">2100</span>
+<span id="2101">2101</span>
+<span id="2102">2102</span>
+<span id="2103">2103</span>
+<span id="2104">2104</span>
+<span id="2105">2105</span>
+<span id="2106">2106</span>
+<span id="2107">2107</span>
+<span id="2108">2108</span>
+<span id="2109">2109</span>
+<span id="2110">2110</span>
+<span id="2111">2111</span>
+<span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
+<span id="2115">2115</span>
+<span id="2116">2116</span>
+<span id="2117">2117</span>
+<span id="2118">2118</span>
+<span id="2119">2119</span>
+<span id="2120">2120</span>
+<span id="2121">2121</span>
+<span id="2122">2122</span>
+<span id="2123">2123</span>
+<span id="2124">2124</span>
+<span id="2125">2125</span>
+<span id="2126">2126</span>
+<span id="2127">2127</span>
+<span id="2128">2128</span>
+<span id="2129">2129</span>
+<span id="2130">2130</span>
+<span id="2131">2131</span>
+<span id="2132">2132</span>
+<span id="2133">2133</span>
+<span id="2134">2134</span>
+<span id="2135">2135</span>
+<span id="2136">2136</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2620,7 +2664,11 @@
 }
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">forwarded_impl</span> {
-    (( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>: <span class="ident">ident</span>),<span class="op">*</span> ), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>: <span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>: <span class="ident">expr</span>) <span class="op">=&gt;</span> {
+    (
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>:<span class="ident">tt</span>]</span>)<span class="op">*</span>
+        ( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span>: <span class="ident">ident</span>),<span class="op">*</span> ), <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>: <span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>: <span class="ident">expr</span>
+    ) <span class="op">=&gt;</span> {
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>]</span>)<span class="op">*</span>
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span> $(, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">id</span> : <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,)<span class="kw-2">*</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span> {
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
@@ -3223,7 +3271,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">parse_ip_impl</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>: <span class="ident">expr</span>) <span class="op">=&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>; <span class="macro-nonterminal">$</span><span class="macro-nonterminal">size</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span> {
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
@@ -3237,7 +3285,7 @@
                 }
             }
         }
-    }
+    };
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
@@ -3380,7 +3428,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">parse_socket_impl</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">new</span>: <span class="ident">expr</span>) <span class="op">=&gt;</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span>:<span class="ident">ty</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">new</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">ty</span> {
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
@@ -3394,7 +3442,7 @@
                 }
             }
         }
-    }
+    };
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
@@ -3582,10 +3630,28 @@
 <span class="macro">forwarded_impl</span><span class="macro">!</span>((), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>, <span class="ident">String</span>::<span class="ident">into_boxed_str</span>);
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">forwarded_impl</span><span class="macro">!</span>((<span class="ident">T</span>), <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Arc</span>::<span class="ident">new</span>);
+<span class="macro">forwarded_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Deserializing a data structure containing `Arc` will not attempt to</span>
+    <span class="doccomment">/// deduplicate `Arc` references to the same data. Every deserialized `Arc`</span>
+    <span class="doccomment">/// will end up with a strong count of 1.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    (<span class="ident">T</span>), <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Arc</span>::<span class="ident">new</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">forwarded_impl</span><span class="macro">!</span>((<span class="ident">T</span>), <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Rc</span>::<span class="ident">new</span>);
+<span class="macro">forwarded_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Deserializing a data structure containing `Rc` will not attempt to</span>
+    <span class="doccomment">/// deduplicate `Rc` references to the same data. Every deserialized `Rc`</span>
+    <span class="doccomment">/// will end up with a strong count of 1.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    (<span class="ident">T</span>), <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="ident">Rc</span>::<span class="ident">new</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>
@@ -3606,7 +3672,11 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">box_forwarded_impl</span> {
-    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
+    (
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>:<span class="ident">tt</span>]</span>)<span class="op">*</span>
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ident</span>
+    ) <span class="op">=&gt;</span> {
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>]</span>)<span class="op">*</span>
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
         <span class="kw">where</span>
             <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>: <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
@@ -3618,14 +3688,32 @@
                 <span class="ident">Box</span>::<span class="ident">deserialize</span>(<span class="ident">deserializer</span>).<span class="ident">map</span>(<span class="ident">Into</span>::<span class="ident">into</span>)
             }
         }
-    }
+    };
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">box_forwarded_impl</span><span class="macro">!</span>(<span class="ident">Rc</span>);
+<span class="macro">box_forwarded_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Deserializing a data structure containing `Rc` will not attempt to</span>
+    <span class="doccomment">/// deduplicate `Rc` references to the same data. Every deserialized `Rc`</span>
+    <span class="doccomment">/// will end up with a strong count of 1.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    <span class="ident">Rc</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">box_forwarded_impl</span><span class="macro">!</span>(<span class="ident">Arc</span>);
+<span class="macro">box_forwarded_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Deserializing a data structure containing `Arc` will not attempt to</span>
+    <span class="doccomment">/// deduplicate `Arc` references to the same data. Every deserialized `Arc`</span>
+    <span class="doccomment">/// will end up with a strong count of 1.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    <span class="ident">Arc</span>
+}
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 

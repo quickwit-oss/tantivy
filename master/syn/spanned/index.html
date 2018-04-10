@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/syn/spanned.rs.html#9-152' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A trait that can provide the <code>Span</code> of the complete contents of a syntax
+               </span><a class='srclink' href='../../src/syn/spanned.rs.html#9-144' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A trait that can provide the <code>Span</code> of the complete contents of a syntax
 tree node.</p>
 <p><em>This module is available if Syn is built with both the <code>&quot;parsing&quot;</code> and
 <code>&quot;printing&quot;</code> features.</em></p>
@@ -90,9 +90,7 @@ static assertion that <code>Sync</code> is implemented for that type.</p>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">my_macro</span>(<span class="ident">input</span>: <span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="comment">/* ... */</span>
 
-    <span class="kw">let</span> <span class="ident">def_site</span> <span class="op">=</span> <span class="ident">Span</span>::<span class="ident">def_site</span>();
-    <span class="kw">let</span> <span class="ident">ty_span</span> <span class="op">=</span> <span class="ident">ty</span>.<span class="ident">span</span>().<span class="ident">resolved_at</span>(<span class="ident">def_site</span>);
-    <span class="kw">let</span> <span class="ident">assert_sync</span> <span class="op">=</span> <span class="macro">quote_spanned</span><span class="macro">!</span> {<span class="ident">ty_span</span><span class="op">=&gt;</span>
+    <span class="kw">let</span> <span class="ident">assert_sync</span> <span class="op">=</span> <span class="macro">quote_spanned</span><span class="macro">!</span> {<span class="ident">ty</span>.<span class="ident">span</span>()<span class="op">=&gt;</span>
         <span class="kw">struct</span> <span class="ident">_AssertSync</span> <span class="kw">where</span> #<span class="ident">ty</span>: <span class="ident">Sync</span>;
     };
 
@@ -108,13 +106,7 @@ our macro, the user's code will fail to compile if <code>ty</code> does not impl
    |                ^^^^^^^^^^ `*const i32` cannot be shared between threads safely
 </code></pre>
 <p>In this technique, using the <code>Type</code>'s span for the error message makes the
-error appear in the correct place underlining the right type. But it is
-<strong>incredibly important</strong> that the span for the assertion is <strong>resolved</strong> at
-the procedural macro definition site rather than at the <code>Type</code>'s span. This
-way we guarantee that it refers to the <code>Sync</code> trait that we expect. If the
-assertion were <strong>resolved</strong> at the same place that <code>ty</code> is resolved, the
-user could circumvent the check by defining their own <code>Sync</code> trait that is
-implemented for their type.</p>
+error appear in the correct place underlining the right type.</p>
 </div><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
                        <tr class=' module-item'>

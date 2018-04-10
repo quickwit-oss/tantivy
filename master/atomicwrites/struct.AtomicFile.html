@@ -70,11 +70,6 @@ exists.</p>
 </div><h4 id='method.write' class="method"><span id='write.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.write' class='fnname'>write</a>&lt;T, E, F&gt;(&amp;self, f: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, <a class="enum" href="../atomicwrites/enum.Error.html" title="enum atomicwrites::Error">Error</a>&lt;E&gt;&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>(&amp;mut <a class="struct" href="https://doc.rust-lang.org/nightly/std/fs/struct.File.html" title="struct std::fs::File">File</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, E&gt;,&nbsp;</span></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../src/atomicwrites/lib.rs.html#119-134' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Open a temporary file, call <code>f</code> on it (which is supposed to write to it), then move the
 file atomically to <code>self.path</code>.</p>
 </div></div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        </div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>

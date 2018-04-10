@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.36/src/ser/impls.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.37/src/ser/impls.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>impls.rs.html -- source</title>
@@ -772,6 +772,28 @@
 <span id="715">715</span>
 <span id="716">716</span>
 <span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1095,8 +1117,12 @@
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">deref_impl</span> {
-    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">desc</span>:<span class="ident">tt</span>)<span class="op">+</span>) <span class="op">=&gt;</span> {
-        <span class="kw">impl</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">desc</span>)<span class="op">+</span> {
+    (
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>:<span class="ident">tt</span>]</span>)<span class="op">*</span>
+        <span class="op">&lt;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">desc</span>:<span class="ident">tt</span>)<span class="op">+</span>
+    ) <span class="op">=&gt;</span> {
+        $(<span class="attribute">#[<span class="ident">doc</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">doc</span>]</span>)<span class="op">*</span>
+        <span class="kw">impl</span> <span class="op">&lt;</span>$(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">desc</span>)<span class="op">+</span> {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
@@ -1115,10 +1141,30 @@
 <span class="macro">deref_impl</span><span class="macro">!</span>(<span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>);
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">deref_impl</span><span class="macro">!</span>(<span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>);
+<span class="macro">deref_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Serializing a data structure containing `Rc` will serialize a copy of</span>
+    <span class="doccomment">/// the contents of the `Rc` each time the `Rc` is referenced within the</span>
+    <span class="doccomment">/// data structure. Serialization will not attempt to deduplicate these</span>
+    <span class="doccomment">/// repeated data.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    <span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;rc&quot;</span>, <span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>)))]</span>
-<span class="macro">deref_impl</span><span class="macro">!</span>(<span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>);
+<span class="macro">deref_impl</span><span class="macro">!</span> {
+    <span class="doccomment">/// This impl requires the [`&quot;rc&quot;`] Cargo feature of Serde.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Serializing a data structure containing `Arc` will serialize a copy of</span>
+    <span class="doccomment">/// the contents of the `Arc` each time the `Arc` is referenced within the</span>
+    <span class="doccomment">/// data structure. Serialization will not attempt to deduplicate these</span>
+    <span class="doccomment">/// repeated data.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [`&quot;rc&quot;`]: https://serde.rs/feature-flags.html#-features-rc</span>
+    <span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+}
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
 <span class="macro">deref_impl</span><span class="macro">!</span>(<span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Cow</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span> <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span> <span class="op">+</span> <span class="ident">ToOwned</span>);
@@ -1296,11 +1342,9 @@
         <span class="comment">// write! only provides fmt::Formatter to Display implementations, which</span>
         <span class="comment">// has methods write_str and write_char but no method to write arbitrary</span>
         <span class="comment">// bytes. Therefore `written` must be valid UTF-8.</span>
-        <span class="kw">let</span> <span class="ident">written_str</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-            <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">written</span>)
-        };
+        <span class="kw">let</span> <span class="ident">written_str</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">written</span>) };
         <span class="macro-nonterminal">$</span><span class="macro-nonterminal">serializer</span>.<span class="ident">serialize_str</span>(<span class="ident">written_str</span>)
-    }}
+    }};
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>

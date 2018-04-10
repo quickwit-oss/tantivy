@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.22.2/src/check.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.0/src/check.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>check.rs.html -- source</title>
@@ -325,6 +325,17 @@
 <span id="268">268</span>
 <span id="269">269</span>
 <span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -373,12 +384,23 @@
 <span class="kw">fn</span> <span class="ident">check_flatten</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>) {
     <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">data</span> {
         <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-            <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">has_flatten</span>());
+            <span class="kw">if</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">has_flatten</span>() {
+                <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;#[serde(flatten)] cannot be used within enums&quot;</span>);
+            }
         }
-        <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw">_</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
+        <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">style</span>, <span class="kw">_</span>) <span class="op">=&gt;</span> {
             <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">cont</span>.<span class="ident">data</span>.<span class="ident">all_fields</span>() {
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">flatten</span>() {
                     <span class="kw">continue</span>;
+                }
+                <span class="kw">match</span> <span class="ident">style</span> {
+                    <span class="ident">Style</span>::<span class="ident">Tuple</span> <span class="op">=&gt;</span> {
+                        <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;#[serde(flatten)] cannot be used on tuple structs&quot;</span>);
+                    }
+                    <span class="ident">Style</span>::<span class="ident">Newtype</span> <span class="op">=&gt;</span> {
+                        <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;#[serde(flatten)] cannot be used on newtype structs&quot;</span>);
+                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> {}
                 }
                 <span class="kw">if</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>() {
                     <span class="ident">cx</span>.<span class="ident">error</span>(

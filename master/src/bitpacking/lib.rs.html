@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.1.0/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.3.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -55,106 +55,310 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><pre class="line-numbers"><span id="1"> 1</span>
-<span id="2"> 2</span>
-<span id="3"> 3</span>
-<span id="4"> 4</span>
-<span id="5"> 5</span>
-<span id="6"> 6</span>
-<span id="7"> 7</span>
-<span id="8"> 8</span>
-<span id="9"> 9</span>
-<span id="10">10</span>
-<span id="11">11</span>
-<span id="12">12</span>
-<span id="13">13</span>
-<span id="14">14</span>
-<span id="15">15</span>
-<span id="16">16</span>
-<span id="17">17</span>
-<span id="18">18</span>
-<span id="19">19</span>
-<span id="20">20</span>
-<span id="21">21</span>
-<span id="22">22</span>
-<span id="23">23</span>
-<span id="24">24</span>
-<span id="25">25</span>
-<span id="26">26</span>
-<span id="27">27</span>
-<span id="28">28</span>
-<span id="29">29</span>
-<span id="30">30</span>
-<span id="31">31</span>
-<span id="32">32</span>
-<span id="33">33</span>
-<span id="34">34</span>
-<span id="35">35</span>
-<span id="36">36</span>
-<span id="37">37</span>
-<span id="38">38</span>
-<span id="39">39</span>
-<span id="40">40</span>
-<span id="41">41</span>
-<span id="42">42</span>
-<span id="43">43</span>
-<span id="44">44</span>
-<span id="45">45</span>
-<span id="46">46</span>
-<span id="47">47</span>
-<span id="48">48</span>
-<span id="49">49</span>
-<span id="50">50</span>
-<span id="51">51</span>
-<span id="52">52</span>
-<span id="53">53</span>
-<span id="54">54</span>
-<span id="55">55</span>
-<span id="56">56</span>
-<span id="57">57</span>
-<span id="58">58</span>
-<span id="59">59</span>
-<span id="60">60</span>
-<span id="61">61</span>
-<span id="62">62</span>
-<span id="63">63</span>
-<span id="64">64</span>
-<span id="65">65</span>
-<span id="66">66</span>
-<span id="67">67</span>
-<span id="68">68</span>
-<span id="69">69</span>
-<span id="70">70</span>
-<span id="71">71</span>
-<span id="72">72</span>
-<span id="73">73</span>
-<span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
-<span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
-<span id="84">84</span>
-<span id="85">85</span>
-<span id="86">86</span>
-<span id="87">87</span>
-<span id="88">88</span>
-<span id="89">89</span>
-<span id="90">90</span>
-<span id="91">91</span>
-<span id="92">92</span>
-<span id="93">93</span>
+    <section id='main' class="content"><pre class="line-numbers"><span id="1">  1</span>
+<span id="2">  2</span>
+<span id="3">  3</span>
+<span id="4">  4</span>
+<span id="5">  5</span>
+<span id="6">  6</span>
+<span id="7">  7</span>
+<span id="8">  8</span>
+<span id="9">  9</span>
+<span id="10"> 10</span>
+<span id="11"> 11</span>
+<span id="12"> 12</span>
+<span id="13"> 13</span>
+<span id="14"> 14</span>
+<span id="15"> 15</span>
+<span id="16"> 16</span>
+<span id="17"> 17</span>
+<span id="18"> 18</span>
+<span id="19"> 19</span>
+<span id="20"> 20</span>
+<span id="21"> 21</span>
+<span id="22"> 22</span>
+<span id="23"> 23</span>
+<span id="24"> 24</span>
+<span id="25"> 25</span>
+<span id="26"> 26</span>
+<span id="27"> 27</span>
+<span id="28"> 28</span>
+<span id="29"> 29</span>
+<span id="30"> 30</span>
+<span id="31"> 31</span>
+<span id="32"> 32</span>
+<span id="33"> 33</span>
+<span id="34"> 34</span>
+<span id="35"> 35</span>
+<span id="36"> 36</span>
+<span id="37"> 37</span>
+<span id="38"> 38</span>
+<span id="39"> 39</span>
+<span id="40"> 40</span>
+<span id="41"> 41</span>
+<span id="42"> 42</span>
+<span id="43"> 43</span>
+<span id="44"> 44</span>
+<span id="45"> 45</span>
+<span id="46"> 46</span>
+<span id="47"> 47</span>
+<span id="48"> 48</span>
+<span id="49"> 49</span>
+<span id="50"> 50</span>
+<span id="51"> 51</span>
+<span id="52"> 52</span>
+<span id="53"> 53</span>
+<span id="54"> 54</span>
+<span id="55"> 55</span>
+<span id="56"> 56</span>
+<span id="57"> 57</span>
+<span id="58"> 58</span>
+<span id="59"> 59</span>
+<span id="60"> 60</span>
+<span id="61"> 61</span>
+<span id="62"> 62</span>
+<span id="63"> 63</span>
+<span id="64"> 64</span>
+<span id="65"> 65</span>
+<span id="66"> 66</span>
+<span id="67"> 67</span>
+<span id="68"> 68</span>
+<span id="69"> 69</span>
+<span id="70"> 70</span>
+<span id="71"> 71</span>
+<span id="72"> 72</span>
+<span id="73"> 73</span>
+<span id="74"> 74</span>
+<span id="75"> 75</span>
+<span id="76"> 76</span>
+<span id="77"> 77</span>
+<span id="78"> 78</span>
+<span id="79"> 79</span>
+<span id="80"> 80</span>
+<span id="81"> 81</span>
+<span id="82"> 82</span>
+<span id="83"> 83</span>
+<span id="84"> 84</span>
+<span id="85"> 85</span>
+<span id="86"> 86</span>
+<span id="87"> 87</span>
+<span id="88"> 88</span>
+<span id="89"> 89</span>
+<span id="90"> 90</span>
+<span id="91"> 91</span>
+<span id="92"> 92</span>
+<span id="93"> 93</span>
+<span id="94"> 94</span>
+<span id="95"> 95</span>
+<span id="96"> 96</span>
+<span id="97"> 97</span>
+<span id="98"> 98</span>
+<span id="99"> 99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
 </pre><pre class="rust ">
+<span class="doccomment">/*!  # Fast Bitpacking algorithms
+
+This crate is a **Rust port of [Daniel Lemire&#39;s simdcomp C library](https://github.com/lemire/simdcomp)**.
+It contains different flavor of integers compression via bitpacking :  `BitPacker1x`, `BitPacker4x`, and `BitPacker8x`.
+
+Each produces different formats, and are incompatible one with another,
+and requires integers to be encoded in block of different size..
+
+`BitPacker4x` and `BitPacker8x` are designed specifically to leverage `SSE3`
+and `AVX2` instructions respectively.
+
+The library will fallback to a scalar implementation if these instruction
+sets are not available. For instance :
+- because your compilation target architecture is not `x86_64`
+- because the CPU you use is from an older generation
+
+I recommend using `BitPacker4x` if you are in doubt.
+
+See the [`BitPacker` trait](./trait.BitPacker.html) for example usage.
+
+*/</span>
+
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_unsafe</span>)]</span>
 <span class="attribute">#![<span class="ident">feature</span>(<span class="ident">stdsimd</span>)]</span>
 <span class="attribute">#![<span class="ident">feature</span>(<span class="ident">test</span>)]</span>
+<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">target_feature</span>)]</span>
+<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">cfg_target_feature</span>)]</span>
+<span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">crunchy</span>;
+
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">Sized</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
@@ -163,78 +367,220 @@
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">mod</span> <span class="ident">macros</span>;
 
-<span class="kw">mod</span> <span class="ident">scalar</span>;
-<span class="kw">mod</span> <span class="ident">sse3</span>;
-<span class="comment">//mod avx2;</span>
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">scalar</span>::<span class="ident">ScalarBitPacker</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">sse3</span>::<span class="ident">SSE3BitPacker</span>;
-<span class="comment">//pub use avx2::AVX2BitPacker;</span>
+<span class="kw">trait</span> <span class="ident">Available</span> {
+    <span class="kw">fn</span> <span class="ident">available</span>() <span class="op">-&gt;</span> <span class="ident">bool</span>;
+}
+
+<span class="kw">trait</span> <span class="ident">UnsafeBitPacker</span> {
+    <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">compress</span>(<span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">compress_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">num_bits</span>(<span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
+    <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
+}
 
 
+<span class="doccomment">/// # Examples without delta-encoding</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">/// extern crate bitpacking;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// # Example</span>
+<span class="doccomment">/// use bitpacking::{BitPacker4x, BitPacker};</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # fn main() {</span>
+<span class="doccomment">/// # let my_data: Vec&lt;u32&gt; = vec![7, 7, 7, 7, 11, 10, 15, 13, 6, 5, 3, 14, 5, 7,</span>
+<span class="doccomment">/// #    15, 12, 1, 10, 8, 10, 12, 14, 13, 1, 10, 1, 1, 10, 4, 15, 12,</span>
+<span class="doccomment">/// #    1, 2, 0, 8, 5, 14, 5, 2, 4, 1, 6, 14, 13, 5, 10, 10, 1, 6, 4,</span>
+<span class="doccomment">/// #    1, 12, 1, 1, 5, 15, 15, 2, 8, 6, 4, 3, 10, 8, 8, 9, 2, 6, 10,</span>
+<span class="doccomment">/// #    5, 7, 9, 0, 13, 15, 5, 13, 10, 0, 2, 10, 14, 5, 9, 12, 8, 5, 10,</span>
+<span class="doccomment">/// #    8, 8, 10, 5, 13, 8, 11, 14, 7, 14, 4, 2, 9, 12, 14, 5, 15, 12, 0,</span>
+<span class="doccomment">/// #    12, 13, 3, 13, 5, 4, 15, 9, 8, 9, 3, 3, 3, 1, 12, 0, 6, 11, 11, 12, 4];</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let bitpacker = BitPacker4x::new();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let num_bits: u8 = bitpacker.num_bits(&amp;my_data);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // A block will be take at most 4 bytes per-integers.</span>
+<span class="doccomment">/// let mut compressed = vec![0u8; 4 * BitPacker4x::BLOCK_LEN];</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # assert_eq!(num_bits, 4);</span>
+<span class="doccomment">/// let compressed_len = bitpacker.compress(&amp;my_data, &amp;mut compressed[..], num_bits);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// assert_eq!((num_bits as usize) *  BitPacker4x::BLOCK_LEN / 8, compressed_len);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Decompressing</span>
+<span class="doccomment">/// let mut decompressed = vec![0u32; BitPacker4x::BLOCK_LEN];</span>
+<span class="doccomment">/// bitpacker.decompress(&amp;compressed[..compressed_len], &amp;mut decompressed[..], num_bits);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// assert_eq!(&amp;my_data, &amp;decompressed);</span>
+<span class="doccomment">/// # }</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Examples with delta-encoding</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Delta-encoding makes it possible to store sorted integers in an efficient manner.</span>
+<span class="doccomment">/// Rather than encoding the integers directly, the interval (or deltas) between each of them</span>
+<span class="doccomment">/// are computed and then encoded.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Decoding then requires to first decode the deltas and then operate a cumulative sum (also called</span>
+<span class="doccomment">/// integration or prefix sum) on them.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// extern crate bitpacking;</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// use bitpacking::{SSE3BitPacker, BitPacker};</span>
+<span class="doccomment">/// use bitpacking::{BitPacker4x, BitPacker};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # fn main() {</span>
-<span class="doccomment">/// let fake_data = vec![7, 7, 7, 7, 11, 10, 15, 13, 6, 5, 3, 14, 5, 7,</span>
-<span class="doccomment">///     15, 12, 1, 10, 8, 10, 12, 14, 13, 1, 10, 1, 1, 10, 4, 15, 12,</span>
-<span class="doccomment">///     1, 2, 0, 8, 5, 14, 5, 2, 4, 1, 6, 14, 13, 5, 10, 10, 1, 6, 4,</span>
-<span class="doccomment">///     1, 12, 1, 1, 5, 15, 15, 2, 8, 6, 4, 3, 10, 8, 8, 9, 2, 6, 10,</span>
-<span class="doccomment">///     5, 7, 9, 0, 13, 15, 5, 13, 10, 0, 2, 10, 14, 5, 9, 12, 8, 5, 10,</span>
-<span class="doccomment">///     8, 8, 10, 5, 13, 8, 11, 14, 7, 14, 4, 2, 9, 12, 14, 5, 15, 12, 0,</span>
-<span class="doccomment">///     12, 13, 3, 13, 5, 4, 15, 9, 8, 9, 3, 3, 3, 1, 12, 0, 6, 11, 11, 12, 4];</span>
-<span class="doccomment">/// let num_bits: u8 = SSE3BitPacker::num_bits(&amp;fake_data);</span>
+<span class="doccomment">/// # let my_data: Vec&lt;u32&gt; = vec![0, 5, 6, 8, 12, 21, 30, 38,</span>
+<span class="doccomment">/// # 46, 52, 59, 61, 62, 62, 71, 71, 73, 74, 76,</span>
+<span class="doccomment">/// # 77, 80, 87, 96, 99, 105, 114, 119, 121, 128,</span>
+<span class="doccomment">/// # 133, 138, 145, 152, 161, 161, 166, 175, 176,</span>
+<span class="doccomment">/// # 180, 186, 189, 193, 202, 211, 220, 224, 229,</span>
+<span class="doccomment">/// # 238, 247, 255, 261, 267, 267, 268, 269, 269,</span>
+<span class="doccomment">/// # 270, 271, 279, 283, 285, 291, 297, 303, 305,</span>
+<span class="doccomment">/// # 309, 310, 315, 316, 316, 321, 324, 329, 337,</span>
+<span class="doccomment">/// # 339, 342, 350, 355, 364, 373, 382, 386, 392,</span>
+<span class="doccomment">/// # 400, 408, 414, 423, 431, 433, 436, 441, 444,</span>
+<span class="doccomment">/// # 445, 454, 463, 463, 465, 472, 474, 477, 480,</span>
+<span class="doccomment">/// # 488, 493, 496, 501, 503, 509, 515, 519, 526,</span>
+<span class="doccomment">/// # 526, 532, 539, 542, 542, 542, 549, 557, 565,</span>
+<span class="doccomment">/// # 566, 573, 578, 580, 581, 585, 588, 588, 591];</span>
+<span class="doccomment">///</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // The initial value is used to compute the first delta.</span>
+<span class="doccomment">/// // In most use cases, you will be compressing long increasing</span>
+<span class="doccomment">/// // integer sequences.</span>
+<span class="doccomment">/// //</span>
+<span class="doccomment">/// // You should probably pass an initial value of `0u32` to the</span>
+<span class="doccomment">/// // first block if you do not have any information.</span>
+<span class="doccomment">/// //</span>
+<span class="doccomment">/// // When encoding the second block however, you will want to pass the last</span>
+<span class="doccomment">/// // value of the first block.</span>
+<span class="doccomment">/// let initial_value = 0u32;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let bitpacker = BitPacker4x::new();</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let num_bits: u8 = bitpacker.num_bits_sorted(initial_value, &amp;my_data);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // A block will be take at most 4 bytes per-integers.</span>
+<span class="doccomment">/// let mut compressed = vec![0u8; 4 * BitPacker4x::BLOCK_LEN];</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// # assert_eq!(num_bits, 4);</span>
-<span class="doccomment">/// let mut compressed = vec![0u8; (num_bits as usize) * SSE3BitPacker::BLOCK_LEN / 8];</span>
-<span class="doccomment">/// SSE3BitPacker::compress(&amp;fake_data, &amp;mut compressed[..], num_bits);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// let compressed_len = bitpacker.compress_sorted(initial_value, &amp;my_data, &amp;mut compressed[..], num_bits);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// assert_eq!((num_bits as usize) *  BitPacker4x::BLOCK_LEN / 8, compressed_len);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // Decompressing</span>
-<span class="doccomment">/// let mut decompressed = vec![0u32; SSE3BitPacker::BLOCK_LEN];</span>
-<span class="doccomment">/// SSE3BitPacker::decompress(&amp;compressed, &amp;mut decompressed[..], num_bits);</span>
+<span class="doccomment">/// let mut decompressed = vec![0u32; BitPacker4x::BLOCK_LEN];</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// assert_eq!(&amp;fake_data, &amp;decompressed);</span>
+<span class="doccomment">/// // The initial value must be the same as the one passed</span>
+<span class="doccomment">/// // when compressing the block.</span>
+<span class="doccomment">/// bitpacker.decompress_sorted(initial_value, &amp;compressed[..compressed_len], &amp;mut decompressed[..], num_bits);</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// assert_eq!(&amp;my_data, &amp;decompressed);</span>
 <span class="doccomment">/// # }</span>
-<span class="doccomment">/// ```</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">BitPacker</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">BitPacker</span>: <span class="ident">Sized</span> {
 
-    <span class="comment">// Integers are compressed in pack of `BLOCK_LEN` `u32`-integers.</span>
-    <span class="comment">//</span>
-    <span class="comment">// `BLOCK_LEN` is required to be a power of 2, greater than 8.</span>
-    <span class="comment">// A high `BLOCK_LEN` may negatively impact the compression rate.</span>
-    <span class="comment">//</span>
-    <span class="comment">// Indeed all integers of a given block will take as many bits as the</span>
-    <span class="comment">// most significant bit of the largest integer.</span>
+    <span class="doccomment">/// Number of `u32` per compressed block</span>
     <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span>;
 
-    <span class="kw">type</span> <span class="ident">DataType</span>;
+    <span class="doccomment">/// Checks the available instructions set on the current</span>
+    <span class="doccomment">/// CPU and returns the best available implementation.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Calling `.new()` is extremely cheap, and does not</span>
+    <span class="doccomment">/// require any heap allocation. It is *not* required to cache</span>
+    <span class="doccomment">/// its result too aggressively.</span>
+    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span>;
 
-    <span class="kw">fn</span> <span class="ident">compress</span>(<span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>);
+    <span class="doccomment">/// Compress a block of `u32`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Assumes that the integers are all lower than `2^num_bits`.</span>
+    <span class="doccomment">/// The result is undefined if they are larger.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns the amount of bytes of the compressed block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - Panics if the compressed destination array is too small</span>
+    <span class="doccomment">/// - Panics if `decompressed` length is not exactly the `BLOCK_LEN`.</span>
+    <span class="kw">fn</span> <span class="ident">compress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
 
-    <span class="kw">fn</span> <span class="ident">compress_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>,
-                       <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>],
-                       <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
-                       <span class="ident">num_bits</span>: <span class="ident">u8</span>);
+    <span class="doccomment">/// Delta encode and compressed the `decompressed` array.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Assumes that the elements in the `decompressed` array are sorted.</span>
+    <span class="doccomment">/// `initial` will be used to compute the first `delta`.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - Panics if `initial` is greater than `decompressed[0]`</span>
+    <span class="doccomment">/// - Panics if `decompressed` is not sorted</span>
+    <span class="doccomment">/// - Panics if `decompressed`&#39;s length is not exactly `BLOCK_LEN`</span>
+    <span class="doccomment">/// - Panics if `compressed` is not large enough to receive the compressed data</span>
+    <span class="doccomment">/// - Panics if the compressed destination array is too small.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns the amount of bytes of the compressed block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - Panics if the compressed array is too short.</span>
+    <span class="doccomment">/// - Panics if the decompressed array is not exactly the `BLOCK_LEN`.</span>
+    <span class="kw">fn</span> <span class="ident">compress_sorted</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">initial</span>: <span class="ident">u32</span>,
+        <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>],
+        <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>],
+        <span class="ident">num_bits</span>: <span class="ident">u8</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span>;
 
-    <span class="kw">fn</span> <span class="ident">decompress_to</span><span class="op">&lt;</span><span class="ident">Output</span>: <span class="ident">FnMut</span>(<span class="self">Self</span>::<span class="ident">DataType</span>)<span class="op">&gt;</span>(<span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">output</span>: <span class="ident">Output</span>, <span class="ident">num_bits</span>: <span class="ident">u8</span>);
+    <span class="doccomment">/// Decompress the `compress` array to the `decompressed` array.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns the amount of bytes that were consumed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Panics if the compressed array is too short, or the decompressed array is too short.</span>
+    <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span>;
 
-    <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>);
+    <span class="doccomment">/// Decompress the`compress`array to the `decompressed` array.</span>
+    <span class="doccomment">/// The `compressed` array is assumed to have been delta-encoded and compressed.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// `initial` must be the value that was passed as the `initial` argument compressing</span>
+    <span class="doccomment">/// the block.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns the amount of bytes that have been read.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Panics</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// - Panics if the compressed array is too short to contain `BLOCK_LEN` elements</span>
+    <span class="doccomment">/// - Panics if the decompressed array is too short.</span>
+    <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">initial</span>: <span class="ident">u32</span>,
+        <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>],
+        <span class="ident">num_bits</span>: <span class="ident">u8</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span>;
 
-    <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>,
-                         <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
-                         <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>],
-                         <span class="ident">num_bits</span>: <span class="ident">u8</span>);
+    <span class="doccomment">/// Returns the minimum number of bits used to represent the largest integer in the</span>
+    <span class="doccomment">/// `decompressed` array.</span>
+    <span class="kw">fn</span> <span class="ident">num_bits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
 
-    <span class="kw">fn</span> <span class="ident">num_bits</span>(<span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
+    <span class="doccomment">/// Returns the minimum number of bits used to represent the largest `delta` in the deltas in the</span>
+    <span class="doccomment">/// `decompressed` array.</span>
+    <span class="kw">fn</span> <span class="ident">num_bits_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
 
-    <span class="kw">fn</span> <span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span>;
+    <span class="doccomment">/// Returns the size of a compressed block.</span>
+    <span class="kw">fn</span> <span class="ident">compressed_block_size</span>(<span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">Self</span>::<span class="ident">BLOCK_LEN</span> <span class="op">*</span> (<span class="ident">num_bits</span> <span class="kw">as</span> <span class="ident">usize</span>) <span class="op">/</span> <span class="number">8</span>
+    }
 }
 
-<span class="doccomment">/// Returns the most significant bit.</span>
+<span class="doccomment">/// Returns the most significant bit.&amp;self,</span>
 <span class="kw">fn</span> <span class="ident">most_significant_bit</span>(<span class="ident">v</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
     <span class="kw">if</span> <span class="ident">v</span> <span class="op">==</span> <span class="number">0</span> {
         <span class="number">0</span>
@@ -242,6 +588,14 @@
         <span class="number">32u8</span> <span class="op">-</span> (<span class="ident">v</span>.<span class="ident">leading_zeros</span>() <span class="kw">as</span> <span class="ident">u8</span>)
     }
 }
+
+<span class="kw">mod</span> <span class="ident">bitpacker1x</span>;
+<span class="kw">mod</span> <span class="ident">bitpacker4x</span>;
+<span class="kw">mod</span> <span class="ident">bitpacker8x</span>;
+
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">bitpacker1x</span>::<span class="ident">BitPacker1x</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">bitpacker4x</span>::<span class="ident">BitPacker4x</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">bitpacker8x</span>::<span class="ident">BitPacker8x</span>;
 </pre>
 </section>
     <section id='search' class="content hidden"></section>

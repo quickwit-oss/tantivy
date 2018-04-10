@@ -67,11 +67,10 @@ and uses a limited buffer to exert back-pressure on the remote stream.</p>
 <p>If this handle is dropped, then the stream will no longer be polled and is
 scheduled to be dropped.</p>
 </div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        <h3 id='impl-Stream' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;I, E&gt; <a class="trait" href="../../../futures/stream/trait.Stream.html" title="trait futures::stream::Stream">Stream</a> for <a class="struct" href="../../../futures/unsync/mpsc/struct.SpawnHandle.html" title="struct futures::unsync::mpsc::SpawnHandle">SpawnHandle</a>&lt;I, E&gt;</code><a href='#impl-Stream' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/futures/unsync/mpsc.rs.html#431-444' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../../futures/stream/trait.Stream.html#associatedtype.Item' class="type">Item</a> = I</code></span></h4>
+                <h2 id='implementations' class='small-section-header'>
+                  Trait Implementations<a href='#implementations' class='anchor'></a>
+                </h2>
+                <div id='implementations-list'><h3 id='impl-Stream' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;I, E&gt; <a class="trait" href="../../../futures/stream/trait.Stream.html" title="trait futures::stream::Stream">Stream</a> for <a class="struct" href="../../../futures/unsync/mpsc/struct.SpawnHandle.html" title="struct futures::unsync::mpsc::SpawnHandle">SpawnHandle</a>&lt;I, E&gt;</code><a href='#impl-Stream' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/futures/unsync/mpsc.rs.html#431-444' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../../futures/stream/trait.Stream.html#associatedtype.Item' class="type">Item</a> = I</code></span></h4>
 <div class='docblock'><p>The type of item this stream will yield on success.</p>
 </div><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../../../futures/stream/trait.Stream.html#associatedtype.Error' class="type">Error</a> = E</code></span></h4>
 <div class='docblock'><p>The type of error this stream may generate.</p>

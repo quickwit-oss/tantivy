@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/syn/lib.rs.html#9-723' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Syn is a parsing library for parsing a stream of Rust tokens into a syntax
+               </span><a class='srclink' href='../src/syn/lib.rs.html#9-724' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Syn is a parsing library for parsing a stream of Rust tokens into a syntax
 tree of Rust source code.</p>
 <p>Currently this library is geared toward the <a href="https://github.com/rust-lang/rfcs/blob/master/text/1681-macros-1.1.md">custom derive</a> use case but
 contains some APIs that may be useful for Rust procedural macros more
@@ -112,8 +112,8 @@ get to execute arbitrary Rust code to figure out what to do with those
 tokens, then hand some tokens back to the compiler to compile into the
 user's crate.</p>
 <pre><code class="language-toml">[dependencies]
-syn = &quot;0.12&quot;
-quote = &quot;0.4&quot;
+syn = &quot;0.13&quot;
+quote = &quot;0.5&quot;
 
 [lib]
 proc-macro = true
@@ -589,14 +589,6 @@ type inference to figure out a return type for those tokens.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ExprAddrOf.html"
-                                  title='struct syn::ExprAddrOf'>ExprAddrOf</a></td>
-                           <td class='docblock-short'>
-                                <p>A referencing operation: <code>&amp;a</code> or <code>&amp;mut a</code>.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
                            <td><a class="struct" href="struct.ExprArray.html"
                                   title='struct syn::ExprArray'>ExprArray</a></td>
                            <td class='docblock-short'>
@@ -812,6 +804,14 @@ parameters and a qualified self-type.</p>
                                   title='struct syn::ExprRange'>ExprRange</a></td>
                            <td class='docblock-short'>
                                 <p>A range expression: <code>1..2</code>, <code>1..</code>, <code>..2</code>, <code>1..=2</code>, <code>..=2</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.ExprReference.html"
+                                  title='struct syn::ExprReference'>ExprReference</a></td>
+                           <td class='docblock-short'>
+                                <p>A referencing operation: <code>&amp;a</code> or <code>&amp;mut a</code>.</p>
 
                            </td>
                        </tr>
@@ -1304,7 +1304,7 @@ trait or a lifetime.</p>
                            <td><a class="struct" href="struct.VisCrate.html"
                                   title='struct syn::VisCrate'>VisCrate</a></td>
                            <td class='docblock-short'>
-                                <p>A crate-level visibility: <code>pub(crate)</code>.</p>
+                                <p>A crate-level visibility: <code>crate</code>.</p>
 
                            </td>
                        </tr>
@@ -1321,7 +1321,7 @@ trait or a lifetime.</p>
                                   title='struct syn::VisRestricted'>VisRestricted</a></td>
                            <td class='docblock-short'>
                                 <p>A visibility level restricted to some path: <code>pub(self)</code> or
-<code>pub(super)</code> or <code>pub(in some::module)</code>.</p>
+<code>pub(super)</code> or <code>pub(crate)</code> or <code>pub(in some::module)</code>.</p>
 
                            </td>
                        </tr>

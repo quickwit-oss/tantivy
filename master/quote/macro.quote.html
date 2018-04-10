@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/quote/lib.rs.html#208-210' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
+               </span><a class='srclink' href='../src/quote/lib.rs.html#204-206' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class="rust macro">
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">quote</span> {
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> { ... };
 }</pre>
@@ -86,7 +86,7 @@ implements <code>IntoIterator</code>, including <code>Vec</code> or a pre-existi
 <h1 id="hygiene" class="section-header"><a href="#hygiene">Hygiene</a></h1>
 <p>Any interpolated tokens preserve the <code>Span</code> information provided by their
 <code>ToTokens</code> implementation. Tokens that originate within the <code>quote!</code>
-invocation are spanned with <a href="https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html#method.def_site"><code>Span::def_site()</code></a>.</p>
+invocation are spanned with <a href="https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html#method.call_site"><code>Span::call_site()</code></a>.</p>
 <p>A different span can be provided through the <a href="macro.quote_spanned.html"><code>quote_spanned!</code></a> macro.</p>
 <h1 id="example" class="section-header"><a href="#example">Example</a></h1>
 <pre class="rust rust-example-rendered">

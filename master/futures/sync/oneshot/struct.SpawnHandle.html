@@ -76,11 +76,10 @@ polled and is scheduled to be dropped. This can be canceled with the
 well if the future hasn't already resolved. This function can be used
 when to drop this future but keep executing the underlying future.</p>
 </div></div>
-            <h2 id='implementations' class='small-section-header'>
-              Trait Implementations<a href='#implementations' class='anchor'></a>
-            </h2>
-            <div id='implementations-list'>
-        <h3 id='impl-Future' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;T, E&gt; <a class="trait" href="../../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a> for <a class="struct" href="../../../futures/sync/oneshot/struct.SpawnHandle.html" title="struct futures::sync::oneshot::SpawnHandle">SpawnHandle</a>&lt;T, E&gt;</code><a href='#impl-Future' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/futures/sync/oneshot.rs.html#513-525' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../../futures/future/trait.Future.html#associatedtype.Item' class="type">Item</a> = T</code></span></h4>
+                <h2 id='implementations' class='small-section-header'>
+                  Trait Implementations<a href='#implementations' class='anchor'></a>
+                </h2>
+                <div id='implementations-list'><h3 id='impl-Future' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl&lt;T, E&gt; <a class="trait" href="../../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a> for <a class="struct" href="../../../futures/sync/oneshot/struct.SpawnHandle.html" title="struct futures::sync::oneshot::SpawnHandle">SpawnHandle</a>&lt;T, E&gt;</code><a href='#impl-Future' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../../src/futures/sync/oneshot.rs.html#513-525' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='associatedtype.Item' class="type"><span id='Item.t' class='invisible'><code>type <a href='../../../futures/future/trait.Future.html#associatedtype.Item' class="type">Item</a> = T</code></span></h4>
 <div class='docblock'><p>The type of value that this future will resolved with if it is successful. <a href="../../../futures/future/trait.Future.html#associatedtype.Item">Read more</a></p>
 </div><h4 id='associatedtype.Error' class="type"><span id='Error.t' class='invisible'><code>type <a href='../../../futures/future/trait.Future.html#associatedtype.Error' class="type">Error</a> = E</code></span></h4>
 <div class='docblock'><p>The type of error that this future will resolve with if it fails in a normal fashion. <a href="../../../futures/future/trait.Future.html#associatedtype.Error">Read more</a></p>

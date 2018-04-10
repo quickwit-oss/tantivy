@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.36/src/bound.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.37/src/bound.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>bound.rs.html -- source</title>
@@ -347,36 +347,6 @@
 <span id="290">290</span>
 <span id="291">291</span>
 <span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -394,7 +364,7 @@
 <span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">ast</span>::{<span class="ident">Data</span>, <span class="ident">Container</span>};
 <span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">attr</span>;
 
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">Span</span>;
 
 <span class="comment">// Remove the default from every type parameter because in the generated impls</span>
 <span class="comment">// they look like associated types: &quot;error: associated type bindings are not</span>
@@ -424,15 +394,7 @@
     <span class="ident">predicates</span>: <span class="kw-2">&amp;</span>[<span class="ident">syn</span>::<span class="ident">WherePredicate</span>],
 ) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="kw">if</span> <span class="ident">generics</span>.<span class="ident">where_clause</span>.<span class="ident">is_none</span>() {
-        <span class="ident">generics</span>.<span class="ident">where_clause</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">syn</span>::<span class="ident">WhereClause</span> {
-            <span class="ident">where_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-            <span class="ident">predicates</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
-        });
-    }
-    <span class="ident">generics</span>.<span class="ident">where_clause</span>
-        .<span class="ident">as_mut</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">extend</span>(<span class="ident">predicates</span>.<span class="ident">into_iter</span>().<span class="ident">cloned</span>());
     <span class="ident">generics</span>
@@ -452,15 +414,7 @@
         .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">predicates</span><span class="op">|</span> <span class="ident">predicates</span>.<span class="ident">to_vec</span>());
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="kw">if</span> <span class="ident">generics</span>.<span class="ident">where_clause</span>.<span class="ident">is_none</span>() {
-        <span class="ident">generics</span>.<span class="ident">where_clause</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">syn</span>::<span class="ident">WhereClause</span> {
-            <span class="ident">where_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-            <span class="ident">predicates</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
-        });
-    }
-    <span class="ident">generics</span>.<span class="ident">where_clause</span>
-        .<span class="ident">as_mut</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">extend</span>(<span class="ident">predicates</span>);
     <span class="ident">generics</span>
@@ -572,6 +526,7 @@
                 <span class="comment">// the bound e.g. Serialize</span>
                 <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[
                     <span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
+                        <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
                         <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
                         <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
                         <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
@@ -581,15 +536,7 @@
         });
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="kw">if</span> <span class="ident">generics</span>.<span class="ident">where_clause</span>.<span class="ident">is_none</span>() {
-        <span class="ident">generics</span>.<span class="ident">where_clause</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">syn</span>::<span class="ident">WhereClause</span> {
-            <span class="ident">where_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-            <span class="ident">predicates</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
-        });
-    }
-    <span class="ident">generics</span>.<span class="ident">where_clause</span>
-        .<span class="ident">as_mut</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">extend</span>(<span class="ident">new_predicates</span>);
     <span class="ident">generics</span>
@@ -601,15 +548,7 @@
     <span class="ident">bound</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>,
 ) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="kw">if</span> <span class="ident">generics</span>.<span class="ident">where_clause</span>.<span class="ident">is_none</span>() {
-        <span class="ident">generics</span>.<span class="ident">where_clause</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">syn</span>::<span class="ident">WhereClause</span> {
-            <span class="ident">where_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-            <span class="ident">predicates</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
-        });
-    }
-    <span class="ident">generics</span>.<span class="ident">where_clause</span>
-        .<span class="ident">as_mut</span>()
-        .<span class="ident">unwrap</span>()
+    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">push</span>(<span class="ident">syn</span>::<span class="ident">WherePredicate</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">PredicateType</span> {
             <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
@@ -619,6 +558,7 @@
             <span class="comment">// the bound e.g. Default</span>
             <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[
                 <span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
+                    <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
                     <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
                     <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
                     <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
@@ -629,7 +569,7 @@
 }
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_lifetime_bound</span>(<span class="ident">generics</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Generics</span>, <span class="ident">lifetime</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
-    <span class="kw">let</span> <span class="ident">bound</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">Lifetime</span>::<span class="ident">new</span>(<span class="ident">Term</span>::<span class="ident">intern</span>(<span class="ident">lifetime</span>), <span class="ident">Span</span>::<span class="ident">def_site</span>());
+    <span class="kw">let</span> <span class="ident">bound</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">Lifetime</span>::<span class="ident">new</span>(<span class="ident">lifetime</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>());
     <span class="kw">let</span> <span class="ident">def</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">LifetimeDef</span> {
         <span class="ident">attrs</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
         <span class="ident">lifetime</span>: <span class="ident">bound</span>,

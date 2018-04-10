@@ -59,20 +59,49 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/bitpacking/lib.rs.html#1-93' title='goto source code'>[src]</a></span></h1><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+               </span><a class='srclink' href='../src/bitpacking/lib.rs.html#1-270' title='goto source code'>[src]</a></span></h1><div class='docblock'><h1 id="fast-bitpacking-algorithms" class="section-header"><a href="#fast-bitpacking-algorithms">Fast Bitpacking algorithms</a></h1>
+<p>This crate is a <strong>Rust port of <a href="https://github.com/lemire/simdcomp">Daniel Lemire's simdcomp C library</a></strong>.
+It contains different flavor of integers compression via bitpacking :  <code>BitPacker1x</code>, <code>BitPacker4x</code>, and <code>BitPacker8x</code>.</p>
+<p>Each produces different formats, and are incompatible one with another,
+and requires integers to be encoded in block of different size..</p>
+<p><code>BitPacker4x</code> and <code>BitPacker8x</code> are designed specifically to leverage <code>SSE3</code>
+and <code>AVX2</code> instructions respectively.</p>
+<p>The library will fallback to a scalar implementation if these instruction
+sets are not available. For instance :</p>
+<ul>
+<li>because your compilation target architecture is not <code>x86_64</code></li>
+<li>because the CPU you use is from an older generation</li>
+</ul>
+<p>I recommend using <code>BitPacker4x</code> if you are in doubt.</p>
+<p>See the <a href="./trait.BitPacker.html"><code>BitPacker</code> trait</a> for example usage.</p>
+</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.SSE3BitPacker.html"
-                                  title='struct bitpacking::SSE3BitPacker'>SSE3BitPacker</a></td>
+                           <td><a class="struct" href="struct.BitPacker1x.html"
+                                  title='struct bitpacking::BitPacker1x'>BitPacker1x</a></td>
                            <td class='docblock-short'>
-                                
+                                <p><code>BitPacker1x</code> is standard bitpacking : the integer representation over
+<code>b</code> bits are simply concatenated one after the other.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.ScalarBitPacker.html"
-                                  title='struct bitpacking::ScalarBitPacker'>ScalarBitPacker</a></td>
+                           <td><a class="struct" href="struct.BitPacker4x.html"
+                                  title='struct bitpacking::BitPacker4x'>BitPacker4x</a></td>
                            <td class='docblock-short'>
-                                
+                                <p><code>BitPacker4x</code> packs integers in groups of 4. This gives an opportunity
+to leverage <code>SSE3</code> instructions to encode and decode the stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.BitPacker8x.html"
+                                  title='struct bitpacking::BitPacker8x'>BitPacker8x</a></td>
+                           <td class='docblock-short'>
+                                <p><code>BitPacker8x</code> packs integers in groups of 8. This gives an opportunity
+to leverage <code>AVX2</code> instructions to encode and decode the stream.
+One block must contain <code>256 integers</code>.</p>
+
                            </td>
                        </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
 <table>
@@ -80,7 +109,7 @@
                            <td><a class="trait" href="trait.BitPacker.html"
                                   title='trait bitpacking::BitPacker'>BitPacker</a></td>
                            <td class='docblock-short'>
-                                <h1>Example</h1>
+                                <h1>Examples without delta-encoding</h1>
 
                            </td>
                        </tr></table></section>

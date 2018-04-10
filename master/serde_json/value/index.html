@@ -106,7 +106,7 @@ be represented as JSON.</p>
 });</pre>
 <p>A string of JSON data can be parsed into a <code>serde_json::Value</code> by the
 <a href="https://docs.serde.rs/serde_json/de/fn.from_str.html"><code>serde_json::from_str</code></a> function. There is also
-<a href="https://docs.serde.rs/serde_json/de/fn.from_slice.html"><code>from_slice</code></a> for parsing from a byte slice &amp;[u8] and
+<a href="https://docs.serde.rs/serde_json/de/fn.from_slice.html"><code>from_slice</code></a> for parsing from a byte slice &amp;<a href="https://doc.rust-lang.org/nightly/std/primitive.u8.html" title="u8">u8</a> and
 <a href="https://docs.serde.rs/serde_json/de/fn.from_reader.html"><code>from_reader</code></a> for parsing from any <code>io::Read</code> like a File or
 a TCP stream.</p>
 

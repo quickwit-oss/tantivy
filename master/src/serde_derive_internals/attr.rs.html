@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.22.2/src/attr.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.0/src/attr.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>attr.rs.html -- source</title>
@@ -1481,10 +1481,6 @@
 <span id="1424">1424</span>
 <span id="1425">1425</span>
 <span id="1426">1426</span>
-<span id="1427">1427</span>
-<span id="1428">1428</span>
-<span id="1429">1429</span>
-<span id="1430">1430</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1503,7 +1499,7 @@
 <span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">synom</span>::{<span class="ident">Synom</span>, <span class="ident">ParseError</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">TokenStream</span>, <span class="ident">TokenNode</span>, <span class="ident">TokenTree</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">TokenStream</span>, <span class="ident">TokenTree</span>, <span class="ident">Group</span>};
 
 <span class="comment">// This module handles parsing of `#[serde(...)]` attributes. The entrypoints</span>
 <span class="comment">// are `attr::Container::from_ast`, `attr::Variant::from_ast`, and</span>
@@ -2427,10 +2423,10 @@
                     <span class="ident">leading_colon</span>: <span class="prelude-val">None</span>,
                     <span class="ident">segments</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
                 };
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;_serde&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;private&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;de&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;borrow_cow_str&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;_serde&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;private&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;de&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;borrow_cow_str&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
                 <span class="kw">let</span> <span class="ident">expr</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">ExprPath</span> {
                     <span class="ident">attrs</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
                     <span class="ident">qself</span>: <span class="prelude-val">None</span>,
@@ -2442,10 +2438,10 @@
                     <span class="ident">leading_colon</span>: <span class="prelude-val">None</span>,
                     <span class="ident">segments</span>: <span class="ident">Punctuated</span>::<span class="ident">new</span>(),
                 };
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;_serde&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;private&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;de&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
-                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;borrow_cow_bytes&quot;</span>, <span class="ident">Span</span>::<span class="ident">def_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;_serde&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;private&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;de&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
+                <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">push</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;borrow_cow_bytes&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>());
                 <span class="kw">let</span> <span class="ident">expr</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">ExprPath</span> {
                     <span class="ident">attrs</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
                     <span class="ident">qself</span>: <span class="prelude-val">None</span>,
@@ -2648,7 +2644,7 @@
         <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Vec</span>::<span class="ident">new</span>());
     }
 
-    <span class="kw">let</span> <span class="ident">where_string</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">LitStr</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;where {}&quot;</span>, <span class="ident">string</span>.<span class="ident">value</span>()), <span class="ident">string</span>.<span class="ident">span</span>);
+    <span class="kw">let</span> <span class="ident">where_string</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">LitStr</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;where {}&quot;</span>, <span class="ident">string</span>.<span class="ident">value</span>()), <span class="ident">string</span>.<span class="ident">span</span>());
 
     <span class="ident">parse_lit_str</span>::<span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">WhereClause</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="ident">where_string</span>)
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">wh</span><span class="op">|</span> <span class="ident">wh</span>.<span class="ident">predicates</span>.<span class="ident">into_iter</span>().<span class="ident">collect</span>())
@@ -2898,23 +2894,19 @@
 
 <span class="kw">fn</span> <span class="ident">spanned_tokens</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">LitStr</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenStream</span>, <span class="ident">ParseError</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">stream</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">syn</span>::<span class="ident">parse_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">value</span>()));
-    <span class="prelude-val">Ok</span>(<span class="ident">respan_token_stream</span>(<span class="ident">stream</span>, <span class="ident">s</span>.<span class="ident">span</span>))
+    <span class="prelude-val">Ok</span>(<span class="ident">respan_token_stream</span>(<span class="ident">stream</span>, <span class="ident">s</span>.<span class="ident">span</span>()))
 }
 
 <span class="kw">fn</span> <span class="ident">respan_token_stream</span>(<span class="ident">stream</span>: <span class="ident">TokenStream</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="ident">stream</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">token</span><span class="op">|</span> <span class="ident">respan_token_tree</span>(<span class="ident">token</span>, <span class="ident">span</span>)).<span class="ident">collect</span>()
 }
 
-<span class="kw">fn</span> <span class="ident">respan_token_tree</span>(<span class="ident">token</span>: <span class="ident">TokenTree</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
-    <span class="ident">TokenTree</span> {
-        <span class="ident">span</span>: <span class="ident">span</span>,
-        <span class="ident">kind</span>: <span class="kw">match</span> <span class="ident">token</span>.<span class="ident">kind</span> {
-            <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">delimiter</span>, <span class="ident">nested</span>) <span class="op">=&gt;</span> {
-                <span class="ident">TokenNode</span>::<span class="ident">Group</span>(<span class="ident">delimiter</span>, <span class="ident">respan_token_stream</span>(<span class="ident">nested</span>, <span class="ident">span</span>))
-            }
-            <span class="ident">other</span> <span class="op">=&gt;</span> <span class="ident">other</span>,
-        },
+<span class="kw">fn</span> <span class="ident">respan_token_tree</span>(<span class="kw-2">mut</span> <span class="ident">token</span>: <span class="ident">TokenTree</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenTree</span> {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">TokenTree</span>::<span class="ident">Group</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">g</span>) <span class="op">=</span> <span class="ident">token</span> {
+        <span class="kw-2">*</span><span class="ident">g</span> <span class="op">=</span> <span class="ident">Group</span>::<span class="ident">new</span>(<span class="ident">g</span>.<span class="ident">delimiter</span>(), <span class="ident">respan_token_stream</span>(<span class="ident">g</span>.<span class="ident">stream</span>().<span class="ident">clone</span>(), <span class="ident">span</span>));
     }
+    <span class="ident">token</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
+    <span class="ident">token</span>
 }
 </pre>
 </section>

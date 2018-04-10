@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.12.15/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.1/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -778,6 +778,7 @@
 <span id="721">721</span>
 <span id="722">722</span>
 <span id="723">723</span>
+<span id="724">724</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -849,8 +850,8 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [dependencies]</span>
-<span class="doccomment">//! syn = &quot;0.12&quot;</span>
-<span class="doccomment">//! quote = &quot;0.4&quot;</span>
+<span class="doccomment">//! syn = &quot;0.13&quot;</span>
+<span class="doccomment">//! quote = &quot;0.5&quot;</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! [lib]</span>
 <span class="doccomment">//! proc-macro = true</span>
@@ -1037,12 +1038,13 @@
 <span class="doccomment">//!   types.</span>
 
 <span class="comment">// Syn types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.12.15&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.13.1&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
             <span class="ident">allow</span>(<span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">large_enum_variant</span>, <span class="ident">match_bool</span>,
                   <span class="ident">redundant_closure</span>, <span class="ident">needless_pass_by_value</span>, <span class="ident">redundant_field_names</span>))]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro2</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">unicode_xid</span>;
 
@@ -1074,7 +1076,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">expr</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Expr</span>, <span class="ident">ExprAddrOf</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>,
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Expr</span>, <span class="ident">ExprReference</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>,
                <span class="ident">ExprBox</span>, <span class="ident">ExprBreak</span>, <span class="ident">ExprCall</span>, <span class="ident">ExprCast</span>, <span class="ident">ExprCatch</span>, <span class="ident">ExprClosure</span>, <span class="ident">ExprContinue</span>,
                <span class="ident">ExprField</span>, <span class="ident">ExprForLoop</span>, <span class="ident">ExprGroup</span>, <span class="ident">ExprIf</span>, <span class="ident">ExprIfLet</span>, <span class="ident">ExprInPlace</span>, <span class="ident">ExprIndex</span>,
                <span class="ident">ExprLit</span>, <span class="ident">ExprLoop</span>, <span class="ident">ExprMacro</span>, <span class="ident">ExprMatch</span>, <span class="ident">ExprMethodCall</span>, <span class="ident">ExprParen</span>, <span class="ident">ExprPath</span>,
@@ -1109,8 +1111,8 @@
                <span class="ident">ItemEnum</span>, <span class="ident">ItemExternCrate</span>, <span class="ident">ItemFn</span>, <span class="ident">ItemForeignMod</span>, <span class="ident">ItemImpl</span>, <span class="ident">ItemMacro</span>, <span class="ident">ItemMacro2</span>,
                <span class="ident">ItemMod</span>, <span class="ident">ItemStatic</span>, <span class="ident">ItemStruct</span>, <span class="ident">ItemTrait</span>, <span class="ident">ItemType</span>, <span class="ident">ItemUnion</span>, <span class="ident">ItemUse</span>,
                <span class="ident">ItemVerbatim</span>, <span class="ident">MethodSig</span>, <span class="ident">TraitItem</span>, <span class="ident">TraitItemConst</span>, <span class="ident">TraitItemMacro</span>,
-               <span class="ident">TraitItemMethod</span>, <span class="ident">TraitItemType</span>, <span class="ident">TraitItemVerbatim</span>, <span class="ident">UseGlob</span>, <span class="ident">UseList</span>, <span class="ident">UsePath</span>,
-               <span class="ident">UseTree</span>};
+               <span class="ident">TraitItemMethod</span>, <span class="ident">TraitItemType</span>, <span class="ident">TraitItemVerbatim</span>, <span class="ident">UseGlob</span>, <span class="ident">UseGroup</span>, <span class="ident">UseName</span>,
+               <span class="ident">UsePath</span>, <span class="ident">UseRename</span>, <span class="ident">UseTree</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">file</span>;
@@ -1353,7 +1355,7 @@
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # fn main() {}</span>
 <span class="doccomment">/// ```</span>
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="ident">tokens</span>: <span class="ident">proc_macro</span>::<span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">ParseError</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="ident">Synom</span>,

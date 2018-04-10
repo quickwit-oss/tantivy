@@ -34,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         
-        <p class='location'>Crate proc_macro2</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'proc_macro2', ty: 'mod', relpath: '../'};</script></div>
+        <p class='location'>Crate proc_macro2</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'proc_macro2', ty: 'mod', relpath: '../'};</script></div>
     </nav>
 
     <div class="theme-picker">
@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/proc_macro2/lib.rs.html#1-344' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A &quot;shim crate&quot; intended to multiplex the <a href="https://doc.rust-lang.org/proc_macro/"><code>proc_macro</code></a> API on to stable
+               </span><a class='srclink' href='../src/proc_macro2/lib.rs.html#1-590' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A &quot;shim crate&quot; intended to multiplex the <a href="https://doc.rust-lang.org/proc_macro/"><code>proc_macro</code></a> API on to stable
 Rust.</p>
 <p>Procedural macros in Rust operate over the upstream
 <a href="https://doc.rust-lang.org/proc_macro/struct.TokenStream.html"><code>proc_macro::TokenStream</code></a> type. This type currently is quite
@@ -77,8 +77,23 @@ to use this crate will be trivially able to switch to the upstream
 enables it to reimplement itself with the unstable API of <a href="https://doc.rust-lang.org/proc_macro/"><code>proc_macro</code></a>.
 This'll allow immediate usage of the beneficial upstream API, particularly
 around preserving span information.</p>
-</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="token_stream/index.html"
+                                  title='mod proc_macro2::token_stream'>token_stream</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Group.html"
+                                  title='struct proc_macro2::Group'>Group</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.LexError.html"
                                   title='struct proc_macro2::LexError'>LexError</a></td>
@@ -89,6 +104,13 @@ around preserving span information.</p>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Literal.html"
                                   title='struct proc_macro2::Literal'>Literal</a></td>
+                           <td class='docblock-short'>
+                                
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Op.html"
+                                  title='struct proc_macro2::Op'>Op</a></td>
                            <td class='docblock-short'>
                                 
                            </td>
@@ -113,20 +135,6 @@ around preserving span information.</p>
                            <td class='docblock-short'>
                                 
                            </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TokenTree.html"
-                                  title='struct proc_macro2::TokenTree'>TokenTree</a></td>
-                           <td class='docblock-short'>
-                                
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TokenTreeIter.html"
-                                  title='struct proc_macro2::TokenTreeIter'>TokenTreeIter</a></td>
-                           <td class='docblock-short'>
-                                
-                           </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
                        <tr class=' module-item'>
@@ -144,8 +152,8 @@ around preserving span information.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="enum" href="enum.TokenNode.html"
-                                  title='enum proc_macro2::TokenNode'>TokenNode</a></td>
+                           <td><a class="enum" href="enum.TokenTree.html"
+                                  title='enum proc_macro2::TokenTree'>TokenTree</a></td>
                            <td class='docblock-short'>
                                 
                            </td>
