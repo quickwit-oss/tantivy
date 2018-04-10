@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.3.0/src/bitpacker8x.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.3.1/src/bitpacker8x.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>bitpacker8x.rs.html -- source</title>
@@ -341,8 +341,17 @@
 <span id="284">284</span>
 <span id="285">285</span>
 <span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">BitPacker</span>, <span class="ident">UnsafeBitPacker</span>};
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
 <span class="kw">use</span> <span class="ident">Available</span>;
 
 <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span> <span class="op">*</span> <span class="number">8</span>;
@@ -521,6 +530,7 @@
 }
 
 <span class="kw">enum</span> <span class="ident">InstructionSet</span> {
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
     <span class="ident">AVX2</span>,
     <span class="ident">Scalar</span>
 }
@@ -547,6 +557,7 @@
     <span class="kw">fn</span> <span class="ident">compress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress</span>(<span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
@@ -559,6 +570,7 @@
     <span class="kw">fn</span> <span class="ident">compress_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">compressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u8</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">compress_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>, <span class="ident">compressed</span>, <span class="ident">num_bits</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
@@ -571,6 +583,7 @@
     <span class="kw">fn</span> <span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress</span>(<span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
@@ -582,6 +595,7 @@
     <span class="kw">fn</span> <span class="ident">decompress_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">compressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u32</span>], <span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">decompress_sorted</span>(<span class="ident">initial</span>, <span class="ident">compressed</span>, <span class="ident">decompressed</span>, <span class="ident">num_bits</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
@@ -593,6 +607,7 @@
     <span class="kw">fn</span> <span class="ident">num_bits</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits</span>(<span class="ident">decompressed</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
@@ -604,6 +619,7 @@
     <span class="kw">fn</span> <span class="ident">num_bits_sorted</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">initial</span>: <span class="ident">u32</span>, <span class="ident">decompressed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">unsafe</span> {
             <span class="kw">match</span> <span class="self">self</span>.<span class="number">0</span> {
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86&quot;</span>, <span class="ident">target_arch</span> <span class="op">=</span> <span class="string">&quot;x86_64&quot;</span>))]</span>
                 <span class="ident">InstructionSet</span>::<span class="ident">AVX2</span> <span class="op">=&gt;</span>
                     <span class="ident">avx2</span>::<span class="ident">UnsafeBitPackerImpl</span>::<span class="ident">num_bits_sorted</span>(<span class="ident">initial</span>, <span class="ident">decompressed</span>),
                 <span class="ident">InstructionSet</span>::<span class="ident">Scalar</span> <span class="op">=&gt;</span>
