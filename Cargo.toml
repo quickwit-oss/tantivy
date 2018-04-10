@@ -40,7 +40,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9", features = ["nightly"]}
 matches = "0.1"
-bitpacking = "0.3"
+bitpacking = "0.3.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
