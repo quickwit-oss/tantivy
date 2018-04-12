@@ -81,10 +81,6 @@ pub struct IndexWriter {
     committed_opstamp: u64,
 }
 
-// IndexWriter cannot be sent to another thread.
-impl !Send for IndexWriter {}
-impl !Sync for IndexWriter {}
-
 /// Open a new index writer. Attempts to acquire a lockfile.
 ///
 /// The lockfile should be deleted on drop, but it is possible

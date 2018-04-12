@@ -2,9 +2,8 @@
 #![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 
-#![feature(optin_builtin_traits)]
 #![feature(collections_range)]
-#![feature(integer_atomics)]
+
 #![feature(drain_filter)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(iterator_step_by))]
