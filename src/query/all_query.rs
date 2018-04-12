@@ -16,7 +16,7 @@ pub struct AllQuery;
 
 impl Query for AllQuery {
     fn weight(&self, _: &Searcher, _: bool) -> Result<Box<Weight>> {
-        Ok(box AllWeight)
+        Ok(Box::new(AllWeight))
     }
 }
 
@@ -25,11 +25,11 @@ pub struct AllWeight;
 
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
-        Ok(box AllScorer {
+        Ok(Box::new(AllScorer {
             started: false,
             doc: 0u32,
             max_doc: reader.max_doc(),
-        })
+        }))
     }
 }
 

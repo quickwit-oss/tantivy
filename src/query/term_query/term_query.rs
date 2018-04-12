@@ -54,7 +54,7 @@ impl TermQuery {
 
 impl Query for TermQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
-        Ok(box self.specialized_weight(searcher, scoring_enabled))
+        Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
     }
 }
 

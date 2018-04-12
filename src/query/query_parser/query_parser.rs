@@ -264,7 +264,7 @@ impl QueryParser {
                 let mut asts: Vec<LogicalAST> = Vec::new();
                 for (field, phrase) in term_phrases {
                     if let Some(ast) = self.compute_logical_ast_for_leaf(field, &phrase)? {
-                        asts.push(LogicalAST::Leaf(box ast));
+                        asts.push(LogicalAST::Leaf(Box::new(ast)));
                     }
                 }
                 let result_ast = if asts.is_empty() {
@@ -304,8 +304,8 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
 
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
-        LogicalLiteral::Term(term) => box TermQuery::new(term, IndexRecordOption::WithFreqs),
-        LogicalLiteral::Phrase(terms) => box PhraseQuery::new(terms),
+        LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
+        LogicalLiteral::Phrase(terms) => Box::new(PhraseQuery::new(terms)),
     }
 }
 
@@ -316,7 +316,7 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
                 .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
                 .collect::<Vec<_>>();
-            box BooleanQuery::from(occur_subqueries)
+            Box::new(BooleanQuery::from(occur_subqueries))
         }
         LogicalAST::Leaf(logical_literal) => convert_literal_to_query(*logical_literal),
     }

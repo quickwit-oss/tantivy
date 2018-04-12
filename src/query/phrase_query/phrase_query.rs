@@ -48,13 +48,13 @@ impl Query for PhraseQuery {
         let terms = self.phrase_terms.clone();
         if scoring_enabled {
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(box PhraseWeight::new(
+            Ok(Box::new(PhraseWeight::new(
                 terms,
                 bm25_weight,
                 true
-            ))
+            )))
         } else {
-            Ok(box PhraseWeight::new(terms, BM25Weight::null(), false))
+            Ok(Box::new(PhraseWeight::new(terms, BM25Weight::null(), false)))
         }
 
     }

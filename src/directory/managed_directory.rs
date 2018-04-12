@@ -86,7 +86,7 @@ impl ManagedDirectory {
                 let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
                     .chain_err(|| ErrorKind::CorruptedFile(MANAGED_FILEPATH.clone()))?;
                 Ok(ManagedDirectory {
-                    directory: box directory,
+                    directory: Box::new(directory),
                     meta_informations: Arc::new(RwLock::new(MetaInformation {
                         managed_paths: managed_files,
                         protected_files: HashMap::default(),
@@ -94,7 +94,7 @@ impl ManagedDirectory {
                 })
             }
             Err(OpenReadError::FileDoesNotExist(_)) => Ok(ManagedDirectory {
-                directory: box directory,
+                directory: Box::new(directory),
                 meta_informations: Arc::default(),
             }),
             Err(OpenReadError::IOError(e)) => Err(From::from(e)),
@@ -265,7 +265,7 @@ impl Directory for ManagedDirectory {
     }
 
     fn box_clone(&self) -> Box<Directory> {
-        box self.clone()
+        Box::new(self.clone())
     }
 }
 

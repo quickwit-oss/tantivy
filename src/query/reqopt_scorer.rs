@@ -182,10 +182,10 @@ mod tests {
         let skip_docs = sample_with_seed(10_000, 0.001, 3);
         test_skip_against_unoptimized(
             || {
-                box RequiredOptionalScorer::<_, _, DoNothingCombiner>::new(
+                Box::new(RequiredOptionalScorer::<_, _, DoNothingCombiner>::new(
                     ConstScorer::new(VecDocSet::from(req_docs.clone())),
                     ConstScorer::new(VecDocSet::from(opt_docs.clone())),
-                )
+                ))
             },
             skip_docs,
         );

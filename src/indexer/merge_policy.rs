@@ -37,7 +37,7 @@ impl MergePolicy for NoMergePolicy {
     }
 
     fn box_clone(&self) -> Box<MergePolicy> {
-        box NoMergePolicy
+        Box::new(NoMergePolicy)
     }
 }
 
@@ -69,7 +69,7 @@ pub mod tests {
         }
 
         fn box_clone(&self) -> Box<MergePolicy> {
-            box MergeWheneverPossible
+            Box::new(MergeWheneverPossible)
         }
     }
 }

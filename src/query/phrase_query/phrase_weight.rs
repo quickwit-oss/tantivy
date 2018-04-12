@@ -40,10 +40,10 @@ impl Weight for PhraseWeight {
                     .read_postings(term, IndexRecordOption::WithFreqsAndPositions) {
                     term_postings_list.push(postings);
                 } else {
-                    return Ok(box EmptyScorer);
+                    return Ok(Box::new(EmptyScorer));
                 }
             }
-            Ok(box PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed))
+            Ok(Box::new(PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed)))
         } else {
             let mut term_postings_list = Vec::new();
             for term in &self.phrase_terms {
@@ -52,10 +52,10 @@ impl Weight for PhraseWeight {
                     .read_postings_no_deletes(term, IndexRecordOption::WithFreqsAndPositions) {
                     term_postings_list.push(postings);
                 } else {
-                    return Ok(box EmptyScorer);
+                    return Ok(Box::new(EmptyScorer));
                 }
             }
-            Ok(box PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed))
+            Ok(Box::new(PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed)))
         }
     }
 }

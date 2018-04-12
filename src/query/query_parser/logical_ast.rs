@@ -45,7 +45,7 @@ impl fmt::Debug for LogicalAST {
 
 impl From<LogicalLiteral> for LogicalAST {
     fn from(literal: LogicalLiteral) -> LogicalAST {
-        LogicalAST::Leaf(box literal)
+        LogicalAST::Leaf(Box::new(literal))
     }
 }
 

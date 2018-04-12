@@ -23,7 +23,7 @@ pub enum UserInputAST {
 
 impl From<UserInputLiteral> for UserInputAST {
     fn from(literal: UserInputLiteral) -> UserInputAST {
-        UserInputAST::Leaf(box literal)
+        UserInputAST::Leaf(Box::new(literal))
     }
 }
 

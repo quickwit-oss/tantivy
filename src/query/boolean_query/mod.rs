@@ -124,7 +124,7 @@ mod tests {
                 Term::from_field_text(text_field, text),
                 IndexRecordOption::Basic,
             );
-            let query: Box<Query> = box term_query;
+            let query: Box<Query> = Box::new(term_query);
             query
         };
 
@@ -181,7 +181,7 @@ mod tests {
                 Term::from_field_text(text_field, text),
                 IndexRecordOption::Basic,
             );
-            let query: Box<Query> = box term_query;
+            let query: Box<Query> = Box::new(term_query);
             query
         };
 

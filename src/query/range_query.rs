@@ -129,11 +129,11 @@ impl RangeQuery {
 
 impl Query for RangeQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
-        Ok(box RangeWeight {
+        Ok(Box::new(RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),
             right_bound: self.right_bound.clone(),
-        })
+        }))
     }
 }
 
@@ -183,7 +183,7 @@ impl Weight for RangeWeight {
             }
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(box ConstScorer::new(doc_bitset))
+        Ok(Box::new(ConstScorer::new(doc_bitset)))
     }
 }
 

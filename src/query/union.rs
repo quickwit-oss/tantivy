@@ -313,14 +313,14 @@ mod tests {
             }
         }
         let docset_factory = || {
-            let res: Box<DocSet> = box Union::<_, DoNothingCombiner>::from(
+            let res: Box<DocSet> = Box::new(Union::<_, DoNothingCombiner>::from(
                 docs_list
                     .iter()
                     .map(|docs| docs.clone())
                     .map(VecDocSet::from)
                     .map(ConstScorer::new)
                     .collect::<Vec<_>>(),
-            );
+            ));
             res
         };
         let mut docset = docset_factory();

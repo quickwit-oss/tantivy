@@ -151,10 +151,10 @@ mod tests {
     fn test_exclude_skip() {
         test_skip_against_unoptimized(
             || {
-                box Exclude::new(
+                Box::new(Exclude::new(
                     VecDocSet::from(vec![1, 2, 5, 8, 10, 15, 24]),
                     VecDocSet::from(vec![1, 2, 3, 10, 16, 24]),
-                )
+                ))
             },
             vec![1, 2, 5, 8, 10, 15, 24],
         );
@@ -167,10 +167,10 @@ mod tests {
         let sample_skip = sample_with_seed(10_000, 0.005, 3);
         test_skip_against_unoptimized(
             || {
-                box Exclude::new(
+                Box::new(Exclude::new(
                     VecDocSet::from(sample_include.clone()),
                     VecDocSet::from(sample_exclude.clone()),
-                )
+                ))
             },
             sample_skip,
         );

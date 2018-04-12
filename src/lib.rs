@@ -1,9 +1,8 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
-#![feature(box_syntax)]
+
 #![feature(optin_builtin_traits)]
-#![feature(conservative_impl_trait)]
 #![feature(collections_range)]
 #![feature(integer_atomics)]
 #![feature(drain_filter)]

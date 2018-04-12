@@ -22,7 +22,7 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
     let second_rarest_opt = scorers.pop();
     scorers.reverse();
     match (rarest_opt, second_rarest_opt) {
-        (None, None) => box EmptyScorer,
+        (None, None) => Box::new(EmptyScorer),
         (Some(single_docset), None) => single_docset,
         (Some(left), Some(right)) => {
             {
@@ -32,20 +32,20 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
                 }) {
                     let left = *Downcast::<TermScorer>::downcast(left).unwrap();
                     let right = *Downcast::<TermScorer>::downcast(right).unwrap();
-                    return box Intersection {
+                    return Box::new(Intersection {
                         left,
                         right,
                         others: scorers,
                         num_docsets
-                    }
+                    })
                 }
             }
-            return box Intersection {
+            return Box::new(Intersection {
                 left,
                 right,
                 others: scorers,
                 num_docsets
-            }
+            })
         }
         _ => { unreachable!(); }
     }
@@ -271,7 +271,7 @@ mod tests {
             || {
                 let left = VecDocSet::from(vec![4]);
                 let right = VecDocSet::from(vec![2, 5]);
-                box Intersection::new(vec![left, right])
+                Box::new(Intersection::new(vec![left, right]))
             },
             vec![0, 2, 4, 5, 6],
         );
@@ -281,19 +281,19 @@ mod tests {
                 let mut right = VecDocSet::from(vec![2, 5, 10]);
                 left.advance();
                 right.advance();
-                box Intersection::new(vec![left, right])
+                Box::new(Intersection::new(vec![left, right]))
             },
             vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
         );
         test_skip_against_unoptimized(
             || {
-                box Intersection::new(vec![
+                Box::new(Intersection::new(vec![
                     VecDocSet::from(vec![1, 4, 5, 6]),
                     VecDocSet::from(vec![1, 2, 5, 6]),
                     VecDocSet::from(vec![1, 4, 5, 6]),
                     VecDocSet::from(vec![1, 5, 6]),
                     VecDocSet::from(vec![2, 4, 5, 7, 8]),
-                ])
+                ]))
             },
             vec![0, 1, 2, 3, 4, 5, 6, 7, 10, 11],
         );

@@ -82,7 +82,7 @@ impl MergePolicy for LogMergePolicy {
     }
 
     fn box_clone(&self) -> Box<MergePolicy> {
-        box self.clone()
+        Box::new(self.clone())
     }
 }
 

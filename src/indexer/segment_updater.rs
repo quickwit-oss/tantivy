@@ -171,7 +171,7 @@ impl SegmentUpdater {
             pool: CpuPool::new(1),
             index,
             segment_manager,
-            merge_policy: RwLock::new(box DefaultMergePolicy::default()),
+            merge_policy: RwLock::new(Box::new(DefaultMergePolicy::default())),
             merging_thread_id: AtomicUsize::default(),
             merging_threads: RwLock::new(HashMap::new()),
             generation: AtomicUsize::default(),
@@ -494,7 +494,7 @@ mod tests {
 
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-        index_writer.set_merge_policy(box MergeWheneverPossible);
+        index_writer.set_merge_policy(Box::new(MergeWheneverPossible));
 
         {
             for _ in 0..100 {

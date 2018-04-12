@@ -102,13 +102,13 @@ where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
     fn token_stream<'a>(&self, text: &'a str) -> Box<TokenStream + 'a> {
-        box self.0.token_stream(text)
+        Box::new(self.0.token_stream(text))
     }
 
     fn token_stream_texts<'b>(&self, texts: &'b [&'b str]) -> Box<TokenStream + 'b> {
         assert!(!texts.is_empty());
         if texts.len() == 1 {
-            box self.0.token_stream(texts[0])
+            Box::new(self.0.token_stream(texts[0]))
         } else {
             let mut offsets = vec![];
             let mut total_offset = 0;
@@ -118,12 +118,12 @@ where
             }
             let token_streams: Vec<_> =
                 texts.iter().map(|text| self.0.token_stream(text)).collect();
-            box TokenStreamChain::new(offsets, token_streams)
+            Box::new(TokenStreamChain::new(offsets, token_streams))
         }
     }
 
     fn boxed_clone(&self) -> Box<BoxedTokenizer> {
-        box self.clone()
+        Box::new(self.clone())
     }
 }
 
@@ -131,7 +131,7 @@ pub(crate) fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {
-    box BoxableTokenizer(a)
+    Box::new(BoxableTokenizer(a))
 }
 
 impl<'b> TokenStream for Box<TokenStream + 'b> {

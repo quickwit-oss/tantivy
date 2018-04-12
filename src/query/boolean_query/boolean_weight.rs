@@ -34,12 +34,12 @@ where
                 .into_iter()
                 .map(|scorer| *Downcast::<TermScorer>::downcast(scorer).unwrap())
                 .collect();
-            let scorer: Box<Scorer> = box Union::<TermScorer, TScoreCombiner>::from(scorers);
+            let scorer: Box<Scorer> = Box::new(Union::<TermScorer, TScoreCombiner>::from(scorers));
             return scorer;
         }
     }
 
-    let scorer: Box<Scorer> = box Union::<_, TScoreCombiner>::from(scorers);
+    let scorer: Box<Scorer> = Box::new(Union::<_, TScoreCombiner>::from(scorers));
     return scorer;
 
 }
@@ -85,10 +85,10 @@ impl BooleanWeight {
         let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {
                 if self.scoring_enabled {
-                    box RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
+                    Box::new(RequiredOptionalScorer::<_, _, TScoreCombiner>::new(
                         must_scorer,
                         should_scorer,
-                    )
+                    ))
                 } else {
                     must_scorer
                 }
@@ -96,12 +96,12 @@ impl BooleanWeight {
             (None, Some(must_scorer)) => must_scorer,
             (Some(should_scorer), None) => should_scorer,
             (None, None) => {
-                return Ok(box EmptyScorer);
+                return Ok(Box::new(EmptyScorer));
             }
         };
 
         if let Some(exclude_scorer) = exclude_scorer_opt {
-            Ok(box Exclude::new(positive_scorer, exclude_scorer))
+            Ok(Box::new(Exclude::new(positive_scorer, exclude_scorer)))
         } else {
             Ok(positive_scorer)
         }
@@ -111,11 +111,11 @@ impl BooleanWeight {
 impl Weight for BooleanWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         if self.weights.is_empty() {
-            Ok(box EmptyScorer)
+            Ok(Box::new(EmptyScorer))
         } else if self.weights.len() == 1 {
             let &(occur, ref weight) = &self.weights[0];
             if occur == Occur::MustNot {
-                Ok(box EmptyScorer)
+                Ok(Box::new(EmptyScorer))
             } else {
                 weight.scorer(reader)
             }

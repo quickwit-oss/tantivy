@@ -25,14 +25,14 @@ impl Weight for TermWeight {
             let postings_opt: Option<SegmentPostings> =
                 inverted_index.read_postings(&self.term, self.index_record_option);
             if let Some(segment_postings) = postings_opt {
-                Ok(box TermScorer::new(segment_postings,
+                Ok(Box::new(TermScorer::new(segment_postings,
                                     fieldnorm_reader,
-                                    similarity_weight))
+                                    similarity_weight)))
             } else {
-                Ok(box TermScorer::new(
+                Ok(Box::new(TermScorer::new(
                     SegmentPostings::empty(),
                     fieldnorm_reader,
-                    similarity_weight))
+                    similarity_weight)))
             }
     }
 

@@ -37,7 +37,7 @@ impl Query for BooleanQuery {
                 Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
             })
             .collect::<Result<_>>()?;
-        Ok(box BooleanWeight::new(sub_weights, scoring_enabled))
+        Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
     }
 }
 
@@ -48,7 +48,7 @@ impl BooleanQuery {
         let occur_term_queries: Vec<(Occur, Box<Query>)> = terms
             .into_iter()
             .map(|term| {
-                let term_query: Box<Query> = box TermQuery::new(term, IndexRecordOption::WithFreqs);
+                let term_query: Box<Query> = Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs));
                 (Occur::Should, term_query)
             })
             .collect();
