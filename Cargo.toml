@@ -38,7 +38,7 @@ error-chain = "0.8"
 owning_ref = "0.3"
 stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
-downcast = { version="0.9", features = ["nightly"]}
+downcast = { version="0.9" }
 matches = "0.1"
 bitpacking = "0.3.1"
 

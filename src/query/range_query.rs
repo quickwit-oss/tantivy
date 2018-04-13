@@ -7,8 +7,8 @@ use Result;
 use core::Searcher;
 use query::BitSetDocSet;
 use query::ConstScorer;
+use std::ops::Range;
 use std::collections::Bound;
-use std::collections::range::RangeArgument;
 
 fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
     bound: Bound<TFrom>,
@@ -64,8 +64,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 /// let searcher = index.searcher();
 ///
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
-///
-/// // ... or `1960..=1969` if inclusive range is enabled.
+/// 
 /// let mut count_collector = CountCollector::default();
 /// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
 ///
@@ -87,43 +86,80 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
-    /// Create a new `RangeQuery` over a `i64` field.
-    pub fn new_i64<TRangeArgument: RangeArgument<i64>>(
+
+
+    pub fn new_i64(
         field: Field,
-        range: TRangeArgument,
+        range: Range<i64>
     ) -> RangeQuery {
-        let make_term_val = |val: &i64| Term::from_field_i64(field, *val).value_bytes().to_owned();
+        RangeQuery::new_i64_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
+    }
+
+    /// Create a new `RangeQuery` over a `i64` field.
+    ///
+    /// The two `Bound` arguments make it possible to create more complex
+    /// ranges than semi-inclusive range.
+    pub fn new_i64_bounds(
+        field: Field,
+        left_bound: Bound<i64>,
+        right_bound: Bound<i64>
+    ) -> RangeQuery {
+        let make_term_val = |val: i64| Term::from_field_i64(field, val).value_bytes().to_owned();
         RangeQuery {
             field,
-            left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val),
+            left_bound: map_bound(left_bound, &make_term_val),
+            right_bound: map_bound(right_bound, &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `u64` field.
-    pub fn new_u64<TRangeArgument: RangeArgument<u64>>(
+    ///
+    /// The two `Bound` arguments make it possible to create more complex
+    /// ranges than semi-inclusive range.
+    pub fn new_u64_bounds(
         field: Field,
-        range: TRangeArgument,
+        left_bound: Bound<u64>,
+        right_bound: Bound<u64>
     ) -> RangeQuery {
-        let make_term_val = |val: &u64| Term::from_field_u64(field, *val).value_bytes().to_owned();
+        let make_term_val = |val: u64| Term::from_field_u64(field, val).value_bytes().to_owned();
         RangeQuery {
             field,
-            left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val),
+            left_bound: map_bound(left_bound, &make_term_val),
+            right_bound: map_bound(right_bound, &make_term_val),
+        }
+    }
+
+    /// Create a new `RangeQuery` over a `u64` field.
+    pub fn new_u64(
+        field: Field,
+        range: Range<u64>
+    ) -> RangeQuery {
+        RangeQuery::new_u64_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
+    }
+
+    /// Create a new `RangeQuery` over a `Str` field.
+    ///
+    /// The two `Bound` arguments make it possible to create more complex
+    /// ranges than semi-inclusive range.
+    pub fn new_str_bounds<'b>(
+        field: Field,
+        left: Bound<&'b str>,
+        right: Bound<&'b str>
+    ) -> RangeQuery {
+        let make_term_val = |val: &str| val.as_bytes().to_vec();
+        RangeQuery {
+            field,
+            left_bound: map_bound(left, &make_term_val),
+            right_bound: map_bound(right, &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `Str` field.
-    pub fn new_str<'b, TRangeArgument: RangeArgument<&'b str>>(
+    pub fn new_str<'b>(
         field: Field,
-        range: TRangeArgument,
+        range: Range<&'b str>
     ) -> RangeQuery {
-        let make_term_val = |val: &&str| val.as_bytes().to_vec();
-        RangeQuery {
-            field,
-            left_bound: map_bound(range.start(), &make_term_val),
-            right_bound: map_bound(range.end(), &make_term_val),
-        }
+        RangeQuery::new_str_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
     }
 }
 
@@ -268,20 +304,22 @@ mod tests {
 
         assert_eq!(count_multiples(RangeQuery::new_i64(int_field, 10..11)), 9);
         assert_eq!(
-            count_multiples(RangeQuery::new_i64(
+            count_multiples(RangeQuery::new_i64_bounds(
                 int_field,
-                (Bound::Included(10), Bound::Included(11))
+                Bound::Included(10),
+                Bound::Included(11)
             )),
             18
         );
         assert_eq!(
-            count_multiples(RangeQuery::new_i64(
+            count_multiples(RangeQuery::new_i64_bounds(
                 int_field,
-                (Bound::Excluded(9), Bound::Included(10))
+                Bound::Excluded(9),
+                Bound::Included(10)
             )),
             9
         );
-        assert_eq!(count_multiples(RangeQuery::new_i64(int_field, 9..)), 91);
+        assert_eq!(count_multiples(RangeQuery::new_i64_bounds(int_field, Bound::Included(9), Bound::Unbounded)), 91);
     }
 
 }
