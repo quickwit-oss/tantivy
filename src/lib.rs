@@ -3,8 +3,6 @@
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 
 #![feature(collections_range)]
-
-#![feature(drain_filter)]
 #![cfg_attr(test, feature(test))]
 #![cfg_attr(test, feature(iterator_step_by))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]

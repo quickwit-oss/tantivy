@@ -9,6 +9,24 @@ use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
+
+// `drain_filter` is not stable yet.
+// This function is similar except that it does is not unsafe, and
+// it does not keep the original vector ordering.
+//
+// Also, it does not "yield" any elements.
+fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
+    where P: FnMut(&mut T) -> bool {
+    let mut i = 0;
+    while i < v.len() {
+        if predicate(&mut v[i]) {
+            v.swap_remove(i);
+        } else {
+            i += 1;
+        }
+    }
+}
+
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
 pub struct Union<TScorer, TScoreCombiner = DoNothingCombiner> {
     docsets: Vec<TScorer>,
@@ -56,7 +74,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
     score_combiner: &mut [TScoreCombiner; HORIZON as usize],
     min_doc: DocId,
 ) {
-    scorers.drain_filter(|scorer| {
+    unordered_drain_filter(scorers, |scorer| {
         let horizon = min_doc + HORIZON as u32;
         loop {
             let doc = scorer.doc();
@@ -196,14 +214,14 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            self.docsets
-                .drain_filter(|docset| match docset.doc().cmp(&target) {
-                    Ordering::Less => match docset.skip_next(target) {
-                        SkipResult::End => true,
-                        SkipResult::Reached | SkipResult::OverStep => false,
-                    },
-                    Ordering::Equal | Ordering::Greater => false,
-                });
+            unordered_drain_filter(&mut self.docsets, |docset| {
+                if docset.doc() < target {
+                    if docset.skip_next(target) == SkipResult::End {
+                        return true;
+                    }
+                }
+                false
+            });
 
             // at this point all of the docsets
             // are positionned on a doc >= to the target.
