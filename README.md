@@ -43,15 +43,12 @@ It will walk you through getting a wikipedia search engine up and running in a f
 
 ## Development
 
-Tantivy requires Rust Nightly because it uses requires the features [`box_syntax`](https://doc.rust-lang.org/stable/unstable-book/language-features/box-syntax.html), [`optin_builtin_traits`](https://github.com/rust-lang/rfcs/blob/master/text/0019-opt-in-builtin-traits.md), [`conservative_impl_trait`](https://github.com/rust-lang/rfcs/blob/master/text/1522-conservative-impl-trait.md),
-and [simd](https://github.com/rust-lang/rust/issues/27731).
-
-
+Tantivy now compiles on stable rust.
 To check out and run test, you can simply run :
 
     git clone git@github.com:tantivy-search/tantivy.git
     cd tantivy
-    cargo +nightly build
+    cargo build
 
 
 ## Note on release build and performance

@@ -10,8 +10,8 @@ use indexer::stamper::Stamper;
 use error::{Error, ErrorKind, Result};
 use futures_cpupool::CpuPool;
 use futures::Future;
-use futures::Canceled;
 use futures::oneshot;
+use futures::sync::oneshot::Receiver;
 use directory::FileProtection;
 use indexer::{DefaultMergePolicy, MergePolicy};
 use indexer::index_writer::advance_deletes;
@@ -286,7 +286,7 @@ impl SegmentUpdater {
     pub fn start_merge(
         &self,
         segment_ids: &[SegmentId],
-    ) -> impl Future<Item = SegmentMeta, Error = Canceled> {
+    ) -> Receiver<SegmentMeta> {
         self.0.segment_manager.start_merge(segment_ids);
         let segment_updater_clone = self.clone();
 
@@ -361,6 +361,7 @@ impl SegmentUpdater {
         let committed_merge_candidates = merge_policy.compute_merge_candidates(&committed_segments);
         merge_candidates.extend_from_slice(&committed_merge_candidates[..]);
         for MergeCandidate(segment_metas) in merge_candidates {
+            // TODO what do we do with the future here
             self.start_merge(&segment_metas);
         }
     }

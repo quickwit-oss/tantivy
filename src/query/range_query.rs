@@ -64,7 +64,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 /// let searcher = index.searcher();
 ///
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
-/// 
+///
 /// let mut count_collector = CountCollector::default();
 /// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
 ///

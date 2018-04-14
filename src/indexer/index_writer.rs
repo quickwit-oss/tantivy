@@ -7,14 +7,13 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
 use indexer::stamper::Stamper;
+use futures::sync::oneshot::Receiver;
 use datastruct::stacker::Heap;
 use directory::FileProtection;
 use error::{Error, ErrorKind, Result, ResultExt};
 use fastfield::write_delete_bitset;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
-use futures::Canceled;
 use datastruct::stacker::hashmap::split_memory;
-use futures::Future;
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::MergePolicy;
 use indexer::operation::DeleteOperation;
@@ -447,7 +446,7 @@ impl IndexWriter {
     pub fn merge(
         &mut self,
         segment_ids: &[SegmentId],
-    ) -> impl Future<Item = SegmentMeta, Error = Canceled> {
+    ) -> Receiver<SegmentMeta> {
         self.segment_updater.start_merge(segment_ids)
     }
 

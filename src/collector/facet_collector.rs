@@ -432,11 +432,29 @@ pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
 
+
+use std::collections::btree_map;
+
+struct FacetChildIterator<'a> {
+    underlying: btree_map::Range<'a, Facet, u64>,
+}
+
+impl<'a> Iterator for FacetChildIterator<'a> {
+
+    type Item = (&'a Facet, u64);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.underlying
+            .next()
+            .map(|(facet, count)| (facet, *count))
+    }
+}
+
+
 impl FacetCounts {
-    #[allow(needless_lifetimes)] //< compiler fails if we remove the lifetime
-    pub fn get<'a, T>(&'a self, facet_from: T) -> impl Iterator<Item = (&'a Facet, u64)>
-    where
-        Facet: From<T>,
+
+    pub fn get<T>(&self, facet_from: T) -> FacetChildIterator //impl Iterator<Item = (&'a Facet, u64)>
+    where Facet: From<T>
     {
         let facet = Facet::from(facet_from);
         let left_bound = Bound::Excluded(facet.clone());
@@ -448,10 +466,10 @@ impl FacetCounts {
             let facet_after = Facet::from_encoded(facet_after_bytes);
             Bound::Excluded(facet_after)
         };
-
-        self.facet_counts
-            .range((left_bound, right_bound))
-            .map(|(facet, count)| (facet, *count))
+        let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));
+        FacetChildIterator {
+            underlying
+        }
     }
 
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>

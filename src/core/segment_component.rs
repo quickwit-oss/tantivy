@@ -1,3 +1,5 @@
+use std::slice;
+
 /// Enum describing each component of a tantivy segment.
 /// Each component is stored in its own file,
 /// using the pattern `segment_uuid`.`component_extension`,
@@ -26,7 +28,7 @@ pub enum SegmentComponent {
 
 impl SegmentComponent {
     /// Iterates through the components.
-    pub fn iterator() -> impl Iterator<Item = &'static SegmentComponent> {
+    pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
         static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,

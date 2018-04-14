@@ -40,10 +40,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9" }
 matches = "0.1"
-bitpacking = "0.3.1"
-
-[target.'cfg(windows)'.dependencies]
-winapi = "0.2"
+bitpacking = {path="../bitpacking"}
 
 [dev-dependencies]
 rand = "0.3"
@@ -57,9 +54,9 @@ debug-assertions = false
 
 [features]
 default = ["mmap"]
+simd = ["bitpacking/simd"]
 streamdict = []
 mmap = ["fst/mmap", "atomicwrites"]
-
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
