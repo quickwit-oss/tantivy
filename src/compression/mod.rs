@@ -174,8 +174,6 @@ impl VIntDecoder for BlockDecoder {
 pub mod tests {
 
     use super::*;
-    use tests;
-    use test::Bencher;
 
     #[test]
     fn test_encode_sorted_block() {
@@ -264,6 +262,13 @@ pub mod tests {
             }
         }
     }
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use super::*;
+    use test::Bencher;
 
     #[bench]
     fn bench_compress(b: &mut Bencher) {
@@ -320,5 +325,4 @@ pub mod tests {
             decoder.uncompress_vint_sorted(compressed, 0u32, NUM_INTS_BENCH_VINT);
         });
     }
-
 }

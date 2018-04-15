@@ -134,8 +134,6 @@ mod tests {
     use std::collections::HashMap;
     use std::path::Path;
     use super::*;
-    use test;
-    use test::Bencher;
 
     lazy_static! {
         static ref SCHEMA: Schema = {
@@ -409,6 +407,14 @@ mod tests {
         }
     }
 
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+
+    use test::{self, Bencher};
+
     #[bench]
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
         let permutation = generate_permutation();
@@ -502,4 +508,5 @@ mod tests {
             });
         }
     }
+
 }

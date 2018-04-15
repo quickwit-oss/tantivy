@@ -89,7 +89,6 @@ impl<'a, C: Collector> Collector for &'a mut C {
 pub mod tests {
 
     use super::*;
-    use test::Bencher;
     use DocId;
     use Score;
     use core::SegmentReader;
@@ -185,6 +184,14 @@ pub mod tests {
             false
         }
     }
+
+}
+
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test::Bencher;
 
     #[bench]
     fn build_collector(b: &mut Bencher) {

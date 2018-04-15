@@ -13,6 +13,7 @@ use termdict::TermStreamerBuilder;
 use std::collections::BTreeSet;
 use termdict::TermMerger;
 use docset::SkipResult;
+use std::collections::btree_map;
 use std::{usize, u64};
 use std::iter::Peekable;
 
@@ -433,9 +434,7 @@ pub struct FacetCounts {
 }
 
 
-use std::collections::btree_map;
-
-struct FacetChildIterator<'a> {
+pub struct FacetChildIterator<'a> {
     underlying: btree_map::Range<'a, Facet, u64>,
 }
 
@@ -501,7 +500,6 @@ impl FacetCounts {
 
 #[cfg(test)]
 mod tests {
-    use test::Bencher;
     use core::Index;
     use schema::{Document, Facet, SchemaBuilder};
     use query::AllQuery;
@@ -621,6 +619,14 @@ mod tests {
             );
         }
     }
+
+}
+
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test::Bencher;
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {

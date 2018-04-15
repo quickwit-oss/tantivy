@@ -263,7 +263,6 @@ mod tests {
 
     use super::Union;
     use tests;
-    use test::Bencher;
     use DocId;
     use std::collections::BTreeSet;
     use super::HORIZON;
@@ -407,6 +406,14 @@ mod tests {
         );
     }
 
+
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+    use test::Bencher;
+
+
     #[bench]
     fn bench_union_3_high(bench: &mut Bencher) {
         let union_docset: Vec<Vec<DocId>> = vec![
@@ -442,5 +449,4 @@ mod tests {
             while v.advance() {}
         });
     }
-
 }

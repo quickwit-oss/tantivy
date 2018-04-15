@@ -101,7 +101,6 @@ mod tests {
 
     use super::*;
     use super::super::heap::Heap;
-    use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
@@ -123,6 +122,13 @@ mod tests {
             assert!(it.next().is_none());
         }
     }
+
+
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+    use test::Bencher;
 
     #[bench]
     fn bench_push_vec(bench: &mut Bencher) {

@@ -42,7 +42,6 @@ pub use self::writer::StoreWriter;
 mod tests {
 
     use super::*;
-    use test::Bencher;
     use std::path::Path;
     use schema::{Schema, SchemaBuilder};
     use schema::TextOptions;
@@ -104,6 +103,13 @@ mod tests {
             );
         }
     }
+
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test::Bencher;
 
     #[bench]
     #[cfg(feature="mmap")]

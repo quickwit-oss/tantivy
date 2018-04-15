@@ -2,8 +2,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 
-#![cfg_attr(test, feature(test))]
-#![cfg_attr(test, feature(iterator_step_by))]
+#![cfg_attr(all(feature="unstable", test), feature(test))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![allow(unknown_lints)]
 #![allow(new_without_default)]
@@ -160,7 +159,8 @@ extern crate winapi;
 
 #[cfg(test)]
 extern crate rand;
-#[cfg(test)]
+
+#[cfg(all(test, feature="unstable"))]
 extern crate test;
 
 extern crate tinysegmenter;

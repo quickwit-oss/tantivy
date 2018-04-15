@@ -131,6 +131,28 @@ impl QuadraticProbing {
     }
 }
 
+use std::slice;
+
+pub struct Iter<'a: 'b, 'b> {
+    hashmap: &'b TermHashMap<'a>,
+    inner: slice::Iter<'a, usize>
+}
+
+impl<'a, 'b> Iterator for Iter<'a, 'b> {
+    type Item = (&'b [u8], u32, UnorderedTermId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.inner
+            .next()
+            .cloned()
+            .map(move |bucket: usize| {
+                let kv = self.hashmap.table[bucket];
+                let (key, offset): (&'b [u8], u32) = self.hashmap.get_key_value(kv.key_value_addr);
+                (key, offset, bucket as UnorderedTermId)
+            })
+    }
+}
+
 impl<'a> TermHashMap<'a> {
     pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> TermHashMap<'a> {
         let table_size = 1 << num_bucket_power_of_2;
@@ -165,12 +187,11 @@ impl<'a> TermHashMap<'a> {
         };
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = (&'a [u8], u32, UnorderedTermId)> + 'b {
-        self.occupied.iter().cloned().map(move |bucket: usize| {
-            let kv = self.table[bucket];
-            let (key, offset) = self.get_key_value(kv.key_value_addr);
-            (key, offset, bucket as UnorderedTermId)
-        })
+    pub fn iter<'b: 'a>(&'b self) -> Iter<'a, 'b> {
+        Iter {
+            inner: self.occupied.iter(),
+            hashmap: &self
+        }
     }
 
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(
@@ -202,13 +223,32 @@ impl<'a> TermHashMap<'a> {
     }
 }
 
+#[cfg(all(test, unstable))]
+mod bench {
+    use test::Bencher;
+    use super::murmurhash2::murmurhash2;
+
+    #[bench]
+    fn bench_murmurhash_2(b: &mut Bencher) {
+        let keys: Vec<&'static str> =
+            vec!["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
+        b.iter(|| {
+            keys.iter()
+                .map(|&s| s.as_bytes())
+                .map(murmurhash2)
+                .map(|h| h as u64)
+                .last()
+                .unwrap()
+        });
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use super::super::heap::{Heap, HeapAllocable};
     use super::murmurhash2::murmurhash2;
-    use test::Bencher;
     use std::collections::HashSet;
     use super::split_memory;
 
@@ -292,18 +332,5 @@ mod tests {
         assert_eq!(set.len(), 10_000);
     }
 
-    #[bench]
-    fn bench_murmurhash_2(b: &mut Bencher) {
-        let keys: Vec<&'static str> =
-            vec!["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
-        b.iter(|| {
-            keys.iter()
-                .map(|&s| s.as_bytes())
-                .map(murmurhash2::murmurhash2)
-                .map(|h| h as u64)
-                .last()
-                .unwrap()
-        });
-    }
 
 }

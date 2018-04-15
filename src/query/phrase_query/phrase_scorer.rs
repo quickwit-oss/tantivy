@@ -245,7 +245,6 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
 #[cfg(test)]
 mod tests {
 
-    use test::Bencher;
     use super::{intersection_count, intersection};
 
 
@@ -270,6 +269,14 @@ mod tests {
         test_intersection_sym(&[5, 7], &[1, 5, 10, 12], &[5]);
         test_intersection_sym(&[1, 5, 6, 9, 10, 12], &[6, 8, 9, 12], &[6, 9, 12]);
     }
+}
+
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test::Bencher;
+    use super::{intersection_count, intersection};
 
     #[bench]
     fn bench_intersection_short(b: &mut Bencher) {

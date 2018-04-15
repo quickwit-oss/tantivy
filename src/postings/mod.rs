@@ -52,7 +52,6 @@ pub mod tests {
     use std::iter;
     use datastruct::stacker::Heap;
     use schema::Field;
-    use test::{self, Bencher};
     use indexer::operation::AddOperation;
     use tests;
     use rand::{Rng, SeedableRng, XorShiftRng};
@@ -530,6 +529,80 @@ pub mod tests {
         };
     }
 
+    /// Wraps a given docset, and forward alls call but the
+    /// `.skip_next(...)`. This is useful to test that a specialized
+    /// implementation of `.skip_next(...)` is consistent
+    /// with the default implementation.
+    pub(crate) struct UnoptimizedDocSet<TDocSet: DocSet>(TDocSet);
+
+    impl<TDocSet: DocSet> UnoptimizedDocSet<TDocSet> {
+        pub fn wrap(docset: TDocSet) -> UnoptimizedDocSet<TDocSet> {
+            UnoptimizedDocSet(docset)
+        }
+    }
+
+    impl<TDocSet: DocSet> DocSet for UnoptimizedDocSet<TDocSet> {
+        fn advance(&mut self) -> bool {
+            self.0.advance()
+        }
+
+        fn doc(&self) -> DocId {
+            self.0.doc()
+        }
+
+        fn size_hint(&self) -> u32 {
+            self.0.size_hint()
+        }
+    }
+
+    impl<TScorer: Scorer> Scorer for UnoptimizedDocSet<TScorer> {
+        fn score(&mut self) -> Score {
+            self.0.score()
+        }
+    }
+
+    pub fn test_skip_against_unoptimized<F: Fn() -> Box<DocSet>>(
+        postings_factory: F,
+        targets: Vec<u32>,
+    ) {
+        for target in targets {
+            let mut postings_opt = postings_factory();
+            let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
+            let skip_result_opt = postings_opt.skip_next(target);
+            let skip_result_unopt = postings_unopt.skip_next(target);
+            assert_eq!(
+                skip_result_unopt, skip_result_opt,
+                "Failed while skipping to {}",
+                target
+            );
+            match skip_result_opt {
+                SkipResult::Reached => assert_eq!(postings_opt.doc(), target),
+                SkipResult::OverStep => assert!(postings_opt.doc() > target),
+                SkipResult::End => {
+                    return;
+                }
+            }
+            while postings_opt.advance() {
+                assert!(postings_unopt.advance());
+                assert_eq!(
+                    postings_opt.doc(),
+                    postings_unopt.doc(),
+                    "Failed while skipping to {}",
+                    target
+                );
+            }
+            assert!(!postings_unopt.advance());
+        }
+    }
+
+}
+
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test::{self, Bencher};
+
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {
         let searcher = INDEX.searcher();
@@ -646,71 +719,4 @@ pub mod tests {
             s
         });
     }
-
-    /// Wraps a given docset, and forward alls call but the
-    /// `.skip_next(...)`. This is useful to test that a specialized
-    /// implementation of `.skip_next(...)` is consistent
-    /// with the default implementation.
-    pub(crate) struct UnoptimizedDocSet<TDocSet: DocSet>(TDocSet);
-
-    impl<TDocSet: DocSet> UnoptimizedDocSet<TDocSet> {
-        pub fn wrap(docset: TDocSet) -> UnoptimizedDocSet<TDocSet> {
-            UnoptimizedDocSet(docset)
-        }
-    }
-
-    impl<TDocSet: DocSet> DocSet for UnoptimizedDocSet<TDocSet> {
-        fn advance(&mut self) -> bool {
-            self.0.advance()
-        }
-
-        fn doc(&self) -> DocId {
-            self.0.doc()
-        }
-
-        fn size_hint(&self) -> u32 {
-            self.0.size_hint()
-        }
-    }
-
-    impl<TScorer: Scorer> Scorer for UnoptimizedDocSet<TScorer> {
-        fn score(&mut self) -> Score {
-            self.0.score()
-        }
-    }
-
-    pub fn test_skip_against_unoptimized<F: Fn() -> Box<DocSet>>(
-        postings_factory: F,
-        targets: Vec<u32>,
-    ) {
-        for target in targets {
-            let mut postings_opt = postings_factory();
-            let mut postings_unopt = UnoptimizedDocSet::wrap(postings_factory());
-            let skip_result_opt = postings_opt.skip_next(target);
-            let skip_result_unopt = postings_unopt.skip_next(target);
-            assert_eq!(
-                skip_result_unopt, skip_result_opt,
-                "Failed while skipping to {}",
-                target
-            );
-            match skip_result_opt {
-                SkipResult::Reached => assert_eq!(postings_opt.doc(), target),
-                SkipResult::OverStep => assert!(postings_opt.doc() > target),
-                SkipResult::End => {
-                    return;
-                }
-            }
-            while postings_opt.advance() {
-                assert!(postings_unopt.advance());
-                assert_eq!(
-                    postings_opt.doc(),
-                    postings_unopt.doc(),
-                    "Failed while skipping to {}",
-                    target
-                );
-            }
-            assert!(!postings_unopt.advance());
-        }
-    }
-
 }

@@ -40,7 +40,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9" }
 matches = "0.1"
-bitpacking = {path="../bitpacking"}
+bitpacking = "0.4"
 
 [dev-dependencies]
 rand = "0.3"
@@ -57,6 +57,7 @@ default = ["mmap"]
 simd = ["bitpacking/simd"]
 streamdict = []
 mmap = ["fst/mmap", "atomicwrites"]
+unstable = ["simd"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }

@@ -202,7 +202,6 @@ impl BitSet {
 #[cfg(test)]
 mod tests {
 
-    extern crate test;
     use tests;
     use std::collections::HashSet;
     use super::BitSet;
@@ -353,6 +352,14 @@ mod tests {
             assert!(!bitset.contains(el));
         }
     }
+}
+
+#[cfg(all(test, feature="unstable"))]
+mod bench {
+
+    use test;
+    use super::TinySet;
+    use super::BitSet;
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {
@@ -385,5 +392,4 @@ mod tests {
     fn bench_bitset_initialize(b: &mut test::Bencher) {
         b.iter(|| BitSet::with_max_value(1_000_000));
     }
-
 }
