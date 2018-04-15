@@ -190,8 +190,8 @@ pub mod tests {
 
 #[cfg(all(test, feature="unstable"))]
 mod bench {
-
     use test::Bencher;
+    use collector::{Collector, CountCollector};
 
     #[bench]
     fn build_collector(b: &mut Bencher) {

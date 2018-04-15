@@ -269,6 +269,7 @@ mod bench {
 
     use super::*;
     use test::Bencher;
+    use tests;
 
     #[bench]
     fn bench_compress(b: &mut Bencher) {

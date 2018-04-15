@@ -124,7 +124,7 @@ mod tests {
     use common::BitSet;
     use docset::{DocSet, SkipResult};
     use super::BitSetDocSet;
-    
+
     fn create_docbitset(docs: &[DocId], max_doc: DocId) -> BitSetDocSet {
         let mut docset = BitSet::with_max_value(max_doc);
         for &doc in docs {
@@ -224,8 +224,10 @@ mod tests {
 mod bench {
 
     use tests;
-    use test::{self, Bencher};
+    use test;
     use super::BitSet;
+    use super::BitSetDocSet;
+    use DocSet;
 
     #[bench]
     fn bench_bitset_1pct_insert(b: &mut test::Bencher) {

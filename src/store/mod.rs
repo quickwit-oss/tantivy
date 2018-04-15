@@ -39,7 +39,7 @@ pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use super::*;
     use std::path::Path;
@@ -49,7 +49,7 @@ mod tests {
     use schema::Document;
     use directory::{Directory, RAMDirectory, WritePtr};
 
-    fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
+    pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
         let mut schema_builder = SchemaBuilder::default();
         let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
         let field_title =
@@ -110,6 +110,11 @@ mod tests {
 mod bench {
 
     use test::Bencher;
+    use directory::RAMDirectory;
+    use std::path::Path;
+    use store::StoreReader;
+    use directory::Directory;
+    use super::tests::write_lorem_ipsum_store;
 
     #[bench]
     #[cfg(feature="mmap")]

@@ -505,8 +505,8 @@ mod tests {
     use query::AllQuery;
     use super::{FacetCollector, FacetCounts};
     use std::iter;
-    use schema::Field;
     use rand::{thread_rng, Rng};
+    use schema::Field;
 
     #[test]
     fn test_facet_collector_drilldown() {
@@ -627,6 +627,13 @@ mod tests {
 mod bench {
 
     use test::Bencher;
+    use schema::SchemaBuilder;
+    use Index;
+    use collector::FacetCollector;
+    use schema::Facet;
+    use query::AllQuery;
+    use rand::{thread_rng, Rng};
+
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {

@@ -102,9 +102,6 @@ mod tests {
     use super::*;
     use super::super::heap::Heap;
 
-    const NUM_STACK: usize = 10_000;
-    const STACK_SIZE: u32 = 1000;
-
     #[test]
     fn test_stack() {
         let heap = Heap::with_capacity(1_000_000);
@@ -129,6 +126,11 @@ mod tests {
 #[cfg(all(test, feature="unstable"))]
 mod bench {
     use test::Bencher;
+    use super::Heap;
+    use super::ExpUnrolledLinkedList;
+
+    const NUM_STACK: usize = 10_000;
+    const STACK_SIZE: u32 = 1000;
 
     #[bench]
     fn bench_push_vec(bench: &mut Bencher) {

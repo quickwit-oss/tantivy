@@ -136,12 +136,12 @@ mod tests {
     use super::*;
 
     lazy_static! {
-        static ref SCHEMA: Schema = {
+        pub static ref SCHEMA: Schema = {
             let mut schema_builder = SchemaBuilder::default();
             schema_builder.add_u64_field("field", FAST);
             schema_builder.build()
         };
-        static ref FIELD: Field = {
+        pub static ref FIELD: Field = {
             SCHEMA.get_field("field").unwrap()
         };
     }
@@ -367,7 +367,7 @@ mod tests {
         }
     }
 
-    fn generate_permutation() -> Vec<u64> {
+    pub fn generate_permutation() -> Vec<u64> {
         let seed: &[u32; 4] = &[1, 2, 3, 4];
         let mut rng = XorShiftRng::from_seed(*seed);
         let mut permutation: Vec<u64> = (0u64..1_000_000u64).collect();
@@ -411,9 +411,15 @@ mod tests {
 
 #[cfg(all(test, feature="unstable"))]
 mod bench {
-
-
+    use super::tests::{SCHEMA, generate_permutation};
     use test::{self, Bencher};
+    use super::tests::FIELD;
+    use common::CompositeFile;
+    use directory::{Directory, RAMDirectory, WritePtr};
+    use fastfield::FastFieldReader;
+    use std::collections::HashMap;
+    use std::path::Path;
+    use super::*;
 
     #[bench]
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {
@@ -421,7 +427,7 @@ mod bench {
         b.iter(|| {
             let n = test::black_box(7000u32);
             let mut a = 0u64;
-            for i in Iterator::step_by(0u32..n, 7) {
+            for i in (0u32..n / 7).map(|v| v * 7) {
                 a ^= permutation[i as usize];
             }
             a
@@ -467,7 +473,7 @@ mod bench {
             b.iter(|| {
                 let n = test::black_box(7000u32);
                 let mut a = 0u64;
-                for i in Iterator::step_by(0u32..n, 7) {
+                for i in (0u32..n / 7).map(|val| val * 7) {
                     a ^= fast_field_reader.get(i);
                 }
                 a

@@ -41,7 +41,6 @@ pub mod tests {
     use docset::{DocSet, SkipResult};
     use DocId;
     use Score;
-    use query::Intersection;
     use query::Scorer;
     use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
     use core::SegmentComponent;
@@ -53,7 +52,6 @@ pub mod tests {
     use datastruct::stacker::Heap;
     use schema::Field;
     use indexer::operation::AddOperation;
-    use tests;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use fieldnorm::FieldNormReader;
 
@@ -478,23 +476,23 @@ pub mod tests {
     }
 
     lazy_static! {
-        static ref TERM_A: Term = {
+        pub static ref TERM_A: Term = {
             let field = Field(0);
             Term::from_field_text(field, "a")
         };
-        static ref TERM_B: Term = {
+        pub static ref TERM_B: Term = {
             let field = Field(0);
             Term::from_field_text(field, "b")
         };
-        static ref TERM_C: Term = {
+        pub static ref TERM_C: Term = {
             let field = Field(0);
             Term::from_field_text(field, "c")
         };
-        static ref TERM_D: Term = {
+        pub static ref TERM_D: Term = {
             let field = Field(0);
             Term::from_field_text(field, "d")
         };
-        static ref INDEX: Index = {
+        pub static ref INDEX: Index = {
             let mut schema_builder = SchemaBuilder::default();
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
@@ -602,6 +600,12 @@ pub mod tests {
 mod bench {
 
     use test::{self, Bencher};
+    use schema::IndexRecordOption;
+    use tests;
+    use super::tests::*;
+    use docset::SkipResult;
+    use DocSet;
+    use query::Intersection;
 
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {

@@ -293,7 +293,7 @@ mod tests {
     pub fn nearly_equals(a: f32, b: f32) -> bool {
         (a - b).abs() < 0.0005 * (a + b).abs()
     }
-
+    
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
         let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
