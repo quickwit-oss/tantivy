@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/ser.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/ser.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ser.rs.html -- source</title>
@@ -2101,32 +2101,6 @@
 <span id="2044">2044</span>
 <span id="2045">2045</span>
 <span id="2046">2046</span>
-<span id="2047">2047</span>
-<span id="2048">2048</span>
-<span id="2049">2049</span>
-<span id="2050">2050</span>
-<span id="2051">2051</span>
-<span id="2052">2052</span>
-<span id="2053">2053</span>
-<span id="2054">2054</span>
-<span id="2055">2055</span>
-<span id="2056">2056</span>
-<span id="2057">2057</span>
-<span id="2058">2058</span>
-<span id="2059">2059</span>
-<span id="2060">2060</span>
-<span id="2061">2061</span>
-<span id="2062">2062</span>
-<span id="2063">2063</span>
-<span id="2064">2064</span>
-<span id="2065">2065</span>
-<span id="2066">2066</span>
-<span id="2067">2067</span>
-<span id="2068">2068</span>
-<span id="2069">2069</span>
-<span id="2070">2070</span>
-<span id="2071">2071</span>
-<span id="2072">2072</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2150,10 +2124,10 @@
 <span class="kw">use</span> <span class="ident">dtoa</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Serialize</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">Serialize</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">number</span>::{<span class="ident">SERDE_STRUCT_NAME</span>, <span class="ident">SERDE_STRUCT_FIELD_NAME</span>};
+<span class="kw">use</span> <span class="ident">number</span>::{<span class="ident">SERDE_STRUCT_FIELD_NAME</span>, <span class="ident">SERDE_STRUCT_NAME</span>};
 
 <span class="doccomment">/// A structure for serializing Rust values into JSON.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Serializer</span><span class="op">&lt;</span><span class="ident">W</span>, <span class="ident">F</span> <span class="op">=</span> <span class="ident">CompactFormatter</span><span class="op">&gt;</span> {
@@ -2482,24 +2456,20 @@
                     .<span class="ident">end_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">writer</span>)
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
             );
-            <span class="prelude-val">Ok</span>(
-                <span class="ident">Compound</span>::<span class="ident">Map</span> {
-                    <span class="ident">ser</span>: <span class="self">self</span>,
-                    <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">Empty</span>,
-                }
-            )
+            <span class="prelude-val">Ok</span>(<span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="ident">ser</span>: <span class="self">self</span>,
+                <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">Empty</span>,
+            })
         } <span class="kw">else</span> {
             <span class="macro">try</span><span class="macro">!</span>(
                 <span class="self">self</span>.<span class="ident">formatter</span>
                     .<span class="ident">begin_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">writer</span>)
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
             );
-            <span class="prelude-val">Ok</span>(
-                <span class="ident">Compound</span>::<span class="ident">Map</span> {
-                    <span class="ident">ser</span>: <span class="self">self</span>,
-                    <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">First</span>,
-                }
-            )
+            <span class="prelude-val">Ok</span>(<span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="ident">ser</span>: <span class="self">self</span>,
+                <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">First</span>,
+            })
         }
     }
 
@@ -2562,24 +2532,20 @@
                     .<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">writer</span>)
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
             );
-            <span class="prelude-val">Ok</span>(
-                <span class="ident">Compound</span>::<span class="ident">Map</span> {
-                    <span class="ident">ser</span>: <span class="self">self</span>,
-                    <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">Empty</span>,
-                }
-            )
+            <span class="prelude-val">Ok</span>(<span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="ident">ser</span>: <span class="self">self</span>,
+                <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">Empty</span>,
+            })
         } <span class="kw">else</span> {
             <span class="macro">try</span><span class="macro">!</span>(
                 <span class="self">self</span>.<span class="ident">formatter</span>
                     .<span class="ident">begin_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">writer</span>)
                     .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
             );
-            <span class="prelude-val">Ok</span>(
-                <span class="ident">Compound</span>::<span class="ident">Map</span> {
-                    <span class="ident">ser</span>: <span class="self">self</span>,
-                    <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">First</span>,
-                }
-            )
+            <span class="prelude-val">Ok</span>(<span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="ident">ser</span>: <span class="self">self</span>,
+                <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">First</span>,
+            })
         }
     }
 
@@ -2704,9 +2670,7 @@
         <span class="ident">state</span>: <span class="ident">State</span>,
     },
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-    <span class="ident">Number</span> {
-        <span class="ident">ser</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Serializer</span><span class="op">&lt;</span><span class="ident">W</span>, <span class="ident">F</span><span class="op">&gt;</span>,
-    },
+    <span class="ident">Number</span> { <span class="ident">ser</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="kw-2">mut</span> <span class="ident">Serializer</span><span class="op">&lt;</span><span class="ident">W</span>, <span class="ident">F</span><span class="op">&gt;</span> },
 }
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">W</span>, <span class="ident">F</span><span class="op">&gt;</span> <span class="ident">ser</span>::<span class="ident">SerializeSeq</span> <span class="kw">for</span> <span class="ident">Compound</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">W</span>, <span class="ident">F</span><span class="op">&gt;</span>
@@ -2723,21 +2687,24 @@
         <span class="ident">T</span>: <span class="ident">ser</span>::<span class="ident">Serialize</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span> } <span class="op">=&gt;</span> {
+            <span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>,
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span>,
+            } <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">begin_array_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>, <span class="kw-2">*</span><span class="ident">state</span> <span class="op">==</span> <span class="ident">State</span>::<span class="ident">First</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">begin_array_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>, <span class="kw-2">*</span><span class="ident">state</span> <span class="op">==</span> <span class="ident">State</span>::<span class="ident">First</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="kw-2">*</span><span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Rest</span>;
                 <span class="macro">try</span><span class="macro">!</span>(<span class="ident">value</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">ser</span>));
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_array_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">end_array_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2749,16 +2716,10 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="ident">ser</span>, <span class="ident">state</span> } <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="ident">state</span> {
                     <span class="ident">State</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {}
-                    <span class="kw">_</span> <span class="op">=&gt;</span> {
-                        <span class="macro">try</span><span class="macro">!</span>(
-                            <span class="ident">ser</span>.<span class="ident">formatter</span>
-                               .<span class="ident">end_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                               .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                        )
-                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)),
                 }
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2831,26 +2792,16 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="ident">ser</span>, <span class="ident">state</span> } <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="ident">state</span> {
                     <span class="ident">State</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {}
-                    <span class="kw">_</span> <span class="op">=&gt;</span> {
-                        <span class="macro">try</span><span class="macro">!</span>(
-                            <span class="ident">ser</span>.<span class="ident">formatter</span>
-                               .<span class="ident">end_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                               .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                        )
-                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_array</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)),
                 }
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
-                <span class="macro">try</span><span class="macro">!</span>(
-                    <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                );
+                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>));
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2871,11 +2822,14 @@
         <span class="ident">T</span>: <span class="ident">ser</span>::<span class="ident">Serialize</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span> } <span class="op">=&gt;</span> {
+            <span class="ident">Compound</span>::<span class="ident">Map</span> {
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>,
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">state</span>,
+            } <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">begin_object_key</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>, <span class="kw-2">*</span><span class="ident">state</span> <span class="op">==</span> <span class="ident">State</span>::<span class="ident">First</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">begin_object_key</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>, <span class="kw-2">*</span><span class="ident">state</span> <span class="op">==</span> <span class="ident">State</span>::<span class="ident">First</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="kw-2">*</span><span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">Rest</span>;
 
@@ -2883,11 +2837,11 @@
 
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object_key</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">end_object_key</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2902,17 +2856,17 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>, .. } <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">begin_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">begin_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="macro">try</span><span class="macro">!</span>(<span class="ident">value</span>.<span class="ident">serialize</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">ser</span>));
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2924,16 +2878,10 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="ident">ser</span>, <span class="ident">state</span> } <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="ident">state</span> {
                     <span class="ident">State</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {}
-                    <span class="kw">_</span> <span class="op">=&gt;</span> {
-                        <span class="macro">try</span><span class="macro">!</span>(
-                            <span class="ident">ser</span>.<span class="ident">formatter</span>
-                               .<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                               .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                        )
-                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)),
                 }
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -2957,7 +2905,7 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { .. } <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">serialize_key</span>(<span class="self">self</span>, <span class="ident">key</span>));
                 <span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">serialize_value</span>(<span class="self">self</span>, <span class="ident">value</span>)
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">ser</span>, .. } <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">key</span> <span class="op">==</span> <span class="ident">SERDE_STRUCT_FIELD_NAME</span> {
@@ -2966,7 +2914,7 @@
                 } <span class="kw">else</span> {
                     <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
                 }
-            },
+            }
         }
     }
 
@@ -3006,26 +2954,16 @@
             <span class="ident">Compound</span>::<span class="ident">Map</span> { <span class="ident">ser</span>, <span class="ident">state</span> } <span class="op">=&gt;</span> {
                 <span class="kw">match</span> <span class="ident">state</span> {
                     <span class="ident">State</span>::<span class="ident">Empty</span> <span class="op">=&gt;</span> {}
-                    <span class="kw">_</span> <span class="op">=&gt;</span> {
-                        <span class="macro">try</span><span class="macro">!</span>(
-                            <span class="ident">ser</span>.<span class="ident">formatter</span>
-                               .<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                               .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                        )
-                    }
+                    <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)),
                 }
                 <span class="macro">try</span><span class="macro">!</span>(
                     <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
+                        .<span class="ident">end_object_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
+                        .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
                 );
-                <span class="macro">try</span><span class="macro">!</span>(
-                    <span class="ident">ser</span>.<span class="ident">formatter</span>
-                       .<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>)
-                       .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
-                );
+                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ser</span>.<span class="ident">formatter</span>.<span class="ident">end_object</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">ser</span>.<span class="ident">writer</span>).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>));
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">Compound</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -3423,7 +3361,9 @@
 
     <span class="kw">fn</span> <span class="ident">serialize_str</span>(<span class="self">self</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">NumberStrEmitter</span>(<span class="ident">serializer</span>) <span class="op">=</span> <span class="self">self</span>;
-        <span class="ident">serializer</span>.<span class="ident">formatter</span>.<span class="ident">write_number_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>.<span class="ident">writer</span>, <span class="ident">value</span>)
+        <span class="ident">serializer</span>
+            .<span class="ident">formatter</span>
+            .<span class="ident">write_number_str</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">serializer</span>.<span class="ident">writer</span>, <span class="ident">value</span>)
             .<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">io</span>)
     }
 
@@ -3436,7 +3376,8 @@
     }
 
     <span class="kw">fn</span> <span class="ident">serialize_some</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
@@ -3445,78 +3386,84 @@
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_unit_struct</span>(<span class="self">self</span>,
-                             <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
-                             <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_unit_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_unit_variant</span>(<span class="self">self</span>,
-                              <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                              <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                              <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
-                              <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_unit_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>)
-                                           <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>,
+    <span class="kw">fn</span> <span class="ident">serialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_newtype_variant</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="self">self</span>,
-                                            <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                            <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                                            <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                            <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>)
-                                            <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>,
+    <span class="kw">fn</span> <span class="ident">serialize_newtype_variant</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
-                     <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                       <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTuple</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTuple</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                              <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleStruct</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple_struct</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleStruct</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple_variant</span>(<span class="self">self</span>,
-                               <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                               <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                               <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                               <span class="ident">_len</span>: <span class="ident">usize</span>)
-                               <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_map</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
-                     <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeMap</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_map</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeMap</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                        <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStruct</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_len</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStruct</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_struct_variant</span>(<span class="self">self</span>,
-                                <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                                <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                <span class="ident">_len</span>: <span class="ident">usize</span>)
-                                <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_struct_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 }
@@ -3680,7 +3627,8 @@
     <span class="doccomment">/// Writes a number that has already been rendered to a string.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">write_number_str</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>, <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>
+    <span class="kw">where</span>
+        <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
         <span class="ident">writer</span>.<span class="ident">write_all</span>(<span class="ident">value</span>.<span class="ident">as_bytes</span>())
     }

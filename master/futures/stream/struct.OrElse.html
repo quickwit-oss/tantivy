@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a>::<wbr><a class="struct" href=''>OrElse</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/stream/or_else.rs.html#10-16' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "streams do nothing unless polled"]
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>stream</a>::<wbr><a class="struct" href=''>OrElse</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/stream/or_else.rs.html#10-16' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "streams do nothing unless polled"]
 </div>pub struct OrElse&lt;S, F, U&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;U: <a class="trait" href="../../futures/future/trait.IntoFuture.html" title="trait futures::future::IntoFuture">IntoFuture</a>,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p>A stream combinator which chains a computation onto errors produced by a
 stream.</p>
 <p>This structure is produced by the <code>Stream::or_else</code> method.</p>

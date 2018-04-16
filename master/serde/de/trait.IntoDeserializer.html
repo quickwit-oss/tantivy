@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="trait" href=''>IntoDeserializer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/serde/de/mod.rs.html#2006-2012' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait IntoDeserializer&lt;'de, E:&nbsp;<a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>&nbsp;=&nbsp;<a class="struct" href="../../serde/de/value/struct.Error.html" title="struct serde::de::value::Error">Error</a>&gt; {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="trait" href=''>IntoDeserializer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/serde/de/mod.rs.html#2006-2012' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait IntoDeserializer&lt;'de, E:&nbsp;<a class="trait" href="../../serde/de/trait.Error.html" title="trait serde::de::Error">Error</a>&nbsp;=&nbsp;<a class="struct" href="../../serde/de/value/struct.Error.html" title="struct serde::de::value::Error">Error</a>&gt; {
     type <a href='#associatedtype.Deserializer' class="type">Deserializer</a>: <a class="trait" href="../../serde/trait.Deserializer.html" title="trait serde::Deserializer">Deserializer</a>&lt;'de, Error = E&gt;;
     fn <a href='#tymethod.into_deserializer' class='fnname'>into_deserializer</a>(self) -&gt; Self::<a class="type" href="../../serde/de/trait.IntoDeserializer.html#associatedtype.Deserializer" title="type serde::de::IntoDeserializer::Deserializer">Deserializer</a>;
 }</pre></div><div class='docblock'><p>Converts an existing value into a <code>Deserializer</code> from which other values can

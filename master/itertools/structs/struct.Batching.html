@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>itertools</a>::<wbr><a href='index.html'>structs</a>::<wbr><a class="struct" href=''>Batching</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/itertools/adaptors/mod.rs.html#415-418' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Batching&lt;I, F&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>A “meta iterator adaptor”. Its closure recives a reference to the iterator
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>itertools</a>::<wbr><a href='index.html'>structs</a>::<wbr><a class="struct" href=''>Batching</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/itertools/adaptors/mod.rs.html#415-418' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Batching&lt;I, F&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>A “meta iterator adaptor”. Its closure recives a reference to the iterator
 and may pick off as many elements as it likes, to produce the next iterator element.</p>
 <p>Iterator element type is <em>X</em>, if the return type of <code>F</code> is <em>Option&lt;X&gt;</em>.</p>
 <p>See <a href="../trait.Itertools.html#method.batching"><code>.batching()</code></a> for more information.</p>

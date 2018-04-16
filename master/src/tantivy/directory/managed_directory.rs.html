@@ -543,7 +543,7 @@
                 <span class="kw">let</span> <span class="ident">managed_files</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">PathBuf</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">serde_json</span>::<span class="ident">from_str</span>(<span class="kw-2">&amp;</span><span class="ident">managed_files_json</span>)
                     .<span class="ident">chain_err</span>(<span class="op">||</span> <span class="ident">ErrorKind</span>::<span class="ident">CorruptedFile</span>(<span class="ident">MANAGED_FILEPATH</span>.<span class="ident">clone</span>()))<span class="question-mark">?</span>;
                 <span class="prelude-val">Ok</span>(<span class="ident">ManagedDirectory</span> {
-                    <span class="ident">directory</span>: <span class="kw">box</span> <span class="ident">directory</span>,
+                    <span class="ident">directory</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">directory</span>),
                     <span class="ident">meta_informations</span>: <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">MetaInformation</span> {
                         <span class="ident">managed_paths</span>: <span class="ident">managed_files</span>,
                         <span class="ident">protected_files</span>: <span class="ident">HashMap</span>::<span class="ident">default</span>(),
@@ -551,7 +551,7 @@
                 })
             }
             <span class="prelude-val">Err</span>(<span class="ident">OpenReadError</span>::<span class="ident">FileDoesNotExist</span>(<span class="kw">_</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">ManagedDirectory</span> {
-                <span class="ident">directory</span>: <span class="kw">box</span> <span class="ident">directory</span>,
+                <span class="ident">directory</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">directory</span>),
                 <span class="ident">meta_informations</span>: <span class="ident">Arc</span>::<span class="ident">default</span>(),
             }),
             <span class="prelude-val">Err</span>(<span class="ident">OpenReadError</span>::<span class="ident">IOError</span>(<span class="ident">e</span>)) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">From</span>::<span class="ident">from</span>(<span class="ident">e</span>)),
@@ -722,7 +722,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">box_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Directory</span><span class="op">&gt;</span> {
-        <span class="kw">box</span> <span class="self">self</span>.<span class="ident">clone</span>()
+        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">clone</span>())
     }
 }
 

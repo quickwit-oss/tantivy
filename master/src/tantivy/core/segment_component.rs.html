@@ -96,7 +96,11 @@
 <span id="39">39</span>
 <span id="40">40</span>
 <span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
 </pre><pre class="rust ">
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
+
 <span class="doccomment">/// Enum describing each component of a tantivy segment.</span>
 <span class="doccomment">/// Each component is stored in its own file,</span>
 <span class="doccomment">/// using the pattern `segment_uuid`.`component_extension`,</span>
@@ -125,7 +129,7 @@
 
 <span class="kw">impl</span> <span class="ident">SegmentComponent</span> {
     <span class="doccomment">/// Iterates through the components.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iterator</span>() <span class="op">-&gt;</span> <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">SegmentComponent</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iterator</span>() <span class="op">-&gt;</span> <span class="ident">slice</span>::<span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;static</span>, <span class="ident">SegmentComponent</span><span class="op">&gt;</span> {
         <span class="kw">static</span> <span class="ident">SEGMENT_COMPONENTS</span>: [<span class="ident">SegmentComponent</span>; <span class="number">7</span>] <span class="op">=</span> [
             <span class="ident">SegmentComponent</span>::<span class="ident">POSTINGS</span>,
             <span class="ident">SegmentComponent</span>::<span class="ident">POSITIONS</span>,

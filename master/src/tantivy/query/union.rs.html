@@ -483,6 +483,37 @@
 <span id="426">426</span>
 <span id="427">427</span>
 <span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
@@ -494,6 +525,24 @@
 
 <span class="kw">const</span> <span class="ident">HORIZON_NUM_TINYBITSETS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">64</span>;
 <span class="kw">const</span> <span class="ident">HORIZON</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64u32</span> <span class="op">*</span> <span class="ident">HORIZON_NUM_TINYBITSETS</span> <span class="kw">as</span> <span class="ident">u32</span>;
+
+
+<span class="comment">// `drain_filter` is not stable yet.</span>
+<span class="comment">// This function is similar except that it does is not unsafe, and</span>
+<span class="comment">// it does not keep the original vector ordering.</span>
+<span class="comment">//</span>
+<span class="comment">// Also, it does not &quot;yield&quot; any elements.</span>
+<span class="kw">fn</span> <span class="ident">unordered_drain_filter</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">P</span><span class="op">&gt;</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="kw-2">mut</span> <span class="ident">predicate</span>: <span class="ident">P</span>)
+    <span class="kw">where</span> <span class="ident">P</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0</span>;
+    <span class="kw">while</span> <span class="ident">i</span> <span class="op">&lt;</span> <span class="ident">v</span>.<span class="ident">len</span>() {
+        <span class="kw">if</span> <span class="ident">predicate</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>[<span class="ident">i</span>]) {
+            <span class="ident">v</span>.<span class="ident">swap_remove</span>(<span class="ident">i</span>);
+        } <span class="kw">else</span> {
+            <span class="ident">i</span> <span class="op">+=</span> <span class="number">1</span>;
+        }
+    }
+}
 
 <span class="doccomment">/// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Union</span><span class="op">&lt;</span><span class="ident">TScorer</span>, <span class="ident">TScoreCombiner</span> <span class="op">=</span> <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span> {
@@ -542,7 +591,7 @@
     <span class="ident">score_combiner</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">TScoreCombiner</span>; <span class="ident">HORIZON</span> <span class="kw">as</span> <span class="ident">usize</span>],
     <span class="ident">min_doc</span>: <span class="ident">DocId</span>,
 ) {
-    <span class="ident">scorers</span>.<span class="ident">drain_filter</span>(<span class="op">|</span><span class="ident">scorer</span><span class="op">|</span> {
+    <span class="ident">unordered_drain_filter</span>(<span class="ident">scorers</span>, <span class="op">|</span><span class="ident">scorer</span><span class="op">|</span> {
         <span class="kw">let</span> <span class="ident">horizon</span> <span class="op">=</span> <span class="ident">min_doc</span> <span class="op">+</span> <span class="ident">HORIZON</span> <span class="kw">as</span> <span class="ident">u32</span>;
         <span class="kw">loop</span> {
             <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">scorer</span>.<span class="ident">doc</span>();
@@ -682,14 +731,14 @@
 
             <span class="comment">// The target is outside of the buffered horizon.</span>
             <span class="comment">// advance all docsets to a doc &gt;= to the target.</span>
-            <span class="self">self</span>.<span class="ident">docsets</span>
-                .<span class="ident">drain_filter</span>(<span class="op">|</span><span class="ident">docset</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">docset</span>.<span class="ident">doc</span>().<span class="ident">cmp</span>(<span class="kw-2">&amp;</span><span class="ident">target</span>) {
-                    <span class="ident">Ordering</span>::<span class="ident">Less</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">docset</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>) {
-                        <span class="ident">SkipResult</span>::<span class="ident">End</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
-                        <span class="ident">SkipResult</span>::<span class="ident">Reached</span> <span class="op">|</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-                    },
-                    <span class="ident">Ordering</span>::<span class="ident">Equal</span> <span class="op">|</span> <span class="ident">Ordering</span>::<span class="ident">Greater</span> <span class="op">=&gt;</span> <span class="bool-val">false</span>,
-                });
+            <span class="ident">unordered_drain_filter</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">docsets</span>, <span class="op">|</span><span class="ident">docset</span><span class="op">|</span> {
+                <span class="kw">if</span> <span class="ident">docset</span>.<span class="ident">doc</span>() <span class="op">&lt;</span> <span class="ident">target</span> {
+                    <span class="kw">if</span> <span class="ident">docset</span>.<span class="ident">skip_next</span>(<span class="ident">target</span>) <span class="op">==</span> <span class="ident">SkipResult</span>::<span class="ident">End</span> {
+                        <span class="kw">return</span> <span class="bool-val">true</span>;
+                    }
+                }
+                <span class="bool-val">false</span>
+            });
 
             <span class="comment">// at this point all of the docsets</span>
             <span class="comment">// are positionned on a doc &gt;= to the target.</span>
@@ -731,7 +780,6 @@
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Union</span>;
     <span class="kw">use</span> <span class="ident">tests</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">HORIZON</span>;
@@ -799,14 +847,14 @@
             }
         }
         <span class="kw">let</span> <span class="ident">docset_factory</span> <span class="op">=</span> <span class="op">||</span> {
-            <span class="kw">let</span> <span class="ident">res</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DocSet</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
+            <span class="kw">let</span> <span class="ident">res</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">DocSet</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Union</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">from</span>(
                 <span class="ident">docs_list</span>
                     .<span class="ident">iter</span>()
                     .<span class="ident">map</span>(<span class="op">|</span><span class="ident">docs</span><span class="op">|</span> <span class="ident">docs</span>.<span class="ident">clone</span>())
                     .<span class="ident">map</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>)
                     .<span class="ident">map</span>(<span class="ident">ConstScorer</span>::<span class="ident">new</span>)
                     .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>(),
-            );
+            ));
             <span class="ident">res</span>
         };
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">docset</span> <span class="op">=</span> <span class="ident">docset_factory</span>();
@@ -875,6 +923,21 @@
         );
     }
 
+
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">DoNothingCombiner</span>;
+    <span class="kw">use</span> <span class="ident">DocId</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Union</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
+    <span class="kw">use</span> <span class="ident">DocSet</span>;
+
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_union_3_high</span>(<span class="ident">bench</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="ident">union_docset</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
@@ -910,7 +973,6 @@
             <span class="kw">while</span> <span class="ident">v</span>.<span class="ident">advance</span>() {}
         });
     }
-
 }
 </pre>
 </section>

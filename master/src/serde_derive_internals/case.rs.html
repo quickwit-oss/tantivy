@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.0/src/case.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.1/src/case.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>case.rs.html -- source</title>
@@ -228,19 +228,6 @@
 <span id="171">171</span>
 <span id="172">172</span>
 <span id="173">173</span>
-<span id="174">174</span>
-<span id="175">175</span>
-<span id="176">176</span>
-<span id="177">177</span>
-<span id="178">178</span>
-<span id="179">179</span>
-<span id="180">180</span>
-<span id="181">181</span>
-<span id="182">182</span>
-<span id="183">183</span>
-<span id="184">184</span>
-<span id="185">185</span>
-<span id="186">186</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -357,14 +344,7 @@
 <span class="kw">fn</span> <span class="ident">rename_variants</span>() {
     <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">original</span>, <span class="ident">lower</span>, <span class="ident">upper</span>, <span class="ident">camel</span>, <span class="ident">snake</span>, <span class="ident">screaming</span>, <span class="ident">kebab</span>, <span class="ident">screaming_kebab</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span>[
         (
-            <span class="string">&quot;Outcome&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
+            <span class="string">&quot;Outcome&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>,
         ),
         (
             <span class="string">&quot;VeryTasty&quot;</span>,
@@ -398,13 +378,7 @@
 <span class="kw">fn</span> <span class="ident">rename_fields</span>() {
     <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">original</span>, <span class="ident">upper</span>, <span class="ident">pascal</span>, <span class="ident">camel</span>, <span class="ident">screaming</span>, <span class="ident">kebab</span>, <span class="ident">screaming_kebab</span>) <span class="kw">in</span> <span class="kw-2">&amp;</span>[
         (
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
-            <span class="string">&quot;Outcome&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
-            <span class="string">&quot;outcome&quot;</span>,
-            <span class="string">&quot;OUTCOME&quot;</span>,
+            <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>, <span class="string">&quot;Outcome&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>, <span class="string">&quot;outcome&quot;</span>, <span class="string">&quot;OUTCOME&quot;</span>,
         ),
         (
             <span class="string">&quot;very_tasty&quot;</span>,

@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>crossbeam</a>::<wbr><a href='index.html'>epoch</a>::<wbr><a class="struct" href=''>Guard</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/crossbeam/epoch/guard.rs.html#11-13' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use]
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>crossbeam</a>::<wbr><a href='index.html'>epoch</a>::<wbr><a class="struct" href=''>Guard</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/crossbeam/epoch/guard.rs.html#11-13' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use]
 </div>pub struct Guard { /* fields omitted */ }</pre></div><div class='docblock'><p>An RAII-style guard for pinning the current epoch.</p>
 <p>A guard must be acquired before most operations on an <code>Atomic</code> pointer. On
 destruction, it unpins the epoch.</p>

@@ -379,6 +379,25 @@
 <span id="322">322</span>
 <span id="323">323</span>
 <span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -556,8 +575,6 @@
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_encode_sorted_block</span>() {
@@ -646,11 +663,33 @@
             }
         }
     }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>;
+
+
+    <span class="kw">fn</span> <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
+        (<span class="number">0</span>..<span class="ident">u32</span>::<span class="ident">max_value</span>())
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>)
+            .<span class="ident">take</span>(<span class="ident">n</span>)
+            .<span class="ident">collect</span>()
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_array</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
+        <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>, <span class="ident">ratio</span>, <span class="number">4</span>)
+    }
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_compress</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BlockEncoder</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">generate_array</span>(<span class="ident">COMPRESSION_BLOCK_SIZE</span>, <span class="number">0.1</span>);
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">generate_array</span>(<span class="ident">COMPRESSION_BLOCK_SIZE</span>, <span class="number">0.1</span>);
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="ident">encoder</span>.<span class="ident">compress_block_sorted</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="number">0u32</span>);
         });
@@ -659,7 +698,7 @@
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_uncompress</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BlockEncoder</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">generate_array</span>(<span class="ident">COMPRESSION_BLOCK_SIZE</span>, <span class="number">0.1</span>);
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">generate_array</span>(<span class="ident">COMPRESSION_BLOCK_SIZE</span>, <span class="number">0.1</span>);
         <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">compress_block_sorted</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="number">0u32</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">BlockDecoder</span>::<span class="ident">new</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
@@ -686,7 +725,7 @@
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_compress_vint</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BlockEncoder</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">generate_array</span>(<span class="ident">NUM_INTS_BENCH_VINT</span>, <span class="number">0.001</span>);
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">generate_array</span>(<span class="ident">NUM_INTS_BENCH_VINT</span>, <span class="number">0.001</span>);
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="ident">encoder</span>.<span class="ident">compress_vint_sorted</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="number">0u32</span>);
         });
@@ -695,14 +734,13 @@
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_uncompress_vint</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">encoder</span> <span class="op">=</span> <span class="ident">BlockEncoder</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">tests</span>::<span class="ident">generate_array</span>(<span class="ident">NUM_INTS_BENCH_VINT</span>, <span class="number">0.001</span>);
+        <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">generate_array</span>(<span class="ident">NUM_INTS_BENCH_VINT</span>, <span class="number">0.001</span>);
         <span class="kw">let</span> <span class="ident">compressed</span> <span class="op">=</span> <span class="ident">encoder</span>.<span class="ident">compress_vint_sorted</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="number">0u32</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">decoder</span> <span class="op">=</span> <span class="ident">BlockDecoder</span>::<span class="ident">new</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="ident">decoder</span>.<span class="ident">uncompress_vint_sorted</span>(<span class="ident">compressed</span>, <span class="number">0u32</span>, <span class="ident">NUM_INTS_BENCH_VINT</span>);
         });
     }
-
 }
 </pre>
 </section>

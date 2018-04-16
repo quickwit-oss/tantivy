@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a>::<wbr><a class="trait" href=''>Tokenizer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/tantivy/tokenizer/tokenizer.rs.html#41-77' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Tokenizer&lt;'a&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>tokenizer</a>::<wbr><a class="trait" href=''>Tokenizer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/tokenizer/tokenizer.rs.html#41-77' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Tokenizer&lt;'a&gt;: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/clone/trait.Clone.html" title="trait core::clone::Clone">Clone</a> {
     type <a href='#associatedtype.TokenStreamImpl' class="type">TokenStreamImpl</a>: <a class="trait" href="../../tantivy/tokenizer/trait.TokenStream.html" title="trait tantivy::tokenizer::TokenStream">TokenStream</a>;
     fn <a href='#tymethod.token_stream' class='fnname'>token_stream</a>(&amp;self, text: &amp;'a <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.str.html">str</a>) -&gt; Self::<a class="type" href="../../tantivy/tokenizer/trait.Tokenizer.html#associatedtype.TokenStreamImpl" title="type tantivy::tokenizer::Tokenizer::TokenStreamImpl">TokenStreamImpl</a>;
 

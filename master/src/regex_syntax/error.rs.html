@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.3/src/error.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.5/src/error.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>error.rs.html -- source</title>
@@ -333,6 +333,25 @@
 <span id="276">276</span>
 <span id="277">277</span>
 <span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">error</span>;
@@ -502,7 +521,13 @@
     <span class="kw">fn</span> <span class="ident">from_formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;e</span>, <span class="ident">E</span>: <span class="ident">fmt</span>::<span class="ident">Display</span><span class="op">&gt;</span>(
         <span class="ident">fmter</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;p</span> <span class="ident">Formatter</span><span class="op">&lt;</span><span class="lifetime">&#39;e</span>, <span class="ident">E</span><span class="op">&gt;</span>,
     ) <span class="op">-&gt;</span> <span class="ident">Spans</span><span class="op">&lt;</span><span class="lifetime">&#39;p</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">line_count</span> <span class="op">=</span> <span class="ident">fmter</span>.<span class="ident">pattern</span>.<span class="ident">lines</span>().<span class="ident">count</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">line_count</span> <span class="op">=</span> <span class="ident">fmter</span>.<span class="ident">pattern</span>.<span class="ident">lines</span>().<span class="ident">count</span>();
+        <span class="comment">// If the pattern ends with a `\n` literal, then our line count is</span>
+        <span class="comment">// off by one, since a span can occur immediately after the last `\n`,</span>
+        <span class="comment">// which is consider to be an additional line.</span>
+        <span class="kw">if</span> <span class="ident">fmter</span>.<span class="ident">pattern</span>.<span class="ident">ends_with</span>(<span class="string">&#39;\n&#39;</span>) {
+            <span class="ident">line_count</span> <span class="op">+=</span> <span class="number">1</span>;
+        }
         <span class="kw">let</span> <span class="ident">line_number_width</span> <span class="op">=</span>
             <span class="kw">if</span> <span class="ident">line_count</span> <span class="op">&lt;=</span> <span class="number">1</span> {
                 <span class="number">0</span>
@@ -611,6 +636,19 @@
 
 <span class="kw">fn</span> <span class="ident">repeat_char</span>(<span class="ident">c</span>: <span class="ident">char</span>, <span class="ident">count</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
     ::<span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">repeat</span>(<span class="ident">c</span>).<span class="ident">take</span>(<span class="ident">count</span>).<span class="ident">collect</span>()
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">ast</span>::<span class="ident">parse</span>::<span class="ident">Parser</span>;
+
+    <span class="comment">// See: https://github.com/rust-lang/regex/issues/464</span>
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">regression_464</span>() {
+        <span class="kw">let</span> <span class="ident">err</span> <span class="op">=</span> <span class="ident">Parser</span>::<span class="ident">new</span>().<span class="ident">parse</span>(<span class="string">&quot;a{\n&quot;</span>).<span class="ident">unwrap_err</span>();
+        <span class="comment">// This test checks that the error formatter doesn&#39;t panic.</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">err</span>.<span class="ident">to_string</span>().<span class="ident">is_empty</span>());
+    }
 }
 </pre>
 </section>

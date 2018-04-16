@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandleMut</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/owning_ref/lib.rs.html#791-798' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ToHandleMut {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandleMut</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/owning_ref/lib.rs.html#791-798' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ToHandleMut {
     type <a href='#associatedtype.HandleMut' class="type">HandleMut</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.DerefMut.html" title="trait core::ops::deref::DerefMut">DerefMut</a>;
     unsafe fn <a href='#tymethod.to_handle_mut' class='fnname'>to_handle_mut</a>(x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const Self</a>) -&gt; Self::<a class="type" href="../owning_ref/trait.ToHandleMut.html#associatedtype.HandleMut" title="type owning_ref::ToHandleMut::HandleMut">HandleMut</a>;
 }</pre></div><div class='docblock'><p>Trait to implement the conversion of owner to mutable handle for common types.</p>

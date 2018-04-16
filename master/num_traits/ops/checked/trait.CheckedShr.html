@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>num_traits</a>::<wbr><a href='../index.html'>ops</a>::<wbr><a href='index.html'>checked</a>::<wbr><a class="trait" href=''>CheckedShr</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#135-150' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait CheckedShr: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shr.html" title="trait core::ops::bit::Shr">Shr</a>&lt;u32, Output = Self&gt; {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>num_traits</a>::<wbr><a href='../index.html'>ops</a>::<wbr><a href='index.html'>checked</a>::<wbr><a class="trait" href=''>CheckedShr</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/num_traits/ops/checked.rs.html#135-150' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait CheckedShr: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shr.html" title="trait core::ops::bit::Shr">Shr</a>&lt;u32, Output = Self&gt; {
     fn <a href='#tymethod.checked_shr' class='fnname'>checked_shr</a>(&amp;self, rhs: u32) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/option/enum.Option.html" title="enum core::option::Option">Option</a>&lt;Self&gt;;
 }</pre></div><div class='docblock'><p>Performs a right shift that returns <code>None</code> on overflow.</p>
 </div>

@@ -560,6 +560,19 @@
 <span id="503">503</span>
 <span id="504">504</span>
 <span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Column oriented field storage for tantivy.
@@ -697,16 +710,14 @@ Read access performance is comparable to that of an array lookup.
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">test</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
 
     <span class="macro">lazy_static</span><span class="macro">!</span> {
-        <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">SCHEMA</span>: <span class="ident">Schema</span> <span class="op">=</span> {
+        <span class="kw">pub</span> <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">SCHEMA</span>: <span class="ident">Schema</span> <span class="op">=</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
             <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;field&quot;</span>, <span class="ident">FAST</span>);
             <span class="ident">schema_builder</span>.<span class="ident">build</span>()
         };
-        <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">FIELD</span>: <span class="ident">Field</span> <span class="op">=</span> {
+        <span class="kw">pub</span> <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">FIELD</span>: <span class="ident">Field</span> <span class="op">=</span> {
             <span class="ident">SCHEMA</span>.<span class="ident">get_field</span>(<span class="string">&quot;field&quot;</span>).<span class="ident">unwrap</span>()
         };
     }
@@ -932,7 +943,7 @@ Read access performance is comparable to that of an array lookup.
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">generate_permutation</span>() <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_permutation</span>() <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">permutation</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="number">0u64</span>..<span class="number">1_000_000u64</span>).<span class="ident">collect</span>();
@@ -972,13 +983,27 @@ Read access performance is comparable to that of an array lookup.
         }
     }
 
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">tests</span>::{<span class="ident">SCHEMA</span>, <span class="ident">generate_permutation</span>};
+    <span class="kw">use</span> <span class="ident">test</span>::{<span class="self">self</span>, <span class="ident">Bencher</span>};
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">tests</span>::<span class="ident">FIELD</span>;
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
+    <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
+    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_intfastfield_linear_veclookup</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="ident">permutation</span> <span class="op">=</span> <span class="ident">generate_permutation</span>();
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
             <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="number">7000u32</span>);
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">a</span> <span class="op">=</span> <span class="number">0u64</span>;
-            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="ident">Iterator</span>::<span class="ident">step_by</span>(<span class="number">0u32</span>..<span class="ident">n</span>, <span class="number">7</span>) {
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0u32</span>..<span class="ident">n</span> <span class="op">/</span> <span class="number">7</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span> <span class="op">*</span> <span class="number">7</span>) {
                 <span class="ident">a</span> <span class="op">^=</span> <span class="ident">permutation</span>[<span class="ident">i</span> <span class="kw">as</span> <span class="ident">usize</span>];
             }
             <span class="ident">a</span>
@@ -1024,7 +1049,7 @@ Read access performance is comparable to that of an array lookup.
             <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
                 <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="ident">test</span>::<span class="ident">black_box</span>(<span class="number">7000u32</span>);
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">a</span> <span class="op">=</span> <span class="number">0u64</span>;
-                <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="ident">Iterator</span>::<span class="ident">step_by</span>(<span class="number">0u32</span>..<span class="ident">n</span>, <span class="number">7</span>) {
+                <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> (<span class="number">0u32</span>..<span class="ident">n</span> <span class="op">/</span> <span class="number">7</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">val</span><span class="op">|</span> <span class="ident">val</span> <span class="op">*</span> <span class="number">7</span>) {
                     <span class="ident">a</span> <span class="op">^=</span> <span class="ident">fast_field_reader</span>.<span class="ident">get</span>(<span class="ident">i</span>);
                 }
                 <span class="ident">a</span>
@@ -1065,8 +1090,8 @@ Read access performance is comparable to that of an array lookup.
             });
         }
     }
-}
-</pre>
+
+}</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

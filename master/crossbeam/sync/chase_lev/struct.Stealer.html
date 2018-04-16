@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>crossbeam</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>chase_lev</a>::<wbr><a class="struct" href=''>Stealer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../../src/crossbeam/sync/chase_lev.rs.html#96-98' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Stealer&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>The stealing half of the work-stealing deque. Stealers have access to the
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>crossbeam</a>::<wbr><a href='../index.html'>sync</a>::<wbr><a href='index.html'>chase_lev</a>::<wbr><a class="struct" href=''>Stealer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/crossbeam/sync/chase_lev.rs.html#96-98' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Stealer&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>The stealing half of the work-stealing deque. Stealers have access to the
 opposite end of the deque from the worker, and they only have access to the
 <code>steal</code> method.</p>
 <p>Stealers can be cloned to have more than one handle active at a time.</p>

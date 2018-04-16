@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="trait" href=''>DeserializeOwned</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/serde/de/mod.rs.html#560' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait DeserializeOwned: for&lt;'de&gt; <a class="trait" href="../../serde/trait.Deserialize.html" title="trait serde::Deserialize">Deserialize</a>&lt;'de&gt; { }</pre></div><div class='docblock'><p>A data structure that can be deserialized without borrowing any data from
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>serde</a>::<wbr><a href='index.html'>de</a>::<wbr><a class="trait" href=''>DeserializeOwned</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/serde/de/mod.rs.html#560' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait DeserializeOwned: for&lt;'de&gt; <a class="trait" href="../../serde/trait.Deserialize.html" title="trait serde::Deserialize">Deserialize</a>&lt;'de&gt; { }</pre></div><div class='docblock'><p>A data structure that can be deserialized without borrowing any data from
 the deserializer.</p>
 <p>This is primarily useful for trait bounds on functions. For example a
 <code>from_str</code> function may be able to deserialize a data structure that borrows

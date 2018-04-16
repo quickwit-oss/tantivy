@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>position</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/combine/combinator.rs.html#385-392' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn position&lt;I&gt;() -&gt; <a class="struct" href="../../combine/combinator/struct.Position.html" title="struct combine::combinator::Position">Position</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,&nbsp;</span></pre><div class='docblock'><p>Parser which just returns the current position in the stream.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>combine</a>::<wbr><a href='index.html'>combinator</a>::<wbr><a class="fn" href=''>position</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/combine/combinator.rs.html#385-392' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn position&lt;I&gt;() -&gt; <a class="struct" href="../../combine/combinator/struct.Position.html" title="struct combine::combinator::Position">Position</a>&lt;I&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;I: <a class="trait" href="../../combine/trait.Stream.html" title="trait combine::Stream">Stream</a>,&nbsp;</span></pre><div class='docblock'><p>Parser which just returns the current position in the stream.</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">let</span> <span class="ident">result</span> <span class="op">=</span> (<span class="ident">position</span>(), <span class="ident">token</span>(<span class="string">&#39;!&#39;</span>), <span class="ident">position</span>())

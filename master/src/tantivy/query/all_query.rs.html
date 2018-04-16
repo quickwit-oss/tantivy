@@ -140,7 +140,7 @@
 
 <span class="kw">impl</span> <span class="ident">Query</span> <span class="kw">for</span> <span class="ident">AllQuery</span> {
     <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="kw">_</span>: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>, <span class="kw">_</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">AllWeight</span>)
+        <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AllWeight</span>))
     }
 }
 
@@ -149,11 +149,11 @@
 
 <span class="kw">impl</span> <span class="ident">Weight</span> <span class="kw">for</span> <span class="ident">AllWeight</span> {
     <span class="kw">fn</span> <span class="ident">scorer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">AllScorer</span> {
+        <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AllScorer</span> {
             <span class="ident">started</span>: <span class="bool-val">false</span>,
             <span class="ident">doc</span>: <span class="number">0u32</span>,
             <span class="ident">max_doc</span>: <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
-        })
+        }))
     }
 }
 

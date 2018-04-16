@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.37/src/bound.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.38/src/bound.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>bound.rs.html -- source</title>
@@ -345,8 +345,6 @@
 <span id="288">288</span>
 <span id="289">289</span>
 <span id="290">290</span>
-<span id="291">291</span>
-<span id="292">292</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -358,10 +356,11 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
 
-<span class="kw">use</span> <span class="ident">syn</span>::{<span class="self">self</span>, <span class="ident">visit</span>};
-<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">punctuated</span>::<span class="ident">Punctuated</span>;
+<span class="kw">use</span> <span class="ident">syn</span>;
+<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">punctuated</span>::{<span class="ident">Pair</span>, <span class="ident">Punctuated</span>};
+<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">visit</span>::{<span class="self">self</span>, <span class="ident">Visit</span>};
 
-<span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">ast</span>::{<span class="ident">Data</span>, <span class="ident">Container</span>};
+<span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">ast</span>::{<span class="ident">Container</span>, <span class="ident">Data</span>};
 <span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">attr</span>;
 
 <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">Span</span>;
@@ -375,13 +374,11 @@
             .<span class="ident">params</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">param</span> {
-                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">TypeParam</span> {
-                        <span class="ident">eq_token</span>: <span class="prelude-val">None</span>,
-                        <span class="ident">default</span>: <span class="prelude-val">None</span>,
-                        ..<span class="ident">param</span>.<span class="ident">clone</span>()
-                    })
-                }
+                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">TypeParam</span> {
+                    <span class="ident">eq_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">default</span>: <span class="prelude-val">None</span>,
+                    ..<span class="ident">param</span>.<span class="ident">clone</span>()
+                }),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="ident">param</span>.<span class="ident">clone</span>(),
             })
             .<span class="ident">collect</span>(),
@@ -394,29 +391,25 @@
     <span class="ident">predicates</span>: <span class="kw-2">&amp;</span>[<span class="ident">syn</span>::<span class="ident">WherePredicate</span>],
 ) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
+    <span class="ident">generics</span>
+        .<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">extend</span>(<span class="ident">predicates</span>.<span class="ident">into_iter</span>().<span class="ident">cloned</span>());
     <span class="ident">generics</span>
 }
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_where_predicates_from_fields</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_where_predicates_from_fields</span>(
     <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>,
     <span class="ident">generics</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Generics</span>,
-    <span class="ident">from_field</span>: <span class="ident">F</span>,
-) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">syn</span>::<span class="ident">WherePredicate</span>]<span class="op">&gt;</span>,
-{
+    <span class="ident">from_field</span>: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span>[<span class="ident">syn</span>::<span class="ident">WherePredicate</span>]<span class="op">&gt;</span>,
+) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
     <span class="kw">let</span> <span class="ident">predicates</span> <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">data</span>
         .<span class="ident">all_fields</span>()
         .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">from_field</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">attrs</span>))
         .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">predicates</span><span class="op">|</span> <span class="ident">predicates</span>.<span class="ident">to_vec</span>());
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
-        .<span class="ident">predicates</span>
-        .<span class="ident">extend</span>(<span class="ident">predicates</span>);
+    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>().<span class="ident">predicates</span>.<span class="ident">extend</span>(<span class="ident">predicates</span>);
     <span class="ident">generics</span>
 }
 
@@ -431,26 +424,39 @@
 <span class="comment">//         #[serde(skip_serializing)]</span>
 <span class="comment">//         c: C,</span>
 <span class="comment">//     }</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_bound</span><span class="op">&lt;</span><span class="ident">F</span><span class="op">&gt;</span>(
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_bound</span>(
     <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>,
     <span class="ident">generics</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Generics</span>,
-    <span class="ident">filter</span>: <span class="ident">F</span>,
+    <span class="ident">filter</span>: <span class="kw">fn</span>(<span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>,
     <span class="ident">bound</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>,
-) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span>
-<span class="kw">where</span>
-    <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>,
-{
-    <span class="kw">struct</span> <span class="ident">FindTyParams</span> {
+) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
+    <span class="kw">struct</span> <span class="ident">FindTyParams</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> {
         <span class="comment">// Set of all generic type parameters on the current struct (A, B, C in</span>
         <span class="comment">// the example). Initialized up front.</span>
-        <span class="ident">all_ty_params</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+        <span class="ident">all_type_params</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+
         <span class="comment">// Set of generic type parameters used in fields for which filter</span>
         <span class="comment">// returns true (A and B in the example). Filled in as the visitor sees</span>
         <span class="comment">// them.</span>
-        <span class="ident">relevant_ty_params</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+        <span class="ident">relevant_type_params</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+
+        <span class="comment">// Fields whose type is an associated type of one of the generic type</span>
+        <span class="comment">// parameters.</span>
+        <span class="ident">associated_type_usage</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">syn</span>::<span class="ident">TypePath</span><span class="op">&gt;</span>,
     }
-    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> <span class="ident">visit</span>::<span class="ident">Visit</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FindTyParams</span> {
-        <span class="kw">fn</span> <span class="ident">visit_path</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>) {
+    <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> <span class="ident">Visit</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FindTyParams</span><span class="op">&lt;</span><span class="lifetime">&#39;ast</span><span class="op">&gt;</span> {
+        <span class="kw">fn</span> <span class="ident">visit_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">syn</span>::<span class="ident">Field</span>) {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="kw-2">ref</span> <span class="ident">ty</span>) <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">Pair</span>::<span class="ident">Punctuated</span>(<span class="kw-2">ref</span> <span class="ident">t</span>, <span class="kw">_</span>)) <span class="op">=</span> <span class="ident">ty</span>.<span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">first</span>() {
+                    <span class="kw">if</span> <span class="self">self</span>.<span class="ident">all_type_params</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">t</span>.<span class="ident">ident</span>) {
+                        <span class="self">self</span>.<span class="ident">associated_type_usage</span>.<span class="ident">push</span>(<span class="ident">ty</span>);
+                    }
+                }
+            }
+            <span class="self">self</span>.<span class="ident">visit_type</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>);
+        }
+
+        <span class="kw">fn</span> <span class="ident">visit_path</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">syn</span>::<span class="ident">Path</span>) {
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">seg</span>) <span class="op">=</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">last</span>() {
                 <span class="kw">if</span> <span class="ident">seg</span>.<span class="ident">into_value</span>().<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;PhantomData&quot;</span> {
                     <span class="comment">// Hardcoded exception, because PhantomData&lt;T&gt; implements</span>
@@ -460,8 +466,8 @@
             }
             <span class="kw">if</span> <span class="ident">path</span>.<span class="ident">leading_colon</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> {
                 <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">ident</span>;
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">all_ty_params</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">id</span>) {
-                    <span class="self">self</span>.<span class="ident">relevant_ty_params</span>.<span class="ident">insert</span>(<span class="ident">id</span>);
+                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">all_type_params</span>.<span class="ident">contains</span>(<span class="kw-2">&amp;</span><span class="ident">id</span>) {
+                    <span class="self">self</span>.<span class="ident">relevant_type_params</span>.<span class="ident">insert</span>(<span class="ident">id</span>);
                 }
             }
             <span class="ident">visit</span>::<span class="ident">visit_path</span>(<span class="self">self</span>, <span class="ident">path</span>);
@@ -473,21 +479,15 @@
         <span class="comment">//         mac: T!(),</span>
         <span class="comment">//         marker: PhantomData&lt;T&gt;,</span>
         <span class="comment">//     }</span>
-        <span class="kw">fn</span> <span class="ident">visit_macro</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_mac</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Macro</span>) {}
+        <span class="kw">fn</span> <span class="ident">visit_macro</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_mac</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;ast</span> <span class="ident">syn</span>::<span class="ident">Macro</span>) {}
     }
 
-    <span class="kw">let</span> <span class="ident">all_ty_params</span>: <span class="ident">HashSet</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">generics</span>
-        .<span class="ident">params</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">param</span> {
-            <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">param</span>.<span class="ident">ident</span>),
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
-        })
-        .<span class="ident">collect</span>();
+    <span class="kw">let</span> <span class="ident">all_type_params</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">type_params</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="ident">param</span>.<span class="ident">ident</span>).<span class="ident">collect</span>();
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">visitor</span> <span class="op">=</span> <span class="ident">FindTyParams</span> {
-        <span class="ident">all_ty_params</span>: <span class="ident">all_ty_params</span>,
-        <span class="ident">relevant_ty_params</span>: <span class="ident">HashSet</span>::<span class="ident">new</span>(),
+        <span class="ident">all_type_params</span>: <span class="ident">all_type_params</span>,
+        <span class="ident">relevant_type_params</span>: <span class="ident">HashSet</span>::<span class="ident">new</span>(),
+        <span class="ident">associated_type_usage</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
     };
     <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">data</span> {
         <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> <span class="kw">for</span> <span class="ident">variant</span> <span class="kw">in</span> <span class="ident">variants</span>.<span class="ident">iter</span>() {
@@ -496,47 +496,47 @@
                 .<span class="ident">iter</span>()
                 .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">filter</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">attrs</span>, <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">attrs</span>)));
             <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">relevant_fields</span> {
-                <span class="ident">visit</span>::<span class="ident">visit_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">visitor</span>, <span class="ident">field</span>.<span class="ident">ty</span>);
+                <span class="ident">visitor</span>.<span class="ident">visit_field</span>(<span class="ident">field</span>.<span class="ident">original</span>);
             }
         },
         <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> {
             <span class="kw">for</span> <span class="ident">field</span> <span class="kw">in</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">filter</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">filter</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">attrs</span>, <span class="prelude-val">None</span>)) {
-                <span class="ident">visit</span>::<span class="ident">visit_type</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">visitor</span>, <span class="ident">field</span>.<span class="ident">ty</span>);
+                <span class="ident">visitor</span>.<span class="ident">visit_field</span>(<span class="ident">field</span>.<span class="ident">original</span>);
             }
         }
     }
 
+    <span class="kw">let</span> <span class="ident">relevant_type_params</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">relevant_type_params</span>;
+    <span class="kw">let</span> <span class="ident">associated_type_usage</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">associated_type_usage</span>;
     <span class="kw">let</span> <span class="ident">new_predicates</span> <span class="op">=</span> <span class="ident">generics</span>
-        .<span class="ident">params</span>
-        .<span class="ident">iter</span>()
-        .<span class="ident">filter_map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">param</span> {
-            <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">param</span>.<span class="ident">ident</span>),
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+        .<span class="ident">type_params</span>()
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="ident">param</span>.<span class="ident">ident</span>)
+        .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">relevant_type_params</span>.<span class="ident">contains</span>(<span class="ident">id</span>))
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">syn</span>::<span class="ident">TypePath</span> {
+            <span class="ident">qself</span>: <span class="prelude-val">None</span>,
+            <span class="ident">path</span>: <span class="ident">id</span>.<span class="ident">into</span>(),
         })
-        .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> <span class="ident">visitor</span>.<span class="ident">relevant_ty_params</span>.<span class="ident">contains</span>(<span class="ident">id</span>))
-        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">id</span><span class="op">|</span> {
+        .<span class="ident">chain</span>(<span class="ident">associated_type_usage</span>.<span class="ident">into_iter</span>().<span class="ident">cloned</span>())
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">bounded_ty</span><span class="op">|</span> {
             <span class="ident">syn</span>::<span class="ident">WherePredicate</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">PredicateType</span> {
                 <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
                 <span class="comment">// the type parameter that is being bounded e.g. T</span>
-                <span class="ident">bounded_ty</span>: <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">syn</span>::<span class="ident">TypePath</span> {
-                    <span class="ident">qself</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">path</span>: <span class="ident">id</span>.<span class="ident">into</span>(),
-                }),
+                <span class="ident">bounded_ty</span>: <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">bounded_ty</span>),
                 <span class="ident">colon_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
                 <span class="comment">// the bound e.g. Serialize</span>
-                <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[
-                    <span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
-                        <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
-                        <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
-                        <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
-                        <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
-                    }),
-                ].<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+                <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
+                    <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
+                    <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
+                    <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
+                })].<span class="ident">into_iter</span>()
+                    .<span class="ident">collect</span>(),
             })
         });
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
+    <span class="ident">generics</span>
+        .<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">extend</span>(<span class="ident">new_predicates</span>);
     <span class="ident">generics</span>
@@ -548,7 +548,8 @@
     <span class="ident">bound</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>,
 ) <span class="op">-&gt;</span> <span class="ident">syn</span>::<span class="ident">Generics</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">generics</span>.<span class="ident">clone</span>();
-    <span class="ident">generics</span>.<span class="ident">make_where_clause</span>()
+    <span class="ident">generics</span>
+        .<span class="ident">make_where_clause</span>()
         .<span class="ident">predicates</span>
         .<span class="ident">push</span>(<span class="ident">syn</span>::<span class="ident">WherePredicate</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">PredicateType</span> {
             <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
@@ -556,14 +557,13 @@
             <span class="ident">bounded_ty</span>: <span class="ident">type_of_item</span>(<span class="ident">cont</span>),
             <span class="ident">colon_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
             <span class="comment">// the bound e.g. Default</span>
-            <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
-                    <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
-                    <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
-                    <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
-                }),
-            ].<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+            <span class="ident">bounds</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Trait</span>(<span class="ident">syn</span>::<span class="ident">TraitBound</span> {
+                <span class="ident">paren_token</span>: <span class="prelude-val">None</span>,
+                <span class="ident">modifier</span>: <span class="ident">syn</span>::<span class="ident">TraitBoundModifier</span>::<span class="prelude-val">None</span>,
+                <span class="ident">lifetimes</span>: <span class="prelude-val">None</span>,
+                <span class="ident">path</span>: <span class="ident">bound</span>.<span class="ident">clone</span>(),
+            })].<span class="ident">into_iter</span>()
+                .<span class="ident">collect</span>(),
         }));
     <span class="ident">generics</span>
 }
@@ -579,21 +579,18 @@
 
     <span class="kw">let</span> <span class="ident">params</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="ident">def</span>))
         .<span class="ident">into_iter</span>()
-        .<span class="ident">chain</span>(<span class="ident">generics</span>.<span class="ident">params</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">cloned</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">param</span><span class="op">|</span> {
-                <span class="kw">match</span> <span class="ident">param</span> {
-                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
-                        <span class="ident">param</span>.<span class="ident">bounds</span>.<span class="ident">push</span>(<span class="ident">bound</span>);
-                    }
-                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
-                        <span class="ident">param</span>.<span class="ident">bounds</span>.<span class="ident">push</span>(<span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Lifetime</span>(<span class="ident">bound</span>));
-                    }
-                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
+        .<span class="ident">chain</span>(<span class="ident">generics</span>.<span class="ident">params</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">param</span><span class="op">|</span> {
+            <span class="kw">match</span> <span class="ident">param</span> {
+                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">param</span>.<span class="ident">bounds</span>.<span class="ident">push</span>(<span class="ident">bound</span>);
                 }
-                <span class="ident">param</span>
-            }))
+                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">param</span>.<span class="ident">bounds</span>.<span class="ident">push</span>(<span class="ident">syn</span>::<span class="ident">TypeParamBound</span>::<span class="ident">Lifetime</span>(<span class="ident">bound</span>));
+                }
+                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
+            }
+            <span class="ident">param</span>
+        }))
         .<span class="ident">collect</span>();
 
     <span class="ident">syn</span>::<span class="ident">Generics</span> {
@@ -607,36 +604,35 @@
         <span class="ident">qself</span>: <span class="prelude-val">None</span>,
         <span class="ident">path</span>: <span class="ident">syn</span>::<span class="ident">Path</span> {
             <span class="ident">leading_colon</span>: <span class="prelude-val">None</span>,
-            <span class="ident">segments</span>: <span class="macro">vec</span><span class="macro">!</span>[
-                <span class="ident">syn</span>::<span class="ident">PathSegment</span> {
-                    <span class="ident">ident</span>: <span class="ident">cont</span>.<span class="ident">ident</span>,
-                    <span class="ident">arguments</span>: <span class="ident">syn</span>::<span class="ident">PathArguments</span>::<span class="ident">AngleBracketed</span>(
-                        <span class="ident">syn</span>::<span class="ident">AngleBracketedGenericArguments</span> {
-                            <span class="ident">colon2_token</span>: <span class="prelude-val">None</span>,
-                            <span class="ident">lt_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-                            <span class="ident">args</span>: <span class="ident">cont</span>.<span class="ident">generics</span>
-                                .<span class="ident">params</span>
-                                .<span class="ident">iter</span>()
-                                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">param</span> {
-                                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
-                                        <span class="ident">syn</span>::<span class="ident">GenericArgument</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">syn</span>::<span class="ident">TypePath</span> {
-                                            <span class="ident">qself</span>: <span class="prelude-val">None</span>,
-                                            <span class="ident">path</span>: <span class="ident">param</span>.<span class="ident">ident</span>.<span class="ident">into</span>(),
-                                        }))
-                                    }
-                                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
-                                        <span class="ident">syn</span>::<span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(<span class="ident">param</span>.<span class="ident">lifetime</span>)
-                                    }
-                                    <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-                                        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Serde does not support const generics yet&quot;</span>);
-                                    }
-                                })
-                                .<span class="ident">collect</span>(),
-                            <span class="ident">gt_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
-                        },
-                    ),
-                },
-            ].<span class="ident">into_iter</span>().<span class="ident">collect</span>(),
+            <span class="ident">segments</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">syn</span>::<span class="ident">PathSegment</span> {
+                <span class="ident">ident</span>: <span class="ident">cont</span>.<span class="ident">ident</span>,
+                <span class="ident">arguments</span>: <span class="ident">syn</span>::<span class="ident">PathArguments</span>::<span class="ident">AngleBracketed</span>(
+                    <span class="ident">syn</span>::<span class="ident">AngleBracketedGenericArguments</span> {
+                        <span class="ident">colon2_token</span>: <span class="prelude-val">None</span>,
+                        <span class="ident">lt_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+                        <span class="ident">args</span>: <span class="ident">cont</span>.<span class="ident">generics</span>
+                            .<span class="ident">params</span>
+                            .<span class="ident">iter</span>()
+                            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">param</span><span class="op">|</span> <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">param</span> {
+                                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Type</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
+                                    <span class="ident">syn</span>::<span class="ident">GenericArgument</span>::<span class="ident">Type</span>(<span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Path</span>(<span class="ident">syn</span>::<span class="ident">TypePath</span> {
+                                        <span class="ident">qself</span>: <span class="prelude-val">None</span>,
+                                        <span class="ident">path</span>: <span class="ident">param</span>.<span class="ident">ident</span>.<span class="ident">into</span>(),
+                                    }))
+                                }
+                                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Lifetime</span>(<span class="kw-2">ref</span> <span class="ident">param</span>) <span class="op">=&gt;</span> {
+                                    <span class="ident">syn</span>::<span class="ident">GenericArgument</span>::<span class="ident">Lifetime</span>(<span class="ident">param</span>.<span class="ident">lifetime</span>)
+                                }
+                                <span class="ident">syn</span>::<span class="ident">GenericParam</span>::<span class="ident">Const</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
+                                    <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Serde does not support const generics yet&quot;</span>);
+                                }
+                            })
+                            .<span class="ident">collect</span>(),
+                        <span class="ident">gt_token</span>: <span class="ident">Default</span>::<span class="ident">default</span>(),
+                    },
+                ),
+            }].<span class="ident">into_iter</span>()
+                .<span class="ident">collect</span>(),
         },
     })
 }

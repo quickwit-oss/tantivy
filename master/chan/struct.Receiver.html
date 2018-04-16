@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>chan</a>::<wbr><a class="struct" href=''>Receiver</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/chan/lib.rs.html#776' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Receiver&lt;T&gt;(_);</pre></div><div class='docblock'><p>The receiving half of a channel.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>chan</a>::<wbr><a class="struct" href=''>Receiver</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/chan/lib.rs.html#776' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Receiver&lt;T&gt;(_);</pre></div><div class='docblock'><p>The receiving half of a channel.</p>
 <p>Receivers can be cloned any number of times and sent to other threads.</p>
 <p>Receivers also implement <code>Sync</code>, which means they can be shared among
 threads without cloning if the channels can be proven to outlive the

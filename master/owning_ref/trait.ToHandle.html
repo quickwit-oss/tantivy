@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandle</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/owning_ref/lib.rs.html#781-788' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ToHandle {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>owning_ref</a>::<wbr><a class="trait" href=''>ToHandle</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/owning_ref/lib.rs.html#781-788' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ToHandle {
     type <a href='#associatedtype.Handle' class="type">Handle</a>: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html" title="trait core::ops::deref::Deref">Deref</a>;
     unsafe fn <a href='#tymethod.to_handle' class='fnname'>to_handle</a>(x: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.pointer.html">*const Self</a>) -&gt; Self::<a class="type" href="../owning_ref/trait.ToHandle.html#associatedtype.Handle" title="type owning_ref::ToHandle::Handle">Handle</a>;
 }</pre></div><div class='docblock'><p>Trait to implement the conversion of owner to handle for common types.</p>

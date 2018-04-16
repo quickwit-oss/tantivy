@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>aho_corasick</a>::<wbr><a class="trait" href=''>Transitions</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/aho_corasick/lib.rs.html#410-419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Transitions {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>aho_corasick</a>::<wbr><a class="trait" href=''>Transitions</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/aho_corasick/lib.rs.html#410-419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Transitions {
     fn <a href='#tymethod.new' class='fnname'>new</a>(depth: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; Self;
 <div class='item-spacer'></div>    fn <a href='#tymethod.goto' class='fnname'>goto</a>(&amp;self, alpha: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="type" href="../aho_corasick/type.StateIdx.html" title="type aho_corasick::StateIdx">StateIdx</a>;
 <div class='item-spacer'></div>    fn <a href='#tymethod.set_goto' class='fnname'>set_goto</a>(&amp;mut self, alpha: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>, si: <a class="type" href="../aho_corasick/type.StateIdx.html" title="type aho_corasick::StateIdx">StateIdx</a>);

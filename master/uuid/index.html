@@ -34,7 +34,7 @@
     <nav class="sidebar">
         <div class="sidebar-menu">&#9776;</div>
         <a href='../uuid/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a>
-        <p class='location'>Crate uuid</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'uuid', ty: 'mod', relpath: '../'};</script></div>
+        <p class='location'>Crate uuid</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'uuid', ty: 'mod', relpath: '../'};</script></div>
     </nav>
 
     <div class="theme-picker">
@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>uuid</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/uuid/lib.rs.html#11-1874' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Generate and parse UUIDs</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>uuid</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/uuid/lib.rs.html#11-1800' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>Generate and parse UUIDs.</p>
 <p>Provides support for Universally Unique Identifiers (UUIDs). A UUID is a
 unique 128-bit number, stored as 16 octets.  UUIDs are used to  assign
 unique identifiers to entities without requiring a central allocating
@@ -73,7 +69,7 @@ practical purposes, it can be assumed that an unintentional collision would
 be extremely unlikely.</p>
 <h1 id="dependencies" class="section-header"><a href="#dependencies">Dependencies</a></h1>
 <p>By default, this crate depends on nothing but <code>std</code> and cannot generate
-<a href="../uuid/struct.Uuid.html" title="`Uuid`"><code>Uuid</code></a>s. You need to enable the following Cargo features to enable
+<a href="../uuid/prelude/struct.Uuid.html" title="`Uuid`"><code>Uuid</code></a>s. You need to enable the following Cargo features to enable
 various pieces of functionality:</p>
 <ul>
 <li><code>v1</code> - adds the <code>Uuid::new_v1</code> function and the ability to create a V1
@@ -133,7 +129,16 @@ uuid = { version = &quot;0.6&quot;, default-features = false }
 <li><a href="http://en.wikipedia.org/wiki/Universally_unique_identifier">Wikipedia: Universally Unique Identifier</a></li>
 <li><a href="http://tools.ietf.org/html/rfc4122">RFC4122: A Universally Unique IDentifier (UUID) URN Namespace</a></li>
 </ul>
-</div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="prelude/index.html"
+                                  title='mod uuid::prelude'>prelude</a></td>
+                           <td class='docblock-short'>
+                                <p>The <a href="../index.html"><code>uuid</code></a> prelude.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Hyphenated.html"

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/error.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/error.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>error.rs.html -- source</title>
@@ -478,12 +478,6 @@
 <span id="421">421</span>
 <span id="422">422</span>
 <span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -545,28 +539,28 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">code</span> {
             <span class="ident">ErrorCode</span>::<span class="ident">Message</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Data</span>,
             <span class="ident">ErrorCode</span>::<span class="ident">Io</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Io</span>,
-            <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingList</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingString</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span> <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Eof</span>,
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedListCommaOrEnd</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectCommaOrEnd</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectOrArray</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeIdent</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeString</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">InvalidEscape</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">NumberOutOfRange</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">LoneLeadingSurrogateInHexEscape</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">UnexpectedEndOfHexEscape</span> <span class="op">|</span>
-            <span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span> <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Syntax</span>,
+            <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingList</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingObject</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingString</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">EofWhileParsingValue</span> <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Eof</span>,
+            <span class="ident">ErrorCode</span>::<span class="ident">ExpectedColon</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedListCommaOrEnd</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectCommaOrEnd</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedObjectOrArray</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeIdent</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeValue</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ExpectedSomeString</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">InvalidEscape</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">InvalidNumber</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">NumberOutOfRange</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">InvalidUnicodeCodePoint</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">ControlCharacterWhileParsingString</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">KeyMustBeAString</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">LoneLeadingSurrogateInHexEscape</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">TrailingComma</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">TrailingCharacters</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">UnexpectedEndOfHexEscape</span>
+            <span class="op">|</span> <span class="ident">ErrorCode</span>::<span class="ident">RecursionLimitExceeded</span> <span class="op">=&gt;</span> <span class="ident">Category</span>::<span class="ident">Syntax</span>,
         }
     }
 
@@ -666,7 +660,6 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">struct</span> <span class="ident">ErrorImpl</span> {
     <span class="ident">code</span>: <span class="ident">ErrorCode</span>,
     <span class="ident">line</span>: <span class="ident">usize</span>,
@@ -675,7 +668,6 @@
 
 <span class="comment">// Not public API. Should be pub(crate).</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ErrorCode</span> {
     <span class="doccomment">/// Catchall for syntax error messages</span>
     <span class="ident">Message</span>(<span class="ident">Box</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span>),
@@ -755,13 +747,11 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">syntax</span>(<span class="ident">code</span>: <span class="ident">ErrorCode</span>, <span class="ident">line</span>: <span class="ident">usize</span>, <span class="ident">column</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Error</span> {
-            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(
-                <span class="ident">ErrorImpl</span> {
-                    <span class="ident">code</span>: <span class="ident">code</span>,
-                    <span class="ident">line</span>: <span class="ident">line</span>,
-                    <span class="ident">column</span>: <span class="ident">column</span>,
-                },
-            ),
+            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ErrorImpl</span> {
+                <span class="ident">code</span>: <span class="ident">code</span>,
+                <span class="ident">line</span>: <span class="ident">line</span>,
+                <span class="ident">column</span>: <span class="ident">column</span>,
+            }),
         }
     }
 
@@ -771,13 +761,11 @@
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">io</span>(<span class="ident">error</span>: <span class="ident">io</span>::<span class="ident">Error</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">Error</span> {
-            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(
-                <span class="ident">ErrorImpl</span> {
-                    <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Io</span>(<span class="ident">error</span>),
-                    <span class="ident">line</span>: <span class="number">0</span>,
-                    <span class="ident">column</span>: <span class="number">0</span>,
-                },
-            ),
+            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ErrorImpl</span> {
+                <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Io</span>(<span class="ident">error</span>),
+                <span class="ident">line</span>: <span class="number">0</span>,
+                <span class="ident">column</span>: <span class="number">0</span>,
+            }),
         }
     }
 
@@ -863,9 +851,7 @@
             <span class="macro">write</span><span class="macro">!</span>(
                 <span class="ident">f</span>,
                 <span class="string">&quot;{} at line {} column {}&quot;</span>,
-                <span class="self">self</span>.<span class="ident">code</span>,
-                <span class="self">self</span>.<span class="ident">line</span>,
-                <span class="self">self</span>.<span class="ident">column</span>
+                <span class="self">self</span>.<span class="ident">code</span>, <span class="self">self</span>.<span class="ident">line</span>, <span class="self">self</span>.<span class="ident">column</span>
             )
         }
     }
@@ -875,20 +861,24 @@
 <span class="comment">// end up seeing this representation because it is what unwrap() shows.</span>
 <span class="kw">impl</span> <span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Error</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="ident">Debug</span>::<span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="self">self</span>.<span class="ident">err</span>, <span class="ident">f</span>)
+        <span class="macro">write</span><span class="macro">!</span>(
+            <span class="ident">f</span>,
+            <span class="string">&quot;Error({:?}, line: {}, column: {})&quot;</span>,
+            <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">code</span>.<span class="ident">to_string</span>(),
+            <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">line</span>,
+            <span class="self">self</span>.<span class="ident">err</span>.<span class="ident">column</span>
+        )
     }
 }
 
 <span class="kw">impl</span> <span class="ident">de</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Error</span> {
     <span class="kw">fn</span> <span class="ident">custom</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Display</span><span class="op">&gt;</span>(<span class="ident">msg</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Error</span> {
         <span class="ident">Error</span> {
-            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(
-                <span class="ident">ErrorImpl</span> {
-                    <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Message</span>(<span class="ident">msg</span>.<span class="ident">to_string</span>().<span class="ident">into_boxed_str</span>()),
-                    <span class="ident">line</span>: <span class="number">0</span>,
-                    <span class="ident">column</span>: <span class="number">0</span>,
-                },
-            ),
+            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ErrorImpl</span> {
+                <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Message</span>(<span class="ident">msg</span>.<span class="ident">to_string</span>().<span class="ident">into_boxed_str</span>()),
+                <span class="ident">line</span>: <span class="number">0</span>,
+                <span class="ident">column</span>: <span class="number">0</span>,
+            }),
         }
     }
 
@@ -904,13 +894,11 @@
 <span class="kw">impl</span> <span class="ident">ser</span>::<span class="ident">Error</span> <span class="kw">for</span> <span class="ident">Error</span> {
     <span class="kw">fn</span> <span class="ident">custom</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">Display</span><span class="op">&gt;</span>(<span class="ident">msg</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">Error</span> {
         <span class="ident">Error</span> {
-            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(
-                <span class="ident">ErrorImpl</span> {
-                    <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Message</span>(<span class="ident">msg</span>.<span class="ident">to_string</span>().<span class="ident">into_boxed_str</span>()),
-                    <span class="ident">line</span>: <span class="number">0</span>,
-                    <span class="ident">column</span>: <span class="number">0</span>,
-                },
-            ),
+            <span class="ident">err</span>: <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">ErrorImpl</span> {
+                <span class="ident">code</span>: <span class="ident">ErrorCode</span>::<span class="ident">Message</span>(<span class="ident">msg</span>.<span class="ident">to_string</span>().<span class="ident">into_boxed_str</span>()),
+                <span class="ident">line</span>: <span class="number">0</span>,
+                <span class="ident">column</span>: <span class="number">0</span>,
+            }),
         }
     }
 }

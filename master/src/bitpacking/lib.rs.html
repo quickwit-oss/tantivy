@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.3.1/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.4.0/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -325,6 +325,8 @@
 <span id="268">268</span>
 <span id="269">269</span>
 <span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!  # Fast Bitpacking algorithms
 
@@ -349,11 +351,13 @@ See the [`BitPacker` trait](./trait.BitPacker.html) for example usage.
 */</span>
 
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unused_unsafe</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">stdsimd</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">test</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">target_feature</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">cfg_target_feature</span>)]</span>
+
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>, <span class="ident">feature</span>(<span class="ident">stdsimd</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>, <span class="ident">feature</span>(<span class="ident">target_feature</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;simd&quot;</span>, <span class="ident">feature</span>(<span class="ident">cfg_target_feature</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>), <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
 <span class="attribute">#![<span class="ident">warn</span>(<span class="ident">missing_docs</span>)]</span>
+
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">crunchy</span>;

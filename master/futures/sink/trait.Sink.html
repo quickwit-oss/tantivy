@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>sink</a>::<wbr><a class="trait" href=''>Sink</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/sink/mod.rs.html#117-471' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Sink {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>futures</a>::<wbr><a href='index.html'>sink</a>::<wbr><a class="trait" href=''>Sink</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/sink/mod.rs.html#117-471' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Sink {
     type <a href='#associatedtype.SinkItem' class="type">SinkItem</a>;
     type <a href='#associatedtype.SinkError' class="type">SinkError</a>;
     fn <a href='#tymethod.start_send' class='fnname'>start_send</a>(<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&amp;mut self, <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;item: Self::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a><br>&nbsp;&nbsp;&nbsp;&nbsp;) -&gt; <a class="type" href="../../futures/type.StartSend.html" title="type futures::StartSend">StartSend</a>&lt;Self::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkItem" title="type futures::sink::Sink::SinkItem">SinkItem</a>, Self::<a class="type" href="../../futures/sink/trait.Sink.html#associatedtype.SinkError" title="type futures::sink::Sink::SinkError">SinkError</a>&gt;;

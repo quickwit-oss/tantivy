@@ -159,10 +159,10 @@
                     .<span class="ident">read_postings</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>) {
                     <span class="ident">term_postings_list</span>.<span class="ident">push</span>(<span class="ident">postings</span>);
                 } <span class="kw">else</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">EmptyScorer</span>);
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyScorer</span>));
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>))
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>)))
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_postings_list</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
             <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">phrase_terms</span> {
@@ -171,10 +171,10 @@
                     .<span class="ident">read_postings_no_deletes</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>) {
                     <span class="ident">term_postings_list</span>.<span class="ident">push</span>(<span class="ident">postings</span>);
                 } <span class="kw">else</span> {
-                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">EmptyScorer</span>);
+                    <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyScorer</span>));
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>))
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>)))
         }
     }
 }

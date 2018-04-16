@@ -255,6 +255,13 @@
 <span id="198">198</span>
 <span id="199">199</span>
 <span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Defines how the documents matching a search query should be processed.
@@ -347,7 +354,6 @@ Defines how the documents matching a search query should be processed.
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -444,6 +450,14 @@ Defines how the documents matching a search query should be processed.
         }
     }
 
+}
+
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
+    <span class="kw">use</span> <span class="ident">collector</span>::{<span class="ident">Collector</span>, <span class="ident">CountCollector</span>};
+
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">build_collector</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
@@ -455,8 +469,7 @@ Defines how the documents matching a search query should be processed.
             <span class="ident">count_collector</span>.<span class="ident">count</span>()
         });
     }
-}
-</pre>
+}</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

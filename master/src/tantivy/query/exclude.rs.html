@@ -388,10 +388,10 @@
     <span class="kw">fn</span> <span class="ident">test_exclude_skip</span>() {
         <span class="ident">test_skip_against_unoptimized</span>(
             <span class="op">||</span> {
-                <span class="kw">box</span> <span class="ident">Exclude</span>::<span class="ident">new</span>(
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Exclude</span>::<span class="ident">new</span>(
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">5</span>, <span class="number">8</span>, <span class="number">10</span>, <span class="number">15</span>, <span class="number">24</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">10</span>, <span class="number">16</span>, <span class="number">24</span>]),
-                )
+                ))
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">5</span>, <span class="number">8</span>, <span class="number">10</span>, <span class="number">15</span>, <span class="number">24</span>],
         );
@@ -404,10 +404,10 @@
         <span class="kw">let</span> <span class="ident">sample_skip</span> <span class="op">=</span> <span class="ident">sample_with_seed</span>(<span class="number">10_000</span>, <span class="number">0.005</span>, <span class="number">3</span>);
         <span class="ident">test_skip_against_unoptimized</span>(
             <span class="op">||</span> {
-                <span class="kw">box</span> <span class="ident">Exclude</span>::<span class="ident">new</span>(
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Exclude</span>::<span class="ident">new</span>(
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">sample_include</span>.<span class="ident">clone</span>()),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">sample_exclude</span>.<span class="ident">clone</span>()),
-                )
+                ))
             },
             <span class="ident">sample_skip</span>,
         );

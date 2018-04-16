@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>serde</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/serde/ser/mod.rs.html#312-1419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>serde</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/serde/ser/mod.rs.html#312-1419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Ok' class="type">Ok</a>;
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>;
     type <a href='#associatedtype.SerializeSeq' class="type">SerializeSeq</a>: <a class="trait" href="../serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a>&lt;Ok = Self::<a class="type" href="../serde/trait.Serializer.html#associatedtype.Ok" title="type serde::Serializer::Ok">Ok</a>, Error = Self::<a class="type" href="../serde/trait.Serializer.html#associatedtype.Error" title="type serde::Serializer::Error">Error</a>&gt;;

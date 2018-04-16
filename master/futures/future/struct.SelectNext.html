@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>SelectNext</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/future/select.rs.html#19-21' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>SelectNext</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/future/select.rs.html#19-21' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
 </div>pub struct SelectNext&lt;A, B&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;B: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>&lt;Item = A::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>, Error = A::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Error" title="type futures::future::Future::Error">Error</a>&gt;,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p>Future yielded as the second result in a <code>Select</code> future.</p>
 <p>This sentinel future represents the completion of the second future to a
 <code>select</code> which finished second.</p>

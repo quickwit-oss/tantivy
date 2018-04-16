@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>error_chain</a>::<wbr><a href='index.html'>example_generated</a>::<wbr><a class="trait" href=''>ResultExt</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/error_chain/error_chain.rs.html#273-281' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ResultExt&lt;T, E&gt; {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>error_chain</a>::<wbr><a href='index.html'>example_generated</a>::<wbr><a class="trait" href=''>ResultExt</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/error_chain/error_chain.rs.html#273-281' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait ResultExt&lt;T, E&gt; {
     fn <a href='#tymethod.chain_err' class='fnname'>chain_err</a>&lt;F, EK&gt;(self, callback: F) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;T, <a class="struct" href="../../error_chain/example_generated/struct.Error.html" title="struct error_chain::example_generated::Error">Error</a>&gt;<br>&nbsp;&nbsp;&nbsp; <span class="where">where<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;F: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/function/trait.FnOnce.html" title="trait core::ops::function::FnOnce">FnOnce</a>() -&gt; EK,<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;EK: <a class="trait" href="https://doc.rust-lang.org/nightly/core/convert/trait.Into.html" title="trait core::convert::Into">Into</a>&lt;<a class="enum" href="../../error_chain/example_generated/enum.ErrorKind.html" title="enum error_chain::example_generated::ErrorKind">ErrorKind</a>&gt;</span>;
 }</pre></div><div class='docblock'><p>Additional methods for <code>Result</code>, for easy interaction with this crate.</p>
 </div>

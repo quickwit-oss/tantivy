@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="struct" href=''>PtyMaster</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/nix/pty.rs.html#31' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct PtyMaster(_);</pre></div><div class='docblock'><p>Representation of the Master device in a master/slave pty pair</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>nix</a>::<wbr><a href='index.html'>pty</a>::<wbr><a class="struct" href=''>PtyMaster</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/nix/pty.rs.html#31' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct PtyMaster(_);</pre></div><div class='docblock'><p>Representation of the Master device in a master/slave pty pair</p>
 <p>While this datatype is a thin wrapper around <code>RawFd</code>, it enforces that the available PTY
 functions are given the correct file descriptor. Additionally this type implements <code>Drop</code>,
 so that when it's consumed or goes out of scope, it's automatically cleaned-up.</p>

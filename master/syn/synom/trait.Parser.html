@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>syn</a>::<wbr><a href='index.html'>synom</a>::<wbr><a class="trait" href=''>Parser</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/syn/synom.rs.html#222-246' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Parser: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>syn</a>::<wbr><a href='index.html'>synom</a>::<wbr><a class="trait" href=''>Parser</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/syn/synom.rs.html#222-246' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Parser: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Output' class="type">Output</a>;
     fn <a href='#tymethod.parse2' class='fnname'>parse2</a>(self, tokens: <a class="struct" href="../../proc_macro2/struct.TokenStream.html" title="struct proc_macro2::TokenStream">TokenStream</a>) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;Self::<a class="type" href="../../syn/synom/trait.Parser.html#associatedtype.Output" title="type syn::synom::Parser::Output">Output</a>, <a class="struct" href="../../syn/synom/struct.ParseError.html" title="struct syn::synom::ParseError">ParseError</a>&gt;;
 

@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>ascii</a>::<wbr><a class="trait" href=''>IntoAsciiString</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/ascii/ascii_string.rs.html#540-545' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait IntoAsciiString: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>ascii</a>::<wbr><a class="trait" href=''>IntoAsciiString</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/ascii/ascii_string.rs.html#540-545' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait IntoAsciiString: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     unsafe fn <a href='#tymethod.into_ascii_string_unchecked' class='fnname'>into_ascii_string_unchecked</a>(self) -&gt; <a class="struct" href="../ascii/struct.AsciiString.html" title="struct ascii::AsciiString">AsciiString</a>;
 <div class='item-spacer'></div>    fn <a href='#tymethod.into_ascii_string' class='fnname'>into_ascii_string</a>(self) -&gt; <a class="enum" href="https://doc.rust-lang.org/nightly/core/result/enum.Result.html" title="enum core::result::Result">Result</a>&lt;<a class="struct" href="../ascii/struct.AsciiString.html" title="struct ascii::AsciiString">AsciiString</a>, Self&gt;;
 }</pre></div><div class='docblock'><p>Convert vectors into <code>AsciiString</code>.</p>

@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>owning_ref</a>::<wbr><a class="struct" href=''>OwningHandle</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/owning_ref/lib.rs.html#752-757' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct OwningHandle&lt;O, H&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;O: <a class="trait" href="../owning_ref/trait.StableAddress.html" title="trait owning_ref::StableAddress">StableAddress</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;H: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html" title="trait core::ops::deref::Deref">Deref</a>,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p><code>OwningHandle</code> is a complement to <code>OwningRef</code>. Where <code>OwningRef</code> allows
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>owning_ref</a>::<wbr><a class="struct" href=''>OwningHandle</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/owning_ref/lib.rs.html#752-757' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct OwningHandle&lt;O, H&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;O: <a class="trait" href="../owning_ref/trait.StableAddress.html" title="trait owning_ref::StableAddress">StableAddress</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;H: <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/deref/trait.Deref.html" title="trait core::ops::deref::Deref">Deref</a>,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p><code>OwningHandle</code> is a complement to <code>OwningRef</code>. Where <code>OwningRef</code> allows
 consumers to pass around an owned object and a dependent reference,
 <code>OwningHandle</code> contains an owned object and a dependent <em>object</em>.</p>
 <p><code>OwningHandle</code> can encapsulate a <code>RefMut</code> along with its associated

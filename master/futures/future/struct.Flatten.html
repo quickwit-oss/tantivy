@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>Flatten</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/future/flatten.rs.html#10-12' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>Flatten</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/future/flatten.rs.html#10-12' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
 </div>pub struct Flatten&lt;A&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;A::<a class="type" href="../../futures/future/trait.Future.html#associatedtype.Item" title="type futures::future::Future::Item">Item</a>: <a class="trait" href="../../futures/future/trait.IntoFuture.html" title="trait futures::future::IntoFuture">IntoFuture</a>,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p>Future for the <code>flatten</code> combinator, flattening a future-of-a-future to get just
 the result of the final future.</p>
 <p>This is created by the <code>Future::flatten</code> method.</p>

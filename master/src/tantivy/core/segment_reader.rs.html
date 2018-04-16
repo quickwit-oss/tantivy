@@ -387,6 +387,11 @@
 <span id="330">330</span>
 <span id="331">331</span>
 <span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
@@ -464,6 +469,11 @@
     <span class="doccomment">/// num_docs are the same.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_docs</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">segment_meta</span>.<span class="ident">num_docs</span>()
+    }
+
+    <span class="doccomment">/// Returns the schema of the index this segment belongs to.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">schema</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Schema</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">schema</span>
     }
 
     <span class="doccomment">/// Return the number of documents that have been</span>

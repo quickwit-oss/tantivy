@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="fn" href=''>spawn</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#229-235' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn spawn&lt;T&gt;(obj: T) -&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;T&gt;</pre><div class='docblock'><p>Spawns a future or stream, returning it and the new task responsible for
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Function <a href='../index.html'>futures</a>::<wbr><a href='index.html'>executor</a>::<wbr><a class="fn" href=''>spawn</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/task_impl/mod.rs.html#229-235' title='goto source code'>[src]</a></span></h1><pre class='rust fn'>pub fn spawn&lt;T&gt;(obj: T) -&gt; <a class="struct" href="../../futures/executor/struct.Spawn.html" title="struct futures::executor::Spawn">Spawn</a>&lt;T&gt;</pre><div class='docblock'><p>Spawns a future or stream, returning it and the new task responsible for
 running it to completion.</p>
 <p>This function is the termination endpoint for running futures. This method
 will conceptually allocate a new task to run the given object, which is

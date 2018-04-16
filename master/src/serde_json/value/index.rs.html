@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/value/index.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/value/index.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>index.rs.html -- source</title>
@@ -333,12 +333,6 @@
 <span id="276">276</span>
 <span id="277">277</span>
 <span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
-<span id="283">283</span>
-<span id="284">284</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -420,16 +414,12 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
             <span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">vec</span>) <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">vec</span>.<span class="ident">len</span>();
-                <span class="ident">vec</span>.<span class="ident">get_mut</span>(<span class="kw-2">*</span><span class="self">self</span>)
-                    .<span class="ident">unwrap_or_else</span>(
-                        <span class="op">||</span> {
-                            <span class="macro">panic</span><span class="macro">!</span>(
-                                <span class="string">&quot;cannot access index {} of JSON array of length {}&quot;</span>,
-                                <span class="self">self</span>,
-                                <span class="ident">len</span>
-                            )
-                        },
+                <span class="ident">vec</span>.<span class="ident">get_mut</span>(<span class="kw-2">*</span><span class="self">self</span>).<span class="ident">unwrap_or_else</span>(<span class="op">||</span> {
+                    <span class="macro">panic</span><span class="macro">!</span>(
+                        <span class="string">&quot;cannot access index {} of JSON array of length {}&quot;</span>,
+                        <span class="self">self</span>, <span class="ident">len</span>
                     )
+                })
             }
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access index {} of JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
         }
@@ -454,9 +444,7 @@
             <span class="kw-2">*</span><span class="ident">v</span> <span class="op">=</span> <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">Map</span>::<span class="ident">new</span>());
         }
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">v</span> {
-            <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> {
-                <span class="ident">map</span>.<span class="ident">entry</span>(<span class="self">self</span>.<span class="ident">to_owned</span>()).<span class="ident">or_insert</span>(<span class="ident">Value</span>::<span class="ident">Null</span>)
-            }
+            <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>) <span class="op">=&gt;</span> <span class="ident">map</span>.<span class="ident">entry</span>(<span class="self">self</span>.<span class="ident">to_owned</span>()).<span class="ident">or_insert</span>(<span class="ident">Value</span>::<span class="ident">Null</span>),
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;cannot access key {:?} in JSON {}&quot;</span>, <span class="self">self</span>, <span class="ident">Type</span>(<span class="ident">v</span>)),
         }
     }

@@ -434,10 +434,10 @@
         <span class="kw">let</span> <span class="ident">skip_docs</span> <span class="op">=</span> <span class="ident">sample_with_seed</span>(<span class="number">10_000</span>, <span class="number">0.001</span>, <span class="number">3</span>);
         <span class="ident">test_skip_against_unoptimized</span>(
             <span class="op">||</span> {
-                <span class="kw">box</span> <span class="ident">RequiredOptionalScorer</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">new</span>(
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">RequiredOptionalScorer</span>::<span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">DoNothingCombiner</span><span class="op">&gt;</span>::<span class="ident">new</span>(
                     <span class="ident">ConstScorer</span>::<span class="ident">new</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">req_docs</span>.<span class="ident">clone</span>())),
                     <span class="ident">ConstScorer</span>::<span class="ident">new</span>(<span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="ident">opt_docs</span>.<span class="ident">clone</span>())),
-                )
+                ))
             },
             <span class="ident">skip_docs</span>,
         );

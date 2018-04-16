@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.5/src/symbolize/mod.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/backtrace-0.3.6/src/symbolize/mod.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>mod.rs.html -- source</title>
@@ -345,6 +345,10 @@
 <span id="288">288</span>
 <span id="289">289</span>
 <span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cpp_demangle&quot;</span>))]</span>
@@ -618,9 +622,13 @@
         <span class="kw">mod</span> <span class="ident">libbacktrace</span>;
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">libbacktrace</span>::<span class="ident">resolve</span> <span class="kw">as</span> <span class="ident">resolve_imp</span>;
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">libbacktrace</span>::<span class="ident">Symbol</span> <span class="kw">as</span> <span class="ident">SymbolImp</span>;
+
+    <span class="comment">// Note that we only enable coresymbolication on iOS when debug assertions</span>
+    <span class="comment">// are enabled because it&#39;s helpful in debug mode but it looks like apps get</span>
+    <span class="comment">// rejected from the app store if they use this API, see #92 for more info</span>
     } <span class="kw">else</span> <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;coresymbolication&quot;</span>,
                         <span class="ident">any</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;macos&quot;</span>,
-                            <span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>)))]</span> {
+                            <span class="ident">all</span>(<span class="ident">target_os</span> <span class="op">=</span> <span class="string">&quot;ios&quot;</span>, <span class="ident">debug_assertions</span>))))]</span> {
         <span class="kw">mod</span> <span class="ident">coresymbolication</span>;
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">coresymbolication</span>::<span class="ident">resolve</span> <span class="kw">as</span> <span class="ident">resolve_imp</span>;
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">coresymbolication</span>::<span class="ident">Symbol</span> <span class="kw">as</span> <span class="ident">SymbolImp</span>;

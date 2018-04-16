@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a>::<wbr><a class="trait" href=''>Weight</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/tantivy/query/weight.rs.html#9-18' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Weight {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a>::<wbr><a class="trait" href=''>Weight</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/query/weight.rs.html#9-18' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Weight {
     fn <a href='#tymethod.scorer' class='fnname'>scorer</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="struct" href="https://doc.rust-lang.org/nightly/alloc/boxed/struct.Box.html" title="struct alloc::boxed::Box">Box</a>&lt;<a class="trait" href="../../tantivy/query/trait.Scorer.html" title="trait tantivy::query::Scorer">Scorer</a>&gt;&gt;;
 
     fn <a href='#method.count' class='fnname'>count</a>(&amp;self, reader: &amp;<a class="struct" href="../../tantivy/struct.SegmentReader.html" title="struct tantivy::SegmentReader">SegmentReader</a>) -&gt; <a class="type" href="../../tantivy/type.Result.html" title="type tantivy::Result">Result</a>&lt;<a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>&gt; { ... }

@@ -692,6 +692,37 @@
 <span id="635">635</span>
 <span id="636">636</span>
 <span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
@@ -708,6 +739,7 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermMerger</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">SkipResult</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">btree_map</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">usize</span>, <span class="ident">u64</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">Peekable</span>;
 
@@ -1127,11 +1159,27 @@
     <span class="ident">facet_counts</span>: <span class="ident">BTreeMap</span><span class="op">&lt;</span><span class="ident">Facet</span>, <span class="ident">u64</span><span class="op">&gt;</span>,
 }
 
+
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FacetChildIterator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="ident">underlying</span>: <span class="ident">btree_map</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Facet</span>, <span class="ident">u64</span><span class="op">&gt;</span>,
+}
+
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Iterator</span> <span class="kw">for</span> <span class="ident">FacetChildIterator</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+
+    <span class="kw">type</span> <span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Facet</span>, <span class="ident">u64</span>);
+
+    <span class="kw">fn</span> <span class="ident">next</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Item</span><span class="op">&gt;</span> {
+        <span class="self">self</span>.<span class="ident">underlying</span>
+            .<span class="ident">next</span>()
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">facet</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">facet</span>, <span class="kw-2">*</span><span class="ident">count</span>))
+    }
+}
+
+
 <span class="kw">impl</span> <span class="ident">FacetCounts</span> {
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">needless_lifetimes</span>)]</span> <span class="comment">//&lt; compiler fails if we remove the lifetime</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="self">self</span>, <span class="ident">facet_from</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="kw">impl</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Facet</span>, <span class="ident">u64</span>)<span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">Facet</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>,
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">facet_from</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">FacetChildIterator</span> <span class="comment">//impl Iterator&lt;Item = (&amp;&#39;a Facet, u64)&gt;</span>
+    <span class="kw">where</span> <span class="ident">Facet</span>: <span class="ident">From</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
     {
         <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="ident">facet_from</span>);
         <span class="kw">let</span> <span class="ident">left_bound</span> <span class="op">=</span> <span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="ident">facet</span>.<span class="ident">clone</span>());
@@ -1143,10 +1191,10 @@
             <span class="kw">let</span> <span class="ident">facet_after</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">facet_after_bytes</span>);
             <span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="ident">facet_after</span>)
         };
-
-        <span class="self">self</span>.<span class="ident">facet_counts</span>
-            .<span class="ident">range</span>((<span class="ident">left_bound</span>, <span class="ident">right_bound</span>))
-            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">facet</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">facet</span>, <span class="kw-2">*</span><span class="ident">count</span>))
+        <span class="kw">let</span> <span class="ident">underlying</span>: <span class="ident">btree_map</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">facet_counts</span>.<span class="ident">range</span>((<span class="ident">left_bound</span>, <span class="ident">right_bound</span>));
+        <span class="ident">FacetChildIterator</span> {
+            <span class="ident">underlying</span>
+        }
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">top_k</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">facet</span>: <span class="ident">T</span>, <span class="ident">k</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">Facet</span>, <span class="ident">u64</span>)<span class="op">&gt;</span>
@@ -1178,14 +1226,13 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Facet</span>, <span class="ident">SchemaBuilder</span>};
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">FacetCollector</span>, <span class="ident">FacetCounts</span>};
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">thread_rng</span>, <span class="ident">Rng</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_facet_collector_drilldown</span>() {
@@ -1299,6 +1346,21 @@
         }
     }
 
+}
+
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="kw">mod</span> <span class="ident">bench</span> {
+
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">FacetCollector</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">thread_rng</span>, <span class="ident">Rng</span>};
+
+
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_facet_collector</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
@@ -1329,8 +1391,7 @@
             <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>).<span class="ident">unwrap</span>();
         });
     }
-}
-</pre>
+}</pre>
 </section>
     <section id='search' class="content hidden"></section>
 

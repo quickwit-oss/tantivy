@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/value/ser.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/value/ser.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ser.rs.html -- source</title>
@@ -872,6 +872,16 @@
 <span id="815">815</span>
 <span id="816">816</span>
 <span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -882,18 +892,18 @@
 <span class="comment">// except according to those terms.</span>
 
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="self">self</span>, <span class="ident">Serialize</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Impossible</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">Impossible</span>;
 
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">Error</span>, <span class="ident">ErrorCode</span>};
 <span class="kw">use</span> <span class="ident">map</span>::<span class="ident">Map</span>;
 <span class="kw">use</span> <span class="ident">number</span>::<span class="ident">Number</span>;
-<span class="kw">use</span> <span class="ident">value</span>::{<span class="ident">Value</span>, <span class="ident">to_value</span>};
+<span class="kw">use</span> <span class="ident">value</span>::{<span class="ident">to_value</span>, <span class="ident">Value</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">number</span>::{<span class="ident">SERDE_STRUCT_NAME</span>, <span class="ident">SERDE_STRUCT_FIELD_NAME</span>};
+<span class="kw">use</span> <span class="ident">number</span>::{<span class="ident">SERDE_STRUCT_FIELD_NAME</span>, <span class="ident">SERDE_STRUCT_NAME</span>};
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Value</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -1066,7 +1076,9 @@
     }
 
     <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>, <span class="ident">len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(<span class="ident">SerializeVec</span> { <span class="ident">vec</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>)) })
+        <span class="prelude-val">Ok</span>(<span class="ident">SerializeVec</span> {
+            <span class="ident">vec</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span>.<span class="ident">unwrap_or</span>(<span class="number">0</span>)),
+        })
     }
 
     <span class="kw">fn</span> <span class="ident">serialize_tuple</span>(<span class="self">self</span>, <span class="ident">len</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTuple</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
@@ -1088,21 +1100,17 @@
         <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(
-            <span class="ident">SerializeTupleVariant</span> {
-                <span class="ident">name</span>: <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">variant</span>),
-                <span class="ident">vec</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span>),
-            },
-        )
+        <span class="prelude-val">Ok</span>(<span class="ident">SerializeTupleVariant</span> {
+            <span class="ident">name</span>: <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">variant</span>),
+            <span class="ident">vec</span>: <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">len</span>),
+        })
     }
 
     <span class="kw">fn</span> <span class="ident">serialize_map</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeMap</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(
-            <span class="ident">SerializeMap</span>::<span class="ident">Map</span> {
-                <span class="ident">map</span>: <span class="ident">Map</span>::<span class="ident">new</span>(),
-                <span class="ident">next_key</span>: <span class="prelude-val">None</span>,
-            },
-        )
+        <span class="prelude-val">Ok</span>(<span class="ident">SerializeMap</span>::<span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">Map</span>::<span class="ident">new</span>(),
+            <span class="ident">next_key</span>: <span class="prelude-val">None</span>,
+        })
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
@@ -1134,12 +1142,10 @@
         <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">_len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span>, <span class="ident">Error</span><span class="op">&gt;</span> {
-        <span class="prelude-val">Ok</span>(
-            <span class="ident">SerializeStructVariant</span> {
-                <span class="ident">name</span>: <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">variant</span>),
-                <span class="ident">map</span>: <span class="ident">Map</span>::<span class="ident">new</span>(),
-            },
-        )
+        <span class="prelude-val">Ok</span>(<span class="ident">SerializeStructVariant</span> {
+            <span class="ident">name</span>: <span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">variant</span>),
+            <span class="ident">map</span>: <span class="ident">Map</span>::<span class="ident">new</span>(),
+        })
     }
 }
 
@@ -1158,9 +1164,7 @@
         <span class="ident">next_key</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>,
     },
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-    <span class="ident">Number</span> {
-        <span class="ident">out_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>
-    },
+    <span class="ident">Number</span> { <span class="ident">out_value</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span> },
 }
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SerializeStructVariant</span> {
@@ -1247,10 +1251,12 @@
         <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SerializeMap</span>::<span class="ident">Map</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next_key</span>, .. } <span class="op">=&gt;</span> {
+            <span class="ident">SerializeMap</span>::<span class="ident">Map</span> {
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next_key</span>, ..
+            } <span class="op">=&gt;</span> {
                 <span class="kw-2">*</span><span class="ident">next_key</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">key</span>.<span class="ident">serialize</span>(<span class="ident">MapKeySerializer</span>)));
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">SerializeMap</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -1261,14 +1267,17 @@
         <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">SerializeMap</span>::<span class="ident">Map</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>, <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next_key</span> } <span class="op">=&gt;</span> {
+            <span class="ident">SerializeMap</span>::<span class="ident">Map</span> {
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">map</span>,
+                <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">next_key</span>,
+            } <span class="op">=&gt;</span> {
                 <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">next_key</span>.<span class="ident">take</span>();
                 <span class="comment">// Panic because this indicates a bug in the program rather than an</span>
                 <span class="comment">// expected failure.</span>
                 <span class="kw">let</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">expect</span>(<span class="string">&quot;serialize_value called before serialize_key&quot;</span>);
                 <span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">key</span>, <span class="macro">try</span><span class="macro">!</span>(<span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)));
                 <span class="prelude-val">Ok</span>(())
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">SerializeMap</span>::<span class="ident">Number</span> { .. } <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
         }
@@ -1306,7 +1315,7 @@
         <span class="self">self</span>,
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-        <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>
+        <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="ident">variant</span>.<span class="ident">to_owned</span>())
     }
@@ -1315,9 +1324,10 @@
     <span class="kw">fn</span> <span class="ident">serialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
         <span class="self">self</span>,
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>
+        <span class="ident">value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>,
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="ident">value</span>.<span class="ident">serialize</span>(<span class="self">self</span>)
     }
@@ -1397,9 +1407,10 @@
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
         <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>
+        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>,
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">key_must_be_a_string</span>())
     }
@@ -1426,7 +1437,7 @@
     <span class="kw">fn</span> <span class="ident">serialize_tuple_struct</span>(
         <span class="self">self</span>,
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">_len</span>: <span class="ident">usize</span>
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">key_must_be_a_string</span>())
     }
@@ -1436,7 +1447,7 @@
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
         <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">_len</span>: <span class="ident">usize</span>
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">key_must_be_a_string</span>())
     }
@@ -1448,7 +1459,7 @@
     <span class="kw">fn</span> <span class="ident">serialize_struct</span>(
         <span class="self">self</span>,
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">_len</span>: <span class="ident">usize</span>
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">key_must_be_a_string</span>())
     }
@@ -1458,7 +1469,7 @@
         <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
         <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
         <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-        <span class="ident">_len</span>: <span class="ident">usize</span>
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">key_must_be_a_string</span>())
     }
@@ -1476,7 +1487,7 @@
             <span class="ident">SerializeMap</span>::<span class="ident">Map</span> { .. } <span class="op">=&gt;</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">serialize_key</span>(<span class="self">self</span>, <span class="ident">key</span>));
                 <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">serialize_value</span>(<span class="self">self</span>, <span class="ident">value</span>)
-            },
+            }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
             <span class="ident">SerializeMap</span>::<span class="ident">Number</span> { <span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">out_value</span> } <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">key</span> <span class="op">==</span> <span class="ident">SERDE_STRUCT_FIELD_NAME</span> {
@@ -1485,7 +1496,7 @@
                 } <span class="kw">else</span> {
                     <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
                 }
-            },
+            }
         }
     }
 
@@ -1493,7 +1504,9 @@
         <span class="kw">match</span> <span class="self">self</span> {
             <span class="ident">SerializeMap</span>::<span class="ident">Map</span> { .. } <span class="op">=&gt;</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">end</span>(<span class="self">self</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-            <span class="ident">SerializeMap</span>::<span class="ident">Number</span> { <span class="ident">out_value</span>, .. } <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">out_value</span>.<span class="ident">expect</span>(<span class="string">&quot;number value was not emitted&quot;</span>)),
+            <span class="ident">SerializeMap</span>::<span class="ident">Number</span> { <span class="ident">out_value</span>, .. } <span class="op">=&gt;</span> {
+                <span class="prelude-val">Ok</span>(<span class="ident">out_value</span>.<span class="ident">expect</span>(<span class="string">&quot;number value was not emitted&quot;</span>))
+            }
         }
     }
 }
@@ -1506,8 +1519,7 @@
     <span class="kw">where</span>
         <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
-        <span class="self">self</span>.<span class="ident">map</span>
-            .<span class="ident">insert</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">key</span>), <span class="macro">try</span><span class="macro">!</span>(<span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)));
+        <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">insert</span>(<span class="ident">String</span>::<span class="ident">from</span>(<span class="ident">key</span>), <span class="macro">try</span><span class="macro">!</span>(<span class="ident">to_value</span>(<span class="kw-2">&amp;</span><span class="ident">value</span>)));
         <span class="prelude-val">Ok</span>(())
     }
 
@@ -1613,80 +1625,88 @@
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_unit_struct</span>(<span class="self">self</span>,
-                             <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
-                             <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_unit_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_unit_variant</span>(<span class="self">self</span>,
-                              <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                              <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                              <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
-                              <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_unit_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>)
-                                           <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_newtype_variant</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(<span class="self">self</span>,
-                                            <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                            <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                                            <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                            <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>)
-                                            <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">serialize_newtype_variant</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="question-mark">?</span><span class="ident">Sized</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_value</span>: <span class="kw-2">&amp;</span><span class="ident">T</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">T</span>: <span class="ident">Serialize</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
-                     <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_seq</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeSeq</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                       <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTuple</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTuple</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                              <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple_struct</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_tuple_variant</span>(<span class="self">self</span>,
-                               <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                               <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                               <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                               <span class="ident">_len</span>: <span class="ident">usize</span>)
-                               <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_tuple_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeTupleVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_map</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>)
-                     <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeMap</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_map</span>(<span class="self">self</span>, <span class="ident">_len</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeMap</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_struct</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">_len</span>: <span class="ident">usize</span>)
-                        <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_struct</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStruct</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 
-    <span class="kw">fn</span> <span class="ident">serialize_struct_variant</span>(<span class="self">self</span>,
-                                <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
-                                <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
-                                <span class="ident">_len</span>: <span class="ident">usize</span>)
-                                <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_struct_variant</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_variant_index</span>: <span class="ident">u32</span>,
+        <span class="ident">_variant</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">_len</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">SerializeStructVariant</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">invalid_number</span>())
     }
 }

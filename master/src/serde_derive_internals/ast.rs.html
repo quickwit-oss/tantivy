@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.0/src/ast.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive_internals-0.23.1/src/ast.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>ast.rs.html -- source</title>
@@ -239,11 +239,11 @@
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
 
-<span class="kw">use</span> <span class="ident">syn</span>;
 <span class="kw">use</span> <span class="ident">attr</span>;
 <span class="kw">use</span> <span class="ident">check</span>;
-<span class="kw">use</span> <span class="ident">Ctxt</span>;
+<span class="kw">use</span> <span class="ident">syn</span>;
 <span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">punctuated</span>::<span class="ident">Punctuated</span>;
+<span class="kw">use</span> <span class="ident">Ctxt</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Container</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="ident">ident</span>: <span class="ident">syn</span>::<span class="ident">Ident</span>,

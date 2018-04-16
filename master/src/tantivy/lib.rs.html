@@ -985,36 +985,12 @@
 <span id="928">928</span>
 <span id="929">929</span>
 <span id="930">930</span>
-<span id="931">931</span>
-<span id="932">932</span>
-<span id="933">933</span>
-<span id="934">934</span>
-<span id="935">935</span>
-<span id="936">936</span>
-<span id="937">937</span>
-<span id="938">938</span>
-<span id="939">939</span>
-<span id="940">940</span>
-<span id="941">941</span>
-<span id="942">942</span>
-<span id="943">943</span>
-<span id="944">944</span>
-<span id="945">945</span>
-<span id="946">946</span>
-<span id="947">947</span>
-<span id="948">948</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">inline_always</span>))]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">box_syntax</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">optin_builtin_traits</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">conservative_impl_trait</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">collections_range</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">integer_atomics</span>)]</span>
-<span class="attribute">#![<span class="ident">feature</span>(<span class="ident">drain_filter</span>)]</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">test</span>, <span class="ident">feature</span>(<span class="ident">iterator_step_by</span>))]</span>
+
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>, <span class="ident">test</span>), <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">test</span>(<span class="ident">attr</span>(<span class="ident">allow</span>(<span class="ident">unused_variables</span>), <span class="ident">deny</span>(<span class="ident">warnings</span>))))]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unknown_lints</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">new_without_default</span>)]</span>
@@ -1171,7 +1147,8 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">test</span>;
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tinysegmenter</span>;
@@ -1305,15 +1282,6 @@
         (<span class="ident">a</span> <span class="op">-</span> <span class="ident">b</span>).<span class="ident">abs</span>() <span class="op">&lt;</span> <span class="number">0.0005</span> <span class="op">*</span> (<span class="ident">a</span> <span class="op">+</span> <span class="ident">b</span>).<span class="ident">abs</span>()
     }
 
-    <span class="kw">fn</span> <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
-        (<span class="number">0</span>..<span class="ident">u32</span>::<span class="ident">max_value</span>())
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">rng</span>.<span class="ident">next_f32</span>() <span class="op">&lt;</span> <span class="ident">ratio</span>)
-            .<span class="ident">take</span>(<span class="ident">n</span>)
-            .<span class="ident">collect</span>()
-    }
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_nonunique_unsorted</span>(<span class="ident">max_value</span>: <span class="ident">u32</span>, <span class="ident">n_elems</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rng</span>: <span class="ident">XorShiftRng</span> <span class="op">=</span> <span class="ident">XorShiftRng</span>::<span class="ident">from_seed</span>(<span class="kw-2">*</span><span class="ident">seed</span>);
@@ -1321,10 +1289,6 @@
         (<span class="number">0</span>..<span class="ident">n_elems</span>)
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">between</span>.<span class="ident">ind_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">rng</span>))
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;&gt;</span>()
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">generate_array</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
-        <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>, <span class="ident">ratio</span>, <span class="number">4</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">sample_with_seed</span>(<span class="ident">n</span>: <span class="ident">u32</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {

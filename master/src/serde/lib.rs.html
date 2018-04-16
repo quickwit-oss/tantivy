@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.37/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.38/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -342,6 +342,9 @@
 <span id="285">285</span>
 <span id="286">286</span>
 <span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -424,7 +427,7 @@
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
 <span class="comment">// Serde types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde/1.0.37&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde/1.0.38&quot;</span>)]</span>
 <span class="comment">// Support using Serde without the standard library!</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>), <span class="ident">no_std</span>)]</span>
 <span class="comment">// Unstable functionality only if the user asks for it. For tracking and</span>
@@ -435,10 +438,13 @@
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>, <span class="ident">feature</span>(<span class="ident">alloc</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">deny</span>(<span class="ident">clippy</span>, <span class="ident">clippy_pedantic</span>))]</span>
 <span class="comment">// Whitelisted clippy lints</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
-            <span class="ident">allow</span>(<span class="ident">cast_lossless</span>, <span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">linkedlist</span>,
-                  <span class="ident">needless_pass_by_value</span>, <span class="ident">redundant_field_names</span>, <span class="ident">type_complexity</span>,
-                  <span class="ident">unreadable_literal</span>, <span class="ident">zero_prefixed_literal</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
+    <span class="ident">allow</span>(
+        <span class="ident">cast_lossless</span>, <span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">linkedlist</span>, <span class="ident">needless_pass_by_value</span>,
+        <span class="ident">redundant_field_names</span>, <span class="ident">type_complexity</span>, <span class="ident">unreadable_literal</span>, <span class="ident">zero_prefixed_literal</span>
+    )
+)]</span>
 <span class="comment">// Whitelisted clippy_pedantic lints</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(
 <span class="comment">// integer and float ser/de requires these sorts of casts</span>
@@ -488,8 +494,8 @@
 
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">cmp</span>, <span class="ident">iter</span>, <span class="ident">mem</span>, <span class="ident">ops</span>, <span class="ident">slice</span>, <span class="ident">str</span>};
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">f32</span>, <span class="ident">f64</span>};
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">isize</span>, <span class="ident">i16</span>, <span class="ident">i32</span>, <span class="ident">i64</span>, <span class="ident">i8</span>};
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">usize</span>, <span class="ident">u16</span>, <span class="ident">u32</span>, <span class="ident">u64</span>, <span class="ident">u8</span>};
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">i16</span>, <span class="ident">i32</span>, <span class="ident">i64</span>, <span class="ident">i8</span>, <span class="ident">isize</span>};
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::{<span class="ident">u16</span>, <span class="ident">u32</span>, <span class="ident">u64</span>, <span class="ident">u8</span>, <span class="ident">usize</span>};
 
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::<span class="ident">cell</span>::{<span class="ident">Cell</span>, <span class="ident">RefCell</span>};
     <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">core</span>::<span class="ident">clone</span>::{<span class="self">self</span>, <span class="ident">Clone</span>};

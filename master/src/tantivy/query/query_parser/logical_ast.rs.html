@@ -162,7 +162,7 @@
 
 <span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">LogicalLiteral</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">LogicalAST</span> {
     <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">literal</span>: <span class="ident">LogicalLiteral</span>) <span class="op">-&gt;</span> <span class="ident">LogicalAST</span> {
-        <span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="kw">box</span> <span class="ident">literal</span>)
+        <span class="ident">LogicalAST</span>::<span class="ident">Leaf</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">literal</span>))
     }
 }
 

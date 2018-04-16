@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>UnixAddr</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../../src/nix/sys/socket/addr.rs.html#364' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct UnixAddr(pub <a class="struct" href="../../../nix/sys/socket/struct.sockaddr_un.html" title="struct nix::sys::socket::sockaddr_un">sockaddr_un</a>, pub <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>);</pre></div><div class='docblock'><p>A wrapper around <code>sockaddr_un</code>. We track the length of <code>sun_path</code> (excluding
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>UnixAddr</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/nix/sys/socket/addr.rs.html#364' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct UnixAddr(pub <a class="struct" href="../../../nix/sys/socket/struct.sockaddr_un.html" title="struct nix::sys::socket::sockaddr_un">sockaddr_un</a>, pub <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.usize.html">usize</a>);</pre></div><div class='docblock'><p>A wrapper around <code>sockaddr_un</code>. We track the length of <code>sun_path</code> (excluding
 a terminating null), because it may not be null-terminated.  For example,
 unconnected and Linux abstract sockets are never null-terminated, and POSIX
 does not require that <code>sun_len</code> include the terminating null even for normal

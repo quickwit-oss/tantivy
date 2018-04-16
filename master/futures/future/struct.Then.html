@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>Then</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/future/then.rs.html#10-12' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>future</a>::<wbr><a class="struct" href=''>Then</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/future/then.rs.html#10-12' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'><div class="docblock attributes">#[must_use = "futures do nothing unless polled"]
 </div>pub struct Then&lt;A, B, F&gt; <span class="where fmt-newline">where<br>&nbsp;&nbsp;&nbsp;&nbsp;A: <a class="trait" href="../../futures/future/trait.Future.html" title="trait futures::future::Future">Future</a>,<br>&nbsp;&nbsp;&nbsp;&nbsp;B: <a class="trait" href="../../futures/future/trait.IntoFuture.html" title="trait futures::future::IntoFuture">IntoFuture</a>,&nbsp;</span> { /* fields omitted */ }</pre></div><div class='docblock'><p>Future for the <code>then</code> combinator, chaining computations on the end of
 another future regardless of its outcome.</p>
 <p>This is created by the <code>Future::then</code> method.</p>

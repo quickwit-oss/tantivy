@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a>::<wbr><a class="struct" href=''>RequiredOptionalScorer</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/tantivy/query/reqopt_scorer.rs.html#16-22' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct RequiredOptionalScorer&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Given a required scorer and an optional scorer
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>query</a>::<wbr><a class="struct" href=''>RequiredOptionalScorer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/query/reqopt_scorer.rs.html#16-22' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct RequiredOptionalScorer&lt;TReqScorer, TOptScorer, TScoreCombiner&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Given a required scorer and an optional scorer
 matches all document from the required scorer
 and complements the score using the optional scorer.</p>
 <p>This is useful for queries like <code>+somethingrequired somethingoptional</code>.</p>

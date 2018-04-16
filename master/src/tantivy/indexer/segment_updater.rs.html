@@ -595,6 +595,8 @@
 <span id="538">538</span>
 <span id="539">539</span>
 <span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">IndexMeta</span>;
@@ -608,8 +610,8 @@
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
 <span class="kw">use</span> <span class="ident">futures_cpupool</span>::<span class="ident">CpuPool</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Future</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Canceled</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">oneshot</span>;
+<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">sync</span>::<span class="ident">oneshot</span>::<span class="ident">Receiver</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">FileProtection</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::{<span class="ident">DefaultMergePolicy</span>, <span class="ident">MergePolicy</span>};
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">advance_deletes</span>;
@@ -769,7 +771,7 @@
             <span class="ident">pool</span>: <span class="ident">CpuPool</span>::<span class="ident">new</span>(<span class="number">1</span>),
             <span class="ident">index</span>,
             <span class="ident">segment_manager</span>,
-            <span class="ident">merge_policy</span>: <span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="kw">box</span> <span class="ident">DefaultMergePolicy</span>::<span class="ident">default</span>()),
+            <span class="ident">merge_policy</span>: <span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">DefaultMergePolicy</span>::<span class="ident">default</span>())),
             <span class="ident">merging_thread_id</span>: <span class="ident">AtomicUsize</span>::<span class="ident">default</span>(),
             <span class="ident">merging_threads</span>: <span class="ident">RwLock</span>::<span class="ident">new</span>(<span class="ident">HashMap</span>::<span class="ident">new</span>()),
             <span class="ident">generation</span>: <span class="ident">AtomicUsize</span>::<span class="ident">default</span>(),
@@ -884,7 +886,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_merge</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>],
-    ) <span class="op">-&gt;</span> <span class="kw">impl</span> <span class="ident">Future</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">SegmentMeta</span>, <span class="ident">Error</span> <span class="op">=</span> <span class="ident">Canceled</span><span class="op">&gt;</span> {
+    ) <span class="op">-&gt;</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">segment_manager</span>.<span class="ident">start_merge</span>(<span class="ident">segment_ids</span>);
         <span class="kw">let</span> <span class="ident">segment_updater_clone</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">clone</span>();
 
@@ -959,7 +961,9 @@
         <span class="kw">let</span> <span class="ident">committed_merge_candidates</span> <span class="op">=</span> <span class="ident">merge_policy</span>.<span class="ident">compute_merge_candidates</span>(<span class="kw-2">&amp;</span><span class="ident">committed_segments</span>);
         <span class="ident">merge_candidates</span>.<span class="ident">extend_from_slice</span>(<span class="kw-2">&amp;</span><span class="ident">committed_merge_candidates</span>[..]);
         <span class="kw">for</span> <span class="ident">MergeCandidate</span>(<span class="ident">segment_metas</span>) <span class="kw">in</span> <span class="ident">merge_candidates</span> {
-            <span class="self">self</span>.<span class="ident">start_merge</span>(<span class="kw-2">&amp;</span><span class="ident">segment_metas</span>);
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Err</span>(<span class="ident">e</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">start_merge</span>(<span class="kw-2">&amp;</span><span class="ident">segment_metas</span>).<span class="ident">fuse</span>().<span class="ident">poll</span>() {
+                <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;The merge task failed quickly after starting: {:?}&quot;</span>, <span class="ident">e</span>);
+            }
         }
     }
 
@@ -1092,7 +1096,7 @@
 
         <span class="comment">// writing the segment</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
-        <span class="ident">index_writer</span>.<span class="ident">set_merge_policy</span>(<span class="kw">box</span> <span class="ident">MergeWheneverPossible</span>);
+        <span class="ident">index_writer</span>.<span class="ident">set_merge_policy</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">MergeWheneverPossible</span>));
 
         {
             <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {

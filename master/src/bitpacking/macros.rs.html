@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.3.1/src/macros.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/bitpacking-0.4.0/src/macros.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>macros.rs.html -- source</title>
@@ -1034,16 +1034,16 @@
 
         <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">bench_one</span> {
             (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span>:<span class="ident">ident</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">n</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {
-                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+                <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>, <span class="ident">test</span>))]</span>
                 <span class="kw">mod</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">name</span> {
 
                     <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">test</span>;
                     <span class="kw">use</span> <span class="ident">Available</span>;
                     <span class="kw">use</span> <span class="self">self</span>::<span class="ident">test</span>::<span class="ident">Bencher</span>;
-                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench_compress_delta_util</span>;
-                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench_compress_util</span>;
-                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench_decompress_delta_util</span>;
-                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench_decompress_util</span>;
+                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench</span>::<span class="ident">bench_compress_delta_util</span>;
+                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench</span>::<span class="ident">bench_compress_util</span>;
+                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench</span>::<span class="ident">bench_decompress_delta_util</span>;
+                    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">bench</span>::<span class="ident">bench_decompress_util</span>;
                     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">UnsafeBitPackerImpl</span> <span class="kw">as</span> <span class="ident">BenchedBitPacker</span>;
 
                     <span class="kw">const</span> <span class="ident">NUM_INTS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">1_000</span>;

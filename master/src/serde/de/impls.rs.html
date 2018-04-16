@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.37/src/de/impls.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.38/src/de/impls.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>impls.rs.html -- source</title>
@@ -2188,9 +2188,6 @@
 <span id="2131">2131</span>
 <span id="2132">2132</span>
 <span id="2133">2133</span>
-<span id="2134">2134</span>
-<span id="2135">2135</span>
-<span id="2136">2136</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -3470,10 +3467,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
 <span class="macro">parse_socket_impl</span><span class="macro">!</span>(<span class="ident">net</span>::<span class="ident">SocketAddrV6</span>, <span class="op">|</span><span class="ident">ip</span>, <span class="ident">port</span><span class="op">|</span> <span class="ident">net</span>::<span class="ident">SocketAddrV6</span>::<span class="ident">new</span>(
-    <span class="ident">ip</span>,
-    <span class="ident">port</span>,
-    <span class="number">0</span>,
-    <span class="number">0</span>
+    <span class="ident">ip</span>, <span class="ident">port</span>, <span class="number">0</span>, <span class="number">0</span>
 ));
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>

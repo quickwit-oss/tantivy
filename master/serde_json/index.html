@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>serde_json</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/serde_json/lib.rs.html#9-388' title='goto source code'>[src]</a></span></h1><div class='docblock'><h1 id="serde-json" class="section-header"><a href="#serde-json">Serde JSON</a></h1>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>serde_json</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/serde_json/lib.rs.html#9-388' title='goto source code'>[src]</a></span></h1><div class='docblock'><h1 id="serde-json" class="section-header"><a href="#serde-json">Serde JSON</a></h1>
 <p>JSON is a ubiquitous open-standard format that uses human-readable text to
 transmit data objects consisting of key-value pairs.</p>
 <pre><code class="language-json,ignore">{
@@ -297,6 +293,9 @@ such as a File or a TCP stream.</p>
 way. This includes built-in Rust standard library types like <code>Vec&lt;T&gt;</code> and
 <code>HashMap&lt;K, V&gt;</code>, as well as any structs or enums annotated with
 <code>#[derive(Serialize)]</code>.</p>
+<h1 id="no-std-support" class="section-header"><a href="#no-std-support">No-std support</a></h1>
+<p>This crate currently requires the Rust standard library. For JSON support in
+Serde without a standard library, please see the <a href="https://japaric.github.io/serde-json-core/serde_json_core/"><code>serde-json-core</code></a> crate.</p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>

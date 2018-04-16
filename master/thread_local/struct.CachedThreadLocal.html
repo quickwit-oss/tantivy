@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>thread_local</a>::<wbr><a class="struct" href=''>CachedThreadLocal</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/thread_local/lib.rs.html#457-461' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CachedThreadLocal&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Wrapper around <code>ThreadLocal</code> which adds a fast path for a single thread.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>thread_local</a>::<wbr><a class="struct" href=''>CachedThreadLocal</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/thread_local/lib.rs.html#457-461' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CachedThreadLocal&lt;T:&nbsp;?<a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a>&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Wrapper around <code>ThreadLocal</code> which adds a fast path for a single thread.</p>
 <p>This has the same API as <code>ThreadLocal</code>, but will register the first thread
 that sets a value as its owner. All accesses by the owner will go through
 a special fast path which is much faster than the normal <code>ThreadLocal</code> path.</p>

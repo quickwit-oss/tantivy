@@ -167,13 +167,13 @@
         <span class="kw">let</span> <span class="ident">terms</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">phrase_terms</span>.<span class="ident">clone</span>();
         <span class="kw">if</span> <span class="ident">scoring_enabled</span> {
             <span class="kw">let</span> <span class="ident">bm25_weight</span> <span class="op">=</span> <span class="ident">BM25Weight</span>::<span class="ident">for_terms</span>(<span class="ident">searcher</span>, <span class="kw-2">&amp;</span><span class="ident">terms</span>);
-            <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseWeight</span>::<span class="ident">new</span>(
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseWeight</span>::<span class="ident">new</span>(
                 <span class="ident">terms</span>,
                 <span class="ident">bm25_weight</span>,
                 <span class="bool-val">true</span>
-            ))
+            )))
         } <span class="kw">else</span> {
-            <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">PhraseWeight</span>::<span class="ident">new</span>(<span class="ident">terms</span>, <span class="ident">BM25Weight</span>::<span class="ident">null</span>(), <span class="bool-val">false</span>))
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseWeight</span>::<span class="ident">new</span>(<span class="ident">terms</span>, <span class="ident">BM25Weight</span>::<span class="ident">null</span>(), <span class="bool-val">false</span>)))
         }
 
     }

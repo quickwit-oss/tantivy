@@ -324,7 +324,7 @@
     }
 
     <span class="kw">fn</span> <span class="ident">box_clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">MergePolicy</span><span class="op">&gt;</span> {
-        <span class="kw">box</span> <span class="self">self</span>.<span class="ident">clone</span>()
+        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">clone</span>())
     }
 }
 

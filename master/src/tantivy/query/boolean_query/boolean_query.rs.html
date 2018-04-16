@@ -152,7 +152,7 @@
                 <span class="prelude-val">Ok</span>((<span class="kw-2">*</span><span class="ident">occur</span>, <span class="ident">subquery</span>.<span class="ident">weight</span>(<span class="ident">searcher</span>, <span class="ident">scoring_enabled</span>)<span class="question-mark">?</span>))
             })
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">BooleanWeight</span>::<span class="ident">new</span>(<span class="ident">sub_weights</span>, <span class="ident">scoring_enabled</span>))
+        <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">BooleanWeight</span>::<span class="ident">new</span>(<span class="ident">sub_weights</span>, <span class="ident">scoring_enabled</span>)))
     }
 }
 
@@ -163,7 +163,7 @@
         <span class="kw">let</span> <span class="ident">occur_term_queries</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Occur</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">terms</span>
             .<span class="ident">into_iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">term</span><span class="op">|</span> {
-                <span class="kw">let</span> <span class="ident">term_query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>);
+                <span class="kw">let</span> <span class="ident">term_query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>));
                 (<span class="ident">Occur</span>::<span class="ident">Should</span>, <span class="ident">term_query</span>)
             })
             .<span class="ident">collect</span>();

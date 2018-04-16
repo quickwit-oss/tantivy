@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/value/de.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/value/de.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>de.rs.html -- source</title>
@@ -1115,6 +1115,59 @@
 <span id="1058">1058</span>
 <span id="1059">1059</span>
 <span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+<span id="1080">1080</span>
+<span id="1081">1081</span>
+<span id="1082">1082</span>
+<span id="1083">1083</span>
+<span id="1084">1084</span>
+<span id="1085">1085</span>
+<span id="1086">1086</span>
+<span id="1087">1087</span>
+<span id="1088">1088</span>
+<span id="1089">1089</span>
+<span id="1090">1090</span>
+<span id="1091">1091</span>
+<span id="1092">1092</span>
+<span id="1093">1093</span>
+<span id="1094">1094</span>
+<span id="1095">1095</span>
+<span id="1096">1096</span>
+<span id="1097">1097</span>
+<span id="1098">1098</span>
+<span id="1099">1099</span>
+<span id="1100">1100</span>
+<span id="1101">1101</span>
+<span id="1102">1102</span>
+<span id="1103">1103</span>
+<span id="1104">1104</span>
+<span id="1105">1105</span>
+<span id="1106">1106</span>
+<span id="1107">1107</span>
+<span id="1108">1108</span>
+<span id="1109">1109</span>
+<span id="1110">1110</span>
+<span id="1111">1111</span>
+<span id="1112">1112</span>
+<span id="1113">1113</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1133,17 +1186,8 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">vec</span>;
 
 <span class="kw">use</span> <span class="ident">serde</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{
-    <span class="ident">Deserialize</span>,
-    <span class="ident">DeserializeSeed</span>,
-    <span class="ident">IntoDeserializer</span>,
-    <span class="ident">Visitor</span>,
-    <span class="ident">SeqAccess</span>,
-    <span class="ident">MapAccess</span>,
-    <span class="ident">EnumAccess</span>,
-    <span class="ident">VariantAccess</span>,
-    <span class="ident">Unexpected</span>
-};
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="ident">Deserialize</span>, <span class="ident">DeserializeSeed</span>, <span class="ident">EnumAccess</span>, <span class="ident">IntoDeserializer</span>, <span class="ident">MapAccess</span>, <span class="ident">SeqAccess</span>,
+                <span class="ident">Unexpected</span>, <span class="ident">VariantAccess</span>, <span class="ident">Visitor</span>};
 
 <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">Error</span>;
 <span class="kw">use</span> <span class="ident">map</span>::<span class="ident">Map</span>;
@@ -1256,13 +1300,11 @@
                 <span class="ident">V</span>: <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
             {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
-                <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">next_key_seed</span>(<span class="ident">NumberOrObject</span> {
-                    <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">key</span>,
-                })<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">number</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">next_key_seed</span>(<span class="ident">NumberOrObject</span> { <span class="ident">key</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">key</span> })<span class="question-mark">?</span>;
                 <span class="kw">match</span> <span class="ident">number</span> {
                     <span class="prelude-val">Some</span>(<span class="bool-val">true</span>) <span class="op">=&gt;</span> {
                         <span class="kw">let</span> <span class="ident">number</span>: <span class="ident">NumberFromString</span> <span class="op">=</span> <span class="ident">visitor</span>.<span class="ident">next_value</span>()<span class="question-mark">?</span>;
-                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">Number</span>(<span class="ident">number</span>.<span class="ident">value</span>))
+                        <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">Number</span>(<span class="ident">number</span>.<span class="ident">value</span>));
                     }
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">Map</span>::<span class="ident">new</span>())),
                     <span class="prelude-val">Some</span>(<span class="bool-val">false</span>) <span class="op">=&gt;</span> {}
@@ -1396,7 +1438,10 @@
                 <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="prelude-val">Ok</span>(<span class="ident">seq</span>)
                 } <span class="kw">else</span> {
-                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>))
+                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                        <span class="ident">len</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>,
+                    ))
                 }
             }
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> {
@@ -1407,7 +1452,10 @@
                 <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="prelude-val">Ok</span>(<span class="ident">map</span>)
                 } <span class="kw">else</span> {
-                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in map&quot;</span>))
+                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                        <span class="ident">len</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in map&quot;</span>,
+                    ))
                 }
             }
         }
@@ -1451,32 +1499,34 @@
                 <span class="kw">let</span> (<span class="ident">variant</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
                     <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>,
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(
-                            <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
-                                <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
-                                <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
-                            ),
-                        );
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
+                            <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
+                            <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
+                        ));
                     }
                 };
                 <span class="comment">// enums are encoded in json as maps with a single key:value pair</span>
                 <span class="kw">if</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">is_some</span>() {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(<span class="ident">Unexpected</span>::<span class="ident">Map</span>, <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>),);
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
+                        <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
+                    ));
                 }
                 (<span class="ident">variant</span>, <span class="prelude-val">Some</span>(<span class="ident">value</span>))
             }
             <span class="ident">Value</span>::<span class="ident">String</span>(<span class="ident">variant</span>) <span class="op">=&gt;</span> (<span class="ident">variant</span>, <span class="prelude-val">None</span>),
             <span class="ident">other</span> <span class="op">=&gt;</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;string or map&quot;</span>),);
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                    <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                    <span class="kw-2">&amp;</span><span class="string">&quot;string or map&quot;</span>,
+                ));
             }
         };
 
-        <span class="ident">visitor</span>.<span class="ident">visit_enum</span>(
-            <span class="ident">EnumDeserializer</span> {
-                <span class="ident">variant</span>: <span class="ident">variant</span>,
-                <span class="ident">value</span>: <span class="ident">value</span>,
-            },
-        )
+        <span class="ident">visitor</span>.<span class="ident">visit_enum</span>(<span class="ident">EnumDeserializer</span> {
+            <span class="ident">variant</span>: <span class="ident">variant</span>,
+            <span class="ident">value</span>: <span class="ident">value</span>,
+        })
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -1536,7 +1586,10 @@
     {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span> {
             <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">value</span>),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;newtype variant&quot;</span>),),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;newtype variant&quot;</span>,
+            )),
         }
     }
 
@@ -1548,8 +1601,14 @@
             <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Array</span>(<span class="ident">v</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(<span class="ident">SeqDeserializer</span>::<span class="ident">new</span>(<span class="ident">v</span>), <span class="ident">visitor</span>)
             }
-            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>),),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>),),
+            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>,
+            )),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>,
+            )),
         }
     }
 
@@ -1565,8 +1624,14 @@
             <span class="prelude-val">Some</span>(<span class="ident">Value</span>::<span class="ident">Object</span>(<span class="ident">v</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(<span class="ident">MapDeserializer</span>::<span class="ident">new</span>(<span class="ident">v</span>), <span class="ident">visitor</span>)
             }
-            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>),),
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>),),
+            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>,
+            )),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>,
+            )),
         }
     }
 }
@@ -1577,7 +1642,9 @@
 
 <span class="kw">impl</span> <span class="ident">SeqDeserializer</span> {
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">vec</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Value</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">SeqDeserializer</span> { <span class="ident">iter</span>: <span class="ident">vec</span>.<span class="ident">into_iter</span>() }
+        <span class="ident">SeqDeserializer</span> {
+            <span class="ident">iter</span>: <span class="ident">vec</span>.<span class="ident">into_iter</span>(),
+        }
     }
 }
 
@@ -1598,7 +1665,10 @@
             <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                 <span class="prelude-val">Ok</span>(<span class="ident">ret</span>)
             } <span class="kw">else</span> {
-                <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>))
+                <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                    <span class="ident">len</span>,
+                    <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>,
+                ))
             }
         }
     }
@@ -1655,7 +1725,9 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>.<span class="ident">next</span>() {
             <span class="prelude-val">Some</span>((<span class="ident">key</span>, <span class="ident">value</span>)) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>);
-                <span class="kw">let</span> <span class="ident">key_de</span> <span class="op">=</span> <span class="ident">MapKeyDeserializer</span> { <span class="ident">key</span>: <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">key</span>) };
+                <span class="kw">let</span> <span class="ident">key_de</span> <span class="op">=</span> <span class="ident">MapKeyDeserializer</span> {
+                    <span class="ident">key</span>: <span class="ident">Cow</span>::<span class="ident">Owned</span>(<span class="ident">key</span>),
+                };
                 <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">key_de</span>).<span class="ident">map</span>(<span class="prelude-val">Some</span>)
             }
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
@@ -1741,7 +1813,10 @@
                 <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="prelude-val">Ok</span>(<span class="ident">seq</span>)
                 } <span class="kw">else</span> {
-                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>))
+                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                        <span class="ident">len</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>,
+                    ))
                 }
             }
             <span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> {
@@ -1752,7 +1827,10 @@
                 <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="prelude-val">Ok</span>(<span class="ident">map</span>)
                 } <span class="kw">else</span> {
-                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in map&quot;</span>))
+                    <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                        <span class="ident">len</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in map&quot;</span>,
+                    ))
                 }
             }
         }
@@ -1794,32 +1872,34 @@
                 <span class="kw">let</span> (<span class="ident">variant</span>, <span class="ident">value</span>) <span class="op">=</span> <span class="kw">match</span> <span class="ident">iter</span>.<span class="ident">next</span>() {
                     <span class="prelude-val">Some</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>,
                     <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                        <span class="kw">return</span> <span class="prelude-val">Err</span>(
-                            <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
-                                <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
-                                <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
-                            ),
-                        );
+                        <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
+                            <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
+                            <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
+                        ));
                     }
                 };
                 <span class="comment">// enums are encoded in json as maps with a single key:value pair</span>
                 <span class="kw">if</span> <span class="ident">iter</span>.<span class="ident">next</span>().<span class="ident">is_some</span>() {
-                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(<span class="ident">Unexpected</span>::<span class="ident">Map</span>, <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>),);
+                    <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_value</span>(
+                        <span class="ident">Unexpected</span>::<span class="ident">Map</span>,
+                        <span class="kw-2">&amp;</span><span class="string">&quot;map with a single key&quot;</span>,
+                    ));
                 }
                 (<span class="ident">variant</span>, <span class="prelude-val">Some</span>(<span class="ident">value</span>))
             }
             <span class="ident">Value</span>::<span class="ident">String</span>(<span class="kw-2">ref</span> <span class="ident">variant</span>) <span class="op">=&gt;</span> (<span class="ident">variant</span>, <span class="prelude-val">None</span>),
             <span class="kw-2">ref</span> <span class="ident">other</span> <span class="op">=&gt;</span> {
-                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;string or map&quot;</span>),);
+                <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                    <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                    <span class="kw-2">&amp;</span><span class="string">&quot;string or map&quot;</span>,
+                ));
             }
         };
 
-        <span class="ident">visitor</span>.<span class="ident">visit_enum</span>(
-            <span class="ident">EnumRefDeserializer</span> {
-                <span class="ident">variant</span>: <span class="ident">variant</span>,
-                <span class="ident">value</span>: <span class="ident">value</span>,
-            },
-        )
+        <span class="ident">visitor</span>.<span class="ident">visit_enum</span>(<span class="ident">EnumRefDeserializer</span> {
+            <span class="ident">variant</span>: <span class="ident">variant</span>,
+            <span class="ident">value</span>: <span class="ident">value</span>,
+        })
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -1879,7 +1959,10 @@
     {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">value</span> {
             <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">value</span>),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;newtype variant&quot;</span>),),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;newtype variant&quot;</span>,
+            )),
         }
     }
 
@@ -1891,8 +1974,14 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Value</span>::<span class="ident">Array</span>(<span class="kw-2">ref</span> <span class="ident">v</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(<span class="ident">SeqRefDeserializer</span>::<span class="ident">new</span>(<span class="ident">v</span>), <span class="ident">visitor</span>)
             }
-            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>),),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>),),
+            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>,
+            )),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;tuple variant&quot;</span>,
+            )),
         }
     }
 
@@ -1908,8 +1997,14 @@
             <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">Value</span>::<span class="ident">Object</span>(<span class="kw-2">ref</span> <span class="ident">v</span>)) <span class="op">=&gt;</span> {
                 <span class="ident">serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(<span class="ident">MapRefDeserializer</span>::<span class="ident">new</span>(<span class="ident">v</span>), <span class="ident">visitor</span>)
             }
-            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">other</span>.<span class="ident">unexpected</span>(), <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>),),
-            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>, <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>),),
+            <span class="prelude-val">Some</span>(<span class="ident">other</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">other</span>.<span class="ident">unexpected</span>(),
+                <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>,
+            )),
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(
+                <span class="ident">Unexpected</span>::<span class="ident">UnitVariant</span>,
+                <span class="kw-2">&amp;</span><span class="string">&quot;struct variant&quot;</span>,
+            )),
         }
     }
 }
@@ -1941,7 +2036,10 @@
             <span class="kw">if</span> <span class="ident">remaining</span> <span class="op">==</span> <span class="number">0</span> {
                 <span class="prelude-val">Ok</span>(<span class="ident">ret</span>)
             } <span class="kw">else</span> {
-                <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(<span class="ident">len</span>, <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>))
+                <span class="prelude-val">Err</span>(<span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_length</span>(
+                    <span class="ident">len</span>,
+                    <span class="kw-2">&amp;</span><span class="string">&quot;fewer elements in array&quot;</span>,
+                ))
             }
         }
     }
@@ -1998,7 +2096,9 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>.<span class="ident">next</span>() {
             <span class="prelude-val">Some</span>((<span class="ident">key</span>, <span class="ident">value</span>)) <span class="op">=&gt;</span> {
                 <span class="self">self</span>.<span class="ident">value</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">value</span>);
-                <span class="kw">let</span> <span class="ident">key_de</span> <span class="op">=</span> <span class="ident">MapKeyDeserializer</span> { <span class="ident">key</span>: <span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">key</span>) };
+                <span class="kw">let</span> <span class="ident">key_de</span> <span class="op">=</span> <span class="ident">MapKeyDeserializer</span> {
+                    <span class="ident">key</span>: <span class="ident">Cow</span>::<span class="ident">Borrowed</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="kw-2">*</span><span class="ident">key</span>),
+                };
                 <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">key_de</span>).<span class="ident">map</span>(<span class="prelude-val">Some</span>)
             }
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
@@ -2089,7 +2189,11 @@
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
-    <span class="kw">fn</span> <span class="ident">deserialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize_newtype_struct</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">_name</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>,
+        <span class="ident">visitor</span>: <span class="ident">V</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
@@ -2105,7 +2209,9 @@
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="self">self</span>.<span class="ident">key</span>.<span class="ident">into_deserializer</span>().<span class="ident">deserialize_enum</span>(<span class="ident">name</span>, <span class="ident">variants</span>, <span class="ident">visitor</span>)
+        <span class="self">self</span>.<span class="ident">key</span>
+            .<span class="ident">into_deserializer</span>()
+            .<span class="ident">deserialize_enum</span>(<span class="ident">name</span>, <span class="ident">variants</span>, <span class="ident">visitor</span>)
     }
 
     <span class="macro">forward_to_deserialize_any</span><span class="macro">!</span> {
@@ -2125,7 +2231,7 @@
 
     <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">D</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">deserializer</span>: <span class="ident">D</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
-        <span class="ident">D</span>: <span class="ident">serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+        <span class="ident">D</span>: <span class="ident">serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
         <span class="ident">deserializer</span>.<span class="ident">deserialize_any</span>(<span class="self">self</span>)
     }

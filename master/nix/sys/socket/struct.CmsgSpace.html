@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>CmsgSpace</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#98-101' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CmsgSpace&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>A structure used to make room in a cmsghdr passed to recvmsg. The
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../../index.html'>nix</a>::<wbr><a href='../index.html'>sys</a>::<wbr><a href='index.html'>socket</a>::<wbr><a class="struct" href=''>CmsgSpace</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/nix/sys/socket/mod.rs.html#98-101' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CmsgSpace&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>A structure used to make room in a cmsghdr passed to recvmsg. The
 size and alignment match that of a cmsghdr followed by a T, but the
 fields are not accessible, as the actual types will change on a call
 to recvmsg.</p>

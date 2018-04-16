@@ -149,14 +149,14 @@
             <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&gt;</span> <span class="op">=</span>
                 <span class="ident">inverted_index</span>.<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>, <span class="self">self</span>.<span class="ident">index_record_option</span>);
             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">segment_postings</span>) <span class="op">=</span> <span class="ident">postings_opt</span> {
-                <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(<span class="ident">segment_postings</span>,
+                <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(<span class="ident">segment_postings</span>,
                                     <span class="ident">fieldnorm_reader</span>,
-                                    <span class="ident">similarity_weight</span>))
+                                    <span class="ident">similarity_weight</span>)))
             } <span class="kw">else</span> {
-                <span class="prelude-val">Ok</span>(<span class="kw">box</span> <span class="ident">TermScorer</span>::<span class="ident">new</span>(
+                <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(
                     <span class="ident">SegmentPostings</span>::<span class="ident">empty</span>(),
                     <span class="ident">fieldnorm_reader</span>,
-                    <span class="ident">similarity_weight</span>))
+                    <span class="ident">similarity_weight</span>)))
             }
     }
 

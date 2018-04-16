@@ -382,7 +382,7 @@
                 <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="ident">text</span>),
                 <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>,
             );
-            <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">term_query</span>;
+            <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">term_query</span>);
             <span class="ident">query</span>
         };
 
@@ -439,7 +439,7 @@
                 <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="ident">text</span>),
                 <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>,
             );
-            <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw">box</span> <span class="ident">term_query</span>;
+            <span class="kw">let</span> <span class="ident">query</span>: <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">term_query</span>);
             <span class="ident">query</span>
         };
 

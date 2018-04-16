@@ -166,6 +166,33 @@
 <span id="109">109</span>
 <span id="110">110</span>
 <span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IntOptions</span>, <span class="ident">TextOptions</span>};
 
@@ -186,6 +213,18 @@
     <span class="ident">TypeError</span>(<span class="ident">String</span>),
 }
 
+<span class="doccomment">/// Type of the value that a field can take.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Contrary to FieldType, this does</span>
+<span class="doccomment">/// not include the way the field must be indexed.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Type</span> {
+    <span class="ident">Str</span>,
+    <span class="ident">U64</span>,
+    <span class="ident">I64</span>,
+    <span class="ident">HierarchicalFacet</span>
+}
+
 <span class="doccomment">/// A `FieldType` describes the type (text, u64) of a field as well as</span>
 <span class="doccomment">/// how it should be handled by tantivy.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
@@ -201,6 +240,21 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FieldType</span> {
+
+    <span class="doccomment">/// Returns the value type associated for this field.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Type</span> {
+        <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
+            <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
+                <span class="ident">Type</span>::<span class="ident">Str</span>,
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
+                <span class="ident">Type</span>::<span class="ident">U64</span>,
+            <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
+                <span class="ident">Type</span>::<span class="ident">I64</span>,
+            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span>
+                <span class="ident">Type</span>::<span class="ident">HierarchicalFacet</span>,
+        }
+    }
+
     <span class="doccomment">/// returns true iff the field is indexed.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_indexed</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {

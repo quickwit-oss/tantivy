@@ -390,7 +390,7 @@
     <span class="kw">let</span> <span class="ident">second_rarest_opt</span> <span class="op">=</span> <span class="ident">scorers</span>.<span class="ident">pop</span>();
     <span class="ident">scorers</span>.<span class="ident">reverse</span>();
     <span class="kw">match</span> (<span class="ident">rarest_opt</span>, <span class="ident">second_rarest_opt</span>) {
-        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="kw">box</span> <span class="ident">EmptyScorer</span>,
+        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyScorer</span>),
         (<span class="prelude-val">Some</span>(<span class="ident">single_docset</span>), <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="ident">single_docset</span>,
         (<span class="prelude-val">Some</span>(<span class="ident">left</span>), <span class="prelude-val">Some</span>(<span class="ident">right</span>)) <span class="op">=&gt;</span> {
             {
@@ -400,20 +400,20 @@
                 }) {
                     <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">left</span>).<span class="ident">unwrap</span>();
                     <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="kw-2">*</span><span class="ident">Downcast</span>::<span class="op">&lt;</span><span class="ident">TermScorer</span><span class="op">&gt;</span>::<span class="ident">downcast</span>(<span class="ident">right</span>).<span class="ident">unwrap</span>();
-                    <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
+                    <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Intersection</span> {
                         <span class="ident">left</span>,
                         <span class="ident">right</span>,
                         <span class="ident">others</span>: <span class="ident">scorers</span>,
                         <span class="ident">num_docsets</span>
-                    }
+                    })
                 }
             }
-            <span class="kw">return</span> <span class="kw">box</span> <span class="ident">Intersection</span> {
+            <span class="kw">return</span> <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Intersection</span> {
                 <span class="ident">left</span>,
                 <span class="ident">right</span>,
                 <span class="ident">others</span>: <span class="ident">scorers</span>,
                 <span class="ident">num_docsets</span>
-            }
+            })
         }
         <span class="kw">_</span> <span class="op">=&gt;</span> { <span class="macro">unreachable</span><span class="macro">!</span>(); }
     }
@@ -639,7 +639,7 @@
             <span class="op">||</span> {
                 <span class="kw">let</span> <span class="ident">left</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">4</span>]);
                 <span class="kw">let</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">5</span>]);
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]))
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>],
         );
@@ -649,19 +649,19 @@
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">right</span> <span class="op">=</span> <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">5</span>, <span class="number">10</span>]);
                 <span class="ident">left</span>.<span class="ident">advance</span>();
                 <span class="ident">right</span>.<span class="ident">advance</span>();
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>])
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">left</span>, <span class="ident">right</span>]))
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">10</span>, <span class="number">11</span>],
         );
         <span class="ident">test_skip_against_unoptimized</span>(
             <span class="op">||</span> {
-                <span class="kw">box</span> <span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
+                <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">Intersection</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">1</span>, <span class="number">5</span>, <span class="number">6</span>]),
                     <span class="ident">VecDocSet</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">2</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">7</span>, <span class="number">8</span>]),
-                ])
+                ]))
             },
             <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="number">4</span>, <span class="number">5</span>, <span class="number">6</span>, <span class="number">7</span>, <span class="number">10</span>, <span class="number">11</span>],
         );

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/lib.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/lib.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>lib.rs.html -- source</title>
@@ -746,6 +746,11 @@
 <span class="doccomment">//! `HashMap&lt;K, V&gt;`, as well as any structs or enums annotated with</span>
 <span class="doccomment">//! `#[derive(Serialize)]`.</span>
 <span class="doccomment">//!</span>
+<span class="doccomment">//! # No-std support</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! This crate currently requires the Rust standard library. For JSON support in</span>
+<span class="doccomment">//! Serde without a standard library, please see the [`serde-json-core`] crate.</span>
+<span class="doccomment">//!</span>
 <span class="doccomment">//! [value]: https://docs.serde.rs/serde_json/value/enum.Value.html</span>
 <span class="doccomment">//! [from_str]: https://docs.serde.rs/serde_json/de/fn.from_str.html</span>
 <span class="doccomment">//! [from_slice]: https://docs.serde.rs/serde_json/de/fn.from_slice.html</span>
@@ -754,14 +759,12 @@
 <span class="doccomment">//! [to_vec]: https://docs.serde.rs/serde_json/ser/fn.to_vec.html</span>
 <span class="doccomment">//! [to_writer]: https://docs.serde.rs/serde_json/ser/fn.to_writer.html</span>
 <span class="doccomment">//! [macro]: https://docs.serde.rs/serde_json/macro.json.html</span>
+<span class="doccomment">//! [`serde-json-core`]: https://japaric.github.io/serde-json-core/serde_json_core/</span>
 
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde_json/1.0.13&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/serde_json/1.0.14&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">deny</span>(<span class="ident">clippy</span>, <span class="ident">clippy_pedantic</span>))]</span>
 <span class="comment">// Whitelisted clippy lints</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(
-    <span class="ident">doc_markdown</span>,
-    <span class="ident">needless_pass_by_value</span>,
-))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">doc_markdown</span>, <span class="ident">needless_pass_by_value</span>))]</span>
 <span class="comment">// Whitelisted clippy_pedantic lints</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(
 <span class="comment">// Deserializer::from_str, into_iter</span>
@@ -786,26 +789,25 @@
 <span class="comment">// we support older compilers</span>
     <span class="ident">redundant_field_names</span>,
 ))]</span>
-
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">missing_docs</span>)]</span>
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">num_traits</span>;
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">itoa</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">dtoa</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">itoa</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;preserve_order&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">linked_hash_map</span>;
 
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">de</span>::{<span class="ident">Deserializer</span>, <span class="ident">StreamDeserializer</span>, <span class="ident">from_reader</span>, <span class="ident">from_slice</span>, <span class="ident">from_str</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">de</span>::{<span class="ident">from_reader</span>, <span class="ident">from_slice</span>, <span class="ident">from_str</span>, <span class="ident">Deserializer</span>, <span class="ident">StreamDeserializer</span>};
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">error</span>::{<span class="ident">Error</span>, <span class="prelude-ty">Result</span>};
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ser</span>::{<span class="ident">Serializer</span>, <span class="ident">to_string</span>, <span class="ident">to_string_pretty</span>, <span class="ident">to_vec</span>, <span class="ident">to_vec_pretty</span>, <span class="ident">to_writer</span>,
-                    <span class="ident">to_writer_pretty</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ser</span>::{<span class="ident">to_string</span>, <span class="ident">to_string_pretty</span>, <span class="ident">to_vec</span>, <span class="ident">to_vec_pretty</span>, <span class="ident">to_writer</span>,
+                    <span class="ident">to_writer_pretty</span>, <span class="ident">Serializer</span>};
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">inline</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">value</span>::{<span class="ident">Map</span>, <span class="ident">Number</span>, <span class="ident">Value</span>, <span class="ident">from_value</span>, <span class="ident">to_value</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">value</span>::{<span class="ident">from_value</span>, <span class="ident">to_value</span>, <span class="ident">Map</span>, <span class="ident">Number</span>, <span class="ident">Value</span>};
 
 <span class="comment">// We only use our own error type; no need for From conversions provided by the</span>
 <span class="comment">// standard library&#39;s try! macro. This reduces lines of LLVM IR by 4%.</span>
@@ -813,11 +815,9 @@
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {
         <span class="kw">match</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">e</span> {
             ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>(<span class="ident">val</span>) <span class="op">=&gt;</span> <span class="ident">val</span>,
-            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> {
-                <span class="kw">return</span> ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>)
-            }
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> <span class="kw">return</span> ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>),
         }
-    }
+    };
 }
 
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>

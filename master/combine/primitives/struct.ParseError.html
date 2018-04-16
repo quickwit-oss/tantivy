@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a>::<wbr><a class="struct" href=''>ParseError</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/combine/primitives.rs.html#423-431' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct ParseError&lt;S:&nbsp;<a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt; {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>combine</a>::<wbr><a href='index.html'>primitives</a>::<wbr><a class="struct" href=''>ParseError</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/combine/primitives.rs.html#423-431' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct ParseError&lt;S:&nbsp;<a class="trait" href="../../combine/trait.StreamOnce.html" title="trait combine::StreamOnce">StreamOnce</a>&gt; {
     pub position: S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Position" title="type combine::StreamOnce::Position">Position</a>,
     pub errors: <a class="struct" href="https://doc.rust-lang.org/nightly/alloc/vec/struct.Vec.html" title="struct alloc::vec::Vec">Vec</a>&lt;<a class="enum" href="../../combine/primitives/enum.Error.html" title="enum combine::primitives::Error">Error</a>&lt;S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Item" title="type combine::StreamOnce::Item">Item</a>, S::<a class="type" href="../../combine/trait.StreamOnce.html#associatedtype.Range" title="type combine::StreamOnce::Range">Range</a>&gt;&gt;,
 }</pre></div><div class='docblock'><p>Struct which hold information about an error that occurred at a specific position.

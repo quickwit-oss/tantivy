@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="generator" content="rustdoc">
-    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.13/src/map.rs`.">
+    <meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.14/src/map.rs`.">
     <meta name="keywords" content="rust, rustlang, rust-lang">
 
     <title>map.rs.html -- source</title>
@@ -851,6 +851,32 @@
 <span id="794">794</span>
 <span id="795">795</span>
 <span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -868,7 +894,7 @@
 <span class="doccomment">//! [`BTreeMap`]: https://doc.rust-lang.org/std/collections/struct.BTreeMap.html</span>
 <span class="doccomment">//! [`LinkedHashMap`]: https://docs.rs/linked-hash-map/*/linked_hash_map/struct.LinkedHashMap.html</span>
 
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">ser</span>, <span class="ident">de</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">de</span>, <span class="ident">ser</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>};
 <span class="kw">use</span> <span class="ident">value</span>::<span class="ident">Value</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">hash</span>::<span class="ident">Hash</span>;
@@ -877,7 +903,7 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;preserve_order&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">BTreeMap</span>, <span class="ident">btree_map</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::{<span class="ident">btree_map</span>, <span class="ident">BTreeMap</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;preserve_order&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">linked_hash_map</span>::{<span class="self">self</span>, <span class="ident">LinkedHashMap</span>};
@@ -896,7 +922,9 @@
     <span class="doccomment">/// Makes a new empty Map.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="ident">MapImpl</span>::<span class="ident">new</span>() }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">MapImpl</span>::<span class="ident">new</span>(),
+        }
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;preserve_order&quot;</span>))]</span>
@@ -905,14 +933,18 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capacity</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="comment">// does not support with_capacity</span>
         <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">capacity</span>;
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="ident">BTreeMap</span>::<span class="ident">new</span>() }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">BTreeMap</span>::<span class="ident">new</span>(),
+        }
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;preserve_order&quot;</span>)]</span>
     <span class="doccomment">/// Makes a new empty Map with the given initial capacity.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">with_capacity</span>(<span class="ident">capacity</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="ident">LinkedHashMap</span>::<span class="ident">with_capacity</span>(<span class="ident">capacity</span>) }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">LinkedHashMap</span>::<span class="ident">with_capacity</span>(<span class="ident">capacity</span>),
+        }
     }
 
     <span class="doccomment">/// Clears the map, removing all values.</span>
@@ -1018,39 +1050,51 @@
     <span class="doccomment">/// Gets an iterator over the entries of the map.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Iter</span> {
-        <span class="ident">Iter</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter</span>() }
+        <span class="ident">Iter</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter</span>(),
+        }
     }
 
     <span class="doccomment">/// Gets a mutable iterator over the entries of the map.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">iter_mut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">IterMut</span> {
-        <span class="ident">IterMut</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter_mut</span>() }
+        <span class="ident">IterMut</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter_mut</span>(),
+        }
     }
 
     <span class="doccomment">/// Gets an iterator over the keys of the map.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">keys</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Keys</span> {
-        <span class="ident">Keys</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">keys</span>() }
+        <span class="ident">Keys</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">keys</span>(),
+        }
     }
 
     <span class="doccomment">/// Gets an iterator over the values of the map.</span>
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">values</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Values</span> {
-        <span class="ident">Values</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">values</span>() }
+        <span class="ident">Values</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">values</span>(),
+        }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="ident">MapImpl</span>::<span class="ident">new</span>() }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">MapImpl</span>::<span class="ident">new</span>(),
+        }
     }
 }
 
 <span class="kw">impl</span> <span class="ident">Clone</span> <span class="kw">for</span> <span class="ident">Map</span><span class="op">&lt;</span><span class="ident">String</span>, <span class="ident">Value</span><span class="op">&gt;</span> {
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">clone</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">clone</span>() }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">clone</span>(),
+        }
     }
 }
 
@@ -1183,7 +1227,9 @@
     <span class="kw">where</span>
         <span class="ident">T</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> (<span class="ident">String</span>, <span class="ident">Value</span>)<span class="op">&gt;</span>,
     {
-        <span class="ident">Map</span> { <span class="ident">map</span>: <span class="ident">FromIterator</span>::<span class="ident">from_iter</span>(<span class="ident">iter</span>) }
+        <span class="ident">Map</span> {
+            <span class="ident">map</span>: <span class="ident">FromIterator</span>::<span class="ident">from_iter</span>(<span class="ident">iter</span>),
+        }
     }
 }
 
@@ -1559,7 +1605,9 @@
     <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
-        <span class="ident">Iter</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter</span>() }
+        <span class="ident">Iter</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter</span>(),
+        }
     }
 }
 
@@ -1582,7 +1630,9 @@
     <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">IterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>;
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
-        <span class="ident">IterMut</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter_mut</span>() }
+        <span class="ident">IterMut</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">iter_mut</span>(),
+        }
     }
 }
 
@@ -1605,7 +1655,9 @@
     <span class="kw">type</span> <span class="ident">IntoIter</span> <span class="op">=</span> <span class="ident">IntoIter</span>;
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">into_iter</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">IntoIter</span> {
-        <span class="ident">IntoIter</span> { <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">into_iter</span>() }
+        <span class="ident">IntoIter</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="ident">map</span>.<span class="ident">into_iter</span>(),
+        }
     }
 }
 

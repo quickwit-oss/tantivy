@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>crossbeam</a>::<wbr><a class="struct" href=''>CachePadded</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../src/crossbeam/cache_padded.rs.html#28-31' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CachePadded&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Pad <code>T</code> to the length of a cacheline.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='index.html'>crossbeam</a>::<wbr><a class="struct" href=''>CachePadded</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/crossbeam/cache_padded.rs.html#28-31' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct CachePadded&lt;T&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Pad <code>T</code> to the length of a cacheline.</p>
 <p>Sometimes concurrent programming requires a piece of data to be padded out
 to the size of a cacheline to avoid &quot;false sharing&quot;: cachelines being
 invalidated due to unrelated concurrent activity. Use the <code>CachePadded</code> type

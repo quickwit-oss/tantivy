@@ -55,11 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>sink</a>::<wbr><a class="struct" href=''>Fanout</a></span><span class='out-of-band'><span id='render-detail'>
-                   <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
-                       [<span class='inner'>&#x2212;</span>]
-                   </a>
-               </span><a class='srclink' href='../../src/futures/sink/fanout.rs.html#10-13' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Fanout&lt;A:&nbsp;<a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>, B:&nbsp;<a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Sink that clones incoming items and forwards them to two sinks at the same time.</p>
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>futures</a>::<wbr><a href='index.html'>sink</a>::<wbr><a class="struct" href=''>Fanout</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/futures/sink/fanout.rs.html#10-13' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct Fanout&lt;A:&nbsp;<a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>, B:&nbsp;<a class="trait" href="../../futures/sink/trait.Sink.html" title="trait futures::sink::Sink">Sink</a>&gt; { /* fields omitted */ }</pre></div><div class='docblock'><p>Sink that clones incoming items and forwards them to two sinks at the same time.</p>
 <p>Backpressure from any downstream sink propagates up, which means that this sink
 can only process items as fast as its <em>slowest</em> downstream sink.</p>
 </div>
