@@ -128,7 +128,7 @@ pub use self::document::Document;
 pub use self::field::Field;
 pub use self::term::Term;
 
-pub use self::field_type::FieldType;
+pub use self::field_type::{Type, FieldType};
 pub use self::field_entry::FieldEntry;
 pub use self::field_value::FieldValue;
 

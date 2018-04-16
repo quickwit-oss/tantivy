@@ -293,15 +293,6 @@ mod tests {
     pub fn nearly_equals(a: f32, b: f32) -> bool {
         (a - b).abs() < 0.0005 * (a + b).abs()
     }
-    
-    fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0..u32::max_value())
-            .filter(|_| rng.next_f32() < ratio)
-            .take(n)
-            .collect()
-    }
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, 4];
@@ -310,10 +301,6 @@ mod tests {
         (0..n_elems)
             .map(|_| between.ind_sample(&mut rng))
             .collect::<Vec<u32>>()
-    }
-
-    pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
-        generate_array_with_seed(n, ratio, 4)
     }
 
     pub fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {

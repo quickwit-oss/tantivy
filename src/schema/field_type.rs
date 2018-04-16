@@ -17,6 +17,18 @@ pub enum ValueParsingError {
     TypeError(String),
 }
 
+/// Type of the value that a field can take.
+///
+/// Contrary to FieldType, this does
+/// not include the way the field must be indexed.
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+pub enum Type {
+    Str,
+    U64,
+    I64,
+    HierarchicalFacet
+}
+
 /// A `FieldType` describes the type (text, u64) of a field as well as
 /// how it should be handled by tantivy.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -32,6 +44,21 @@ pub enum FieldType {
 }
 
 impl FieldType {
+
+    /// Returns the value type associated for this field.
+    pub fn value_type(&self) -> Type {
+        match *self {
+            FieldType::Str(_) =>
+                Type::Str,
+            FieldType::U64(_) =>
+                Type::U64,
+            FieldType::I64(_) =>
+                Type::I64,
+            FieldType::HierarchicalFacet =>
+                Type::HierarchicalFacet,
+        }
+    }
+
     /// returns true iff the field is indexed.
     pub fn is_indexed(&self) -> bool {
         match *self {

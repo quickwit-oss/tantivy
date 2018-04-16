@@ -23,8 +23,6 @@ mod archicture_impl {
 }
 
 
-
-
 #[cfg(not(target="x86_64"))]
 mod archicture_impl {
 

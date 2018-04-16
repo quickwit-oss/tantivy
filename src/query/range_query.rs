@@ -8,6 +8,7 @@ use core::Searcher;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use std::ops::Range;
+use schema::Type;
 use std::collections::Bound;
 
 fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
@@ -81,13 +82,17 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 #[derive(Debug)]
 pub struct RangeQuery {
     field: Field,
+    value_type: Type,
     left_bound: Bound<Vec<u8>>,
     right_bound: Bound<Vec<u8>>,
 }
 
 impl RangeQuery {
 
-
+    /// Creates a new `RangeQuery` over a `i64` field.
+    ///
+    /// If the field is not of the type `i64`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_i64(
         field: Field,
         range: Range<i64>
@@ -99,6 +104,9 @@ impl RangeQuery {
     ///
     /// The two `Bound` arguments make it possible to create more complex
     /// ranges than semi-inclusive range.
+    ///
+    /// If the field is not of the type `i64`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_i64_bounds(
         field: Field,
         left_bound: Bound<i64>,
@@ -107,6 +115,7 @@ impl RangeQuery {
         let make_term_val = |val: i64| Term::from_field_i64(field, val).value_bytes().to_owned();
         RangeQuery {
             field,
+            value_type: Type::I64,
             left_bound: map_bound(left_bound, &make_term_val),
             right_bound: map_bound(right_bound, &make_term_val),
         }
@@ -116,6 +125,9 @@ impl RangeQuery {
     ///
     /// The two `Bound` arguments make it possible to create more complex
     /// ranges than semi-inclusive range.
+    ///
+    /// If the field is not of the type `u64`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_u64_bounds(
         field: Field,
         left_bound: Bound<u64>,
@@ -124,12 +136,16 @@ impl RangeQuery {
         let make_term_val = |val: u64| Term::from_field_u64(field, val).value_bytes().to_owned();
         RangeQuery {
             field,
+            value_type: Type::U64,
             left_bound: map_bound(left_bound, &make_term_val),
             right_bound: map_bound(right_bound, &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `u64` field.
+    ///
+    /// If the field is not of the type `u64`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_u64(
         field: Field,
         range: Range<u64>
@@ -141,6 +157,9 @@ impl RangeQuery {
     ///
     /// The two `Bound` arguments make it possible to create more complex
     /// ranges than semi-inclusive range.
+    ///
+    /// If the field is not of the type `Str`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_str_bounds<'b>(
         field: Field,
         left: Bound<&'b str>,
@@ -149,12 +168,16 @@ impl RangeQuery {
         let make_term_val = |val: &str| val.as_bytes().to_vec();
         RangeQuery {
             field,
+            value_type: Type::Str,
             left_bound: map_bound(left, &make_term_val),
             right_bound: map_bound(right, &make_term_val),
         }
     }
 
     /// Create a new `RangeQuery` over a `Str` field.
+    ///
+    /// If the field is not of the type `Str`, tantivy
+    /// will panic when the `Weight` object is created.
     pub fn new_str<'b>(
         field: Field,
         range: Range<&'b str>
@@ -164,7 +187,14 @@ impl RangeQuery {
 }
 
 impl Query for RangeQuery {
-    fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+    fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
+        if let Some(first_segment_reader) = searcher.segment_readers().iter().next() {
+            let value_type = first_segment_reader.schema().get_field_entry(self.field).field_type().value_type();
+            assert_eq!(
+                value_type, self.value_type,
+                "Create a range query of the type {:?}, when the field given was of type {:?}",
+                self.value_type, value_type);
+        }
         Ok(Box::new(RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),
