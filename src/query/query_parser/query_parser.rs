@@ -33,6 +33,9 @@ pub enum QueryParserError {
     /// The field searched for is not declared
     /// as indexed in the schema.
     FieldNotIndexed(String),
+    /// A phrase query was requested for a field that does not
+    /// have any positions indexed.
+    FieldDoesNotHavePositionsIndexed(String),
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     UnknownTokenizer(String, String),
@@ -197,7 +200,20 @@ impl QueryParser {
                             terms.into_iter().next().unwrap(),
                         )))
                     } else {
-                        Ok(Some(LogicalLiteral::Phrase(terms)))
+                        let field_entry = self.schema.get_field_entry(field);
+                        let field_type = field_entry.field_type();
+                        if let Some(index_record_option) = field_type.get_index_record_option() {
+                            if index_record_option.has_positions() {
+                                Ok(Some(LogicalLiteral::Phrase(terms)))
+                            } else {
+                                let fieldname = self.schema.get_field_name(field).to_string();
+                                Err(QueryParserError::FieldDoesNotHavePositionsIndexed(fieldname))
+                            }
+                        } else {
+                            let fieldname = self.schema.get_field_name(field).to_string();
+                            Err(QueryParserError::FieldNotIndexed(fieldname))
+                        }
+
                     }
                 } else {
                     // This should have been seen earlier really.
@@ -529,7 +545,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_query_parser_from_index() {
+    pub fn test_query_parser_no_positions() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field_indexing = TextFieldIndexing::default()
             .set_tokenizer("customtokenizer")
@@ -542,7 +558,10 @@ mod test {
             .tokenizers()
             .register("customtokenizer", SimpleTokenizer);
         let query_parser = QueryParser::for_index(&index, vec![title]);
-        assert!(query_parser.parse_query("title:\"happy tax\"").is_ok());
+        assert_eq!(
+            query_parser.parse_query("title:\"happy tax\"").unwrap_err(),
+            QueryParserError::FieldDoesNotHavePositionsIndexed("title".to_string())
+        );
     }
 
     #[test]

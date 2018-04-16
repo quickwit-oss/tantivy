@@ -8,6 +8,7 @@ use schema::{Field, Term};
 use termdict::{TermDictionary, TermMerger};
 use std::sync::Arc;
 use std::fmt;
+use schema::Schema;
 use core::InvertedIndexReader;
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -16,10 +17,20 @@ use core::InvertedIndexReader;
 /// the destruction of the `Searcher`.
 ///
 pub struct Searcher {
+    schema: Schema,
     segment_readers: Vec<SegmentReader>,
 }
 
 impl Searcher {
+
+    pub fn new(
+        schema: Schema,
+        segment_readers: Vec<SegmentReader>) -> Searcher {
+        Searcher {
+            schema,
+            segment_readers
+        }
+    }
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the
@@ -28,6 +39,10 @@ impl Searcher {
         let DocAddress(segment_local_id, doc_id) = *doc_address;
         let segment_reader = &self.segment_readers[segment_local_id as usize];
         segment_reader.doc(doc_id)
+    }
+
+    pub fn schema(&self) -> &Schema {
+        &self.schema
     }
 
     /// Returns the overall number of documents in the index.
@@ -92,11 +107,6 @@ impl FieldSearcher {
     }
 }
 
-impl From<Vec<SegmentReader>> for Searcher {
-    fn from(segment_readers: Vec<SegmentReader>) -> Searcher {
-        Searcher { segment_readers }
-    }
-}
 
 impl fmt::Debug for Searcher {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

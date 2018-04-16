@@ -13,7 +13,6 @@ use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
 use indexer::index_writer::open_index_writer;
 use core::searcher::Searcher;
-use std::convert::From;
 use num_cpus;
 use super::segment::Segment;
 use core::SegmentReader;
@@ -223,8 +222,9 @@ impl Index {
             .iter()
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
+        let schema = self.schema();
         let searchers = (0..NUM_SEARCHERS)
-            .map(|_| Searcher::from(segment_readers.clone()))
+            .map(|_| Searcher::new(schema.clone(),segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
