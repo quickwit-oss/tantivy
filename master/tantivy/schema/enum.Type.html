@@ -55,7 +55,7 @@
         </form>
     </nav>
 
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>schema</a>::<wbr><a class="enum" href=''>Type</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#25-30' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust enum'>pub enum Type {
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Enum <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>schema</a>::<wbr><a class="enum" href=''>Type</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/schema/field_type.rs.html#25-34' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust enum'>pub enum Type {
     Str,
     U64,
     I64,
@@ -65,7 +65,11 @@
 not include the way the field must be indexed.</p>
 </div><h2 id='variants' class='variants small-section-header'>
                    Variants<a href='#variants' class='anchor'></a></h2>
-<span id="variant.Str" class="variant small-section-header"><a href="#variant.Str" class="anchor field"></a><span id='Str.v' class='invisible'><code>Str</code></span></span><span id="variant.U64" class="variant small-section-header"><a href="#variant.U64" class="anchor field"></a><span id='U64.v' class='invisible'><code>U64</code></span></span><span id="variant.I64" class="variant small-section-header"><a href="#variant.I64" class="anchor field"></a><span id='I64.v' class='invisible'><code>I64</code></span></span><span id="variant.HierarchicalFacet" class="variant small-section-header"><a href="#variant.HierarchicalFacet" class="anchor field"></a><span id='HierarchicalFacet.v' class='invisible'><code>HierarchicalFacet</code></span></span>
+<span id="variant.Str" class="variant small-section-header"><a href="#variant.Str" class="anchor field"></a><span id='Str.v' class='invisible'><code>Str</code></span></span><div class='docblock'><p><code>&amp;str</code></p>
+</div><span id="variant.U64" class="variant small-section-header"><a href="#variant.U64" class="anchor field"></a><span id='U64.v' class='invisible'><code>U64</code></span></span><div class='docblock'><p><code>u64</code></p>
+</div><span id="variant.I64" class="variant small-section-header"><a href="#variant.I64" class="anchor field"></a><span id='I64.v' class='invisible'><code>I64</code></span></span><div class='docblock'><p><code>i64</code></p>
+</div><span id="variant.HierarchicalFacet" class="variant small-section-header"><a href="#variant.HierarchicalFacet" class="anchor field"></a><span id='HierarchicalFacet.v' class='invisible'><code>HierarchicalFacet</code></span></span><div class='docblock'><p><code>tantivy::schema::Facet</code>. Passed as a string in JSON.</p>
+</div>
                 <h2 id='implementations' class='small-section-header'>
                   Trait Implementations<a href='#implementations' class='anchor'></a>
                 </h2>

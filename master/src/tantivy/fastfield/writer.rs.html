@@ -275,7 +275,6 @@
 <span id="218">218</span>
 <span id="219">219</span>
 <span id="220">220</span>
-<span id="221">221</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
@@ -363,7 +362,6 @@
             <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">multi_values_writers</span> {
-            <span class="ident">field_writer</span>.<span class="ident">next_doc</span>();
             <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
     }

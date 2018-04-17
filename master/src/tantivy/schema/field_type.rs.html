@@ -193,6 +193,10 @@
 <span id="136">136</span>
 <span id="137">137</span>
 <span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IntOptions</span>, <span class="ident">TextOptions</span>};
 
@@ -219,9 +223,13 @@
 <span class="doccomment">/// not include the way the field must be indexed.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Type</span> {
+    <span class="doccomment">/// `&amp;str`</span>
     <span class="ident">Str</span>,
+    <span class="doccomment">/// `u64`</span>
     <span class="ident">U64</span>,
+    <span class="doccomment">/// `i64`</span>
     <span class="ident">I64</span>,
+    <span class="doccomment">/// `tantivy::schema::Facet`. Passed as a string in JSON.</span>
     <span class="ident">HierarchicalFacet</span>
 }
 
