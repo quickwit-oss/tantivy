@@ -84,7 +84,6 @@ impl FastFieldsWriter {
             field_writer.add_document(doc);
         }
         for field_writer in &mut self.multi_values_writers {
-            field_writer.next_doc();
             field_writer.add_document(doc);
         }
     }

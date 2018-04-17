@@ -2,11 +2,33 @@ use fastfield::FastFieldSerializer;
 use fastfield::serializer::FastSingleFieldSerializer;
 use fastfield::value_to_u64;
 use std::collections::HashMap;
+use DocId;
 use postings::UnorderedTermId;
 use schema::{Document, Field};
 use std::io;
 use itertools::Itertools;
 
+/// Writer for multi-valued (as in, more than one value per document)
+/// int fast field.
+///
+/// This `Writer` is only useful for advanced user.
+/// The normal way to get your multivalued int in your index
+/// is to
+/// - declare your field with fast set to `Cardinality::MultiValues`
+/// in your schema
+/// - add your document simply by calling `.add_document(...)`.
+///
+/// The `MultiValueIntFastFieldWriter` can be acquired from the
+/// fastfield writer, by calling [`.get_multivalue_writer(...)`](./struct.FastFieldsWriter.html#method.get_multivalue_writer).
+///
+/// Once acquired, writing is done by calling calls to
+/// `.add_document_vals(&[u64])` once per document.
+///
+/// The serializer makes it possible to remap all of the values
+/// that were pushed to the writer using a mapping.
+/// This makes it possible to push unordered term ids,
+/// during indexing and remap them to their respective
+/// term ids when the segment is getting serialized.
 pub struct MultiValueIntFastFieldWriter {
     field: Field,
     vals: Vec<u64>,
@@ -15,8 +37,9 @@ pub struct MultiValueIntFastFieldWriter {
 }
 
 impl MultiValueIntFastFieldWriter {
+
     /// Creates a new `IntFastFieldWriter`
-    pub fn new(field: Field, is_facet: bool) -> Self {
+    pub(crate) fn new(field: Field, is_facet: bool) -> Self {
         MultiValueIntFastFieldWriter {
             field,
             vals: Vec::new(),
@@ -25,31 +48,44 @@ impl MultiValueIntFastFieldWriter {
         }
     }
 
+    /// Access the field associated to the `MultiValueIntFastFieldWriter`
     pub fn field(&self) -> Field {
         self.field
     }
 
-    pub fn next_doc(&mut self) {
+    /// Finalize the current document.
+    pub(crate) fn next_doc(&mut self) {
         self.doc_index.push(self.vals.len() as u64);
     }
 
-    /// Records a new value.
-    ///
-    /// The n-th value being recorded is implicitely
-    /// associated to the document with the `DocId` n.
-    /// (Well, `n-1` actually because of 0-indexing)
-    pub fn add_val(&mut self, val: UnorderedTermId) {
+    /// Pushes a new value to the current document.
+    pub(crate) fn add_val(&mut self, val: UnorderedTermId) {
         self.vals.push(val);
     }
 
+    /// Shift to the next document and adds
+    /// all of the matching field values present in the document.
     pub fn add_document(&mut self, doc: &Document) {
-        if !self.is_facet {
+        self.next_doc();
+        // facets are indexed in the `SegmentWriter` as we encode their unordered id.
+        if !self.is_facet { 
             for field_value in doc.field_values() {
                 if field_value.field() == self.field {
                     self.add_val(value_to_u64(field_value.value()));
                 }
             }
         }
+    }
+
+    /// Register all of the values associated to a document.
+    ///
+    /// The method returns the `DocId` of the document that was
+    /// just written.
+    pub fn add_document_vals(&mut self, vals: &[UnorderedTermId]) -> DocId {
+        let doc = self.doc_index.len() as DocId;
+        self.next_doc();
+        self.vals.extend_from_slice(vals);
+        doc
     }
 
     /// Serializes fast field values by pushing them to the `FastFieldSerializer`.

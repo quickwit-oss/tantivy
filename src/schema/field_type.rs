@@ -23,9 +23,13 @@ pub enum ValueParsingError {
 /// not include the way the field must be indexed.
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum Type {
+    /// `&str`
     Str,
+    /// `u64`
     U64,
+    /// `i64`
     I64,
+    /// `tantivy::schema::Facet`. Passed as a string in JSON.
     HierarchicalFacet
 }
 

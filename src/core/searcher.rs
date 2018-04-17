@@ -23,7 +23,8 @@ pub struct Searcher {
 
 impl Searcher {
 
-    pub fn new(
+    /// Creates a new `Searcher`
+    pub(crate) fn new(
         schema: Schema,
         segment_readers: Vec<SegmentReader>) -> Searcher {
         Searcher {
@@ -41,6 +42,7 @@ impl Searcher {
         segment_reader.doc(doc_id)
     }
 
+    /// Access the schema associated to the index of this searcher.
     pub fn schema(&self) -> &Schema {
         &self.schema
     }
