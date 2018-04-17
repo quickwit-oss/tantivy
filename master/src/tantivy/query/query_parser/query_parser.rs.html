@@ -656,6 +656,25 @@
 <span id="599">599</span>
 <span id="600">600</span>
 <span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
@@ -692,6 +711,9 @@
     <span class="doccomment">/// The field searched for is not declared</span>
     <span class="doccomment">/// as indexed in the schema.</span>
     <span class="ident">FieldNotIndexed</span>(<span class="ident">String</span>),
+    <span class="doccomment">/// A phrase query was requested for a field that does not</span>
+    <span class="doccomment">/// have any positions indexed.</span>
+    <span class="ident">FieldDoesNotHavePositionsIndexed</span>(<span class="ident">String</span>),
     <span class="doccomment">/// The tokenizer for the given field is unknown</span>
     <span class="doccomment">/// The two argument strings are the name of the field, the name of the tokenizer</span>
     <span class="ident">UnknownTokenizer</span>(<span class="ident">String</span>, <span class="ident">String</span>),
@@ -856,7 +878,20 @@
                             <span class="ident">terms</span>.<span class="ident">into_iter</span>().<span class="ident">next</span>().<span class="ident">unwrap</span>(),
                         )))
                     } <span class="kw">else</span> {
-                        <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>)))
+                        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
+                        <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>();
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">index_record_option</span>) <span class="op">=</span> <span class="ident">field_type</span>.<span class="ident">get_index_record_option</span>() {
+                            <span class="kw">if</span> <span class="ident">index_record_option</span>.<span class="ident">has_positions</span>() {
+                                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>)))
+                            } <span class="kw">else</span> {
+                                <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
+                                <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotHavePositionsIndexed</span>(<span class="ident">fieldname</span>))
+                            }
+                        } <span class="kw">else</span> {
+                            <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
+                            <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(<span class="ident">fieldname</span>))
+                        }
+
                     }
                 } <span class="kw">else</span> {
                     <span class="comment">// This should have been seen earlier really.</span>
@@ -1188,7 +1223,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_from_index</span>() {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_query_parser_no_positions</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field_indexing</span> <span class="op">=</span> <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
             .<span class="ident">set_tokenizer</span>(<span class="string">&quot;customtokenizer&quot;</span>)
@@ -1201,7 +1236,10 @@
             .<span class="ident">tokenizers</span>()
             .<span class="ident">register</span>(<span class="string">&quot;customtokenizer&quot;</span>, <span class="ident">SimpleTokenizer</span>);
         <span class="kw">let</span> <span class="ident">query_parser</span> <span class="op">=</span> <span class="ident">QueryParser</span>::<span class="ident">for_index</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">title</span>]);
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;title:\&quot;happy tax\&quot;&quot;</span>).<span class="ident">is_ok</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">query_parser</span>.<span class="ident">parse_query</span>(<span class="string">&quot;title:\&quot;happy tax\&quot;&quot;</span>).<span class="ident">unwrap_err</span>(),
+            <span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotHavePositionsIndexed</span>(<span class="string">&quot;title&quot;</span>.<span class="ident">to_string</span>())
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>

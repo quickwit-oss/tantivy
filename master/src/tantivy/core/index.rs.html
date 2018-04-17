@@ -334,7 +334,6 @@
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>};
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">open_index_writer</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">From</span>;
 <span class="kw">use</span> <span class="ident">num_cpus</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -544,8 +543,9 @@
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="ident">SegmentReader</span>::<span class="ident">open</span>)
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>();
         <span class="kw">let</span> <span class="ident">searchers</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NUM_SEARCHERS</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Searcher</span>::<span class="ident">from</span>(<span class="ident">segment_readers</span>.<span class="ident">clone</span>()))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Searcher</span>::<span class="ident">new</span>(<span class="ident">schema</span>.<span class="ident">clone</span>(),<span class="ident">segment_readers</span>.<span class="ident">clone</span>()))
             .<span class="ident">collect</span>();
         <span class="self">self</span>.<span class="ident">searcher_pool</span>.<span class="ident">publish_new_generation</span>(<span class="ident">searchers</span>);
         <span class="prelude-val">Ok</span>(())
