@@ -188,13 +188,12 @@ impl RangeQuery {
 
 impl Query for RangeQuery {
     fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
-        if let Some(first_segment_reader) = searcher.segment_readers().iter().next() {
-            let value_type = first_segment_reader.schema().get_field_entry(self.field).field_type().value_type();
-            assert_eq!(
-                value_type, self.value_type,
-                "Create a range query of the type {:?}, when the field given was of type {:?}",
-                self.value_type, value_type);
-        }
+        let schema = searcher.schema();
+        let value_type = schema.get_field_entry(self.field).field_type().value_type();
+        assert_eq!(
+            value_type, self.value_type,
+            "Create a range query of the type {:?}, when the field given was of type {:?}",
+            self.value_type, value_type);
         Ok(Box::new(RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),

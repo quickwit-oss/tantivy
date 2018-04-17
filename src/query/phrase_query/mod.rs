@@ -65,6 +65,38 @@ mod tests {
         assert!(test_query(vec!["g", "a"]).is_empty());
     }
 
+    #[test]
+    #[should_panic(expected="Applied phrase query on field Field(0), which does not have positions indexed")]
+    pub fn test_phrase_query_no_positions() {
+        let mut schema_builder = SchemaBuilder::default();
+        use schema::TextOptions;
+        use schema::TextFieldIndexing;
+        use schema::IndexRecordOption;
+        let no_positions = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default()
+                .set_tokenizer("default")
+                .set_index_option(IndexRecordOption::WithFreqs));
+
+        let text_field = schema_builder.add_text_field("text", no_positions);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.add_document(doc!(text_field=>"a b c"));
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let phrase_query = PhraseQuery::new(vec![
+            Term::from_field_text(text_field, "a"),
+            Term::from_field_text(text_field, "b")
+        ]);
+        let mut test_collector = TestCollector::default();
+        searcher
+            .search(&phrase_query, &mut test_collector)
+            .expect("search should succeed");
+        assert_eq!(test_collector.docs(), vec![0]);
+    }
 
     #[test]
     pub fn test_phrase_score() {
