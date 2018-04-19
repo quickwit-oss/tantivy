@@ -180,7 +180,6 @@ impl IndexMerger {
                         let fieldname = self.schema.get_field_name(field);
                         let error_msg =
                             format!("Failed to find a fast field reader for field {:?}", fieldname);
-                        error!("{}", error_msg);
                         bail!(ErrorKind::SchemaError(error_msg));
                     }
                 }

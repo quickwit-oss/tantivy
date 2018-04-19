@@ -48,10 +48,10 @@ error_chain!(
             description("an error occurred in a thread")
             display("an error occurred in a thread: '{}'", err)
         }
-        /// An Error appeared related to the lack of a field.
-        SchemaError(field: String) {
-            description("a schema field is missing")
-            display("a schema field is missing: '{}'", field)
+        /// An Error appeared related to the schema.
+        SchemaError(message: String) {
+            description("the schema is not matching expectations.")
+            display("Schema error: '{}'", message)
         }
         /// Tried to access a fastfield reader for a field not configured accordingly.
         FastFieldError(err: FastFieldNotAvailableError) {

@@ -14,7 +14,7 @@ mod tests {
     use schema::{SchemaBuilder, Term, TEXT};
     use collector::tests::TestCollector;
     use tests::assert_nearly_equals;
-
+    use error::ErrorKind;
 
     fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = SchemaBuilder::default();
@@ -66,7 +66,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected="Applied phrase query on field Field(0), which does not have positions indexed")]
     pub fn test_phrase_query_no_positions() {
         let mut schema_builder = SchemaBuilder::default();
         use schema::TextOptions;
@@ -92,10 +91,11 @@ mod tests {
             Term::from_field_text(text_field, "b")
         ]);
         let mut test_collector = TestCollector::default();
-        searcher
-            .search(&phrase_query, &mut test_collector)
-            .expect("search should succeed");
-        assert_eq!(test_collector.docs(), vec![0]);
+        if let &ErrorKind::SchemaError(ref msg) = searcher.search(&phrase_query, &mut test_collector).unwrap_err().kind() {
+            assert_eq!("Applied phrase query on field \"text\", which does not have positions indexed", msg.as_str());
+        } else {
+            panic!("Should have returned an error");
+        }
     }
 
     #[test]

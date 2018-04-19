@@ -9,6 +9,7 @@ use query::BitSetDocSet;
 use query::ConstScorer;
 use std::ops::Range;
 use schema::Type;
+use error::ErrorKind;
 use std::collections::Bound;
 
 fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
@@ -190,10 +191,13 @@ impl Query for RangeQuery {
     fn weight(&self, searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
         let schema = searcher.schema();
         let value_type = schema.get_field_entry(self.field).field_type().value_type();
-        assert_eq!(
-            value_type, self.value_type,
-            "Create a range query of the type {:?}, when the field given was of type {:?}",
-            self.value_type, value_type);
+        if value_type != self.value_type {
+            let err_msg = format!(
+                "Create a range query of the type {:?}, when the field given was of type {:?}",
+                self.value_type, value_type
+            );
+            bail!(ErrorKind::SchemaError(err_msg))
+        }
         Ok(Box::new(RangeWeight {
             field: self.field,
             left_bound: self.left_bound.clone(),

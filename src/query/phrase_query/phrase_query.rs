@@ -5,6 +5,7 @@ use super::PhraseWeight;
 use query::Weight;
 use Result;
 use query::bm25::BM25Weight;
+use error::ErrorKind;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -50,13 +51,14 @@ impl Query for PhraseQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         let schema = searcher.schema();
         let field_entry= schema.get_field_entry(self.field);
-        assert!(
-            field_entry.field_type().get_index_record_option()
+        let has_positions = field_entry.field_type().get_index_record_option()
             .map(|index_record_option| index_record_option.has_positions())
-            .unwrap_or(false),
-            "Applied phrase query on field {:?}, which does not have positions indexed",
-            self.field
-        );
+            .unwrap_or(false);
+        if !has_positions {
+            let field_name = field_entry.name();
+            bail!(ErrorKind::SchemaError(format!("Applied phrase query on field {:?}, which does not have positions indexed",
+            field_name)))
+        }
         let terms = self.phrase_terms.clone();
         if scoring_enabled {
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
