@@ -1,11 +1,11 @@
 use docset::{DocSet, SkipResult};
-use query::Scorer;
-use query::EmptyScorer;
-use DocId;
 use downcast::Downcast;
-use std::borrow::Borrow;
-use Score;
 use query::term_query::TermScorer;
+use query::EmptyScorer;
+use query::Scorer;
+use std::borrow::Borrow;
+use DocId;
+use Score;
 
 /// Returns the intersection scorer.
 ///
@@ -36,27 +36,29 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
                         left,
                         right,
                         others: scorers,
-                        num_docsets
-                    })
+                        num_docsets,
+                    });
                 }
             }
             return Box::new(Intersection {
                 left,
                 right,
                 others: scorers,
-                num_docsets
-            })
+                num_docsets,
+            });
         }
-        _ => { unreachable!(); }
+        _ => {
+            unreachable!();
+        }
     }
 }
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
-pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet=Box<Scorer>> {
+pub struct Intersection<TDocSet: DocSet, TOtherDocSet: DocSet = Box<Scorer>> {
     left: TDocSet,
     right: TDocSet,
     others: Vec<TOtherDocSet>,
-    num_docsets: usize
+    num_docsets: usize,
 }
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
@@ -71,18 +73,17 @@ impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
             left,
             right,
             others: docsets,
-            num_docsets
+            num_docsets,
         }
     }
 }
-
 
 impl<TDocSet: DocSet> Intersection<TDocSet, TDocSet> {
     pub(crate) fn docset_mut_specialized(&mut self, ord: usize) -> &mut TDocSet {
         match ord {
             0 => &mut self.left,
             1 => &mut self.right,
-            n => &mut self.others[n - 2]
+            n => &mut self.others[n - 2],
         }
     }
 }
@@ -92,7 +93,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> 
         match ord {
             0 => &mut self.left,
             1 => &mut self.right,
-            n => &mut self.others[n - 2]
+            n => &mut self.others[n - 2],
         }
     }
 }
@@ -114,23 +115,30 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             // of the two rarest `DocSet` in the intersection.
             loop {
                 match right.skip_next(candidate) {
-                    SkipResult::Reached => { break; }
+                    SkipResult::Reached => {
+                        break;
+                    }
                     SkipResult::OverStep => {
                         candidate = right.doc();
                         other_candidate_ord = usize::max_value();
                     }
-                    SkipResult::End => { return false; }
+                    SkipResult::End => {
+                        return false;
+                    }
                 }
 
                 match left.skip_next(candidate) {
-                    SkipResult::Reached => { break; }
+                    SkipResult::Reached => {
+                        break;
+                    }
                     SkipResult::OverStep => {
                         candidate = left.doc();
                         other_candidate_ord = usize::max_value();
                     }
-                    SkipResult::End => { return false; }
+                    SkipResult::End => {
+                        return false;
+                    }
                 }
-
             }
             // test the remaining scorers;
             for (ord, docset) in self.others.iter_mut().enumerate() {
@@ -147,16 +155,22 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                             // let's update our candidate.
                             candidate = docset.doc();
                             match left.skip_next(candidate) {
-                                SkipResult::Reached => { other_candidate_ord = ord; }
+                                SkipResult::Reached => {
+                                    other_candidate_ord = ord;
+                                }
                                 SkipResult::OverStep => {
                                     candidate = left.doc();
                                     other_candidate_ord = usize::max_value();
                                 }
-                                SkipResult::End => { return false; }
+                                SkipResult::End => {
+                                    return false;
+                                }
                             }
                             continue 'outer;
                         }
-                        SkipResult::End => { return false; }
+                        SkipResult::End => {
+                            return false;
+                        }
                     }
                 }
             }
@@ -164,9 +178,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
         }
     }
 
-
     fn skip_next(&mut self, target: DocId) -> SkipResult {
-
         // We optimize skipping by skipping every single member
         // of the intersection to target.
         let mut current_target: DocId = target;
@@ -211,18 +223,22 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
 }
 
 impl<TScorer, TOtherScorer> Scorer for Intersection<TScorer, TOtherScorer>
-where TScorer: Scorer, TOtherScorer: Scorer {
+where
+    TScorer: Scorer,
+    TOtherScorer: Scorer,
+{
     fn score(&mut self) -> Score {
-        self.left.score() + self.right.score() + self.others.iter_mut().map(Scorer::score).sum::<Score>()
+        self.left.score() + self.right.score()
+            + self.others.iter_mut().map(Scorer::score).sum::<Score>()
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use docset::{DocSet, SkipResult};
     use super::Intersection;
-    use query::VecDocSet;
+    use docset::{DocSet, SkipResult};
     use postings::tests::test_skip_against_unoptimized;
+    use query::VecDocSet;
 
     #[test]
     fn test_intersection() {

@@ -1,5 +1,5 @@
-use std::result;
 use schema::FieldEntry;
+use std::result;
 
 /// `FastFieldNotAvailableError` is returned when the
 /// user requested for a fast field reader, and the field was not

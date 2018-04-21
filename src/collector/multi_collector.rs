@@ -1,9 +1,9 @@
 use super::Collector;
 use DocId;
-use Score;
 use Result;
-use SegmentReader;
+use Score;
 use SegmentLocalId;
+use SegmentReader;
 
 /// Multicollector makes it possible to collect on more than one collector.
 /// It should only be used for use cases where the Collector types is unknown

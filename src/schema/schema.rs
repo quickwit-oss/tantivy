@@ -1,13 +1,13 @@
-use std::collections::HashMap;
-use std::collections::BTreeMap;
 use schema::field_type::ValueParsingError;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use serde_json::{self, Map as JsonObject, Value as JsonValue};
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::ser::SerializeSeq;
-use serde::de::{SeqAccess, Visitor};
 use super::*;
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::SerializeSeq;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::{self, Map as JsonObject, Value as JsonValue};
 use std::fmt;
 
 /// Tantivy has a very strict schema.
@@ -305,10 +305,10 @@ pub enum DocParsingError {
 #[cfg(test)]
 mod tests {
 
-    use schema::*;
-    use serde_json;
     use schema::field_type::ValueParsingError;
     use schema::schema::DocParsingError::NotJSON;
+    use schema::*;
+    use serde_json;
 
     #[test]
     pub fn is_indexed_test() {

@@ -1,9 +1,9 @@
-use Result;
+use super::Weight;
 use collector::Collector;
 use core::searcher::Searcher;
-use SegmentLocalId;
-use super::Weight;
 use std::fmt;
+use Result;
+use SegmentLocalId;
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.

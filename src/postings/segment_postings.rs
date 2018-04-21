@@ -2,15 +2,15 @@ use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BL
 use DocId;
 
 use common::BitSet;
+use common::CountingWriter;
 use common::HasLen;
-use postings::Postings;
-use docset::{DocSet, SkipResult};
-use fst::Streamer;
 use compression::compressed_block_size;
 use directory::{ReadOnlySource, SourceRead};
-use postings::FreqReadingOption;
+use docset::{DocSet, SkipResult};
+use fst::Streamer;
 use postings::serializer::PostingsSerializer;
-use common::CountingWriter;
+use postings::FreqReadingOption;
+use postings::Postings;
 
 struct PositionComputer {
     // store the amount of position int
@@ -84,9 +84,13 @@ impl SegmentPostings {
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
-            postings_serializer.close_term().expect("In memory Serialization should never fail.");
+            postings_serializer
+                .close_term()
+                .expect("In memory Serialization should never fail.");
         }
-        let (buffer , _) = counting_writer.finish().expect("Serializing in a buffer should never fail.");
+        let (buffer, _) = counting_writer
+            .finish()
+            .expect("Serializing in a buffer should never fail.");
         let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),
@@ -98,7 +102,6 @@ impl SegmentPostings {
 }
 
 impl SegmentPostings {
-
     /// Reads a Segment postings from an &[u8]
     ///
     /// * `len` - number of document in the posting lists.
@@ -125,7 +128,7 @@ fn exponential_search(target: u32, mut start: usize, arr: &[u32]) -> (usize, usi
     loop {
         let new = start + jump;
         if new >= end {
-            return (start, end)
+            return (start, end);
         }
         if arr[new] > target {
             return (start, new);
@@ -163,7 +166,8 @@ impl DocSet for SegmentPostings {
                 if self.position_computer.is_some() {
                     let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
                     let sum_freq: u32 = freqs_skipped.iter().sum();
-                    self.position_computer.as_mut()
+                    self.position_computer
+                        .as_mut()
                         .unwrap()
                         .add_skip(sum_freq as usize);
                 }
@@ -198,7 +202,8 @@ impl DocSet for SegmentPostings {
         if self.position_computer.is_some() {
             let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
             let sum_freqs: u32 = freqs_skipped.iter().sum();
-            self.position_computer.as_mut()
+            self.position_computer
+                .as_mut()
                 .unwrap()
                 .add_skip(sum_freqs as usize);
         }
@@ -210,7 +215,6 @@ impl DocSet for SegmentPostings {
             return SkipResult::OverStep;
         }
     }
-
 
     // goes to the next element.
     // next needs to be called a first time to point to the correct element.
@@ -262,7 +266,6 @@ impl DocSet for SegmentPostings {
     }
 }
 
-
 impl HasLen for SegmentPostings {
     fn len(&self) -> usize {
         self.block_cursor.doc_freq()
@@ -284,7 +287,10 @@ impl Postings for SegmentPostings {
             }
             unsafe {
                 output.set_len(term_freq);
-                self.position_computer.as_mut().unwrap().positions_with_offset(offset, &mut output[..])
+                self.position_computer
+                    .as_mut()
+                    .unwrap()
+                    .positions_with_offset(offset, &mut output[..])
             }
         } else {
             output.clear();
@@ -473,16 +479,16 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
-    use docset::DocSet;
+    use super::BlockSegmentPostings;
     use super::SegmentPostings;
-    use schema::SchemaBuilder;
+    use common::HasLen;
     use core::Index;
-    use schema::INT_INDEXED;
-    use schema::Term;
+    use docset::DocSet;
     use fst::Streamer;
     use schema::IndexRecordOption;
-    use common::HasLen;
-    use super::BlockSegmentPostings;
+    use schema::SchemaBuilder;
+    use schema::Term;
+    use schema::INT_INDEXED;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -570,4 +576,3 @@ mod tests {
         assert_eq!(block_segments.docs(), &[1, 3, 5]);
     }
 }
-

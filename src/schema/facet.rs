@@ -1,11 +1,11 @@
-use std::fmt::{self, Debug, Display, Formatter};
-use std::str;
-use std::io::{self, Read, Write};
-use regex::Regex;
-use std::borrow::Borrow;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use std::borrow::Cow;
 use common::BinarySerializable;
+use regex::Regex;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::borrow::Borrow;
+use std::borrow::Cow;
+use std::fmt::{self, Debug, Display, Formatter};
+use std::io::{self, Read, Write};
+use std::str;
 
 const SLASH_BYTE: u8 = b'/';
 const ESCAPE_BYTE: u8 = b'\\';

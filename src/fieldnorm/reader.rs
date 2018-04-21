@@ -1,7 +1,6 @@
-use super::{id_to_fieldnorm, fieldnorm_to_id};
+use super::{fieldnorm_to_id, id_to_fieldnorm};
 use directory::ReadOnlySource;
 use DocId;
-
 
 /// Reads the fieldnorm associated to a document.
 /// The fieldnorm represents the length associated to
@@ -21,16 +20,13 @@ use DocId;
 /// precompute computationally expensive functions of the fieldnorm
 /// in a very short array.
 pub struct FieldNormReader {
-    data: ReadOnlySource
+    data: ReadOnlySource,
 }
 
 impl FieldNormReader {
-
     /// Opens a field norm reader given its data source.
     pub fn open(data: ReadOnlySource) -> Self {
-        FieldNormReader {
-            data
-        }
+        FieldNormReader { data }
     }
 
     /// Returns the `fieldnorm` associated to a doc id.
@@ -71,12 +67,13 @@ impl FieldNormReader {
 #[cfg(test)]
 impl From<Vec<u32>> for FieldNormReader {
     fn from(field_norms: Vec<u32>) -> FieldNormReader {
-        let field_norms_id = field_norms.into_iter()
+        let field_norms_id = field_norms
+            .into_iter()
             .map(FieldNormReader::fieldnorm_to_id)
             .collect::<Vec<u8>>();
         let field_norms_data = ReadOnlySource::from(field_norms_id);
         FieldNormReader {
-            data: field_norms_data
+            data: field_norms_data,
         }
     }
 }

@@ -1,19 +1,19 @@
-use Result;
 use super::TermInfo;
+use common::BinarySerializable;
+use common::CompositeWrite;
+use common::CountingWriter;
+use compression::VIntEncoder;
+use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
+use core::Segment;
+use directory::WritePtr;
 use schema::Field;
 use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
-use directory::WritePtr;
-use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
-use DocId;
-use core::Segment;
 use std::io::{self, Write};
-use compression::VIntEncoder;
-use common::BinarySerializable;
-use common::CountingWriter;
-use common::CompositeWrite;
 use termdict::TermDictionaryBuilder;
+use DocId;
+use Result;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -84,7 +84,11 @@ impl InvertedIndexSerializer {
     /// a given field.
     ///
     /// Loads the indexing options for the given field.
-    pub fn new_field(&mut self, field: Field, total_num_tokens: u64) -> io::Result<FieldSerializer> {
+    pub fn new_field(
+        &mut self,
+        field: Field,
+        total_num_tokens: u64,
+    ) -> io::Result<FieldSerializer> {
         let field_entry: &FieldEntry = self.schema.get_field_entry(field);
         let term_dictionary_write = self.terms_write.for_field(field);
         let postings_write = self.postings_write.for_field(field);
@@ -124,7 +128,6 @@ impl<'a> FieldSerializer<'a> {
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
     ) -> io::Result<FieldSerializer<'a>> {
-
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
                 if let Some(text_indexing_options) = text_options.get_indexing_options() {

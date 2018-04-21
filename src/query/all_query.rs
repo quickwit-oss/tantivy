@@ -1,12 +1,12 @@
-use query::Query;
-use query::Weight;
-use query::Scorer;
+use core::Searcher;
 use core::SegmentReader;
 use docset::DocSet;
+use query::Query;
+use query::Scorer;
+use query::Weight;
+use DocId;
 use Result;
 use Score;
-use DocId;
-use core::Searcher;
 
 /// Query that matches all of the documents.
 ///

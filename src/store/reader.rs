@@ -1,15 +1,15 @@
 use Result;
 
-use directory::ReadOnlySource;
-use std::cell::RefCell;
-use DocId;
-use schema::Document;
 use common::BinarySerializable;
-use std::mem::size_of;
-use std::io::{self, Read};
 use common::VInt;
 use datastruct::SkipList;
+use directory::ReadOnlySource;
 use lz4;
+use schema::Document;
+use std::cell::RefCell;
+use std::io::{self, Read};
+use std::mem::size_of;
+use DocId;
 
 /// Reads document off tantivy's [`Store`](./index.html)
 #[derive(Clone)]

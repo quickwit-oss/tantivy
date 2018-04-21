@@ -1,7 +1,7 @@
-use std::io::Write;
-use common::{BinarySerializable, VInt, is_power_of_2};
-use std::marker::PhantomData;
+use common::{is_power_of_2, BinarySerializable, VInt};
 use std::io;
+use std::io::Write;
+use std::marker::PhantomData;
 
 struct LayerBuilder<T: BinarySerializable> {
     period_mask: usize,

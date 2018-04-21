@@ -7,19 +7,19 @@ pub use self::boolean_query::BooleanQuery;
 mod tests {
 
     use super::*;
-    use query::Occur;
-    use query::Query;
-    use query::TermQuery;
-    use query::Intersection;
-    use query::Scorer;
     use collector::tests::TestCollector;
-    use Index;
     use downcast::Downcast;
-    use schema::*;
-    use query::QueryParser;
-    use query::RequiredOptionalScorer;
     use query::score_combiner::SumWithCoordsCombiner;
     use query::term_query::TermScorer;
+    use query::Intersection;
+    use query::Occur;
+    use query::Query;
+    use query::QueryParser;
+    use query::RequiredOptionalScorer;
+    use query::Scorer;
+    use query::TermQuery;
+    use schema::*;
+    use Index;
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = SchemaBuilder::default();
@@ -171,7 +171,6 @@ mod tests {
         }
     }
 
-
     #[test]
     pub fn test_intersection_score() {
         let (index, text_field) = aux_test_helper();
@@ -193,7 +192,10 @@ mod tests {
         };
 
         {
-            let boolean_query = BooleanQuery::from(vec![(Occur::Must, make_term_query("a")), (Occur::Must, make_term_query("b"))]);
+            let boolean_query = BooleanQuery::from(vec![
+                (Occur::Must, make_term_query("a")),
+                (Occur::Must, make_term_query("b")),
+            ]);
             assert_eq!(score_docs(&boolean_query), vec![0.977973, 0.84699446]);
         }
     }

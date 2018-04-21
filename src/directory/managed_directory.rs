@@ -1,18 +1,18 @@
-use std::path::{Path, PathBuf};
-use serde_json;
+use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
-use std::result;
-use std::io;
-use Directory;
-use std::sync::{Arc, RwLock};
-use std::collections::HashSet;
-use std::sync::RwLockWriteGuard;
-use std::io::Write;
-use core::MANAGED_FILEPATH;
-use std::collections::HashMap;
-use std::fmt;
 use error::{ErrorKind, Result, ResultExt};
+use serde_json;
+use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt;
+use std::io;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::result;
+use std::sync::RwLockWriteGuard;
+use std::sync::{Arc, RwLock};
+use Directory;
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
@@ -282,10 +282,10 @@ impl Clone for ManagedDirectory {
 mod tests {
 
     use super::*;
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     use directory::MmapDirectory;
-    use std::path::Path;
     use std::io::Write;
+    use std::path::Path;
     use tempdir::TempDir;
 
     lazy_static! {
@@ -294,7 +294,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     fn test_managed_directory() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
@@ -343,7 +343,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="mmap ")]
+    #[cfg(feature = "mmap ")]
     fn test_managed_directory_gc_while_mmapped() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());
@@ -373,7 +373,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     fn test_managed_directory_protect() {
         let tempdir = TempDir::new("index").unwrap();
         let tempdir_path = PathBuf::from(tempdir.path());

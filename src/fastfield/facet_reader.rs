@@ -1,8 +1,8 @@
 use super::MultiValueIntFastFieldReader;
-use DocId;
-use termdict::TermOrdinal;
 use schema::Facet;
 use termdict::TermDictionary;
+use termdict::TermOrdinal;
+use DocId;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific

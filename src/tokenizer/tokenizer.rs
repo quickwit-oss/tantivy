@@ -1,6 +1,5 @@
 /// The tokenizer module contains all of the tools used to process
 /// text in `tantivy`.
-
 use std::borrow::{Borrow, BorrowMut};
 use tokenizer::TokenStreamChain;
 

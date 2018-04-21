@@ -1,14 +1,14 @@
-use std::io;
-use std::cmp;
-use std::io::{Read, Write};
-use postings::TermInfo;
-use common::{BinarySerializable, FixedSize};
+use byteorder::ByteOrder;
+use common::bitpacker::BitPacker;
 use common::compute_num_bits;
 use common::Endianness;
-use common::bitpacker::BitPacker;
+use common::{BinarySerializable, FixedSize};
 use directory::ReadOnlySource;
+use postings::TermInfo;
+use std::cmp;
+use std::io;
+use std::io::{Read, Write};
 use termdict::TermOrdinal;
-use byteorder::ByteOrder;
 
 const BLOCK_LEN: usize = 256;
 
@@ -253,14 +253,14 @@ impl TermInfoStoreWriter {
 mod tests {
 
     use super::extract_bits;
-    use common::bitpacker::BitPacker;
-    use common::BinarySerializable;
     use super::TermInfoBlockMeta;
     use super::{TermInfoStore, TermInfoStoreWriter};
+    use common;
+    use common::bitpacker::BitPacker;
+    use common::compute_num_bits;
+    use common::BinarySerializable;
     use directory::ReadOnlySource;
     use postings::TermInfo;
-    use common::compute_num_bits;
-    use common;
 
     #[test]
     fn test_term_info_block() {

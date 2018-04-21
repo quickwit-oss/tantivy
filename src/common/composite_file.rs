@@ -1,12 +1,12 @@
-use std::io::Write;
-use common::CountingWriter;
-use std::collections::HashMap;
-use schema::Field;
-use common::VInt;
-use directory::WritePtr;
-use std::io::{self, Read};
-use directory::ReadOnlySource;
 use common::BinarySerializable;
+use common::CountingWriter;
+use common::VInt;
+use directory::ReadOnlySource;
+use directory::WritePtr;
+use schema::Field;
+use std::collections::HashMap;
+use std::io::Write;
+use std::io::{self, Read};
 
 #[derive(Eq, PartialEq, Hash, Copy, Ord, PartialOrd, Clone, Debug)]
 pub struct FileAddr {
@@ -30,10 +30,7 @@ impl BinarySerializable for FileAddr {
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
         let field = Field::deserialize(reader)?;
         let idx = VInt::deserialize(reader)?.0 as usize;
-        Ok(FileAddr {
-            field,
-            idx,
-        })
+        Ok(FileAddr { field, idx })
     }
 }
 
@@ -166,7 +163,7 @@ impl CompositeFile {
     /// to a given `Field` and stored in a `CompositeFile`.
     pub fn open_read_with_idx(&self, field: Field, idx: usize) -> Option<ReadOnlySource> {
         self.offsets_index
-            .get(&FileAddr { field, idx, })
+            .get(&FileAddr { field, idx })
             .map(|&(from, to)| self.data.slice(from, to))
     }
 }
@@ -174,12 +171,12 @@ impl CompositeFile {
 #[cfg(test)]
 mod test {
 
-    use std::io::Write;
     use super::{CompositeFile, CompositeWrite};
+    use common::BinarySerializable;
+    use common::VInt;
     use directory::{Directory, RAMDirectory};
     use schema::Field;
-    use common::VInt;
-    use common::BinarySerializable;
+    use std::io::Write;
     use std::path::Path;
 
     #[test]

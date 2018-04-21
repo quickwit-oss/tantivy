@@ -3,9 +3,9 @@ use Result;
 use core::Segment;
 use core::SegmentComponent;
 use fastfield::FastFieldSerializer;
-use store::StoreWriter;
 use fieldnorm::FieldNormsSerializer;
 use postings::InvertedIndexSerializer;
+use store::StoreWriter;
 
 /// Segment serializer is in charge of laying out on disk
 /// the data accumulated and sorted by the `SegmentWriter`.
@@ -47,7 +47,7 @@ impl SegmentSerializer {
     }
 
     /// Accessor to the field norm serializer.
-    pub fn  get_fieldnorms_serializer(&mut self) -> &mut FieldNormsSerializer {
+    pub fn get_fieldnorms_serializer(&mut self) -> &mut FieldNormsSerializer {
         &mut self.fieldnorms_serializer
     }
 

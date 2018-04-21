@@ -2,11 +2,11 @@
 Defines how the documents matching a search query should be processed.
 */
 
-use SegmentReader;
-use SegmentLocalId;
 use DocId;
-use Score;
 use Result;
+use Score;
+use SegmentLocalId;
+use SegmentReader;
 
 mod count_collector;
 pub use self::count_collector::CountCollector;
@@ -89,12 +89,12 @@ impl<'a, C: Collector> Collector for &'a mut C {
 pub mod tests {
 
     use super::*;
-    use DocId;
-    use Score;
     use core::SegmentReader;
-    use SegmentLocalId;
     use fastfield::FastFieldReader;
     use schema::Field;
+    use DocId;
+    use Score;
+    use SegmentLocalId;
 
     /// Stores all of the doc ids.
     /// This collector is only used for tests.
@@ -187,11 +187,10 @@ pub mod tests {
 
 }
 
-
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use test::Bencher;
     use collector::{Collector, CountCollector};
+    use test::Bencher;
 
     #[bench]
     fn build_collector(b: &mut Bencher) {

@@ -1,16 +1,16 @@
-    mod serialize;
-mod vint;
-mod counting_writer;
-mod composite_file;
 pub mod bitpacker;
 mod bitset;
+mod composite_file;
+mod counting_writer;
+mod serialize;
+mod vint;
 
-pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
-pub use self::serialize::{BinarySerializable, FixedSize};
-pub use self::vint::VInt;
-pub use self::counting_writer::CountingWriter;
 pub use self::bitset::BitSet;
 pub(crate) use self::bitset::TinySet;
+pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
+pub use self::counting_writer::CountingWriter;
+pub use self::serialize::{BinarySerializable, FixedSize};
+pub use self::vint::VInt;
 pub use byteorder::LittleEndian as Endianness;
 
 use std::io;
@@ -104,8 +104,8 @@ pub fn u64_to_i64(val: u64) -> i64 {
 #[cfg(test)]
 pub(crate) mod test {
 
-    use super::{compute_num_bits, i64_to_u64, u64_to_i64};
     pub use super::serialize::test::fixed_size_test;
+    use super::{compute_num_bits, i64_to_u64, u64_to_i64};
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);

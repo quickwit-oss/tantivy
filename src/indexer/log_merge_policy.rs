@@ -99,8 +99,8 @@ impl Default for LogMergePolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indexer::merge_policy::MergePolicy;
     use core::{SegmentId, SegmentMeta};
+    use indexer::merge_policy::MergePolicy;
 
     fn test_merge_policy() -> LogMergePolicy {
         let mut log_merge_policy = LogMergePolicy::default();

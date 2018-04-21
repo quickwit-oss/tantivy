@@ -202,14 +202,14 @@ impl BitSet {
 #[cfg(test)]
 mod tests {
 
-    use tests;
-    use std::collections::HashSet;
     use super::BitSet;
     use super::TinySet;
-    use tests::generate_nonunique_unsorted;
-    use std::collections::BTreeSet;
-    use query::BitSetDocSet;
     use docset::DocSet;
+    use query::BitSetDocSet;
+    use std::collections::BTreeSet;
+    use std::collections::HashSet;
+    use tests;
+    use tests::generate_nonunique_unsorted;
 
     #[test]
     fn test_tiny_set() {
@@ -354,12 +354,12 @@ mod tests {
     }
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use test;
-    use super::TinySet;
     use super::BitSet;
+    use super::TinySet;
+    use test;
 
     #[bench]
     fn bench_tinyset_pop(b: &mut test::Bencher) {

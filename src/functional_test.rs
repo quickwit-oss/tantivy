@@ -1,10 +1,10 @@
-use std::collections::HashSet;
 use rand::thread_rng;
+use std::collections::HashSet;
 
+use rand::distributions::{IndependentSample, Range};
 use schema::*;
 use Index;
 use Searcher;
-use rand::distributions::{IndependentSample, Range};
 
 fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
     assert!(searcher.segment_readers().len() < 20);
@@ -13,7 +13,7 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 
 #[test]
 #[ignore]
-#[cfg(feature="mmap")]
+#[cfg(feature = "mmap")]
 fn test_indexing() {
     let mut schema_builder = SchemaBuilder::default();
 

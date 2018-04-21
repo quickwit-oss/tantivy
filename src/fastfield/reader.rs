@@ -1,19 +1,19 @@
-use common::BinarySerializable;
+use super::FastValue;
 use common::bitpacker::BitUnpacker;
-use common::CompositeFile;
 use common::compute_num_bits;
-use directory::{Directory, RAMDirectory, WritePtr};
+use common::BinarySerializable;
+use common::CompositeFile;
 use directory::ReadOnlySource;
-use DocId;
+use directory::{Directory, RAMDirectory, WritePtr};
 use fastfield::{FastFieldSerializer, FastFieldsWriter};
 use owning_ref::OwningRef;
-use schema::FAST;
 use schema::SchemaBuilder;
+use schema::FAST;
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::mem;
 use std::path::Path;
-use super::FastValue;
+use DocId;
 
 /// Trait for accessing a fastfield.
 ///

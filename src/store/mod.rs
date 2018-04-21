@@ -42,12 +42,12 @@ pub use self::writer::StoreWriter;
 pub mod tests {
 
     use super::*;
-    use std::path::Path;
-    use schema::{Schema, SchemaBuilder};
-    use schema::TextOptions;
-    use schema::FieldValue;
-    use schema::Document;
     use directory::{Directory, RAMDirectory, WritePtr};
+    use schema::Document;
+    use schema::FieldValue;
+    use schema::TextOptions;
+    use schema::{Schema, SchemaBuilder};
+    use std::path::Path;
 
     pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
         let mut schema_builder = SchemaBuilder::default();
@@ -106,18 +106,18 @@ pub mod tests {
 
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use test::Bencher;
+    use super::tests::write_lorem_ipsum_store;
+    use directory::Directory;
     use directory::RAMDirectory;
     use std::path::Path;
     use store::StoreReader;
-    use directory::Directory;
-    use super::tests::write_lorem_ipsum_store;
+    use test::Bencher;
 
     #[bench]
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     fn bench_store_encode(b: &mut Bencher) {
         let mut directory = RAMDirectory::create();
         let path = Path::new("store");

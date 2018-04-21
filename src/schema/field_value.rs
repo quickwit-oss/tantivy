@@ -1,9 +1,9 @@
-use std::io;
 use common::BinarySerializable;
-use std::io::Read;
-use std::io::Write;
 use schema::Field;
 use schema::Value;
+use std::io;
+use std::io::Read;
+use std::io::Write;
 
 /// `FieldValue` holds together a `Field` and its `Value`.
 #[derive(Debug, Clone, Ord, PartialEq, Eq, PartialOrd, Serialize, Deserialize)]

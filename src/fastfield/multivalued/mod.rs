@@ -1,15 +1,15 @@
-mod writer;
 mod reader;
+mod writer;
 
-pub use self::writer::MultiValueIntFastFieldWriter;
 pub use self::reader::MultiValueIntFastFieldReader;
+pub use self::writer::MultiValueIntFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
 
-    use schema::SchemaBuilder;
     use schema::Cardinality;
     use schema::IntOptions;
+    use schema::SchemaBuilder;
     use Index;
 
     #[test]

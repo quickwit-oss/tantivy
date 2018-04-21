@@ -1,5 +1,5 @@
-use Score;
 use query::Scorer;
+use Score;
 
 /// The `ScoreCombiner` trait defines how to compute
 /// an overall score given a list of scores.

@@ -1,12 +1,12 @@
-use query::Weight;
-use query::Scorer;
-use schema::Term;
-use schema::IndexRecordOption;
-use core::SegmentReader;
 use super::PhraseScorer;
-use query::EmptyScorer;
-use Result;
+use core::SegmentReader;
 use query::bm25::BM25Weight;
+use query::EmptyScorer;
+use query::Scorer;
+use query::Weight;
+use schema::IndexRecordOption;
+use schema::Term;
+use Result;
 
 pub struct PhraseWeight {
     phrase_terms: Vec<Term>,
@@ -16,13 +16,15 @@ pub struct PhraseWeight {
 
 impl PhraseWeight {
     /// Creates a new phrase weight.
-    pub fn new(phrase_terms: Vec<Term>,
-               similarity_weight: BM25Weight,
-               score_needed: bool) -> PhraseWeight {
+    pub fn new(
+        phrase_terms: Vec<Term>,
+        similarity_weight: BM25Weight,
+        score_needed: bool,
+    ) -> PhraseWeight {
         PhraseWeight {
             phrase_terms,
             similarity_weight,
-            score_needed
+            score_needed,
         }
     }
 }
@@ -37,25 +39,37 @@ impl Weight for PhraseWeight {
             for term in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())
-                    .read_postings(term, IndexRecordOption::WithFreqsAndPositions) {
+                    .read_postings(term, IndexRecordOption::WithFreqsAndPositions)
+                {
                     term_postings_list.push(postings);
                 } else {
                     return Ok(Box::new(EmptyScorer));
                 }
             }
-            Ok(Box::new(PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed)))
+            Ok(Box::new(PhraseScorer::new(
+                term_postings_list,
+                similarity_weight,
+                fieldnorm_reader,
+                self.score_needed,
+            )))
         } else {
             let mut term_postings_list = Vec::new();
             for term in &self.phrase_terms {
                 if let Some(postings) = reader
                     .inverted_index(term.field())
-                    .read_postings_no_deletes(term, IndexRecordOption::WithFreqsAndPositions) {
+                    .read_postings_no_deletes(term, IndexRecordOption::WithFreqsAndPositions)
+                {
                     term_postings_list.push(postings);
                 } else {
                     return Ok(Box::new(EmptyScorer));
                 }
             }
-            Ok(Box::new(PhraseScorer::new(term_postings_list, similarity_weight, fieldnorm_reader, self.score_needed)))
+            Ok(Box::new(PhraseScorer::new(
+                term_postings_list,
+                similarity_weight,
+                fieldnorm_reader,
+                self.score_needed,
+            )))
         }
     }
 }

@@ -1,19 +1,18 @@
-use query::Weight;
 use core::SegmentReader;
-use query::Union;
-use std::collections::HashMap;
-use query::EmptyScorer;
-use query::Scorer;
 use downcast::Downcast;
-use std::borrow::Borrow;
+use query::intersect_scorers;
+use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
+use query::term_query::TermScorer;
+use query::EmptyScorer;
 use query::Exclude;
 use query::Occur;
 use query::RequiredOptionalScorer;
-use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
+use query::Scorer;
+use query::Union;
+use query::Weight;
+use std::borrow::Borrow;
+use std::collections::HashMap;
 use Result;
-use query::intersect_scorers;
-use query::term_query::TermScorer;
-
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -41,7 +40,6 @@ where
 
     let scorer: Box<Scorer> = Box::new(Union::<_, TScoreCombiner>::from(scorers));
     return scorer;
-
 }
 
 pub struct BooleanWeight {
@@ -78,9 +76,9 @@ impl BooleanWeight {
             .remove(&Occur::MustNot)
             .map(scorer_union::<TScoreCombiner>);
 
-        let must_scorer_opt: Option<Box<Scorer>> =
-            per_occur_scorers.remove(&Occur::Must)
-                .map(intersect_scorers);
+        let must_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
+            .remove(&Occur::Must)
+            .map(intersect_scorers);
 
         let positive_scorer: Box<Scorer> = match (should_scorer_opt, must_scorer_opt) {
             (Some(should_scorer), Some(must_scorer)) => {

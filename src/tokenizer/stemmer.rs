@@ -1,6 +1,6 @@
-use std::sync::Arc;
 use super::{Token, TokenFilter, TokenStream};
 use rust_stemmers::{self, Algorithm};
+use std::sync::Arc;
 
 /// `Stemmer` token filter. Currently only English is supported.
 /// Tokens are expected to be lowercased beforehands.

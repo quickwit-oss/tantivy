@@ -1,10 +1,10 @@
 use core::SegmentId;
-use std::collections::HashMap;
 use core::SegmentMeta;
+use indexer::delete_queue::DeleteCursor;
+use indexer::segment_entry::SegmentEntry;
+use std::collections::HashMap;
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use indexer::segment_entry::SegmentEntry;
-use indexer::delete_queue::DeleteCursor;
 
 /// The segment register keeps track
 /// of the list of segment, their size as well
@@ -113,11 +113,11 @@ impl SegmentRegister {
 
 #[cfg(test)]
 mod tests {
-    use indexer::SegmentState;
+    use super::*;
     use core::SegmentId;
     use core::SegmentMeta;
     use indexer::delete_queue::*;
-    use super::*;
+    use indexer::SegmentState;
 
     fn segment_ids(segment_register: &SegmentRegister) -> Vec<SegmentId> {
         segment_register

@@ -23,26 +23,26 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
+pub use self::delete::write_delete_bitset;
+pub use self::delete::DeleteBitSet;
+pub use self::error::{FastFieldNotAvailableError, Result};
+pub use self::facet_reader::FacetReader;
+pub use self::multivalued::{MultiValueIntFastFieldReader, MultiValueIntFastFieldWriter};
+pub use self::reader::FastFieldReader;
+pub use self::serializer::FastFieldSerializer;
+pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use common;
 use schema::Cardinality;
 use schema::FieldType;
 use schema::Value;
-pub use self::delete::DeleteBitSet;
-pub use self::delete::write_delete_bitset;
-pub use self::error::{FastFieldNotAvailableError, Result};
-pub use self::facet_reader::FacetReader;
-pub use self::multivalued::{MultiValueIntFastFieldWriter, MultiValueIntFastFieldReader};
-pub use self::reader::FastFieldReader;
-pub use self::serializer::FastFieldSerializer;
-pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 
-mod reader;
-mod writer;
-mod serializer;
-mod error;
 mod delete;
+mod error;
 mod facet_reader;
 mod multivalued;
+mod reader;
+mod serializer;
+mod writer;
 
 /// Trait for types that are allowed for fast fields: (u64 or i64).
 pub trait FastValue: Default + Clone + Copy {
@@ -121,19 +121,19 @@ fn value_to_u64(value: &Value) -> u64 {
 #[cfg(test)]
 mod tests {
 
+    use super::*;
     use common::CompositeFile;
     use directory::{Directory, RAMDirectory, WritePtr};
     use fastfield::FastFieldReader;
     use rand::Rng;
     use rand::SeedableRng;
     use rand::XorShiftRng;
-    use schema::{Schema, SchemaBuilder};
     use schema::Document;
-    use schema::FAST;
     use schema::Field;
+    use schema::FAST;
+    use schema::{Schema, SchemaBuilder};
     use std::collections::HashMap;
     use std::path::Path;
-    use super::*;
 
     lazy_static! {
         pub static ref SCHEMA: Schema = {
@@ -141,9 +141,7 @@ mod tests {
             schema_builder.add_u64_field("field", FAST);
             schema_builder.build()
         };
-        pub static ref FIELD: Field = {
-            SCHEMA.get_field("field").unwrap()
-        };
+        pub static ref FIELD: Field = { SCHEMA.get_field("field").unwrap() };
     }
 
     #[test]
@@ -409,17 +407,17 @@ mod tests {
 
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use super::tests::{SCHEMA, generate_permutation};
-    use test::{self, Bencher};
     use super::tests::FIELD;
+    use super::tests::{generate_permutation, SCHEMA};
+    use super::*;
     use common::CompositeFile;
     use directory::{Directory, RAMDirectory, WritePtr};
     use fastfield::FastFieldReader;
     use std::collections::HashMap;
     use std::path::Path;
-    use super::*;
+    use test::{self, Bencher};
 
     #[bench]
     fn bench_intfastfield_linear_veclookup(b: &mut Bencher) {

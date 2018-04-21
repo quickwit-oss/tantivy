@@ -1,12 +1,12 @@
-use fastfield::FastFieldSerializer;
 use fastfield::serializer::FastSingleFieldSerializer;
 use fastfield::value_to_u64;
-use std::collections::HashMap;
-use DocId;
+use fastfield::FastFieldSerializer;
+use itertools::Itertools;
 use postings::UnorderedTermId;
 use schema::{Document, Field};
+use std::collections::HashMap;
 use std::io;
-use itertools::Itertools;
+use DocId;
 
 /// Writer for multi-valued (as in, more than one value per document)
 /// int fast field.
@@ -37,7 +37,6 @@ pub struct MultiValueIntFastFieldWriter {
 }
 
 impl MultiValueIntFastFieldWriter {
-
     /// Creates a new `IntFastFieldWriter`
     pub(crate) fn new(field: Field, is_facet: bool) -> Self {
         MultiValueIntFastFieldWriter {
@@ -68,7 +67,7 @@ impl MultiValueIntFastFieldWriter {
     pub fn add_document(&mut self, doc: &Document) {
         self.next_doc();
         // facets are indexed in the `SegmentWriter` as we encode their unordered id.
-        if !self.is_facet { 
+        if !self.is_facet {
             for field_value in doc.field_values() {
                 if field_value.field() == self.field {
                     self.add_val(value_to_u64(field_value.value()));

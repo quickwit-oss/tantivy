@@ -1,7 +1,7 @@
 use super::operation::DeleteOperation;
-use std::sync::{Arc, RwLock};
 use std::mem;
 use std::ops::DerefMut;
+use std::sync::{Arc, RwLock};
 
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.

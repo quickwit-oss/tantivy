@@ -1,9 +1,9 @@
 #![allow(dead_code)]
 
-use DocId;
-use docset::DocSet;
 use common::HasLen;
+use docset::DocSet;
 use std::num::Wrapping;
+use DocId;
 
 const EMPTY_ARRAY: [u32; 0] = [];
 
@@ -51,8 +51,8 @@ impl HasLen for VecDocSet {
 pub mod tests {
 
     use super::*;
-    use DocId;
     use docset::{DocSet, SkipResult};
+    use DocId;
 
     #[test]
     pub fn test_vec_postings() {

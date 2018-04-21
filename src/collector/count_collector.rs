@@ -1,9 +1,9 @@
 use super::Collector;
 use DocId;
-use Score;
 use Result;
-use SegmentReader;
+use Score;
 use SegmentLocalId;
+use SegmentReader;
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.

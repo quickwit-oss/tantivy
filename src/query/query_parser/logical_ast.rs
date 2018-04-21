@@ -1,6 +1,6 @@
-use std::fmt;
-use schema::Term;
 use query::Occur;
+use schema::Term;
+use std::fmt;
 
 #[derive(Clone)]
 pub enum LogicalLiteral {

@@ -1,7 +1,7 @@
 use fieldnorm::FieldNormReader;
-use Term;
-use Searcher;
 use Score;
+use Searcher;
+use Term;
 
 const K1: f32 = 1.2;
 const B: f32 = 0.75;
@@ -10,7 +10,6 @@ fn idf(doc_freq: u64, doc_count: u64) -> f32 {
     let x = ((doc_count - doc_freq) as f32 + 0.5) / (doc_freq as f32 + 0.5);
     (1f32 + x).ln()
 }
-
 
 fn cached_tf_component(fieldnorm: u32, average_fieldnorm: f32) -> f32 {
     K1 * (1f32 - B + B * fieldnorm as f32 / average_fieldnorm)
@@ -32,11 +31,10 @@ pub struct BM25Weight {
 }
 
 impl BM25Weight {
-
     pub fn null() -> BM25Weight {
         BM25Weight {
             weight: 0f32,
-            cache: [1f32; 256]
+            cache: [1f32; 256],
         }
     }
 
@@ -44,7 +42,11 @@ impl BM25Weight {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();
         for term in &terms[1..] {
-            assert_eq!(term.field(), field, "All terms must belong to the same field.");
+            assert_eq!(
+                term.field(),
+                field,
+                "All terms must belong to the same field."
+            );
         }
 
         let mut total_num_tokens = 0u64;
@@ -56,7 +58,8 @@ impl BM25Weight {
         }
         let average_fieldnorm = total_num_tokens as f32 / total_num_docs as f32;
 
-        let idf = terms.iter()
+        let idf = terms
+            .iter()
             .map(|term| {
                 let term_doc_freq = searcher.doc_freq(term);
                 idf(term_doc_freq, total_num_docs)
@@ -83,12 +86,12 @@ impl BM25Weight {
 #[cfg(test)]
 mod tests {
 
-    use tests::assert_nearly_equals;
     use super::idf;
+    use tests::assert_nearly_equals;
 
     #[test]
     fn test_idf() {
-        assert_nearly_equals(idf(1, 2),  0.6931472);
+        assert_nearly_equals(idf(1, 2), 0.6931472);
     }
 
 }

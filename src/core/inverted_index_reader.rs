@@ -1,13 +1,13 @@
+use common::BinarySerializable;
+use compression::CompressedIntStream;
 use directory::{ReadOnlySource, SourceRead};
-use termdict::TermDictionary;
-use postings::{BlockSegmentPostings, SegmentPostings};
+use postings::FreqReadingOption;
 use postings::TermInfo;
+use postings::{BlockSegmentPostings, SegmentPostings};
+use schema::FieldType;
 use schema::IndexRecordOption;
 use schema::Term;
-use compression::CompressedIntStream;
-use postings::FreqReadingOption;
-use common::BinarySerializable;
-use schema::FieldType;
+use termdict::TermDictionary;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -27,7 +27,7 @@ pub struct InvertedIndexReader {
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
     record_option: IndexRecordOption,
-    total_num_tokens: u64
+    total_num_tokens: u64,
 }
 
 impl InvertedIndexReader {
@@ -45,7 +45,7 @@ impl InvertedIndexReader {
             postings_source: postings_source.slice_from(8),
             positions_source,
             record_option,
-            total_num_tokens
+            total_num_tokens,
         }
     }
 
@@ -56,11 +56,11 @@ impl InvertedIndexReader {
             .get_index_record_option()
             .unwrap_or(IndexRecordOption::Basic);
         InvertedIndexReader {
-            termdict:    TermDictionary::empty(field_type),
+            termdict: TermDictionary::empty(field_type),
             postings_source: ReadOnlySource::empty(),
             positions_source: ReadOnlySource::empty(),
             record_option,
-            total_num_tokens: 0u64
+            total_num_tokens: 0u64,
         }
     }
 
@@ -149,8 +149,6 @@ impl InvertedIndexReader {
         self.total_num_tokens
     }
 
-
-
     /// Returns the segment postings associated with the term, and with the given option,
     /// or `None` if the term has never been encountered and indexed.
     ///
@@ -166,11 +164,14 @@ impl InvertedIndexReader {
         Some(self.read_postings_from_terminfo(&term_info, option))
     }
 
-    pub(crate) fn read_postings_no_deletes(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
+    pub(crate) fn read_postings_no_deletes(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> Option<SegmentPostings> {
         let term_info = get!(self.get_term_info(term));
         Some(self.read_postings_from_terminfo(&term_info, option))
     }
-
 
     /// Returns the number of documents containing the term.
     pub fn doc_freq(&self, term: &Term) -> u32 {
@@ -179,6 +180,3 @@ impl InvertedIndexReader {
             .unwrap_or(0u32)
     }
 }
-
-
-

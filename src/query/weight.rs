@@ -1,6 +1,6 @@
 use super::Scorer;
-use Result;
 use core::SegmentReader;
+use Result;
 
 /// A Weight is the specialization of a Query
 /// for a given set of segments.

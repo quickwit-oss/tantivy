@@ -1,13 +1,13 @@
-use schema::{Cardinality, Document, Field, Schema};
-use fastfield::FastFieldSerializer;
-use std::io;
-use schema::FieldType;
-use common;
-use common::VInt;
-use std::collections::HashMap;
-use postings::UnorderedTermId;
 use super::multivalued::MultiValueIntFastFieldWriter;
+use common;
 use common::BinarySerializable;
+use common::VInt;
+use fastfield::FastFieldSerializer;
+use postings::UnorderedTermId;
+use schema::FieldType;
+use schema::{Cardinality, Document, Field, Schema};
+use std::collections::HashMap;
+use std::io;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {

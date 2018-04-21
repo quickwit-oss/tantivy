@@ -1,10 +1,10 @@
 use byteorder::{ReadBytesExt, WriteBytesExt};
 use common::Endianness;
-use std::fmt;
-use std::io::Write;
-use std::io::Read;
-use std::io;
 use common::VInt;
+use std::fmt;
+use std::io;
+use std::io::Read;
+use std::io::Write;
 
 /// Trait for a simple binary serialization.
 pub trait BinarySerializable: fmt::Debug + Sized {
@@ -135,8 +135,8 @@ impl BinarySerializable for String {
 #[cfg(test)]
 pub mod test {
 
-    use common::VInt;
     use super::*;
+    use common::VInt;
 
     pub fn fixed_size_test<O: BinarySerializable + FixedSize + Default>() {
         let mut buffer = Vec::new();

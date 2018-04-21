@@ -1,7 +1,7 @@
-use DocId;
-use std::{self, io};
-use postings::FieldSerializer;
 use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
+use postings::FieldSerializer;
+use std::{self, io};
+use DocId;
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = std::u32::MAX;

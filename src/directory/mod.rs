@@ -4,29 +4,29 @@ WORM directory abstraction.
 
 */
 
-#[cfg(feature="mmap")]
+#[cfg(feature = "mmap")]
 mod mmap_directory;
 
-mod ram_directory;
 mod directory;
+mod managed_directory;
+mod ram_directory;
 mod read_only_source;
 mod shared_vec_slice;
-mod managed_directory;
 
 /// Errors specific to the directory module.
 pub mod error;
 
 use std::io::{BufWriter, Seek, Write};
 
-pub use self::read_only_source::ReadOnlySource;
 pub use self::directory::Directory;
 pub use self::ram_directory::RAMDirectory;
+pub use self::read_only_source::ReadOnlySource;
 
-#[cfg(feature="mmap")]
+#[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
-pub(crate) use self::read_only_source::SourceRead;
 pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
+pub(crate) use self::read_only_source::SourceRead;
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}
@@ -42,8 +42,8 @@ pub type WritePtr = BufWriter<Box<SeekableWrite>>;
 mod tests {
 
     use super::*;
-    use std::path::Path;
     use std::io::{Seek, SeekFrom, Write};
+    use std::path::Path;
 
     lazy_static! {
         static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
@@ -56,7 +56,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     fn test_mmap_directory() {
         let mut mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
         test_directory(&mut mmap_directory);

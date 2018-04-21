@@ -1,21 +1,21 @@
-use DocId;
-use schema::Term;
-use postings::{FieldSerializer, InvertedIndexSerializer};
-use std::io;
-use std::collections::HashMap;
-use postings::Recorder;
-use Result;
-use schema::{Field, Schema};
-use std::marker::PhantomData;
-use std::ops::DerefMut;
 use datastruct::stacker::{Heap, TermHashMap};
+use postings::Recorder;
+use postings::UnorderedTermId;
+use postings::{FieldSerializer, InvertedIndexSerializer};
 use postings::{NothingRecorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use schema::FieldEntry;
 use schema::FieldType;
+use schema::IndexRecordOption;
+use schema::Term;
+use schema::{Field, Schema};
+use std::collections::HashMap;
+use std::io;
+use std::marker::PhantomData;
+use std::ops::DerefMut;
 use tokenizer::Token;
 use tokenizer::TokenStream;
-use schema::IndexRecordOption;
-use postings::UnorderedTermId;
+use DocId;
+use Result;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -123,7 +123,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             unordered_term_mappings.insert(field, mapping);
 
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
-            let mut field_serializer = serializer.new_field(field, postings_writer.total_num_tokens())?;
+            let mut field_serializer =
+                serializer.new_field(field, postings_writer.total_num_tokens())?;
             postings_writer.serialize(
                 &term_offsets[start..stop],
                 &mut field_serializer,

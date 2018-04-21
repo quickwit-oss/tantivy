@@ -1,14 +1,13 @@
-use docset::{DocSet, SkipResult};
-use query::Scorer;
 use common::TinySet;
+use docset::{DocSet, SkipResult};
+use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
+use query::Scorer;
 use std::cmp::Ordering;
 use DocId;
 use Score;
-use query::score_combiner::{DoNothingCombiner, ScoreCombiner};
 
 const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
-
 
 // `drain_filter` is not stable yet.
 // This function is similar except that it does is not unsafe, and
@@ -16,7 +15,9 @@ const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 //
 // Also, it does not "yield" any elements.
 fn unordered_drain_filter<T, P>(v: &mut Vec<T>, mut predicate: P)
-    where P: FnMut(&mut T) -> bool {
+where
+    P: FnMut(&mut T) -> bool,
+{
     let mut i = 0;
     while i < v.len() {
         if predicate(&mut v[i]) {
@@ -262,15 +263,15 @@ where
 mod tests {
 
     use super::Union;
-    use tests;
-    use DocId;
-    use std::collections::BTreeSet;
     use super::HORIZON;
     use docset::{DocSet, SkipResult};
     use postings::tests::test_skip_against_unoptimized;
-    use query::VecDocSet;
-    use query::ConstScorer;
     use query::score_combiner::DoNothingCombiner;
+    use query::ConstScorer;
+    use query::VecDocSet;
+    use std::collections::BTreeSet;
+    use tests;
+    use DocId;
 
     fn aux_test_union(vals: Vec<Vec<u32>>) {
         let mut val_set: BTreeSet<u32> = BTreeSet::new();
@@ -406,19 +407,18 @@ mod tests {
         );
     }
 
-
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use test::Bencher;
-    use tests;
     use query::score_combiner::DoNothingCombiner;
-    use DocId;
     use query::ConstScorer;
     use query::Union;
     use query::VecDocSet;
+    use test::Bencher;
+    use tests;
+    use DocId;
     use DocSet;
 
     #[bench]

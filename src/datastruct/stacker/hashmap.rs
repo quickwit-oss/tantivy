@@ -1,7 +1,7 @@
+use super::heap::{BytesRef, Heap, HeapAllocable};
+use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
-use postings::UnorderedTermId;
-use super::heap::{BytesRef, Heap, HeapAllocable};
 
 mod murmurhash2 {
 
@@ -117,11 +117,7 @@ struct QuadraticProbing {
 
 impl QuadraticProbing {
     fn compute(hash: usize, mask: usize) -> QuadraticProbing {
-        QuadraticProbing {
-            hash,
-            i: 0,
-            mask,
-        }
+        QuadraticProbing { hash, i: 0, mask }
     }
 
     #[inline]
@@ -135,21 +131,18 @@ use std::slice;
 
 pub struct Iter<'a: 'b, 'b> {
     hashmap: &'b TermHashMap<'a>,
-    inner: slice::Iter<'a, usize>
+    inner: slice::Iter<'a, usize>,
 }
 
 impl<'a, 'b> Iterator for Iter<'a, 'b> {
     type Item = (&'b [u8], u32, UnorderedTermId);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.inner
-            .next()
-            .cloned()
-            .map(move |bucket: usize| {
-                let kv = self.hashmap.table[bucket];
-                let (key, offset): (&'b [u8], u32) = self.hashmap.get_key_value(kv.key_value_addr);
-                (key, offset, bucket as UnorderedTermId)
-            })
+        self.inner.next().cloned().map(move |bucket: usize| {
+            let kv = self.hashmap.table[bucket];
+            let (key, offset): (&'b [u8], u32) = self.hashmap.get_key_value(kv.key_value_addr);
+            (key, offset, bucket as UnorderedTermId)
+        })
     }
 }
 
@@ -183,14 +176,15 @@ impl<'a> TermHashMap<'a> {
     pub fn set_bucket(&mut self, hash: u32, key_value_addr: BytesRef, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
-            key_value_addr, hash
+            key_value_addr,
+            hash,
         };
     }
 
     pub fn iter<'b: 'a>(&'b self) -> Iter<'a, 'b> {
         Iter {
             inner: self.occupied.iter(),
-            hashmap: &self
+            hashmap: &self,
         }
     }
 
@@ -225,8 +219,8 @@ impl<'a> TermHashMap<'a> {
 
 #[cfg(all(test, unstable))]
 mod bench {
-    use test::Bencher;
     use super::murmurhash2::murmurhash2;
+    use test::Bencher;
 
     #[bench]
     fn bench_murmurhash_2(b: &mut Bencher) {
@@ -246,11 +240,11 @@ mod bench {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use super::super::heap::{Heap, HeapAllocable};
     use super::murmurhash2::murmurhash2;
-    use std::collections::HashSet;
     use super::split_memory;
+    use super::*;
+    use std::collections::HashSet;
 
     struct TestValue {
         val: u32,
@@ -331,6 +325,5 @@ mod tests {
         }
         assert_eq!(set.len(), 10_000);
     }
-
 
 }

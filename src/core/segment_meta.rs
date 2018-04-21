@@ -1,7 +1,7 @@
-use core::SegmentId;
 use super::SegmentComponent;
-use std::path::PathBuf;
+use core::SegmentId;
 use std::collections::HashSet;
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {

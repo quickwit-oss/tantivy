@@ -1,12 +1,12 @@
 use super::Collector;
-use SegmentReader;
-use SegmentLocalId;
-use DocAddress;
-use Result;
-use std::collections::BinaryHeap;
 use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use DocAddress;
 use DocId;
+use Result;
 use Score;
+use SegmentLocalId;
+use SegmentReader;
 
 // Rust heap is a max-heap and we need a min heap.
 #[derive(Clone, Copy)]
@@ -135,9 +135,9 @@ impl Collector for TopCollector {
 mod tests {
 
     use super::*;
+    use collector::Collector;
     use DocId;
     use Score;
-    use collector::Collector;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

@@ -1,11 +1,11 @@
-use Term;
-use Result;
 use super::term_weight::TermWeight;
+use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
 use schema::IndexRecordOption;
+use Result;
 use Searcher;
-use query::bm25::BM25Weight;
+use Term;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -44,11 +44,7 @@ impl TermQuery {
         } else {
             IndexRecordOption::Basic
         };
-        TermWeight::new(
-            self.term.clone(),
-            index_record_option,
-            bm25_weight
-        )
+        TermWeight::new(self.term.clone(), index_record_option, bm25_weight)
     }
 }
 
@@ -57,4 +53,3 @@ impl Query for TermQuery {
         Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
     }
 }
-

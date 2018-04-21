@@ -1,16 +1,16 @@
-use schema::{Field, IndexRecordOption, Term};
-use query::{Query, Scorer, Weight};
-use termdict::{TermDictionary, TermStreamer};
-use core::SegmentReader;
 use common::BitSet;
-use Result;
 use core::Searcher;
+use core::SegmentReader;
+use error::ErrorKind;
 use query::BitSetDocSet;
 use query::ConstScorer;
-use std::ops::Range;
+use query::{Query, Scorer, Weight};
 use schema::Type;
-use error::ErrorKind;
+use schema::{Field, IndexRecordOption, Term};
 use std::collections::Bound;
+use std::ops::Range;
+use termdict::{TermDictionary, TermStreamer};
+use Result;
 
 fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
     bound: Bound<TFrom>,
@@ -89,16 +89,16 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
-
     /// Creates a new `RangeQuery` over a `i64` field.
     ///
     /// If the field is not of the type `i64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_i64(
-        field: Field,
-        range: Range<i64>
-    ) -> RangeQuery {
-        RangeQuery::new_i64_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
+    pub fn new_i64(field: Field, range: Range<i64>) -> RangeQuery {
+        RangeQuery::new_i64_bounds(
+            field,
+            Bound::Included(range.start),
+            Bound::Excluded(range.end),
+        )
     }
 
     /// Create a new `RangeQuery` over a `i64` field.
@@ -111,7 +111,7 @@ impl RangeQuery {
     pub fn new_i64_bounds(
         field: Field,
         left_bound: Bound<i64>,
-        right_bound: Bound<i64>
+        right_bound: Bound<i64>,
     ) -> RangeQuery {
         let make_term_val = |val: i64| Term::from_field_i64(field, val).value_bytes().to_owned();
         RangeQuery {
@@ -132,7 +132,7 @@ impl RangeQuery {
     pub fn new_u64_bounds(
         field: Field,
         left_bound: Bound<u64>,
-        right_bound: Bound<u64>
+        right_bound: Bound<u64>,
     ) -> RangeQuery {
         let make_term_val = |val: u64| Term::from_field_u64(field, val).value_bytes().to_owned();
         RangeQuery {
@@ -147,11 +147,12 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `u64`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_u64(
-        field: Field,
-        range: Range<u64>
-    ) -> RangeQuery {
-        RangeQuery::new_u64_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
+    pub fn new_u64(field: Field, range: Range<u64>) -> RangeQuery {
+        RangeQuery::new_u64_bounds(
+            field,
+            Bound::Included(range.start),
+            Bound::Excluded(range.end),
+        )
     }
 
     /// Create a new `RangeQuery` over a `Str` field.
@@ -164,7 +165,7 @@ impl RangeQuery {
     pub fn new_str_bounds<'b>(
         field: Field,
         left: Bound<&'b str>,
-        right: Bound<&'b str>
+        right: Bound<&'b str>,
     ) -> RangeQuery {
         let make_term_val = |val: &str| val.as_bytes().to_vec();
         RangeQuery {
@@ -179,11 +180,12 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str<'b>(
-        field: Field,
-        range: Range<&'b str>
-    ) -> RangeQuery {
-        RangeQuery::new_str_bounds(field, Bound::Included(range.start), Bound::Excluded(range.end))
+    pub fn new_str<'b>(field: Field, range: Range<&'b str>) -> RangeQuery {
+        RangeQuery::new_str_bounds(
+            field,
+            Bound::Included(range.start),
+            Bound::Excluded(range.end),
+        )
     }
 }
 
@@ -256,13 +258,13 @@ impl Weight for RangeWeight {
 #[cfg(test)]
 mod tests {
 
-    use Index;
-    use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
-    use collector::CountCollector;
-    use std::collections::Bound;
-    use query::Query;
-    use Result;
     use super::RangeQuery;
+    use collector::CountCollector;
+    use query::Query;
+    use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
+    use std::collections::Bound;
+    use Index;
+    use Result;
 
     #[test]
     fn test_range_query_simple() {
@@ -349,7 +351,14 @@ mod tests {
             )),
             9
         );
-        assert_eq!(count_multiples(RangeQuery::new_i64_bounds(int_field, Bound::Included(9), Bound::Unbounded)), 91);
+        assert_eq!(
+            count_multiples(RangeQuery::new_i64_bounds(
+                int_field,
+                Bound::Included(9),
+                Bound::Unbounded
+            )),
+            91
+        );
     }
 
 }

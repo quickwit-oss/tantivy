@@ -1,11 +1,11 @@
-use schema::TextOptions;
 use schema::IntOptions;
+use schema::TextOptions;
 
-use std::fmt;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::ser::SerializeStruct;
-use serde::de::{self, MapAccess, Visitor};
 use schema::FieldType;
+use serde::de::{self, MapAccess, Visitor};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
 
 /// A `FieldEntry` represents a field and its configuration.
 /// `Schema` are a collection of `FieldEntry`

@@ -1,7 +1,7 @@
-use std::fmt;
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serde::de::Visitor;
 use schema::Facet;
+use serde::de::Visitor;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -132,10 +132,10 @@ impl<'a> From<Facet> for Value {
 }
 
 mod binary_serialize {
-    use common::BinarySerializable;
-    use std::io::{self, Read, Write};
     use super::Value;
+    use common::BinarySerializable;
     use schema::Facet;
+    use std::io::{self, Read, Write};
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;

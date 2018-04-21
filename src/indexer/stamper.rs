@@ -2,11 +2,11 @@
 // For the moment let's just use AtomicUsize on
 // x86/64 bit platform, and a mutex on other platform.
 
-#[cfg(target="x86_64")]
+#[cfg(target = "x86_64")]
 mod archicture_impl {
 
-    use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
 
     #[derive(Clone, Default)]
     pub struct Stamper(Arc<AtomicU64>);
@@ -22,8 +22,7 @@ mod archicture_impl {
     }
 }
 
-
-#[cfg(not(target="x86_64"))]
+#[cfg(not(target = "x86_64"))]
 mod archicture_impl {
 
     use std::sync::{Arc, Mutex};
@@ -46,7 +45,6 @@ mod archicture_impl {
 }
 
 pub use self::archicture_impl::Stamper;
-
 
 #[cfg(test)]
 mod test {

@@ -1,26 +1,23 @@
 use DocId;
 
-use schema::Field;
-use super::FieldNormsSerializer;
-use std::io;
-use schema::Schema;
 use super::fieldnorm_to_id;
+use super::FieldNormsSerializer;
+use schema::Field;
+use schema::Schema;
+use std::io;
 
 pub struct FieldNormsWriter {
     fields: Vec<Field>,
-    fieldnorms_buffer: Vec<Vec<u8>>
+    fieldnorms_buffer: Vec<Vec<u8>>,
 }
 
 impl FieldNormsWriter {
-
     pub fn fields_with_fieldnorm(schema: &Schema) -> Vec<Field> {
         schema
             .fields()
             .iter()
             .enumerate()
-            .filter(|&(_, field_entry)| {
-                field_entry.is_indexed()
-            })
+            .filter(|&(_, field_entry)| field_entry.is_indexed())
             .map(|(field, _)| Field(field as u32))
             .collect::<Vec<Field>>()
     }
@@ -35,9 +32,7 @@ impl FieldNormsWriter {
             .unwrap_or(0);
         FieldNormsWriter {
             fields,
-            fieldnorms_buffer: (0..max_field)
-                .map(|_| Vec::new())
-                .collect::<Vec<_>>()
+            fieldnorms_buffer: (0..max_field).map(|_| Vec::new()).collect::<Vec<_>>(),
         }
     }
 
@@ -49,7 +44,10 @@ impl FieldNormsWriter {
 
     pub fn record(&mut self, doc: DocId, field: Field, fieldnorm: u32) {
         let fieldnorm_buffer: &mut Vec<u8> = &mut self.fieldnorms_buffer[field.0 as usize];
-        assert!(fieldnorm_buffer.len() <= doc as usize, "Cannot register a given fieldnorm twice");
+        assert!(
+            fieldnorm_buffer.len() <= doc as usize,
+            "Cannot register a given fieldnorm twice"
+        );
         // we fill intermediary `DocId` as  having a fieldnorm of 0.
         fieldnorm_buffer.resize(doc as usize + 1, 0u8);
         fieldnorm_buffer[doc as usize] = fieldnorm_to_id(fieldnorm);

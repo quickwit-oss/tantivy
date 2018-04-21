@@ -1,7 +1,7 @@
-use query::Scorer;
 use docset::{DocSet, SkipResult};
-use Score;
+use query::Scorer;
 use DocId;
+use Score;
 
 #[derive(Clone, Copy, Debug)]
 enum State {
@@ -129,10 +129,10 @@ where
 #[cfg(test)]
 mod tests {
 
-    use tests::sample_with_seed;
-    use postings::tests::test_skip_against_unoptimized;
     use super::*;
+    use postings::tests::test_skip_against_unoptimized;
     use query::VecDocSet;
+    use tests::sample_with_seed;
 
     #[test]
     fn test_exclude() {

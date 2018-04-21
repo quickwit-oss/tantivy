@@ -1,15 +1,15 @@
-use Result;
-use core::SegmentReader;
-use schema::Document;
 use collector::Collector;
-use query::Query;
-use DocAddress;
-use schema::{Field, Term};
-use termdict::TermMerger;
-use std::sync::Arc;
-use std::fmt;
-use schema::Schema;
 use core::InvertedIndexReader;
+use core::SegmentReader;
+use query::Query;
+use schema::Document;
+use schema::Schema;
+use schema::{Field, Term};
+use std::fmt;
+use std::sync::Arc;
+use termdict::TermMerger;
+use DocAddress;
+use Result;
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -22,14 +22,11 @@ pub struct Searcher {
 }
 
 impl Searcher {
-
     /// Creates a new `Searcher`
-    pub(crate) fn new(
-        schema: Schema,
-        segment_readers: Vec<SegmentReader>) -> Searcher {
+    pub(crate) fn new(schema: Schema, segment_readers: Vec<SegmentReader>) -> Searcher {
         Searcher {
             schema,
-            segment_readers
+            segment_readers,
         }
     }
     /// Fetches a document from tantivy's store given a `DocAddress`.
@@ -108,7 +105,6 @@ impl FieldSearcher {
         TermMerger::new(term_streamers)
     }
 }
-
 
 impl fmt::Debug for Searcher {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {

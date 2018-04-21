@@ -1,8 +1,7 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
 #![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
-
-#![cfg_attr(all(feature="unstable", test), feature(test))]
+#![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![allow(unknown_lints)]
 #![allow(new_without_default)]
@@ -123,9 +122,10 @@ extern crate log;
 #[macro_use]
 extern crate error_chain;
 
-#[cfg(feature="mmap")]
+#[cfg(feature = "mmap")]
 extern crate atomicwrites;
 extern crate bit_set;
+extern crate bitpacking;
 extern crate byteorder;
 extern crate chan;
 extern crate combine;
@@ -145,7 +145,6 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
-extern crate bitpacking;
 
 #[cfg(test)]
 #[macro_use]
@@ -160,7 +159,7 @@ extern crate winapi;
 #[cfg(test)]
 extern crate rand;
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
 extern crate tinysegmenter;
@@ -179,36 +178,36 @@ pub use error::{Error, ErrorKind, ResultExt};
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, Error>;
 
-mod core;
-mod compression;
-mod indexer;
 mod common;
+mod compression;
+mod core;
+mod indexer;
 
+mod datastruct;
 #[allow(unused_doc_comment)]
 mod error;
 pub mod tokenizer;
-mod datastruct;
 
-pub mod termdict;
-pub mod store;
-pub mod query;
-pub mod directory;
 pub mod collector;
-pub mod postings;
-pub mod schema;
+pub mod directory;
 pub mod fastfield;
 pub(crate) mod fieldnorm;
+pub mod postings;
+pub mod query;
+pub mod schema;
+pub mod store;
+pub mod termdict;
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
 
-pub use directory::Directory;
-pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};
-pub use indexer::IndexWriter;
-pub use schema::{Document, Term};
-pub use core::{InvertedIndexReader, SegmentReader};
-pub use postings::Postings;
 pub use core::SegmentComponent;
+pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta};
+pub use core::{InvertedIndexReader, SegmentReader};
+pub use directory::Directory;
+pub use indexer::IndexWriter;
+pub use postings::Postings;
+pub use schema::{Document, Term};
 
 pub use common::{i64_to_u64, u64_to_i64};
 
@@ -224,10 +223,10 @@ pub fn version() -> &'static str {
 
 /// Defines tantivy's merging strategy
 pub mod merge_policy {
-    pub use indexer::MergePolicy;
-    pub use indexer::LogMergePolicy;
-    pub use indexer::NoMergePolicy;
     pub use indexer::DefaultMergePolicy;
+    pub use indexer::LogMergePolicy;
+    pub use indexer::MergePolicy;
+    pub use indexer::NoMergePolicy;
 }
 
 /// A `u32` identifying a document within a segment.
@@ -276,18 +275,23 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 mod tests {
 
     use collector::tests::TestCollector;
-    use Index;
     use core::SegmentReader;
-    use query::BooleanQuery;
-    use schema::*;
     use docset::DocSet;
+    use query::BooleanQuery;
+    use rand::distributions::{IndependentSample, Range};
+    use rand::{Rng, SeedableRng, XorShiftRng};
+    use schema::*;
+    use Index;
     use IndexWriter;
     use Postings;
-    use rand::{Rng, SeedableRng, XorShiftRng};
-    use rand::distributions::{IndependentSample, Range};
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
-        assert!(nearly_equals(val, expected), "Got {}, expected {}.", val, expected);
+        assert!(
+            nearly_equals(val, expected),
+            "Got {}, expected {}.",
+            val,
+            expected
+        );
     }
 
     pub fn nearly_equals(a: f32, b: f32) -> bool {
@@ -314,7 +318,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     fn test_indexing() {
         let mut schema_builder = SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", TEXT);
@@ -439,7 +443,6 @@ mod tests {
             assert_eq!(fieldnorms_reader.fieldnorm(2), 2);
         }
     }
-
 
     fn advance_undeleted(docset: &mut DocSet, reader: &SegmentReader) -> bool {
         while docset.advance() {

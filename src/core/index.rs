@@ -1,33 +1,32 @@
-use Result;
+use core::SegmentId;
 use error::{ErrorKind, ResultExt};
-use serde_json;
 use schema::Schema;
-use std::sync::Arc;
+use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
-use core::SegmentId;
+use std::sync::Arc;
+use Result;
 
-
-#[cfg(feature="mmap")]
+use super::pool::LeasedItem;
+use super::pool::Pool;
+use super::segment::create_segment;
+use super::segment::Segment;
+use core::searcher::Searcher;
+use core::IndexMeta;
+use core::SegmentMeta;
+use core::SegmentReader;
+use core::META_FILEPATH;
+use directory::ManagedDirectory;
+#[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
 use indexer::index_writer::open_index_writer;
-use core::searcher::Searcher;
-use num_cpus;
-use super::segment::Segment;
-use core::SegmentReader;
-use super::pool::Pool;
-use core::SegmentMeta;
-use super::pool::LeasedItem;
-use std::path::Path;
-use core::IndexMeta;
-use indexer::DirectoryLock;
-use IndexWriter;
-use directory::ManagedDirectory;
-use core::META_FILEPATH;
-use super::segment::create_segment;
 use indexer::segment_updater::save_new_metas;
+use indexer::DirectoryLock;
+use num_cpus;
+use std::path::Path;
 use tokenizer::TokenizerManager;
+use IndexWriter;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -64,7 +63,7 @@ impl Index {
     /// The index will use the `MMapDirectory`.
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     pub fn create<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
@@ -84,7 +83,7 @@ impl Index {
     ///
     /// The temp directory is only used for testing the `MmapDirectory`.
     /// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
         let directory = ManagedDirectory::new(mmap_directory)?;
@@ -112,7 +111,7 @@ impl Index {
     }
 
     /// Opens a new directory from an index path.
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
@@ -224,7 +223,7 @@ impl Index {
             .collect::<Result<_>>()?;
         let schema = self.schema();
         let searchers = (0..NUM_SEARCHERS)
-            .map(|_| Searcher::new(schema.clone(),segment_readers.clone()))
+            .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())

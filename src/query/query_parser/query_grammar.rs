@@ -1,6 +1,6 @@
-use combine::*;
-use combine::char::*;
 use super::user_input_ast::*;
+use combine::char::*;
+use combine::*;
 
 fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
 where

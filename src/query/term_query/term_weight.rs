@@ -1,13 +1,13 @@
-use Term;
-use query::Weight;
+use super::term_scorer::TermScorer;
 use core::SegmentReader;
-use query::Scorer;
 use docset::DocSet;
 use postings::SegmentPostings;
-use schema::IndexRecordOption;
-use super::term_scorer::TermScorer;
-use Result;
 use query::bm25::BM25Weight;
+use query::Scorer;
+use query::Weight;
+use schema::IndexRecordOption;
+use Result;
+use Term;
 
 pub struct TermWeight {
     term: Term,
@@ -16,24 +16,26 @@ pub struct TermWeight {
 }
 
 impl Weight for TermWeight {
-
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let field = self.term.field();
         let inverted_index = reader.inverted_index(field);
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);
         let similarity_weight = self.similarity_weight.clone();
-            let postings_opt: Option<SegmentPostings> =
-                inverted_index.read_postings(&self.term, self.index_record_option);
-            if let Some(segment_postings) = postings_opt {
-                Ok(Box::new(TermScorer::new(segment_postings,
-                                    fieldnorm_reader,
-                                    similarity_weight)))
-            } else {
-                Ok(Box::new(TermScorer::new(
-                    SegmentPostings::empty(),
-                    fieldnorm_reader,
-                    similarity_weight)))
-            }
+        let postings_opt: Option<SegmentPostings> =
+            inverted_index.read_postings(&self.term, self.index_record_option);
+        if let Some(segment_postings) = postings_opt {
+            Ok(Box::new(TermScorer::new(
+                segment_postings,
+                fieldnorm_reader,
+                similarity_weight,
+            )))
+        } else {
+            Ok(Box::new(TermScorer::new(
+                SegmentPostings::empty(),
+                fieldnorm_reader,
+                similarity_weight,
+            )))
+        }
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
@@ -50,12 +52,12 @@ impl Weight for TermWeight {
     }
 }
 
-
 impl TermWeight {
-
-    pub fn new(term: Term,
-               index_record_option: IndexRecordOption,
-               similarity_weight: BM25Weight) -> TermWeight {
+    pub fn new(
+        term: Term,
+        index_record_option: IndexRecordOption,
+        similarity_weight: BM25Weight,
+    ) -> TermWeight {
         TermWeight {
             term,
             index_record_option,
@@ -63,4 +65,3 @@ impl TermWeight {
         }
     }
 }
-

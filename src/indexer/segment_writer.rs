@@ -1,23 +1,23 @@
-use Result;
-use DocId;
-use std::io;
-use std::str;
-use schema::Schema;
-use schema::Term;
+use super::operation::AddOperation;
 use core::Segment;
 use core::SerializableSegment;
-use fastfield::FastFieldsWriter;
-use schema::FieldType;
-use indexer::segment_serializer::SegmentSerializer;
 use datastruct::stacker::Heap;
+use fastfield::FastFieldsWriter;
+use fieldnorm::FieldNormsWriter;
 use indexer::index_writer::MARGIN_IN_BYTES;
-use super::operation::AddOperation;
+use indexer::segment_serializer::SegmentSerializer;
 use postings::MultiFieldPostingsWriter;
+use schema::FieldType;
+use schema::Schema;
+use schema::Term;
+use schema::Value;
+use std::io;
+use std::str;
 use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
 use tokenizer::{TokenStream, Tokenizer};
-use schema::Value;
-use fieldnorm::FieldNormsWriter;
+use DocId;
+use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
 /// documents.
@@ -34,7 +34,6 @@ pub struct SegmentWriter<'a> {
     doc_opstamps: Vec<u64>,
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
-
 
 impl<'a> SegmentWriter<'a> {
     /// Creates a new `SegmentWriter`
@@ -179,8 +178,7 @@ impl<'a> SegmentWriter<'a> {
                     } else {
                         0
                     };
-                    self.fieldnorms_writer
-                        .record(doc_id, field, num_tokens);
+                    self.fieldnorms_writer.record(doc_id, field, num_tokens);
                 }
                 FieldType::U64(ref int_option) => {
                     if int_option.is_indexed() {

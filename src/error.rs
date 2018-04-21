@@ -2,13 +2,13 @@
 
 use std::io;
 
-use std::path::PathBuf;
-use std::sync::PoisonError;
 use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
+use fastfield::FastFieldNotAvailableError;
 use query;
 use schema;
-use fastfield::FastFieldNotAvailableError;
 use serde_json;
+use std::path::PathBuf;
+use std::sync::PoisonError;
 
 error_chain!(
     errors {

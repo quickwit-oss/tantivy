@@ -1,11 +1,11 @@
-use DocId;
-use Score;
 use collector::Collector;
-use docset::{DocSet, SkipResult};
 use common::BitSet;
-use std::ops::DerefMut;
+use docset::{DocSet, SkipResult};
 use downcast;
 use fastfield::DeleteBitSet;
+use std::ops::DerefMut;
+use DocId;
+use Score;
 
 /// Scored set of documents matching a query within a specific segment.
 ///
@@ -34,7 +34,6 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
     }
 }
 
-
 #[allow(missing_docs)]
 mod downcast_impl {
     downcast!(super::Scorer);
@@ -60,7 +59,6 @@ impl DocSet for EmptyScorer {
     fn advance(&mut self) -> bool {
         false
     }
-
 
     fn doc(&self) -> DocId {
         panic!(

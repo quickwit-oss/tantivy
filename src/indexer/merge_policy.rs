@@ -1,7 +1,7 @@
 use core::SegmentId;
 use core::SegmentMeta;
-use std::marker;
 use std::fmt::Debug;
+use std::marker;
 
 /// Set of segment suggested for a merge.
 #[derive(Debug, Clone)]

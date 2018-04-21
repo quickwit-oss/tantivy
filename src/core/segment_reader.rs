@@ -1,30 +1,30 @@
-use Result;
-use core::Segment;
-use core::SegmentId;
-use core::SegmentComponent;
-use std::sync::RwLock;
-use common::HasLen;
-use core::SegmentMeta;
-use fastfield::{self, FastFieldNotAvailableError};
-use fastfield::DeleteBitSet;
-use store::StoreReader;
-use schema::Document;
-use DocId;
-use std::sync::Arc;
-use std::collections::HashMap;
 use common::CompositeFile;
-use std::fmt;
+use common::HasLen;
 use core::InvertedIndexReader;
-use schema::Field;
-use schema::FieldType;
+use core::Segment;
+use core::SegmentComponent;
+use core::SegmentId;
+use core::SegmentMeta;
 use error::ErrorKind;
+use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
-use schema::Schema;
-use termdict::TermDictionary;
+use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::{FastValue, MultiValueIntFastFieldReader};
-use schema::Cardinality;
 use fieldnorm::FieldNormReader;
+use schema::Cardinality;
+use schema::Document;
+use schema::Field;
+use schema::FieldType;
+use schema::Schema;
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+use std::sync::RwLock;
+use store::StoreReader;
+use termdict::TermDictionary;
+use DocId;
+use Result;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -109,12 +109,12 @@ impl SegmentReader {
     ) -> fastfield::Result<FastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
         if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue)
-            {
-                self.fast_fields_composite
-                    .open_read(field)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                    .map(FastFieldReader::open)
-            } else {
+        {
+            self.fast_fields_composite
+                .open_read(field)
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                .map(FastFieldReader::open)
+        } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
     }
@@ -127,17 +127,17 @@ impl SegmentReader {
     ) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
         let field_entry = self.schema.get_field_entry(field);
         if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues)
-            {
-                let idx_reader = self.fast_fields_composite
-                    .open_read_with_idx(field, 0)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                    .map(FastFieldReader::open)?;
-                let vals_reader = self.fast_fields_composite
-                    .open_read_with_idx(field, 1)
-                    .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                    .map(FastFieldReader::open)?;
-                Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
-            } else {
+        {
+            let idx_reader = self.fast_fields_composite
+                .open_read_with_idx(field, 0)
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                .map(FastFieldReader::open)?;
+            let vals_reader = self.fast_fields_composite
+                .open_read_with_idx(field, 1)
+                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+                .map(FastFieldReader::open)?;
+            Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
+        } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
     }
@@ -175,12 +175,14 @@ impl SegmentReader {
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
     pub fn get_fieldnorms_reader(&self, field: Field) -> FieldNormReader {
-        if let Some(fieldnorm_source) = self.fieldnorms_composite
-            .open_read(field) {
+        if let Some(fieldnorm_source) = self.fieldnorms_composite.open_read(field) {
             FieldNormReader::open(fieldnorm_source)
         } else {
             let field_name = self.schema.get_field_name(field);
-            let err_msg=  format!("Field norm not found for field {:?}. Was it market as indexed during indexing.", field_name);
+            let err_msg = format!(
+                "Field norm not found for field {:?}. Was it market as indexed during indexing.",
+                field_name
+            );
             panic!(err_msg);
         }
     }
@@ -215,13 +217,12 @@ impl SegmentReader {
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
 
-        let delete_bitset_opt =
-            if segment.meta().has_deletes() {
-                let delete_data = segment.open_read(SegmentComponent::DELETE)?;
-                Some(DeleteBitSet::open(delete_data))
-            } else {
-                None
-            };
+        let delete_bitset_opt = if segment.meta().has_deletes() {
+            let delete_data = segment.open_read(SegmentComponent::DELETE)?;
+            Some(DeleteBitSet::open(delete_data))
+        } else {
+            None
+        };
 
         let schema = segment.schema();
         Ok(SegmentReader {

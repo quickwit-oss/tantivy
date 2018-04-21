@@ -1,11 +1,11 @@
-#[cfg(feature="mmap")]
-use fst::raw::MmapReadOnly;
-use std::ops::Deref;
 use super::shared_vec_slice::SharedVecSlice;
 use common::HasLen;
-use std::slice;
-use std::io::{self, Read};
+#[cfg(feature = "mmap")]
+use fst::raw::MmapReadOnly;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
+use std::io::{self, Read};
+use std::ops::Deref;
+use std::slice;
 
 /// Read object that represents files in tantivy.
 ///
@@ -15,7 +15,7 @@ use stable_deref_trait::{CloneStableDeref, StableDeref};
 /// hold by this object should never be altered or destroyed.
 pub enum ReadOnlySource {
     /// Mmap source of data
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     Mmap(MmapReadOnly),
     /// Wrapping a `Vec<u8>`
     Anonymous(SharedVecSlice),
@@ -41,7 +41,7 @@ impl ReadOnlySource {
     /// Returns the data underlying the ReadOnlySource object.
     pub fn as_slice(&self) -> &[u8] {
         match *self {
-            #[cfg(feature="mmap")]
+            #[cfg(feature = "mmap")]
             ReadOnlySource::Mmap(ref mmap_read_only) => unsafe { mmap_read_only.as_slice() },
             ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
         }
@@ -66,9 +66,14 @@ impl ReadOnlySource {
     /// 1KB slice is remaining, the whole `500MBs`
     /// are retained in memory.
     pub fn slice(&self, from_offset: usize, to_offset: usize) -> ReadOnlySource {
-        assert!(from_offset <= to_offset, "Requested negative slice [{}..{}]", from_offset, to_offset);
+        assert!(
+            from_offset <= to_offset,
+            "Requested negative slice [{}..{}]",
+            from_offset,
+            to_offset
+        );
         match *self {
-            #[cfg(feature="mmap")]
+            #[cfg(feature = "mmap")]
             ReadOnlySource::Mmap(ref mmap_read_only) => {
                 let sliced_mmap = mmap_read_only.range(from_offset, to_offset - from_offset);
                 ReadOnlySource::Mmap(sliced_mmap)
@@ -130,13 +135,11 @@ impl SourceRead {
 
     pub fn slice_from(&self, start: usize) -> &[u8] {
         &self.cursor[start..]
-
     }
 
     pub fn get(&self, idx: usize) -> u8 {
         self.cursor[idx]
     }
-
 }
 
 impl AsRef<[u8]> for SourceRead {

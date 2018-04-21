@@ -1,7 +1,7 @@
-use std::io;
-use std::io::Write;
-use std::io::Read;
 use common::BinarySerializable;
+use std::io;
+use std::io::Read;
+use std::io::Write;
 
 /// `Field` is actually a `u8` identifying a `Field`
 /// The schema is in charge of holding mapping between field names

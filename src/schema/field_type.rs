@@ -1,9 +1,9 @@
 use schema::{IntOptions, TextOptions};
 
-use serde_json::Value as JsonValue;
-use schema::Value;
-use schema::IndexRecordOption;
 use schema::Facet;
+use schema::IndexRecordOption;
+use schema::Value;
+use serde_json::Value as JsonValue;
 
 /// Possible error that may occur while parsing a field value
 /// At this point the JSON is known to be valid.
@@ -30,7 +30,7 @@ pub enum Type {
     /// `i64`
     I64,
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
-    HierarchicalFacet
+    HierarchicalFacet,
 }
 
 /// A `FieldType` describes the type (text, u64) of a field as well as
@@ -48,18 +48,13 @@ pub enum FieldType {
 }
 
 impl FieldType {
-
     /// Returns the value type associated for this field.
     pub fn value_type(&self) -> Type {
         match *self {
-            FieldType::Str(_) =>
-                Type::Str,
-            FieldType::U64(_) =>
-                Type::U64,
-            FieldType::I64(_) =>
-                Type::I64,
-            FieldType::HierarchicalFacet =>
-                Type::HierarchicalFacet,
+            FieldType::Str(_) => Type::Str,
+            FieldType::U64(_) => Type::U64,
+            FieldType::I64(_) => Type::I64,
+            FieldType::HierarchicalFacet => Type::HierarchicalFacet,
         }
     }
 

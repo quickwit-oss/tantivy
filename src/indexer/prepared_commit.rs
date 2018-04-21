@@ -1,5 +1,5 @@
-use Result;
 use super::IndexWriter;
+use Result;
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {
@@ -13,7 +13,7 @@ impl<'a> PreparedCommit<'a> {
         PreparedCommit {
             index_writer,
             payload: None,
-            opstamp
+            opstamp,
         }
     }
 

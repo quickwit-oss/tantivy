@@ -1,6 +1,6 @@
+use compression::compressed_block_size;
 use compression::BlockDecoder;
 use compression::COMPRESSION_BLOCK_SIZE;
-use compression::compressed_block_size;
 use directory::{ReadOnlySource, SourceRead};
 
 /// Reads a stream of compressed ints.
@@ -13,7 +13,7 @@ pub struct CompressedIntStream {
     buffer: SourceRead,
 
     block_decoder: BlockDecoder,
-    cached_addr: usize, // address of the currently decoded block
+    cached_addr: usize,      // address of the currently decoded block
     cached_next_addr: usize, // address following the currently decoded block
 
     addr: usize, // address of the block associated to the current position
@@ -42,7 +42,8 @@ impl CompressedIntStream {
             // no need to read.
             self.cached_next_addr
         } else {
-            let next_addr = addr + self.block_decoder.uncompress_block_unsorted(self.buffer.slice_from(addr));
+            let next_addr = addr + self.block_decoder
+                .uncompress_block_unsorted(self.buffer.slice_from(addr));
             self.cached_addr = addr;
             self.cached_next_addr = next_addr;
             next_addr
@@ -101,8 +102,8 @@ pub mod tests {
 
     use super::CompressedIntStream;
     use compression::compressed_block_size;
-    use compression::COMPRESSION_BLOCK_SIZE;
     use compression::BlockEncoder;
+    use compression::COMPRESSION_BLOCK_SIZE;
     use directory::ReadOnlySource;
 
     fn create_stream_buffer() -> ReadOnlySource {

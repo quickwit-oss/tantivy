@@ -1,6 +1,6 @@
-use std::ops::BitOr;
-use std::borrow::Cow;
 use schema::IndexRecordOption;
+use std::borrow::Cow;
+use std::ops::BitOr;
 
 /// Define how a text field should be handled by tantivy.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

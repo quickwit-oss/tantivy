@@ -1,40 +1,40 @@
+use super::segment_manager::{get_mergeable_segments, SegmentManager};
 use core::Index;
 use core::IndexMeta;
-use core::META_FILEPATH;
 use core::Segment;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SerializableSegment;
+use core::META_FILEPATH;
 use directory::Directory;
-use indexer::stamper::Stamper;
+use directory::FileProtection;
 use error::{Error, ErrorKind, Result};
-use futures_cpupool::CpuPool;
-use futures::Future;
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;
-use directory::FileProtection;
-use indexer::{DefaultMergePolicy, MergePolicy};
+use futures::Future;
+use futures_cpupool::CpuFuture;
+use futures_cpupool::CpuPool;
+use indexer::delete_queue::DeleteCursor;
 use indexer::index_writer::advance_deletes;
-use indexer::MergeCandidate;
 use indexer::merger::IndexMerger;
+use indexer::stamper::Stamper;
+use indexer::MergeCandidate;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
-use futures_cpupool::CpuFuture;
-use serde_json;
-use indexer::delete_queue::DeleteCursor;
+use indexer::{DefaultMergePolicy, MergePolicy};
 use schema::Schema;
+use serde_json;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
 use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
-use super::segment_manager::{get_mergeable_segments, SegmentManager};
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -283,10 +283,7 @@ impl SegmentUpdater {
         }).wait()
     }
 
-    pub fn start_merge(
-        &self,
-        segment_ids: &[SegmentId],
-    ) -> Receiver<SegmentMeta> {
+    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> Receiver<SegmentMeta> {
         self.0.segment_manager.start_merge(segment_ids);
         let segment_updater_clone = self.clone();
 
@@ -482,9 +479,9 @@ impl SegmentUpdater {
 #[cfg(test)]
 mod tests {
 
-    use Index;
-    use schema::*;
     use indexer::merge_policy::tests::MergeWheneverPossible;
+    use schema::*;
+    use Index;
 
     #[test]
     fn test_delete_during_merge() {

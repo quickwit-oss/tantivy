@@ -1,6 +1,6 @@
 use common::{BinarySerializable, VInt};
-use std::marker::PhantomData;
 use std::cmp::max;
+use std::marker::PhantomData;
 
 static EMPTY: [u8; 0] = [];
 

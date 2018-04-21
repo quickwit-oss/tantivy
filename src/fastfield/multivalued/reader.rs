@@ -1,5 +1,5 @@
-use DocId;
 use fastfield::{FastFieldReader, FastValue};
+use DocId;
 
 /// Reader for a multivalued `u64` fast field.
 ///

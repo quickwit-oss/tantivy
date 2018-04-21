@@ -1,12 +1,12 @@
-use Result;
 use super::boolean_weight::BooleanWeight;
-use query::Weight;
-use Searcher;
-use query::Query;
-use schema::Term;
-use query::TermQuery;
-use schema::IndexRecordOption;
 use query::Occur;
+use query::Query;
+use query::TermQuery;
+use query::Weight;
+use schema::IndexRecordOption;
+use schema::Term;
+use Result;
+use Searcher;
 
 /// The boolean query combines a set of queries
 ///
@@ -48,7 +48,8 @@ impl BooleanQuery {
         let occur_term_queries: Vec<(Occur, Box<Query>)> = terms
             .into_iter()
             .map(|term| {
-                let term_query: Box<Query> = Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs));
+                let term_query: Box<Query> =
+                    Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs));
                 (Occur::Should, term_query)
             })
             .collect();

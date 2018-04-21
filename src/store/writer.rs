@@ -1,12 +1,12 @@
-use directory::WritePtr;
-use DocId;
-use common::{BinarySerializable, VInt};
-use std::io::{self, Write};
 use super::StoreReader;
-use lz4;
-use datastruct::SkipListBuilder;
 use common::CountingWriter;
+use common::{BinarySerializable, VInt};
+use datastruct::SkipListBuilder;
+use directory::WritePtr;
+use lz4;
 use schema::Document;
+use std::io::{self, Write};
+use DocId;
 
 const BLOCK_SIZE: usize = 16_384;
 

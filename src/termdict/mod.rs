@@ -50,24 +50,24 @@ term `stream`.
 /// Position of the term in the sorted list of terms.
 pub type TermOrdinal = u64;
 
-mod term_info_store;
-mod streamer;
-mod termdict;
 mod merger;
+mod streamer;
+mod term_info_store;
+mod termdict;
 
-pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
-pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::merger::TermMerger;
+pub use self::streamer::{TermStreamer, TermStreamerBuilder};
+pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
 
 #[cfg(test)]
 mod tests {
-    use super::{TermDictionaryBuilder, TermDictionary, TermStreamer};
-    use directory::{Directory, RAMDirectory, ReadOnlySource};
-    use std::path::PathBuf;
-    use schema::{Document, FieldType, SchemaBuilder, TEXT};
+    use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
     use core::Index;
-    use std::str;
+    use directory::{Directory, RAMDirectory, ReadOnlySource};
     use postings::TermInfo;
+    use schema::{Document, FieldType, SchemaBuilder, TEXT};
+    use std::path::PathBuf;
+    use std::str;
 
     const BLOCK_SIZE: usize = 1_500;
 

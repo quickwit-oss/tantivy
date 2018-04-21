@@ -1,20 +1,20 @@
-use DocId;
 use docset::{DocSet, SkipResult};
-use postings::Postings;
-use query::{Intersection, Scorer};
-use query::bm25::BM25Weight;
 use fieldnorm::FieldNormReader;
+use postings::Postings;
+use query::bm25::BM25Weight;
+use query::{Intersection, Scorer};
+use DocId;
 
 struct PostingsWithOffset<TPostings> {
     offset: u32,
-    postings: TPostings
+    postings: TPostings,
 }
 
 impl<TPostings: Postings> PostingsWithOffset<TPostings> {
     pub fn new(segment_postings: TPostings, offset: u32) -> PostingsWithOffset<TPostings> {
         PostingsWithOffset {
             offset,
-            postings: segment_postings
+            postings: segment_postings,
         }
     }
 
@@ -49,9 +49,8 @@ pub struct PhraseScorer<TPostings: Postings> {
     phrase_count: u32,
     fieldnorm_reader: FieldNormReader,
     similarity_weight: BM25Weight,
-    score_needed: bool
+    score_needed: bool,
 }
-
 
 /// Returns true iff the two sorted array contain a common element
 fn intersection_exists(left: &[u32], right: &[u32]) -> bool {
@@ -118,18 +117,20 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
     count
 }
 
-
 impl<TPostings: Postings> PhraseScorer<TPostings> {
-
-    pub fn new(term_postings: Vec<TPostings>,
-               similarity_weight: BM25Weight,
-               fieldnorm_reader: FieldNormReader,
-               score_needed: bool) -> PhraseScorer<TPostings> {
+    pub fn new(
+        term_postings: Vec<TPostings>,
+        similarity_weight: BM25Weight,
+        fieldnorm_reader: FieldNormReader,
+        score_needed: bool,
+    ) -> PhraseScorer<TPostings> {
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
             .enumerate()
-            .map(|(offset, postings)| PostingsWithOffset::new(postings, (num_docsets - offset) as u32))
+            .map(|(offset, postings)| {
+                PostingsWithOffset::new(postings, (num_docsets - offset) as u32)
+            })
             .collect::<Vec<_>>();
         PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
@@ -153,7 +154,6 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
     }
 
-
     fn phrase_exists(&mut self) -> bool {
         {
             self.intersection_docset
@@ -163,7 +163,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         let mut intersection_len = self.left.len();
         for i in 1..self.num_docsets - 1 {
             {
-                self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
+                self.intersection_docset
+                    .docset_mut_specialized(i)
+                    .positions(&mut self.right);
             }
             intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
@@ -171,7 +173,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             }
         }
 
-        self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
+        self.intersection_docset
+            .docset_mut_specialized(self.num_docsets - 1)
+            .positions(&mut self.right);
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
@@ -184,7 +188,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         let mut intersection_len = self.left.len();
         for i in 1..self.num_docsets - 1 {
             {
-                self.intersection_docset.docset_mut_specialized(i).positions(&mut self.right);
+                self.intersection_docset
+                    .docset_mut_specialized(i)
+                    .positions(&mut self.right);
             }
             intersection_len = intersection(&mut self.left[..intersection_len], &self.right[..]);
             if intersection_len == 0 {
@@ -192,7 +198,9 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             }
         }
 
-        self.intersection_docset.docset_mut_specialized(self.num_docsets - 1).positions(&mut self.right);
+        self.intersection_docset
+            .docset_mut_specialized(self.num_docsets - 1)
+            .positions(&mut self.right);
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
 }
@@ -238,15 +246,15 @@ impl<TPostings: Postings> Scorer for PhraseScorer<TPostings> {
     fn score(&mut self) -> f32 {
         let doc = self.doc();
         let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-        self.similarity_weight.score(fieldnorm_id, self.phrase_count)
+        self.similarity_weight
+            .score(fieldnorm_id, self.phrase_count)
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use super::{intersection_count, intersection};
-
+    use super::{intersection, intersection_count};
 
     fn test_intersection_sym(left: &[u32], right: &[u32], expected: &[u32]) {
         test_intersection_aux(left, right, expected);
@@ -271,12 +279,11 @@ mod tests {
     }
 }
 
-
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
+    use super::{intersection, intersection_count};
     use test::Bencher;
-    use super::{intersection_count, intersection};
 
     #[bench]
     fn bench_intersection_short(b: &mut Bencher) {
@@ -286,7 +293,6 @@ mod bench {
             intersection(&mut left, &right);
         });
     }
-
 
     #[bench]
     fn bench_intersection_count_short(b: &mut Bencher) {

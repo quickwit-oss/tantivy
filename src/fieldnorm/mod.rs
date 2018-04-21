@@ -17,13 +17,12 @@
 //!
 //! This trick is used by the [BM25 similarity]().
 mod code;
+mod reader;
 mod serializer;
 mod writer;
-mod reader;
 
 pub use self::reader::FieldNormReader;
-pub use self::writer::FieldNormsWriter;
 pub use self::serializer::FieldNormsSerializer;
+pub use self::writer::FieldNormsWriter;
 
 use self::code::{fieldnorm_to_id, id_to_fieldnorm};
-

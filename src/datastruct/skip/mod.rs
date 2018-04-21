@@ -1,10 +1,10 @@
 #![allow(dead_code)]
 
-mod skiplist_builder;
 mod skiplist;
+mod skiplist_builder;
 
-pub use self::skiplist_builder::SkipListBuilder;
 pub use self::skiplist::SkipList;
+pub use self::skiplist_builder::SkipListBuilder;
 
 #[cfg(test)]
 mod tests {

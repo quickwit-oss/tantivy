@@ -1,7 +1,7 @@
-use fst::{IntoStreamer, Streamer};
-use fst::map::{Stream, StreamBuilder};
-use postings::TermInfo;
 use super::TermDictionary;
+use fst::map::{Stream, StreamBuilder};
+use fst::{IntoStreamer, Streamer};
+use postings::TermInfo;
 use termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is an helper object used to define
@@ -11,9 +11,7 @@ pub struct TermStreamerBuilder<'a> {
     stream_builder: StreamBuilder<'a>,
 }
 
-
 impl<'a> TermStreamerBuilder<'a> {
-
     pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a>) -> Self {
         TermStreamerBuilder {
             fst_map,
@@ -69,7 +67,6 @@ pub struct TermStreamer<'a> {
 }
 
 impl<'a> TermStreamer<'a> {
-
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an unitialized state.

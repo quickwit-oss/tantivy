@@ -1,7 +1,7 @@
+use schema::Term;
+use std::cmp::Ordering;
 use std::collections::BinaryHeap;
 use termdict::TermStreamer;
-use std::cmp::Ordering;
-use schema::Term;
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,

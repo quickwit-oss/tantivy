@@ -1,7 +1,7 @@
-use schema::Schema;
 use core::SegmentMeta;
-use std::fmt;
+use schema::Schema;
 use serde_json;
+use std::fmt;
 
 /// Meta information about the `Index`.
 ///
@@ -45,9 +45,9 @@ impl fmt::Debug for IndexMeta {
 #[cfg(test)]
 mod tests {
 
-    use serde_json;
     use super::IndexMeta;
     use schema::{SchemaBuilder, TEXT};
+    use serde_json;
 
     #[test]
     fn test_serialize_metas() {

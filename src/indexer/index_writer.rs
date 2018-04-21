@@ -1,3 +1,6 @@
+use super::operation::AddOperation;
+use super::segment_updater::SegmentUpdater;
+use super::PreparedCommit;
 use bit_set::BitSet;
 use chan;
 use core::Index;
@@ -6,31 +9,28 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use indexer::stamper::Stamper;
-use futures::sync::oneshot::Receiver;
+use datastruct::stacker::hashmap::split_memory;
 use datastruct::stacker::Heap;
 use directory::FileProtection;
+use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
 use fastfield::write_delete_bitset;
+use futures::sync::oneshot::Receiver;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
-use datastruct::stacker::hashmap::split_memory;
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
-use indexer::MergePolicy;
 use indexer::operation::DeleteOperation;
+use indexer::stamper::Stamper;
+use indexer::DirectoryLock;
+use indexer::MergePolicy;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
-use docset::DocSet;
-use schema::IndexRecordOption;
 use schema::Document;
+use schema::IndexRecordOption;
 use schema::Term;
 use std::mem;
 use std::mem::swap;
-use std::thread::JoinHandle;
-use indexer::DirectoryLock;
-use super::operation::AddOperation;
-use super::segment_updater::SegmentUpdater;
-use super::PreparedCommit;
 use std::thread;
+use std::thread::JoinHandle;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -443,10 +443,7 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(
-        &mut self,
-        segment_ids: &[SegmentId],
-    ) -> Receiver<SegmentMeta> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Receiver<SegmentMeta> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -642,12 +639,12 @@ impl IndexWriter {
 #[cfg(test)]
 mod tests {
 
+    use env_logger;
+    use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
     use Index;
     use Term;
-    use error::*;
-    use env_logger;
 
     #[test]
     fn test_lockfile_stops_duplicates() {

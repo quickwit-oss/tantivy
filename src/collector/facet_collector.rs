@@ -1,25 +1,25 @@
-use std::mem;
 use collector::Collector;
+use docset::SkipResult;
 use fastfield::FacetReader;
+use schema::Facet;
 use schema::Field;
 use std::cell::UnsafeCell;
-use schema::Facet;
+use std::collections::btree_map;
 use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::BinaryHeap;
 use std::collections::Bound;
-use std::collections::BTreeSet;
-use termdict::TermMerger;
-use docset::SkipResult;
-use std::collections::btree_map;
-use std::{usize, u64};
 use std::iter::Peekable;
+use std::mem;
+use std::{u64, usize};
+use termdict::TermMerger;
 
+use std::cmp::Ordering;
 use DocId;
 use Result;
 use Score;
-use SegmentReader;
 use SegmentLocalId;
-use std::cmp::Ordering;
+use SegmentReader;
 
 struct Hit<'a> {
     count: u64,
@@ -430,27 +430,22 @@ pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
 
-
 pub struct FacetChildIterator<'a> {
     underlying: btree_map::Range<'a, Facet, u64>,
 }
 
 impl<'a> Iterator for FacetChildIterator<'a> {
-
     type Item = (&'a Facet, u64);
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.underlying
-            .next()
-            .map(|(facet, count)| (facet, *count))
+        self.underlying.next().map(|(facet, count)| (facet, *count))
     }
 }
 
-
 impl FacetCounts {
-
-    pub fn get<T>(&self, facet_from: T) -> FacetChildIterator //impl Iterator<Item = (&'a Facet, u64)>
-    where Facet: From<T>
+    pub fn get<T>(&self, facet_from: T) -> FacetChildIterator
+    where
+        Facet: From<T>,
     {
         let facet = Facet::from(facet_from);
         let left_bound = Bound::Excluded(facet.clone());
@@ -463,9 +458,7 @@ impl FacetCounts {
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));
-        FacetChildIterator {
-            underlying
-        }
+        FacetChildIterator { underlying }
     }
 
     pub fn top_k<T>(&self, facet: T, k: usize) -> Vec<(&Facet, u64)>
@@ -497,13 +490,13 @@ impl FacetCounts {
 
 #[cfg(test)]
 mod tests {
-    use core::Index;
-    use schema::{Document, Facet, SchemaBuilder};
-    use query::AllQuery;
     use super::{FacetCollector, FacetCounts};
-    use std::iter;
+    use core::Index;
+    use query::AllQuery;
     use rand::{thread_rng, Rng};
     use schema::Field;
+    use schema::{Document, Facet, SchemaBuilder};
+    use std::iter;
 
     #[test]
     fn test_facet_collector_drilldown() {
@@ -558,8 +551,10 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Tried to add a facet which is a descendant of \
-                               an already added facet.")]
+    #[should_panic(
+        expected = "Tried to add a facet which is a descendant of \
+                    an already added facet."
+    )]
     fn test_misused_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field(0));
         facet_collector.add_facet(Facet::from("/country"));
@@ -619,18 +614,16 @@ mod tests {
 
 }
 
-
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use test::Bencher;
-    use schema::SchemaBuilder;
-    use Index;
     use collector::FacetCollector;
-    use schema::Facet;
     use query::AllQuery;
     use rand::{thread_rng, Rng};
-
+    use schema::Facet;
+    use schema::SchemaBuilder;
+    use test::Bencher;
+    use Index;
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {

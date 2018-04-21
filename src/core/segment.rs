@@ -1,16 +1,16 @@
-use Result;
-use std::path::PathBuf;
-use schema::Schema;
-use std::fmt;
-use core::SegmentId;
-use directory::{FileProtection, ReadOnlySource, WritePtr};
-use indexer::segment_serializer::SegmentSerializer;
 use super::SegmentComponent;
 use core::Index;
-use std::result;
-use directory::Directory;
+use core::SegmentId;
 use core::SegmentMeta;
 use directory::error::{OpenReadError, OpenWriteError};
+use directory::Directory;
+use directory::{FileProtection, ReadOnlySource, WritePtr};
+use indexer::segment_serializer::SegmentSerializer;
+use schema::Schema;
+use std::fmt;
+use std::path::PathBuf;
+use std::result;
+use Result;
 
 /// A segment is a piece of the index.
 #[derive(Clone)]
@@ -111,8 +111,8 @@ mod tests {
 
     use core::SegmentComponent;
     use directory::Directory;
-    use std::collections::HashSet;
     use schema::SchemaBuilder;
+    use std::collections::HashSet;
     use Index;
 
     #[test]

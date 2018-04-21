@@ -1,22 +1,21 @@
 mod term_query;
-mod term_weight;
 mod term_scorer;
+mod term_weight;
 
 pub use self::term_query::TermQuery;
-pub use self::term_weight::TermWeight;
 pub use self::term_scorer::TermScorer;
+pub use self::term_weight::TermWeight;
 
 #[cfg(test)]
 mod tests {
 
-    use docset::DocSet;
-    use Index;
-    use tests::assert_nearly_equals;
-    use Term;
-    use schema::{TEXT, STRING, SchemaBuilder, IndexRecordOption};
     use collector::TopCollector;
-    use query::{TermQuery, QueryParser, Query, Scorer};
-
+    use docset::DocSet;
+    use query::{Query, QueryParser, Scorer, TermQuery};
+    use schema::{IndexRecordOption, SchemaBuilder, STRING, TEXT};
+    use tests::assert_nearly_equals;
+    use Index;
+    use Term;
 
     #[test]
     pub fn test_term_query_no_freq() {
@@ -48,7 +47,6 @@ mod tests {
         assert_eq!(term_scorer.score(), 0.28768212);
     }
 
-
     #[test]
     pub fn test_term_weight() {
         let mut schema_builder = SchemaBuilder::new();
@@ -66,7 +64,6 @@ mod tests {
             ));
             index_writer.add_document(doc!(left_field => "left4 left1"));
             index_writer.commit().unwrap();
-
         }
         index.load_searchers().unwrap();
         let searcher = index.searcher();

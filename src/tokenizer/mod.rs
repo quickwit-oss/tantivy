@@ -128,30 +128,30 @@
 //! # }
 //! ```
 //!
-mod tokenizer;
-mod simple_tokenizer;
-mod lower_caser;
-mod remove_long;
-mod stemmer;
-mod facet_tokenizer;
-mod tokenizer_manager;
-mod japanese_tokenizer;
-mod token_stream_chain;
-mod raw_tokenizer;
 mod alphanum_only;
+mod facet_tokenizer;
+mod japanese_tokenizer;
+mod lower_caser;
+mod raw_tokenizer;
+mod remove_long;
+mod simple_tokenizer;
+mod stemmer;
+mod token_stream_chain;
+mod tokenizer;
+mod tokenizer_manager;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
-pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
-pub use self::tokenizer::BoxedTokenizer;
-pub use self::tokenizer_manager::TokenizerManager;
-pub use self::simple_tokenizer::SimpleTokenizer;
-pub use self::raw_tokenizer::RawTokenizer;
-pub(crate) use self::token_stream_chain::TokenStreamChain;
-pub use self::japanese_tokenizer::JapaneseTokenizer;
-pub use self::remove_long::RemoveLongFilter;
-pub use self::lower_caser::LowerCaser;
-pub use self::stemmer::Stemmer;
 pub use self::facet_tokenizer::FacetTokenizer;
+pub use self::japanese_tokenizer::JapaneseTokenizer;
+pub use self::lower_caser::LowerCaser;
+pub use self::raw_tokenizer::RawTokenizer;
+pub use self::remove_long::RemoveLongFilter;
+pub use self::simple_tokenizer::SimpleTokenizer;
+pub use self::stemmer::Stemmer;
+pub(crate) use self::token_stream_chain::TokenStreamChain;
+pub use self::tokenizer::BoxedTokenizer;
+pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
+pub use self::tokenizer_manager::TokenizerManager;
 
 #[cfg(test)]
 mod test {

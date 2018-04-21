@@ -1,6 +1,6 @@
-use uuid::Uuid;
-use std::fmt;
 use std::cmp::{Ord, Ordering};
+use std::fmt;
+use uuid::Uuid;
 
 #[cfg(test)]
 use std::sync::atomic;

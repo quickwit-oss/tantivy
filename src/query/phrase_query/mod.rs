@@ -1,20 +1,20 @@
 mod phrase_query;
-mod phrase_weight;
 mod phrase_scorer;
+mod phrase_weight;
 
 pub use self::phrase_query::PhraseQuery;
-pub use self::phrase_weight::PhraseWeight;
 pub use self::phrase_scorer::PhraseScorer;
+pub use self::phrase_weight::PhraseWeight;
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use core::Index;
-    use schema::{SchemaBuilder, Term, TEXT};
     use collector::tests::TestCollector;
-    use tests::assert_nearly_equals;
+    use core::Index;
     use error::ErrorKind;
+    use schema::{SchemaBuilder, Term, TEXT};
+    use tests::assert_nearly_equals;
 
     fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = SchemaBuilder::default();
@@ -40,7 +40,7 @@ mod tests {
             "a b b d c g c",
             "a b a b c",
             "c a b a d ga a",
-            "a b c"
+            "a b c",
         ]);
         let schema = index.schema();
         let text_field = schema.get_field("text").unwrap();
@@ -68,13 +68,14 @@ mod tests {
     #[test]
     pub fn test_phrase_query_no_positions() {
         let mut schema_builder = SchemaBuilder::default();
-        use schema::TextOptions;
-        use schema::TextFieldIndexing;
         use schema::IndexRecordOption;
-        let no_positions = TextOptions::default()
-            .set_indexing_options(TextFieldIndexing::default()
+        use schema::TextFieldIndexing;
+        use schema::TextOptions;
+        let no_positions = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
                 .set_tokenizer("default")
-                .set_index_option(IndexRecordOption::WithFreqs));
+                .set_index_option(IndexRecordOption::WithFreqs),
+        );
 
         let text_field = schema_builder.add_text_field("text", no_positions);
         let schema = schema_builder.build();
@@ -88,11 +89,18 @@ mod tests {
         let searcher = index.searcher();
         let phrase_query = PhraseQuery::new(vec![
             Term::from_field_text(text_field, "a"),
-            Term::from_field_text(text_field, "b")
+            Term::from_field_text(text_field, "b"),
         ]);
         let mut test_collector = TestCollector::default();
-        if let &ErrorKind::SchemaError(ref msg) = searcher.search(&phrase_query, &mut test_collector).unwrap_err().kind() {
-            assert_eq!("Applied phrase query on field \"text\", which does not have positions indexed", msg.as_str());
+        if let &ErrorKind::SchemaError(ref msg) = searcher
+            .search(&phrase_query, &mut test_collector)
+            .unwrap_err()
+            .kind()
+        {
+            assert_eq!(
+                "Applied phrase query on field \"text\", which does not have positions indexed",
+                msg.as_str()
+            );
         } else {
             panic!("Should have returned an error");
         }
@@ -120,7 +128,6 @@ mod tests {
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals(scores[0], 0.40618482);
         assert_nearly_equals(scores[1], 0.46844664);
-
     }
 
     #[test] // motivated by #234

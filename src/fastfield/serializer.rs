@@ -1,10 +1,10 @@
-use common::BinarySerializable;
-use directory::WritePtr;
-use schema::Field;
 use common::bitpacker::BitPacker;
 use common::compute_num_bits;
-use common::CountingWriter;
+use common::BinarySerializable;
 use common::CompositeWrite;
+use common::CountingWriter;
+use directory::WritePtr;
+use schema::Field;
 use std::io::{self, Write};
 
 /// `FastFieldSerializer` is in charge of serializing

@@ -1,18 +1,18 @@
-use schema::{Field, Schema};
-use query::Query;
-use query::BooleanQuery;
 use super::logical_ast::*;
-use super::user_input_ast::*;
 use super::query_grammar::parse_to_ast;
+use super::user_input_ast::*;
+use core::Index;
+use query::BooleanQuery;
 use query::Occur;
+use query::PhraseQuery;
+use query::Query;
 use query::TermQuery;
 use schema::IndexRecordOption;
-use query::PhraseQuery;
+use schema::{Field, Schema};
 use schema::{FieldType, Term};
+use std::num::ParseIntError;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
-use std::num::ParseIntError;
-use core::Index;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -179,14 +179,14 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let mut tokenizer = self.tokenizer_manager
-                        .get(option.tokenizer())
-                        .ok_or_else(|| {
+                    let mut tokenizer = self.tokenizer_manager.get(option.tokenizer()).ok_or_else(
+                        || {
                             QueryParserError::UnknownTokenizer(
                                 field_entry.name().to_string(),
                                 option.tokenizer().to_string(),
                             )
-                        })?;
+                        },
+                    )?;
                     let mut terms: Vec<Term> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
@@ -207,13 +207,14 @@ impl QueryParser {
                                 Ok(Some(LogicalLiteral::Phrase(terms)))
                             } else {
                                 let fieldname = self.schema.get_field_name(field).to_string();
-                                Err(QueryParserError::FieldDoesNotHavePositionsIndexed(fieldname))
+                                Err(QueryParserError::FieldDoesNotHavePositionsIndexed(
+                                    fieldname,
+                                ))
                             }
                         } else {
                             let fieldname = self.schema.get_field_name(field).to_string();
                             Err(QueryParserError::FieldNotIndexed(fieldname))
                         }
-
                     }
                 } else {
                     // This should have been seen earlier really.
@@ -340,16 +341,16 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
 
 #[cfg(test)]
 mod test {
-    use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
-    use tokenizer::TokenizerManager;
+    use super::super::logical_ast::*;
+    use super::QueryParser;
+    use super::QueryParserError;
     use query::Query;
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
-    use super::QueryParser;
-    use super::QueryParserError;
-    use Index;
+    use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
     use tokenizer::SimpleTokenizer;
-    use super::super::logical_ast::*;
+    use tokenizer::TokenizerManager;
+    use Index;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();

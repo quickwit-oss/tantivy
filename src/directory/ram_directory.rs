@@ -1,14 +1,14 @@
+use super::shared_vec_slice::SharedVecSlice;
+use common::make_io_err;
+use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
+use directory::WritePtr;
+use directory::{Directory, ReadOnlySource};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
-use common::make_io_err;
-use directory::{Directory, ReadOnlySource};
-use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
-use directory::WritePtr;
-use super::shared_vec_slice::SharedVecSlice;
 
 /// Writer associated with the `RAMDirectory`
 ///

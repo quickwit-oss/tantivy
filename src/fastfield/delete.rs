@@ -1,10 +1,10 @@
 use bit_set::BitSet;
-use directory::WritePtr;
-use std::io::Write;
-use std::io;
-use directory::ReadOnlySource;
-use DocId;
 use common::HasLen;
+use directory::ReadOnlySource;
+use directory::WritePtr;
+use std::io;
+use std::io::Write;
+use DocId;
 
 /// Write a delete `BitSet`
 ///
@@ -62,9 +62,7 @@ impl DeleteBitSet {
             b & (1u8 << shift) != 0
         }
     }
-
 }
-
 
 impl HasLen for DeleteBitSet {
     fn len(&self) -> usize {
@@ -74,10 +72,10 @@ impl HasLen for DeleteBitSet {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use super::*;
     use bit_set::BitSet;
     use directory::*;
-    use super::*;
+    use std::path::PathBuf;
 
     fn test_delete_bitset_helper(bitset: &BitSet) {
         let test_path = PathBuf::from("test");

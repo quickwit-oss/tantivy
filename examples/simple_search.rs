@@ -5,11 +5,11 @@ extern crate tempdir;
 extern crate serde_json;
 
 use std::path::Path;
-use tempdir::TempDir;
-use tantivy::Index;
-use tantivy::schema::*;
 use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
+use tantivy::schema::*;
+use tantivy::Index;
+use tempdir::TempDir;
 
 fn main() {
     // Let's create a temporary directory for the

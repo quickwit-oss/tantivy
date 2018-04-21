@@ -1,7 +1,7 @@
-use core::SegmentMeta;
 use bit_set::BitSet;
-use indexer::delete_queue::DeleteCursor;
 use core::SegmentId;
+use core::SegmentMeta;
+use indexer::delete_queue::DeleteCursor;
 use std::fmt;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

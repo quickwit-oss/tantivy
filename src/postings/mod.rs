@@ -6,20 +6,19 @@ Postings module (also called inverted index)
 ///
 /// Postings, also called inverted lists, is the key datastructure
 /// to full-text search.
-
 mod postings;
-mod recorder;
-mod serializer;
 mod postings_writer;
-mod term_info;
+mod recorder;
 mod segment_postings;
+mod serializer;
+mod term_info;
 
+pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
-pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 
-pub use self::term_info::TermInfo;
 pub use self::postings::Postings;
+pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
@@ -38,22 +37,22 @@ pub(crate) enum FreqReadingOption {
 pub mod tests {
 
     use super::*;
+    use core::Index;
+    use core::SegmentComponent;
+    use core::SegmentReader;
+    use datastruct::stacker::Heap;
     use docset::{DocSet, SkipResult};
+    use fieldnorm::FieldNormReader;
+    use indexer::operation::AddOperation;
+    use indexer::SegmentWriter;
+    use query::Scorer;
+    use rand::{Rng, SeedableRng, XorShiftRng};
+    use schema::Field;
+    use schema::IndexRecordOption;
+    use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
+    use std::iter;
     use DocId;
     use Score;
-    use query::Scorer;
-    use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
-    use core::SegmentComponent;
-    use indexer::SegmentWriter;
-    use core::SegmentReader;
-    use core::Index;
-    use schema::IndexRecordOption;
-    use std::iter;
-    use datastruct::stacker::Heap;
-    use schema::Field;
-    use indexer::operation::AddOperation;
-    use rand::{Rng, SeedableRng, XorShiftRng};
-    use fieldnorm::FieldNormReader;
 
     #[test]
     pub fn test_position_write() {
@@ -124,7 +123,6 @@ pub mod tests {
             assert_eq!(&[0, 5], &positions[..]);
         }
         {
-
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 .unwrap();
@@ -203,13 +201,14 @@ pub mod tests {
         {
             let segment_reader = SegmentReader::open(&segment).unwrap();
             {
-                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field) ;
+                let fieldnorm_reader = segment_reader.get_fieldnorms_reader(text_field);
                 assert_eq!(fieldnorm_reader.fieldnorm(0), 8 + 5);
                 assert_eq!(fieldnorm_reader.fieldnorm(1), 2);
                 for i in 2..1000 {
                     assert_eq!(
                         fieldnorm_reader.fieldnorm_id(i),
-                        FieldNormReader::fieldnorm_to_id(i + 1) );
+                        FieldNormReader::fieldnorm_to_id(i + 1)
+                    );
                 }
             }
             {
@@ -446,7 +445,7 @@ pub mod tests {
         // delete everything else
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-                index_writer.delete_term(term_1);
+            index_writer.delete_term(term_1);
 
             assert!(index_writer.commit().is_ok());
         }
@@ -504,7 +503,7 @@ pub mod tests {
             let posting_list_size = 1_000_000;
             {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-                for _ in 0 .. posting_list_size {
+                for _ in 0..posting_list_size {
                     let mut doc = Document::default();
                     if rng.gen_weighted_bool(15) {
                         doc.add_text(text_field, "a");
@@ -595,17 +594,16 @@ pub mod tests {
 
 }
 
-
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
-    use test::{self, Bencher};
-    use schema::IndexRecordOption;
-    use tests;
     use super::tests::*;
     use docset::SkipResult;
-    use DocSet;
     use query::Intersection;
+    use schema::IndexRecordOption;
+    use test::{self, Bencher};
+    use tests;
+    use DocSet;
 
     #[bench]
     fn bench_segment_postings(b: &mut Bencher) {

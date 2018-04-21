@@ -1,5 +1,5 @@
-use std::mem;
 use super::heap::{Heap, HeapAllocable};
+use std::mem;
 
 #[inline]
 pub fn is_power_of_2(val: u32) -> bool {
@@ -99,8 +99,8 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use super::super::heap::Heap;
+    use super::*;
 
     #[test]
     fn test_stack() {
@@ -120,14 +120,13 @@ mod tests {
         }
     }
 
-
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use test::Bencher;
-    use super::Heap;
     use super::ExpUnrolledLinkedList;
+    use super::Heap;
+    use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;

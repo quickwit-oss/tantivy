@@ -8,9 +8,7 @@ const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
 
 pub use self::stream::CompressedIntStream;
 
-
 use bitpacking::{BitPacker, BitPacker4x};
-
 
 /// Returns the size in bytes of a compressed block, given `num_bits`.
 pub fn compressed_block_size(num_bits: u8) -> usize {
@@ -35,18 +33,20 @@ impl BlockEncoder {
     pub fn compress_block_sorted(&mut self, block: &[u32], offset: u32) -> &[u8] {
         let num_bits = self.bitpacker.num_bits_sorted(offset, block);
         self.output[0] = num_bits;
-        let written_size = 1 + self.bitpacker.compress_sorted(offset, block, &mut self.output[1..], num_bits);
+        let written_size =
+            1 + self.bitpacker
+                .compress_sorted(offset, block, &mut self.output[1..], num_bits);
         &self.output[..written_size]
     }
 
     pub fn compress_block_unsorted(&mut self, block: &[u32]) -> &[u8] {
         let num_bits = self.bitpacker.num_bits(block);
         self.output[0] = num_bits;
-        let written_size = 1 + self.bitpacker.compress(block, &mut self.output[1..], num_bits);
+        let written_size = 1 + self.bitpacker
+            .compress(block, &mut self.output[1..], num_bits);
         &self.output[..written_size]
     }
 }
-
 
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
@@ -68,17 +68,23 @@ impl BlockDecoder {
             output_len: 0,
         }
     }
-    
+
     pub fn uncompress_block_sorted(&mut self, compressed_data: &[u8], offset: u32) -> usize {
         let num_bits = compressed_data[0];
         self.output_len = COMPRESSION_BLOCK_SIZE;
-        1 + self.bitpacker.decompress_sorted(offset, &compressed_data[1..], &mut self.output, num_bits)
+        1 + self.bitpacker.decompress_sorted(
+            offset,
+            &compressed_data[1..],
+            &mut self.output,
+            num_bits,
+        )
     }
 
     pub fn uncompress_block_unsorted<'a>(&mut self, compressed_data: &'a [u8]) -> usize {
         let num_bits = compressed_data[0];
         self.output_len = COMPRESSION_BLOCK_SIZE;
-        1 + self.bitpacker.decompress(&compressed_data[1..], &mut self.output, num_bits)
+        1 + self.bitpacker
+            .decompress(&compressed_data[1..], &mut self.output, num_bits)
     }
 
     #[inline]
@@ -264,13 +270,12 @@ pub mod tests {
     }
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
 
     use super::*;
     use test::Bencher;
     use tests;
-
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];

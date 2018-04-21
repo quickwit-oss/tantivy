@@ -1,24 +1,23 @@
-use error::{ErrorKind, Result};
-use core::SegmentReader;
 use core::Segment;
-use DocId;
+use core::SegmentReader;
 use core::SerializableSegment;
-use indexer::SegmentSerializer;
-use postings::InvertedIndexSerializer;
-use itertools::Itertools;
 use docset::DocSet;
+use error::{ErrorKind, Result};
 use fastfield::DeleteBitSet;
-use schema::{Field, Schema};
-use termdict::TermMerger;
-use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
-use store::StoreWriter;
-use std::cmp::{max, min};
+use fastfield::FastFieldSerializer;
+use fieldnorm::FieldNormReader;
 use fieldnorm::FieldNormsSerializer;
 use fieldnorm::FieldNormsWriter;
-use fieldnorm::FieldNormReader;
+use indexer::SegmentSerializer;
+use itertools::Itertools;
+use postings::InvertedIndexSerializer;
 use postings::Postings;
-
+use schema::{Field, Schema};
+use std::cmp::{max, min};
+use store::StoreWriter;
+use termdict::TermMerger;
+use DocId;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -38,14 +37,16 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             total_tokens += reader.inverted_index(field).total_num_tokens();
         }
     }
-    total_tokens + count
-        .iter()
-        .cloned()
-        .enumerate()
-        .map(|(fieldnorm_ord, count)| count as u64 * FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8) as u64)
-        .sum::<u64>()
+    total_tokens
+        + count
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(fieldnorm_ord, count)| {
+                count as u64 * FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8) as u64
+            })
+            .sum::<u64>()
 }
-
 
 pub struct IndexMerger {
     schema: Schema,
@@ -70,7 +71,6 @@ fn compute_min_max_val(
                     .map(|doc_id| u64_reader.get(doc_id))
                     .minmax()
                     .into_option()
-
             }
             None => {
                 // no deleted documents,
@@ -162,7 +162,7 @@ impl IndexMerger {
                         if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
                             &u64_reader,
                             reader.max_doc(),
-                            reader.delete_bitset()
+                            reader.delete_bitset(),
                         ) {
                             // the segment has some non-deleted documents
                             min_val = min(min_val, seg_min_val);
@@ -176,8 +176,10 @@ impl IndexMerger {
                     }
                     Err(_) => {
                         let fieldname = self.schema.get_field_name(field);
-                        let error_msg =
-                            format!("Failed to find a fast field reader for field {:?}", fieldname);
+                        let error_msg = format!(
+                            "Failed to find a fast field reader for field {:?}",
+                            fieldname
+                        );
                         bail!(ErrorKind::SchemaError(error_msg));
                     }
                 }
@@ -211,7 +213,6 @@ impl IndexMerger {
     }
 
     fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
-
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
 
@@ -318,7 +319,7 @@ impl IndexMerger {
                     for (segment_ord, mut segment_postings) in segment_postings {
                         let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
                         loop {
-                            let doc =  segment_postings.doc();
+                            let doc = segment_postings.doc();
 
                             // `.advance()` has been called once before the loop.
                             //
@@ -335,7 +336,8 @@ impl IndexMerger {
                                 let term_freq = segment_postings.term_freq();
                                 segment_postings.positions(&mut positions_buffer);
 
-                                let delta_positions = delta_computer.compute_delta(&positions_buffer);
+                                let delta_positions =
+                                    delta_computer.compute_delta(&positions_buffer);
                                 field_serializer.write_doc(
                                     remapped_doc_id,
                                     term_freq,
@@ -389,21 +391,21 @@ impl SerializableSegment for IndexMerger {
 
 #[cfg(test)]
 mod tests {
-    use schema;
-    use schema::Document;
-    use schema::Term;
-    use schema::TextFieldIndexing;
-    use query::TermQuery;
-    use schema::Field;
-    use core::Index;
-    use Searcher;
-    use DocAddress;
     use collector::tests::FastFieldTestCollector;
     use collector::tests::TestCollector;
-    use query::BooleanQuery;
-    use schema::IndexRecordOption;
-    use schema::Cardinality;
+    use core::Index;
     use futures::Future;
+    use query::BooleanQuery;
+    use query::TermQuery;
+    use schema;
+    use schema::Cardinality;
+    use schema::Document;
+    use schema::Field;
+    use schema::IndexRecordOption;
+    use schema::Term;
+    use schema::TextFieldIndexing;
+    use DocAddress;
+    use Searcher;
 
     #[test]
     fn test_index_merger_no_deletes() {

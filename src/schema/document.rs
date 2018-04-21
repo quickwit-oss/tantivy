@@ -1,8 +1,8 @@
 use super::*;
-use itertools::Itertools;
-use common::VInt;
-use std::io::{self, Read, Write};
 use common::BinarySerializable;
+use common::VInt;
+use itertools::Itertools;
+use std::io::{self, Read, Write};
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.

@@ -1,7 +1,7 @@
+use byteorder::{ByteOrder, NativeEndian};
 use std::cell::UnsafeCell;
 use std::mem;
 use std::ptr;
-use byteorder::{ByteOrder, NativeEndian};
 
 /// `BytesRef` refers to a slice in tantivy's custom `Heap`.
 ///

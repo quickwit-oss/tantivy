@@ -1,8 +1,8 @@
-use DocId;
+use common::BitSet;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
-use common::BitSet;
+use DocId;
 
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]

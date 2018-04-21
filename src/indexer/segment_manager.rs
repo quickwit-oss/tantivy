@@ -1,14 +1,14 @@
 use super::segment_register::SegmentRegister;
-use std::sync::RwLock;
+use core::SegmentId;
 use core::SegmentMeta;
 use core::{LOCKFILE_FILEPATH, META_FILEPATH};
-use core::SegmentId;
-use indexer::SegmentEntry;
-use std::path::PathBuf;
-use std::collections::hash_set::HashSet;
-use std::sync::{RwLockReadGuard, RwLockWriteGuard};
-use std::fmt::{self, Debug, Formatter};
 use indexer::delete_queue::DeleteCursor;
+use indexer::SegmentEntry;
+use std::collections::hash_set::HashSet;
+use std::fmt::{self, Debug, Formatter};
+use std::path::PathBuf;
+use std::sync::RwLock;
+use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Default)]
 struct SegmentRegisters {

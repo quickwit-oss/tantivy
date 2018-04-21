@@ -1,9 +1,9 @@
-use Result;
 use collector::Collector;
+use DocId;
+use Result;
+use Score;
 use SegmentLocalId;
 use SegmentReader;
-use DocId;
-use Score;
 
 /// Collector that does nothing.
 /// This is used in the chain Collector and will hopefully

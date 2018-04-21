@@ -1,14 +1,14 @@
-use std::io::{self, Write};
-use fst;
-use fst::raw::Fst;
-use directory::ReadOnlySource;
+use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
+use super::{TermStreamer, TermStreamerBuilder};
 use common::BinarySerializable;
 use common::CountingWriter;
-use schema::FieldType;
+use directory::ReadOnlySource;
+use fst;
+use fst::raw::Fst;
 use postings::TermInfo;
+use schema::FieldType;
+use std::io::{self, Write};
 use termdict::TermOrdinal;
-use super::{TermStreamerBuilder, TermStreamer};
-use super::term_info_store::{TermInfoStore, TermInfoStoreWriter};
 
 fn convert_fst_error(e: fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
@@ -23,10 +23,9 @@ pub struct TermDictionaryBuilder<W> {
     term_ord: u64,
 }
 
-
 impl<W> TermDictionaryBuilder<W>
 where
-    W: Write
+    W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
     pub fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
@@ -91,7 +90,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
         ReadOnlySource::Anonymous(data) => {
             Fst::from_shared_bytes(data.data, data.start, data.len).expect("FST data is corrupted")
         }
-        #[cfg(feature="mmap")]
+        #[cfg(feature = "mmap")]
         ReadOnlySource::Mmap(mmap_readonly) => {
             Fst::from_mmap(mmap_readonly).expect("FST data is corrupted")
         }
@@ -111,7 +110,6 @@ pub struct TermDictionary {
 }
 
 impl TermDictionary {
-
     /// Opens a `TermDictionary` given a data source.
     pub fn from_source(source: ReadOnlySource) -> Self {
         let total_len = source.len();
@@ -196,7 +194,6 @@ impl TermDictionary {
     pub fn range<'a>(&'a self) -> TermStreamerBuilder<'a> {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
-
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     pub fn stream<'a>(&'a self) -> TermStreamer<'a> {

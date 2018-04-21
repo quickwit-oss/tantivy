@@ -1,5 +1,5 @@
-use std::io::Write;
 use std::io;
+use std::io::Write;
 
 pub struct CountingWriter<W> {
     underlying: W,

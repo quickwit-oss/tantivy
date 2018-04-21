@@ -1,7 +1,7 @@
 use super::BinarySerializable;
 use std::io;
-use std::io::Write;
 use std::io::Read;
+use std::io::Write;
 
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Debug, Eq, PartialEq)]

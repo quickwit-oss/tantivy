@@ -1,8 +1,8 @@
 use std::fmt;
 
-use common;
-use byteorder::{BigEndian, ByteOrder};
 use super::Field;
+use byteorder::{BigEndian, ByteOrder};
+use common;
 use std::str;
 
 /// Size (in bytes) of the buffer of a int field.
