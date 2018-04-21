@@ -189,14 +189,14 @@
 <span id="189">189</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Collector</span>;
-<span class="kw">use</span> <span class="ident">SegmentReader</span>;
-<span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
-<span class="kw">use</span> <span class="ident">DocAddress</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
+<span class="kw">use</span> <span class="ident">DocAddress</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
+<span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
+<span class="kw">use</span> <span class="ident">SegmentReader</span>;
 
 <span class="comment">// Rust heap is a max-heap and we need a min heap.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
@@ -325,9 +325,9 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_top_collector_not_at_capacity</span>() {

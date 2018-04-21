@@ -59,16 +59,30 @@
 <span id="59">59</span>
 <span id="60">60</span>
 <span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">PhraseScorer</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">EmptyScorer</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">EmptyScorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PhraseWeight</span> {
     <span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
@@ -78,13 +92,15 @@
 
 <span class="kw">impl</span> <span class="ident">PhraseWeight</span> {
     <span class="doccomment">/// Creates a new phrase weight.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
-               <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>,
-               <span class="ident">score_needed</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">PhraseWeight</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
+        <span class="ident">phrase_terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>,
+        <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>,
+        <span class="ident">score_needed</span>: <span class="ident">bool</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">PhraseWeight</span> {
         <span class="ident">PhraseWeight</span> {
             <span class="ident">phrase_terms</span>,
             <span class="ident">similarity_weight</span>,
-            <span class="ident">score_needed</span>
+            <span class="ident">score_needed</span>,
         }
     }
 }
@@ -99,25 +115,37 @@
             <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">phrase_terms</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">postings</span>) <span class="op">=</span> <span class="ident">reader</span>
                     .<span class="ident">inverted_index</span>(<span class="ident">term</span>.<span class="ident">field</span>())
-                    .<span class="ident">read_postings</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>) {
+                    .<span class="ident">read_postings</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
+                {
                     <span class="ident">term_postings_list</span>.<span class="ident">push</span>(<span class="ident">postings</span>);
                 } <span class="kw">else</span> {
                     <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyScorer</span>));
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>)))
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(
+                <span class="ident">term_postings_list</span>,
+                <span class="ident">similarity_weight</span>,
+                <span class="ident">fieldnorm_reader</span>,
+                <span class="self">self</span>.<span class="ident">score_needed</span>,
+            )))
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_postings_list</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
             <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">phrase_terms</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">postings</span>) <span class="op">=</span> <span class="ident">reader</span>
                     .<span class="ident">inverted_index</span>(<span class="ident">term</span>.<span class="ident">field</span>())
-                    .<span class="ident">read_postings_no_deletes</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>) {
+                    .<span class="ident">read_postings_no_deletes</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
+                {
                     <span class="ident">term_postings_list</span>.<span class="ident">push</span>(<span class="ident">postings</span>);
                 } <span class="kw">else</span> {
                     <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">EmptyScorer</span>));
                 }
             }
-            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(<span class="ident">term_postings_list</span>, <span class="ident">similarity_weight</span>, <span class="ident">fieldnorm_reader</span>, <span class="self">self</span>.<span class="ident">score_needed</span>)))
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseScorer</span>::<span class="ident">new</span>(
+                <span class="ident">term_postings_list</span>,
+                <span class="ident">similarity_weight</span>,
+                <span class="ident">fieldnorm_reader</span>,
+                <span class="self">self</span>.<span class="ident">score_needed</span>,
+            )))
         }
     }
 }

@@ -722,8 +722,6 @@
 <span id="722">722</span>
 <span id="723">723</span>
 <span id="724">724</span>
-<span id="725">725</span>
-<span id="726">726</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Postings module (also called inverted index)
@@ -733,20 +731,19 @@ Postings module (also called inverted index)
 <span class="doccomment">///</span>
 <span class="doccomment">/// Postings, also called inverted lists, is the key datastructure</span>
 <span class="doccomment">/// to full-text search.</span>
-
 <span class="kw">mod</span> <span class="ident">postings</span>;
-<span class="kw">mod</span> <span class="ident">recorder</span>;
-<span class="kw">mod</span> <span class="ident">serializer</span>;
 <span class="kw">mod</span> <span class="ident">postings_writer</span>;
-<span class="kw">mod</span> <span class="ident">term_info</span>;
+<span class="kw">mod</span> <span class="ident">recorder</span>;
 <span class="kw">mod</span> <span class="ident">segment_postings</span>;
+<span class="kw">mod</span> <span class="ident">serializer</span>;
+<span class="kw">mod</span> <span class="ident">term_info</span>;
 
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings_writer</span>::<span class="ident">MultiFieldPostingsWriter</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings_writer</span>::<span class="ident">MultiFieldPostingsWriter</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_info</span>::<span class="ident">TermInfo</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings</span>::<span class="ident">Postings</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_info</span>::<span class="ident">TermInfo</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_postings</span>::{<span class="ident">BlockSegmentPostings</span>, <span class="ident">SegmentPostings</span>};
 
@@ -765,22 +762,22 @@ Postings module (also called inverted index)
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
+    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
+    <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::<span class="ident">Heap</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+    <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
+    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
+    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentWriter</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
-    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
-    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentWriter</span>;
-    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
-    <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::<span class="ident">Heap</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
-    <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
-    <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_position_write</span>() {
@@ -851,7 +848,6 @@ Postings module (also called inverted index)
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>[<span class="number">0</span>, <span class="number">5</span>], <span class="kw-2">&amp;</span><span class="ident">positions</span>[..]);
         }
         {
-
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">postings</span> <span class="op">=</span> <span class="ident">inverted_index</span>
                 .<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span>)
                 .<span class="ident">unwrap</span>();
@@ -930,13 +926,14 @@ Postings module (also called inverted index)
         {
             <span class="kw">let</span> <span class="ident">segment_reader</span> <span class="op">=</span> <span class="ident">SegmentReader</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">segment</span>).<span class="ident">unwrap</span>();
             {
-                <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>) ;
+                <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">text_field</span>);
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">0</span>), <span class="number">8</span> <span class="op">+</span> <span class="number">5</span>);
                 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">1</span>), <span class="number">2</span>);
                 <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">2</span>..<span class="number">1000</span> {
                     <span class="macro">assert_eq</span><span class="macro">!</span>(
                         <span class="ident">fieldnorm_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">i</span>),
-                        <span class="ident">FieldNormReader</span>::<span class="ident">fieldnorm_to_id</span>(<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>) );
+                        <span class="ident">FieldNormReader</span>::<span class="ident">fieldnorm_to_id</span>(<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>)
+                    );
                 }
             }
             {
@@ -1173,7 +1170,7 @@ Postings module (also called inverted index)
         <span class="comment">// delete everything else</span>
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
-                <span class="ident">index_writer</span>.<span class="ident">delete_term</span>(<span class="ident">term_1</span>);
+            <span class="ident">index_writer</span>.<span class="ident">delete_term</span>(<span class="ident">term_1</span>);
 
             <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">is_ok</span>());
         }
@@ -1231,7 +1228,7 @@ Postings module (also called inverted index)
             <span class="kw">let</span> <span class="ident">posting_list_size</span> <span class="op">=</span> <span class="number">1_000_000</span>;
             {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
-                <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span> .. <span class="ident">posting_list_size</span> {
+                <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">posting_list_size</span> {
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">Document</span>::<span class="ident">default</span>();
                     <span class="kw">if</span> <span class="ident">rng</span>.<span class="ident">gen_weighted_bool</span>(<span class="number">15</span>) {
                         <span class="ident">doc</span>.<span class="ident">add_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>);
@@ -1322,17 +1319,16 @@ Postings module (also called inverted index)
 
 }
 
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">bench</span> {
 
-    <span class="kw">use</span> <span class="ident">test</span>::{<span class="self">self</span>, <span class="ident">Bencher</span>};
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">tests</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">SkipResult</span>;
-    <span class="kw">use</span> <span class="ident">DocSet</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Intersection</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+    <span class="kw">use</span> <span class="ident">test</span>::{<span class="self">self</span>, <span class="ident">Bencher</span>};
+    <span class="kw">use</span> <span class="ident">tests</span>;
+    <span class="kw">use</span> <span class="ident">DocSet</span>;
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_segment_postings</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
@@ -1450,5 +1446,6 @@ Postings module (also called inverted index)
             <span class="ident">s</span>
         });
     }
-}</pre>
+}
+</pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

@@ -336,34 +336,33 @@
 <span id="336">336</span>
 <span id="337">337</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="self">self</span>, <span class="ident">FastFieldNotAvailableError</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
-<span class="kw">use</span> <span class="ident">store</span>::<span class="ident">StoreReader</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">InvertedIndexReader</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
 <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorKind</span>;
-<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionaryImpl</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FacetReader</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
-<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionary</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="self">self</span>, <span class="ident">FastFieldNotAvailableError</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">store</span>::<span class="ident">StoreReader</span>;
+<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermDictionary</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// Entry point to access all of the datastructures of the `Segment`</span>
 <span class="doccomment">///</span>
@@ -448,12 +447,12 @@
     ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">if</span> <span class="ident">Item</span>::<span class="ident">fast_field_cardinality</span>(<span class="ident">field_entry</span>.<span class="ident">field_type</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">SingleValue</span>)
-            {
-                <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                    .<span class="ident">open_read</span>(<span class="ident">field</span>)
-                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                    .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)
-            } <span class="kw">else</span> {
+        {
+            <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
+                .<span class="ident">open_read</span>(<span class="ident">field</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
+                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)
+        } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
         }
     }
@@ -466,17 +465,17 @@
     ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">if</span> <span class="ident">Item</span>::<span class="ident">fast_field_cardinality</span>(<span class="ident">field_entry</span>.<span class="ident">field_type</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>)
-            {
-                <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                    .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)
-                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                    .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
-                <span class="kw">let</span> <span class="ident">vals_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                    .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)
-                    .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                    .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
-                <span class="prelude-val">Ok</span>(<span class="ident">MultiValueIntFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">vals_reader</span>))
-            } <span class="kw">else</span> {
+        {
+            <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
+                .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
+                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">vals_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
+                .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)
+                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
+                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>(<span class="ident">MultiValueIntFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">vals_reader</span>))
+        } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
         }
     }
@@ -500,7 +499,7 @@
                 <span class="ident">field_entry</span>.<span class="ident">name</span>()
             ))
         })<span class="question-mark">?</span>;
-        <span class="kw">let</span> <span class="ident">termdict</span> <span class="op">=</span> <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>);
+        <span class="kw">let</span> <span class="ident">termdict</span> <span class="op">=</span> <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>);
         <span class="kw">let</span> <span class="ident">facet_reader</span> <span class="op">=</span> <span class="ident">FacetReader</span>::<span class="ident">new</span>(<span class="ident">term_ords_reader</span>, <span class="ident">termdict</span>);
         <span class="prelude-val">Ok</span>(<span class="ident">facet_reader</span>)
     }
@@ -514,12 +513,14 @@
     <span class="doccomment">/// They are simply stored as a fast field, serialized in</span>
     <span class="doccomment">/// the `.fieldnorm` file of the segment.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_fieldnorms_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">FieldNormReader</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fieldnorm_source</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fieldnorms_composite</span>
-            .<span class="ident">open_read</span>(<span class="ident">field</span>) {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fieldnorm_source</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fieldnorms_composite</span>.<span class="ident">open_read</span>(<span class="ident">field</span>) {
             <span class="ident">FieldNormReader</span>::<span class="ident">open</span>(<span class="ident">fieldnorm_source</span>)
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>);
-            <span class="kw">let</span> <span class="ident">err_msg</span><span class="op">=</span>  <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Field norm not found for field {:?}. Was it market as indexed during indexing.&quot;</span>, <span class="ident">field_name</span>);
+            <span class="kw">let</span> <span class="ident">err_msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
+                <span class="string">&quot;Field norm not found for field {:?}. Was it market as indexed during indexing.&quot;</span>,
+                <span class="ident">field_name</span>
+            );
             <span class="macro">panic</span><span class="macro">!</span>(<span class="ident">err_msg</span>);
         }
     }
@@ -554,13 +555,12 @@
         <span class="kw">let</span> <span class="ident">fieldnorms_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">FIELDNORMS</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">fieldnorms_composite</span> <span class="op">=</span> <span class="ident">CompositeFile</span>::<span class="ident">open</span>(<span class="kw-2">&amp;</span><span class="ident">fieldnorms_data</span>)<span class="question-mark">?</span>;
 
-        <span class="kw">let</span> <span class="ident">delete_bitset_opt</span> <span class="op">=</span>
-            <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">has_deletes</span>() {
-                <span class="kw">let</span> <span class="ident">delete_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">DELETE</span>)<span class="question-mark">?</span>;
-                <span class="prelude-val">Some</span>(<span class="ident">DeleteBitSet</span>::<span class="ident">open</span>(<span class="ident">delete_data</span>))
-            } <span class="kw">else</span> {
-                <span class="prelude-val">None</span>
-            };
+        <span class="kw">let</span> <span class="ident">delete_bitset_opt</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">has_deletes</span>() {
+            <span class="kw">let</span> <span class="ident">delete_data</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">open_read</span>(<span class="ident">SegmentComponent</span>::<span class="ident">DELETE</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Some</span>(<span class="ident">DeleteBitSet</span>::<span class="ident">open</span>(<span class="ident">delete_data</span>))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
+        };
 
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">segment</span>.<span class="ident">schema</span>();
         <span class="prelude-val">Ok</span>(<span class="ident">SegmentReader</span> {
@@ -624,7 +624,7 @@
             .<span class="ident">expect</span>(<span class="string">&quot;Index corrupted. Failed to open field positions in composite file.&quot;</span>);
 
         <span class="kw">let</span> <span class="ident">inv_idx_reader</span> <span class="op">=</span> <span class="ident">Arc</span>::<span class="ident">new</span>(<span class="ident">InvertedIndexReader</span>::<span class="ident">new</span>(
-            <span class="ident">TermDictionaryImpl</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
+            <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="ident">termdict_source</span>),
             <span class="ident">postings_source</span>,
             <span class="ident">positions_source</span>,
             <span class="ident">record_option</span>,

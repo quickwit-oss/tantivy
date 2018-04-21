@@ -141,13 +141,13 @@
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">PoisonError</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">IOError</span>, <span class="ident">OpenDirectoryError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldNotAvailableError</span>;
 <span class="kw">use</span> <span class="ident">query</span>;
 <span class="kw">use</span> <span class="ident">schema</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldNotAvailableError</span>;
 <span class="kw">use</span> <span class="ident">serde_json</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">PoisonError</span>;
 
 <span class="macro">error_chain</span><span class="macro">!</span>(
     <span class="ident">errors</span> {

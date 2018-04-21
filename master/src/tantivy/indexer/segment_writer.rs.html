@@ -258,29 +258,27 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
-<span id="261">261</span>
-<span id="262">262</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SerializableSegment</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldsWriter</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">segment_serializer</span>::<span class="ident">SegmentSerializer</span>;
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::<span class="ident">Heap</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldsWriter</span>;
+<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsWriter</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">MARGIN_IN_BYTES</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">segment_serializer</span>::<span class="ident">SegmentSerializer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">MultiFieldPostingsWriter</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">FacetTokenizer</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
-<span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsWriter</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// A `SegmentWriter` is in charge of creating segment index from a</span>
 <span class="doccomment">/// documents.</span>
@@ -297,7 +295,6 @@
     <span class="ident">doc_opstamps</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>,
     <span class="ident">tokenizers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">BoxedTokenizer</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>,
 }
-
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">SegmentWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Creates a new `SegmentWriter`</span>
@@ -442,8 +439,7 @@
                     } <span class="kw">else</span> {
                         <span class="number">0</span>
                     };
-                    <span class="self">self</span>.<span class="ident">fieldnorms_writer</span>
-                        .<span class="ident">record</span>(<span class="ident">doc_id</span>, <span class="ident">field</span>, <span class="ident">num_tokens</span>);
+                    <span class="self">self</span>.<span class="ident">fieldnorms_writer</span>.<span class="ident">record</span>(<span class="ident">doc_id</span>, <span class="ident">field</span>, <span class="ident">num_tokens</span>);
                 }
                 <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">int_option</span>) <span class="op">=&gt;</span> {
                     <span class="kw">if</span> <span class="ident">int_option</span>.<span class="ident">is_indexed</span>() {

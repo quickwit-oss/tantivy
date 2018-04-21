@@ -341,6 +341,11 @@
 <span id="341">341</span>
 <span id="342">342</span>
 <span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
@@ -352,9 +357,7 @@
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stream</span>::<span class="ident">CompressedIntStream</span>;
 
-
 <span class="kw">use</span> <span class="ident">bitpacking</span>::{<span class="ident">BitPacker</span>, <span class="ident">BitPacker4x</span>};
-
 
 <span class="doccomment">/// Returns the size in bytes of a compressed block, given `num_bits`.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compressed_block_size</span>(<span class="ident">num_bits</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -379,18 +382,20 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compress_block_sorted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">block</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>], <span class="ident">offset</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">num_bits_sorted</span>(<span class="ident">offset</span>, <span class="ident">block</span>);
         <span class="self">self</span>.<span class="ident">output</span>[<span class="number">0</span>] <span class="op">=</span> <span class="ident">num_bits</span>;
-        <span class="kw">let</span> <span class="ident">written_size</span> <span class="op">=</span> <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">compress_sorted</span>(<span class="ident">offset</span>, <span class="ident">block</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>[<span class="number">1</span>..], <span class="ident">num_bits</span>);
+        <span class="kw">let</span> <span class="ident">written_size</span> <span class="op">=</span>
+            <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>
+                .<span class="ident">compress_sorted</span>(<span class="ident">offset</span>, <span class="ident">block</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>[<span class="number">1</span>..], <span class="ident">num_bits</span>);
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">output</span>[..<span class="ident">written_size</span>]
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">compress_block_unsorted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">block</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>]) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">num_bits</span>(<span class="ident">block</span>);
         <span class="self">self</span>.<span class="ident">output</span>[<span class="number">0</span>] <span class="op">=</span> <span class="ident">num_bits</span>;
-        <span class="kw">let</span> <span class="ident">written_size</span> <span class="op">=</span> <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">compress</span>(<span class="ident">block</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>[<span class="number">1</span>..], <span class="ident">num_bits</span>);
+        <span class="kw">let</span> <span class="ident">written_size</span> <span class="op">=</span> <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>
+            .<span class="ident">compress</span>(<span class="ident">block</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>[<span class="number">1</span>..], <span class="ident">num_bits</span>);
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">output</span>[..<span class="ident">written_size</span>]
     }
 }
-
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BlockDecoder</span> {
     <span class="ident">bitpacker</span>: <span class="ident">BitPacker4x</span>,
@@ -412,17 +417,23 @@
             <span class="ident">output_len</span>: <span class="number">0</span>,
         }
     }
-    
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">uncompress_block_sorted</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">compressed_data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">offset</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="ident">compressed_data</span>[<span class="number">0</span>];
         <span class="self">self</span>.<span class="ident">output_len</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>;
-        <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">decompress_sorted</span>(<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="ident">compressed_data</span>[<span class="number">1</span>..], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>, <span class="ident">num_bits</span>)
+        <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">decompress_sorted</span>(
+            <span class="ident">offset</span>,
+            <span class="kw-2">&amp;</span><span class="ident">compressed_data</span>[<span class="number">1</span>..],
+            <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>,
+            <span class="ident">num_bits</span>,
+        )
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">uncompress_block_unsorted</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">compressed_data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">let</span> <span class="ident">num_bits</span> <span class="op">=</span> <span class="ident">compressed_data</span>[<span class="number">0</span>];
         <span class="self">self</span>.<span class="ident">output_len</span> <span class="op">=</span> <span class="ident">COMPRESSION_BLOCK_SIZE</span>;
-        <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>.<span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_data</span>[<span class="number">1</span>..], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>, <span class="ident">num_bits</span>)
+        <span class="number">1</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">bitpacker</span>
+            .<span class="ident">decompress</span>(<span class="kw-2">&amp;</span><span class="ident">compressed_data</span>[<span class="number">1</span>..], <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">output</span>, <span class="ident">num_bits</span>)
     }
 
     <span class="attribute">#[<span class="ident">inline</span>]</span>
@@ -608,13 +619,12 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">bench</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
     <span class="kw">use</span> <span class="ident">tests</span>;
-
 
     <span class="kw">fn</span> <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];

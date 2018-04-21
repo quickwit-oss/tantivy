@@ -133,11 +133,11 @@
 <span id="133">133</span>
 <span id="134">134</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">AtomicUsize</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">crossbeam</span>::<span class="ident">sync</span>::<span class="ident">MsQueue</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::{<span class="ident">Deref</span>, <span class="ident">DerefMut</span>};
-<span class="kw">use</span> <span class="ident">crossbeam</span>::<span class="ident">sync</span>::<span class="ident">MsQueue</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">AtomicUsize</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">GenerationItem</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> {
@@ -249,8 +249,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Pool</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_pool</span>() {

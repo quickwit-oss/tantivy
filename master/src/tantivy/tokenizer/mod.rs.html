@@ -376,30 +376,30 @@
 <span class="doccomment">//! # }</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
-<span class="kw">mod</span> <span class="ident">tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">simple_tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">lower_caser</span>;
-<span class="kw">mod</span> <span class="ident">remove_long</span>;
-<span class="kw">mod</span> <span class="ident">stemmer</span>;
-<span class="kw">mod</span> <span class="ident">facet_tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">tokenizer_manager</span>;
-<span class="kw">mod</span> <span class="ident">japanese_tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">token_stream_chain</span>;
-<span class="kw">mod</span> <span class="ident">raw_tokenizer</span>;
 <span class="kw">mod</span> <span class="ident">alphanum_only</span>;
+<span class="kw">mod</span> <span class="ident">facet_tokenizer</span>;
+<span class="kw">mod</span> <span class="ident">japanese_tokenizer</span>;
+<span class="kw">mod</span> <span class="ident">lower_caser</span>;
+<span class="kw">mod</span> <span class="ident">raw_tokenizer</span>;
+<span class="kw">mod</span> <span class="ident">remove_long</span>;
+<span class="kw">mod</span> <span class="ident">simple_tokenizer</span>;
+<span class="kw">mod</span> <span class="ident">stemmer</span>;
+<span class="kw">mod</span> <span class="ident">token_stream_chain</span>;
+<span class="kw">mod</span> <span class="ident">tokenizer</span>;
+<span class="kw">mod</span> <span class="ident">tokenizer_manager</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">alphanum_only</span>::<span class="ident">AlphaNumOnlyFilter</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenFilter</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer_manager</span>::<span class="ident">TokenizerManager</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">simple_tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">raw_tokenizer</span>::<span class="ident">RawTokenizer</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">token_stream_chain</span>::<span class="ident">TokenStreamChain</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">japanese_tokenizer</span>::<span class="ident">JapaneseTokenizer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">remove_long</span>::<span class="ident">RemoveLongFilter</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">lower_caser</span>::<span class="ident">LowerCaser</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stemmer</span>::<span class="ident">Stemmer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet_tokenizer</span>::<span class="ident">FacetTokenizer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">japanese_tokenizer</span>::<span class="ident">JapaneseTokenizer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">lower_caser</span>::<span class="ident">LowerCaser</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">raw_tokenizer</span>::<span class="ident">RawTokenizer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">remove_long</span>::<span class="ident">RemoveLongFilter</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">simple_tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stemmer</span>::<span class="ident">Stemmer</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">token_stream_chain</span>::<span class="ident">TokenStreamChain</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenFilter</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer_manager</span>::<span class="ident">TokenizerManager</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {

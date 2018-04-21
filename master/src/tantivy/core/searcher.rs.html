@@ -115,23 +115,19 @@
 <span id="115">115</span>
 <span id="116">116</span>
 <span id="117">117</span>
-<span id="118">118</span>
-<span id="119">119</span>
-<span id="120">120</span>
-<span id="121">121</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-<span class="kw">use</span> <span class="ident">DocAddress</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
-<span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionary</span>, <span class="ident">TermMerger</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">InvertedIndexReader</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermMerger</span>;
+<span class="kw">use</span> <span class="ident">DocAddress</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// Holds a list of `SegmentReader`s ready for search.</span>
 <span class="doccomment">///</span>
@@ -144,14 +140,11 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Searcher</span> {
-
     <span class="doccomment">/// Creates a new `Searcher`</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">schema</span>: <span class="ident">Schema</span>,
-        <span class="ident">segment_readers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentReader</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Searcher</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">schema</span>: <span class="ident">Schema</span>, <span class="ident">segment_readers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentReader</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Searcher</span> {
         <span class="ident">Searcher</span> {
             <span class="ident">schema</span>,
-            <span class="ident">segment_readers</span>
+            <span class="ident">segment_readers</span>,
         }
     }
     <span class="doccomment">/// Fetches a document from tantivy&#39;s store given a `DocAddress`.</span>
@@ -230,7 +223,6 @@
         <span class="ident">TermMerger</span>::<span class="ident">new</span>(<span class="ident">term_streamers</span>)
     }
 }
-
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Searcher</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {

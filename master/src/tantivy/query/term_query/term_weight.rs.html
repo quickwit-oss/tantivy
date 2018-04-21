@@ -64,17 +64,18 @@
 <span id="64">64</span>
 <span id="65">65</span>
 <span id="66">66</span>
+<span id="67">67</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">Term</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">SegmentPostings</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">Term</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermWeight</span> {
     <span class="ident">term</span>: <span class="ident">Term</span>,
@@ -83,24 +84,26 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Weight</span> <span class="kw">for</span> <span class="ident">TermWeight</span> {
-
     <span class="kw">fn</span> <span class="ident">scorer</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Scorer</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term</span>.<span class="ident">field</span>();
         <span class="kw">let</span> <span class="ident">inverted_index</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">fieldnorm_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">similarity_weight</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">similarity_weight</span>.<span class="ident">clone</span>();
-            <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&gt;</span> <span class="op">=</span>
-                <span class="ident">inverted_index</span>.<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>, <span class="self">self</span>.<span class="ident">index_record_option</span>);
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">segment_postings</span>) <span class="op">=</span> <span class="ident">postings_opt</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(<span class="ident">segment_postings</span>,
-                                    <span class="ident">fieldnorm_reader</span>,
-                                    <span class="ident">similarity_weight</span>)))
-            } <span class="kw">else</span> {
-                <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(
-                    <span class="ident">SegmentPostings</span>::<span class="ident">empty</span>(),
-                    <span class="ident">fieldnorm_reader</span>,
-                    <span class="ident">similarity_weight</span>)))
-            }
+        <span class="kw">let</span> <span class="ident">postings_opt</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">SegmentPostings</span><span class="op">&gt;</span> <span class="op">=</span>
+            <span class="ident">inverted_index</span>.<span class="ident">read_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>, <span class="self">self</span>.<span class="ident">index_record_option</span>);
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">segment_postings</span>) <span class="op">=</span> <span class="ident">postings_opt</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(
+                <span class="ident">segment_postings</span>,
+                <span class="ident">fieldnorm_reader</span>,
+                <span class="ident">similarity_weight</span>,
+            )))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">TermScorer</span>::<span class="ident">new</span>(
+                <span class="ident">SegmentPostings</span>::<span class="ident">empty</span>(),
+                <span class="ident">fieldnorm_reader</span>,
+                <span class="ident">similarity_weight</span>,
+            )))
+        }
     }
 
     <span class="kw">fn</span> <span class="ident">count</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
@@ -117,12 +120,12 @@
     }
 }
 
-
 <span class="kw">impl</span> <span class="ident">TermWeight</span> {
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">term</span>: <span class="ident">Term</span>,
-               <span class="ident">index_record_option</span>: <span class="ident">IndexRecordOption</span>,
-               <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>) <span class="op">-&gt;</span> <span class="ident">TermWeight</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
+        <span class="ident">term</span>: <span class="ident">Term</span>,
+        <span class="ident">index_record_option</span>: <span class="ident">IndexRecordOption</span>,
+        <span class="ident">similarity_weight</span>: <span class="ident">BM25Weight</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">TermWeight</span> {
         <span class="ident">TermWeight</span> {
             <span class="ident">term</span>,
             <span class="ident">index_record_option</span>,
@@ -130,6 +133,5 @@
         }
     }
 }
-
 </pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../../";window.currentCrate = "tantivy";</script><script src="../../../../main.js"></script><script defer src="../../../../search-index.js"></script></body></html>

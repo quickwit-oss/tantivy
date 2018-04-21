@@ -178,10 +178,10 @@
 <span id="178">178</span>
 <span id="179">179</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
-<span class="kw">use</span> <span class="ident">Score</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="ident">Score</span>;
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">enum</span> <span class="ident">State</span> {
@@ -309,10 +309,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>;
-    <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">tests</span>::<span class="ident">test_skip_against_unoptimized</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">tests</span>::<span class="ident">test_skip_against_unoptimized</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_exclude</span>() {

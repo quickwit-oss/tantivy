@@ -194,10 +194,10 @@
 <span id="194">194</span>
 <span id="195">195</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">std</span>::{<span class="self">self</span>, <span class="ident">io</span>};
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FieldSerializer</span>;
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">ExpUnrolledLinkedList</span>, <span class="ident">Heap</span>, <span class="ident">HeapAllocable</span>};
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FieldSerializer</span>;
+<span class="kw">use</span> <span class="ident">std</span>::{<span class="self">self</span>, <span class="ident">io</span>};
+<span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="kw">const</span> <span class="ident">EMPTY_ARRAY</span>: [<span class="ident">u32</span>; <span class="number">0</span>] <span class="op">=</span> [<span class="number">0u32</span>; <span class="number">0</span>];
 <span class="kw">const</span> <span class="ident">POSITION_END</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">u32</span>::<span class="ident">MAX</span>;

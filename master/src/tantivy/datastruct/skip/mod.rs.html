@@ -170,11 +170,11 @@
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 
-<span class="kw">mod</span> <span class="ident">skiplist_builder</span>;
 <span class="kw">mod</span> <span class="ident">skiplist</span>;
+<span class="kw">mod</span> <span class="ident">skiplist_builder</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">skiplist_builder</span>::<span class="ident">SkipListBuilder</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">skiplist</span>::<span class="ident">SkipList</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">skiplist_builder</span>::<span class="ident">SkipListBuilder</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {

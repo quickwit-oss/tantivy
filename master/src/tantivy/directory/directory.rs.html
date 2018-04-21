@@ -78,14 +78,14 @@
 <span id="78">78</span>
 <span id="79">79</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">Send</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">WritePtr</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">Send</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">Sync</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
 
 <span class="doccomment">/// Write-once read many (WORM) abstraction for where</span>
 <span class="doccomment">/// tantivy&#39;s data should be stored.</span>

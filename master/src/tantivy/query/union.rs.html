@@ -458,17 +458,16 @@
 <span id="458">458</span>
 <span id="459">459</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">TinySet</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::{<span class="ident">DoNothingCombiner</span>, <span class="ident">ScoreCombiner</span>};
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::{<span class="ident">DoNothingCombiner</span>, <span class="ident">ScoreCombiner</span>};
 
 <span class="kw">const</span> <span class="ident">HORIZON_NUM_TINYBITSETS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">64</span>;
 <span class="kw">const</span> <span class="ident">HORIZON</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64u32</span> <span class="op">*</span> <span class="ident">HORIZON_NUM_TINYBITSETS</span> <span class="kw">as</span> <span class="ident">u32</span>;
-
 
 <span class="comment">// `drain_filter` is not stable yet.</span>
 <span class="comment">// This function is similar except that it does is not unsafe, and</span>
@@ -476,7 +475,9 @@
 <span class="comment">//</span>
 <span class="comment">// Also, it does not &quot;yield&quot; any elements.</span>
 <span class="kw">fn</span> <span class="ident">unordered_drain_filter</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">P</span><span class="op">&gt;</span>(<span class="ident">v</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="kw-2">mut</span> <span class="ident">predicate</span>: <span class="ident">P</span>)
-    <span class="kw">where</span> <span class="ident">P</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+<span class="kw">where</span>
+    <span class="ident">P</span>: <span class="ident">FnMut</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="ident">bool</span>,
+{
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">i</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">while</span> <span class="ident">i</span> <span class="op">&lt;</span> <span class="ident">v</span>.<span class="ident">len</span>() {
         <span class="kw">if</span> <span class="ident">predicate</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">v</span>[<span class="ident">i</span>]) {
@@ -722,15 +723,15 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Union</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>;
-    <span class="kw">use</span> <span class="ident">DocId</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">HORIZON</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
     <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">tests</span>::<span class="ident">test_skip_against_unoptimized</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">DoNothingCombiner</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>;
+    <span class="kw">use</span> <span class="ident">DocId</span>;
 
     <span class="kw">fn</span> <span class="ident">aux_test_union</span>(<span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;&gt;</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">val_set</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">BTreeSet</span>::<span class="ident">new</span>();
@@ -866,19 +867,18 @@
         );
     }
 
-
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">bench</span> {
 
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">DoNothingCombiner</span>;
-    <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Union</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>;
+    <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">DocSet</span>;
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>

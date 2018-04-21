@@ -87,18 +87,18 @@
 <span id="87">87</span>
 <span id="88">88</span>
 </pre><pre class="rust ">
-<span class="kw">mod</span> <span class="ident">writer</span>;
 <span class="kw">mod</span> <span class="ident">reader</span>;
+<span class="kw">mod</span> <span class="ident">writer</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::<span class="ident">MultiValueIntFastFieldWriter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::<span class="ident">MultiValueIntFastFieldReader</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::<span class="ident">MultiValueIntFastFieldWriter</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IntOptions</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
     <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>

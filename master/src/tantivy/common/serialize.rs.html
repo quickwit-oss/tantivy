@@ -211,11 +211,11 @@
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ReadBytesExt</span>, <span class="ident">WriteBytesExt</span>};
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">Endianness</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Read</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Read</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 
 <span class="doccomment">/// Trait for a simple binary serialization.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">BinarySerializable</span>: <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="op">+</span> <span class="ident">Sized</span> {
@@ -346,8 +346,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">test</span> {
 
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fixed_size_test</span><span class="op">&lt;</span><span class="ident">O</span>: <span class="ident">BinarySerializable</span> <span class="op">+</span> <span class="ident">FixedSize</span> <span class="op">+</span> <span class="ident">Default</span><span class="op">&gt;</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();

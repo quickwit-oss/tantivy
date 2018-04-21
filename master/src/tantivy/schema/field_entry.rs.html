@@ -240,14 +240,14 @@
 <span id="240">240</span>
 <span id="241">241</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IntOptions</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeStruct</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">MapAccess</span>, <span class="ident">Visitor</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">MapAccess</span>, <span class="ident">Visitor</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeStruct</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
 <span class="doccomment">/// A `FieldEntry` represents a field and its configuration.</span>
 <span class="doccomment">/// `Schema` are a collection of `FieldEntry`</span>

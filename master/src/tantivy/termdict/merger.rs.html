@@ -122,16 +122,14 @@
 <span id="122">122</span>
 <span id="123">123</span>
 <span id="124">124</span>
-<span id="125">125</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
-<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamerImpl</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
-<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamer</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
+<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamer</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HeapItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span> <span class="ident">streamer</span>: <span class="ident">TermStreamerImpl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+    <span class="kw">pub</span> <span class="ident">streamer</span>: <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="kw">pub</span> <span class="ident">segment_ord</span>: <span class="ident">usize</span>,
 }
 
@@ -171,7 +169,7 @@
     <span class="doccomment">/// Stream of merged term dictionary</span>
     <span class="doccomment">///</span>
     <span class="doccomment">///</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">streams</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TermStreamerImpl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">TermMerger</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">streams</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">TermMerger</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="ident">TermMerger</span> {
             <span class="ident">heap</span>: <span class="ident">BinaryHeap</span>::<span class="ident">new</span>(),
             <span class="ident">current_streamers</span>: <span class="ident">streams</span>

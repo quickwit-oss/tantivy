@@ -136,19 +136,19 @@
 <span id="136">136</span>
 <span id="137">137</span>
 </pre><pre class="rust ">
-    <span class="kw">mod</span> <span class="ident">serialize</span>;
-<span class="kw">mod</span> <span class="ident">vint</span>;
-<span class="kw">mod</span> <span class="ident">counting_writer</span>;
-<span class="kw">mod</span> <span class="ident">composite_file</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">bitpacker</span>;
 <span class="kw">mod</span> <span class="ident">bitset</span>;
+<span class="kw">mod</span> <span class="ident">composite_file</span>;
+<span class="kw">mod</span> <span class="ident">counting_writer</span>;
+<span class="kw">mod</span> <span class="ident">serialize</span>;
+<span class="kw">mod</span> <span class="ident">vint</span>;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">composite_file</span>::{<span class="ident">CompositeFile</span>, <span class="ident">CompositeWrite</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serialize</span>::{<span class="ident">BinarySerializable</span>, <span class="ident">FixedSize</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vint</span>::<span class="ident">VInt</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">counting_writer</span>::<span class="ident">CountingWriter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">bitset</span>::<span class="ident">BitSet</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">bitset</span>::<span class="ident">TinySet</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">composite_file</span>::{<span class="ident">CompositeFile</span>, <span class="ident">CompositeWrite</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">counting_writer</span>::<span class="ident">CountingWriter</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serialize</span>::{<span class="ident">BinarySerializable</span>, <span class="ident">FixedSize</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">vint</span>::<span class="ident">VInt</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">byteorder</span>::<span class="ident">LittleEndian</span> <span class="kw">as</span> <span class="ident">Endianness</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
@@ -242,8 +242,8 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod</span> <span class="ident">test</span> {
 
-    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">compute_num_bits</span>, <span class="ident">i64_to_u64</span>, <span class="ident">u64_to_i64</span>};
     <span class="kw">pub</span> <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">serialize</span>::<span class="ident">test</span>::<span class="ident">fixed_size_test</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">compute_num_bits</span>, <span class="ident">i64_to_u64</span>, <span class="ident">u64_to_i64</span>};
 
     <span class="kw">fn</span> <span class="ident">test_i64_converter_helper</span>(<span class="ident">val</span>: <span class="ident">i64</span>) {
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">u64_to_i64</span>(<span class="ident">i64_to_u64</span>(<span class="ident">val</span>)), <span class="ident">val</span>);

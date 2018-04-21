@@ -109,16 +109,16 @@
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>};
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">SkipList</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">lz4</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>::<span class="ident">size_of</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="doccomment">/// Reads document off tantivy&#39;s [`Store`](./index.html)</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>

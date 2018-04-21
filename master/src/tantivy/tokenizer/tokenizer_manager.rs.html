@@ -81,15 +81,15 @@
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>};
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">Tokenizer</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">tokenizer</span>::<span class="ident">box_tokenizer</span>;
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">RawTokenizer</span>;
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">JapaneseTokenizer</span>;
-<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">RemoveLongFilter</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">LowerCaser</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">RawTokenizer</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">RemoveLongFilter</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">Stemmer</span>;
+<span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">Tokenizer</span>;
 
 <span class="doccomment">/// The tokenizer manager serves as a store for</span>
 <span class="doccomment">/// all of the pre-configured tokenizer pipelines.</span>

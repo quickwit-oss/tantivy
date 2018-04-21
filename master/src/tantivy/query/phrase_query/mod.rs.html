@@ -167,24 +167,31 @@
 <span id="167">167</span>
 <span id="168">168</span>
 <span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">phrase_query</span>;
-<span class="kw">mod</span> <span class="ident">phrase_weight</span>;
 <span class="kw">mod</span> <span class="ident">phrase_scorer</span>;
+<span class="kw">mod</span> <span class="ident">phrase_weight</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">phrase_query</span>::<span class="ident">PhraseQuery</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">phrase_weight</span>::<span class="ident">PhraseWeight</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">phrase_scorer</span>::<span class="ident">PhraseScorer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">phrase_weight</span>::<span class="ident">PhraseWeight</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">TEXT</span>};
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::<span class="ident">TestCollector</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
+    <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorKind</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
 
     <span class="kw">fn</span> <span class="ident">create_index</span>(<span class="ident">texts</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="ident">Index</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
@@ -210,7 +217,7 @@
             <span class="string">&quot;a b b d c g c&quot;</span>,
             <span class="string">&quot;a b a b c&quot;</span>,
             <span class="string">&quot;c a b a d ga a&quot;</span>,
-            <span class="string">&quot;a b c&quot;</span>
+            <span class="string">&quot;a b c&quot;</span>,
         ]);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">schema</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">get_field</span>(<span class="string">&quot;text&quot;</span>).<span class="ident">unwrap</span>();
@@ -238,13 +245,14 @@
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_phrase_query_no_positions</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
-        <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
-        <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextFieldIndexing</span>;
         <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-        <span class="kw">let</span> <span class="ident">no_positions</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>()
-            .<span class="ident">set_indexing_options</span>(<span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
+        <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextFieldIndexing</span>;
+        <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextOptions</span>;
+        <span class="kw">let</span> <span class="ident">no_positions</span> <span class="op">=</span> <span class="ident">TextOptions</span>::<span class="ident">default</span>().<span class="ident">set_indexing_options</span>(
+            <span class="ident">TextFieldIndexing</span>::<span class="ident">default</span>()
                 .<span class="ident">set_tokenizer</span>(<span class="string">&quot;default&quot;</span>)
-                .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>));
+                .<span class="ident">set_index_option</span>(<span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span>),
+        );
 
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">no_positions</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
@@ -258,11 +266,18 @@
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
         <span class="kw">let</span> <span class="ident">phrase_query</span> <span class="op">=</span> <span class="ident">PhraseQuery</span>::<span class="ident">new</span>(<span class="macro">vec</span><span class="macro">!</span>[
             <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>),
-            <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;b&quot;</span>)
+            <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;b&quot;</span>),
         ]);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">test_collector</span> <span class="op">=</span> <span class="ident">TestCollector</span>::<span class="ident">default</span>();
-        <span class="kw">if</span> <span class="kw">let</span> <span class="kw-2">&amp;</span><span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="kw-2">ref</span> <span class="ident">msg</span>) <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">phrase_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test_collector</span>).<span class="ident">unwrap_err</span>().<span class="ident">kind</span>() {
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;Applied phrase query on field \&quot;text\&quot;, which does not have positions indexed&quot;</span>, <span class="ident">msg</span>.<span class="ident">as_str</span>());
+        <span class="kw">if</span> <span class="kw">let</span> <span class="kw-2">&amp;</span><span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="kw-2">ref</span> <span class="ident">msg</span>) <span class="op">=</span> <span class="ident">searcher</span>
+            .<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">phrase_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test_collector</span>)
+            .<span class="ident">unwrap_err</span>()
+            .<span class="ident">kind</span>()
+        {
+            <span class="macro">assert_eq</span><span class="macro">!</span>(
+                <span class="string">&quot;Applied phrase query on field \&quot;text\&quot;, which does not have positions indexed&quot;</span>,
+                <span class="ident">msg</span>.<span class="ident">as_str</span>()
+            );
         } <span class="kw">else</span> {
             <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Should have returned an error&quot;</span>);
         }
@@ -290,7 +305,6 @@
         <span class="kw">let</span> <span class="ident">scores</span> <span class="op">=</span> <span class="ident">test_query</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;a&quot;</span>, <span class="string">&quot;b&quot;</span>]);
         <span class="ident">assert_nearly_equals</span>(<span class="ident">scores</span>[<span class="number">0</span>], <span class="number">0.40618482</span>);
         <span class="ident">assert_nearly_equals</span>(<span class="ident">scores</span>[<span class="number">1</span>], <span class="number">0.46844664</span>);
-
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span> <span class="comment">// motivated by #234</span>

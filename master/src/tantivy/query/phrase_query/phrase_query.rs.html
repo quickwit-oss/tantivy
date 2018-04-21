@@ -73,15 +73,23 @@
 <span id="73">73</span>
 <span id="74">74</span>
 <span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">PhraseWeight</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorKind</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// `PhraseQuery` matches a specific sequence of words.</span>
 <span class="doccomment">///</span>
@@ -104,18 +112,23 @@
 }
 
 <span class="kw">impl</span> <span class="ident">PhraseQuery</span> {
-
     <span class="doccomment">/// Creates a new `PhraseQuery` given a list of terms.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// There must be at least two terms, and all terms</span>
     <span class="doccomment">/// must belong to the same field.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">PhraseQuery</span> {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">terms</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span>, <span class="string">&quot;A phrase query is required to have strictly more than one term.&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">terms</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="number">1</span>,
+            <span class="string">&quot;A phrase query is required to have strictly more than one term.&quot;</span>
+        );
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">terms</span>[<span class="number">0</span>].<span class="ident">field</span>();
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">terms</span>[<span class="number">1</span>..].<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">term</span><span class="op">|</span> <span class="ident">term</span>.<span class="ident">field</span>() <span class="op">==</span> <span class="ident">field</span>), <span class="string">&quot;All terms from a phrase query must belong to the same field&quot;</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">terms</span>[<span class="number">1</span>..].<span class="ident">iter</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">term</span><span class="op">|</span> <span class="ident">term</span>.<span class="ident">field</span>() <span class="op">==</span> <span class="ident">field</span>),
+            <span class="string">&quot;All terms from a phrase query must belong to the same field&quot;</span>
+        );
         <span class="ident">PhraseQuery</span> {
             <span class="ident">field</span>,
-            <span class="ident">phrase_terms</span>: <span class="ident">terms</span>
+            <span class="ident">phrase_terms</span>: <span class="ident">terms</span>,
         }
     }
 }
@@ -126,27 +139,30 @@
     <span class="doccomment">/// See [`Weight`](./trait.Weight.html).</span>
     <span class="kw">fn</span> <span class="ident">weight</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">searcher</span>: <span class="kw-2">&amp;</span><span class="ident">Searcher</span>, <span class="ident">scoring_enabled</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Weight</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">schema</span>();
-        <span class="kw">let</span> <span class="ident">field_entry</span><span class="op">=</span> <span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="self">self</span>.<span class="ident">field</span>);
-        <span class="kw">let</span> <span class="ident">has_positions</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>().<span class="ident">get_index_record_option</span>()
+        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="self">self</span>.<span class="ident">field</span>);
+        <span class="kw">let</span> <span class="ident">has_positions</span> <span class="op">=</span> <span class="ident">field_entry</span>
+            .<span class="ident">field_type</span>()
+            .<span class="ident">get_index_record_option</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">index_record_option</span><span class="op">|</span> <span class="ident">index_record_option</span>.<span class="ident">has_positions</span>())
             .<span class="ident">unwrap_or</span>(<span class="bool-val">false</span>);
         <span class="kw">if</span> <span class="op">!</span><span class="ident">has_positions</span> {
             <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">name</span>();
-            <span class="macro">bail</span><span class="macro">!</span>(<span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;Applied phrase query on field {:?}, which does not have positions indexed&quot;</span>,
-            <span class="ident">field_name</span>)))
+            <span class="macro">bail</span><span class="macro">!</span>(<span class="ident">ErrorKind</span>::<span class="ident">SchemaError</span>(<span class="macro">format</span><span class="macro">!</span>(
+                <span class="string">&quot;Applied phrase query on field {:?}, which does not have positions indexed&quot;</span>,
+                <span class="ident">field_name</span>
+            )))
         }
         <span class="kw">let</span> <span class="ident">terms</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">phrase_terms</span>.<span class="ident">clone</span>();
         <span class="kw">if</span> <span class="ident">scoring_enabled</span> {
             <span class="kw">let</span> <span class="ident">bm25_weight</span> <span class="op">=</span> <span class="ident">BM25Weight</span>::<span class="ident">for_terms</span>(<span class="ident">searcher</span>, <span class="kw-2">&amp;</span><span class="ident">terms</span>);
+            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseWeight</span>::<span class="ident">new</span>(<span class="ident">terms</span>, <span class="ident">bm25_weight</span>, <span class="bool-val">true</span>)))
+        } <span class="kw">else</span> {
             <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseWeight</span>::<span class="ident">new</span>(
                 <span class="ident">terms</span>,
-                <span class="ident">bm25_weight</span>,
-                <span class="bool-val">true</span>
+                <span class="ident">BM25Weight</span>::<span class="ident">null</span>(),
+                <span class="bool-val">false</span>,
             )))
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">PhraseWeight</span>::<span class="ident">new</span>(<span class="ident">terms</span>, <span class="ident">BM25Weight</span>::<span class="ident">null</span>(), <span class="bool-val">false</span>)))
         }
-
     }
 }
 </pre>

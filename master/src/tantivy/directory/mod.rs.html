@@ -171,29 +171,29 @@ WORM directory abstraction.
 
 */</span>
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">mmap_directory</span>;
 
-<span class="kw">mod</span> <span class="ident">ram_directory</span>;
 <span class="kw">mod</span> <span class="ident">directory</span>;
+<span class="kw">mod</span> <span class="ident">managed_directory</span>;
+<span class="kw">mod</span> <span class="ident">ram_directory</span>;
 <span class="kw">mod</span> <span class="ident">read_only_source</span>;
 <span class="kw">mod</span> <span class="ident">shared_vec_slice</span>;
-<span class="kw">mod</span> <span class="ident">managed_directory</span>;
 
 <span class="doccomment">/// Errors specific to the directory module.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">error</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">BufWriter</span>, <span class="ident">Seek</span>, <span class="ident">Write</span>};
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">directory</span>::<span class="ident">Directory</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">ram_directory</span>::<span class="ident">RAMDirectory</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">ReadOnlySource</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">mmap_directory</span>::<span class="ident">MmapDirectory</span>;
 
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">SourceRead</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">managed_directory</span>::{<span class="ident">FileProtection</span>, <span class="ident">ManagedDirectory</span>};
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">read_only_source</span>::<span class="ident">SourceRead</span>;
 
 <span class="doccomment">/// Synonym of Seek + Write</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SeekableWrite</span>: <span class="ident">Seek</span> <span class="op">+</span> <span class="ident">Write</span> {}
@@ -209,8 +209,8 @@ WORM directory abstraction.
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>};
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
 
     <span class="macro">lazy_static</span><span class="macro">!</span> {
         <span class="kw">static</span> <span class="kw-2">ref</span> <span class="ident">TEST_PATH</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">Path</span> <span class="op">=</span> <span class="ident">Path</span>::<span class="ident">new</span>(<span class="string">&quot;some_path_for_test&quot;</span>);
@@ -223,7 +223,7 @@ WORM directory abstraction.
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_mmap_directory</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>().<span class="ident">unwrap</span>();
         <span class="ident">test_directory</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">mmap_directory</span>);

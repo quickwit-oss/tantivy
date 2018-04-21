@@ -92,11 +92,14 @@
 <span id="92">92</span>
 <span id="93">93</span>
 <span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
-<span class="kw">use</span> <span class="ident">Term</span>;
-<span class="kw">use</span> <span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
+<span class="kw">use</span> <span class="ident">Searcher</span>;
+<span class="kw">use</span> <span class="ident">Term</span>;
 
 <span class="kw">const</span> <span class="ident">K1</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">1.2</span>;
 <span class="kw">const</span> <span class="ident">B</span>: <span class="ident">f32</span> <span class="op">=</span> <span class="number">0.75</span>;
@@ -105,7 +108,6 @@
     <span class="kw">let</span> <span class="ident">x</span> <span class="op">=</span> ((<span class="ident">doc_count</span> <span class="op">-</span> <span class="ident">doc_freq</span>) <span class="kw">as</span> <span class="ident">f32</span> <span class="op">+</span> <span class="number">0.5</span>) <span class="op">/</span> (<span class="ident">doc_freq</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">+</span> <span class="number">0.5</span>);
     (<span class="number">1f32</span> <span class="op">+</span> <span class="ident">x</span>).<span class="ident">ln</span>()
 }
-
 
 <span class="kw">fn</span> <span class="ident">cached_tf_component</span>(<span class="ident">fieldnorm</span>: <span class="ident">u32</span>, <span class="ident">average_fieldnorm</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">f32</span> {
     <span class="ident">K1</span> <span class="op">*</span> (<span class="number">1f32</span> <span class="op">-</span> <span class="ident">B</span> <span class="op">+</span> <span class="ident">B</span> <span class="op">*</span> <span class="ident">fieldnorm</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> <span class="ident">average_fieldnorm</span>)
@@ -127,11 +129,10 @@
 }
 
 <span class="kw">impl</span> <span class="ident">BM25Weight</span> {
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">null</span>() <span class="op">-&gt;</span> <span class="ident">BM25Weight</span> {
         <span class="ident">BM25Weight</span> {
             <span class="ident">weight</span>: <span class="number">0f32</span>,
-            <span class="ident">cache</span>: [<span class="number">1f32</span>; <span class="number">256</span>]
+            <span class="ident">cache</span>: [<span class="number">1f32</span>; <span class="number">256</span>],
         }
     }
 
@@ -139,7 +140,11 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">terms</span>.<span class="ident">is_empty</span>(), <span class="string">&quot;BM25 requires at least one term&quot;</span>);
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">terms</span>[<span class="number">0</span>].<span class="ident">field</span>();
         <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">terms</span>[<span class="number">1</span>..] {
-            <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term</span>.<span class="ident">field</span>(), <span class="ident">field</span>, <span class="string">&quot;All terms must belong to the same field.&quot;</span>);
+            <span class="macro">assert_eq</span><span class="macro">!</span>(
+                <span class="ident">term</span>.<span class="ident">field</span>(),
+                <span class="ident">field</span>,
+                <span class="string">&quot;All terms must belong to the same field.&quot;</span>
+            );
         }
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_num_tokens</span> <span class="op">=</span> <span class="number">0u64</span>;
@@ -151,7 +156,8 @@
         }
         <span class="kw">let</span> <span class="ident">average_fieldnorm</span> <span class="op">=</span> <span class="ident">total_num_tokens</span> <span class="kw">as</span> <span class="ident">f32</span> <span class="op">/</span> <span class="ident">total_num_docs</span> <span class="kw">as</span> <span class="ident">f32</span>;
 
-        <span class="kw">let</span> <span class="ident">idf</span> <span class="op">=</span> <span class="ident">terms</span>.<span class="ident">iter</span>()
+        <span class="kw">let</span> <span class="ident">idf</span> <span class="op">=</span> <span class="ident">terms</span>
+            .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">term</span><span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">term_doc_freq</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">doc_freq</span>(<span class="ident">term</span>);
                 <span class="ident">idf</span>(<span class="ident">term_doc_freq</span>, <span class="ident">total_num_docs</span>)
@@ -178,12 +184,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">idf</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_idf</span>() {
-        <span class="ident">assert_nearly_equals</span>(<span class="ident">idf</span>(<span class="number">1</span>, <span class="number">2</span>),  <span class="number">0.6931472</span>);
+        <span class="ident">assert_nearly_equals</span>(<span class="ident">idf</span>(<span class="number">1</span>, <span class="number">2</span>), <span class="number">0.6931472</span>);
     }
 
 }

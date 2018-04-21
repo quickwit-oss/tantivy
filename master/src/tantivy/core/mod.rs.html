@@ -41,27 +41,27 @@
 <span id="41">41</span>
 <span id="42">42</span>
 </pre><pre class="rust ">
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">searcher</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">index</span>;
-<span class="kw">mod</span> <span class="ident">segment_reader</span>;
-<span class="kw">mod</span> <span class="ident">segment_id</span>;
-<span class="kw">mod</span> <span class="ident">segment_component</span>;
-<span class="kw">mod</span> <span class="ident">segment</span>;
 <span class="kw">mod</span> <span class="ident">index_meta</span>;
-<span class="kw">mod</span> <span class="ident">pool</span>;
-<span class="kw">mod</span> <span class="ident">segment_meta</span>;
 <span class="kw">mod</span> <span class="ident">inverted_index_reader</span>;
+<span class="kw">mod</span> <span class="ident">pool</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">searcher</span>;
+<span class="kw">mod</span> <span class="ident">segment</span>;
+<span class="kw">mod</span> <span class="ident">segment_component</span>;
+<span class="kw">mod</span> <span class="ident">segment_id</span>;
+<span class="kw">mod</span> <span class="ident">segment_meta</span>;
+<span class="kw">mod</span> <span class="ident">segment_reader</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index</span>::<span class="ident">Index</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index_meta</span>::<span class="ident">IndexMeta</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">inverted_index_reader</span>::<span class="ident">InvertedIndexReader</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_component</span>::<span class="ident">SegmentComponent</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_id</span>::<span class="ident">SegmentId</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_reader</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment</span>::<span class="ident">Segment</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment</span>::<span class="ident">SerializableSegment</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index</span>::<span class="ident">Index</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_component</span>::<span class="ident">SegmentComponent</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_id</span>::<span class="ident">SegmentId</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_meta</span>::<span class="ident">SegmentMeta</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index_meta</span>::<span class="ident">IndexMeta</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_reader</span>::<span class="ident">SegmentReader</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
 

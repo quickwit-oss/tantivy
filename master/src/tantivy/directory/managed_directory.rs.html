@@ -398,21 +398,21 @@
 <span id="398">398</span>
 <span id="399">399</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
-<span class="kw">use</span> <span class="ident">serde_json</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">MANAGED_FILEPATH</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">IOError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">WritePtr</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">Directory</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLockWriteGuard</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">MANAGED_FILEPATH</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>, <span class="ident">ResultExt</span>};
+<span class="kw">use</span> <span class="ident">serde_json</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLockWriteGuard</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>};
+<span class="kw">use</span> <span class="ident">Directory</span>;
 
 <span class="doccomment">/// Wrapper of directories that keeps track of files created by Tantivy.</span>
 <span class="doccomment">///</span>
@@ -682,10 +682,10 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">MmapDirectory</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
     <span class="kw">use</span> <span class="ident">tempdir</span>::<span class="ident">TempDir</span>;
 
     <span class="macro">lazy_static</span><span class="macro">!</span> {
@@ -694,7 +694,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_managed_directory</span>() {
         <span class="kw">let</span> <span class="ident">tempdir</span> <span class="op">=</span> <span class="ident">TempDir</span>::<span class="ident">new</span>(<span class="string">&quot;index&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">tempdir_path</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">tempdir</span>.<span class="ident">path</span>());
@@ -743,7 +743,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap &quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap &quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_managed_directory_gc_while_mmapped</span>() {
         <span class="kw">let</span> <span class="ident">tempdir</span> <span class="op">=</span> <span class="ident">TempDir</span>::<span class="ident">new</span>(<span class="string">&quot;index&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">tempdir_path</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">tempdir</span>.<span class="ident">path</span>());
@@ -773,7 +773,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_managed_directory_protect</span>() {
         <span class="kw">let</span> <span class="ident">tempdir</span> <span class="op">=</span> <span class="ident">TempDir</span>::<span class="ident">new</span>(<span class="string">&quot;index&quot;</span>).<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">tempdir_path</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="ident">tempdir</span>.<span class="ident">path</span>());

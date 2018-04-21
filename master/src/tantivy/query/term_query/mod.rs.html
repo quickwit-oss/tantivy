@@ -104,29 +104,25 @@
 <span id="104">104</span>
 <span id="105">105</span>
 <span id="106">106</span>
-<span id="107">107</span>
-<span id="108">108</span>
-<span id="109">109</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">term_query</span>;
-<span class="kw">mod</span> <span class="ident">term_weight</span>;
 <span class="kw">mod</span> <span class="ident">term_scorer</span>;
+<span class="kw">mod</span> <span class="ident">term_weight</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_query</span>::<span class="ident">TermQuery</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_weight</span>::<span class="ident">TermWeight</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_scorer</span>::<span class="ident">TermScorer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term_weight</span>::<span class="ident">TermWeight</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
-    <span class="kw">use</span> <span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
-    <span class="kw">use</span> <span class="ident">Term</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">TEXT</span>, <span class="ident">STRING</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">IndexRecordOption</span>};
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">TopCollector</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">TermQuery</span>, <span class="ident">QueryParser</span>, <span class="ident">Query</span>, <span class="ident">Scorer</span>};
-
+    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">QueryParser</span>, <span class="ident">Scorer</span>, <span class="ident">TermQuery</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IndexRecordOption</span>, <span class="ident">SchemaBuilder</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">assert_nearly_equals</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">Term</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_query_no_freq</span>() {
@@ -158,7 +154,6 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">term_scorer</span>.<span class="ident">score</span>(), <span class="number">0.28768212</span>);
     }
 
-
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">test_term_weight</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
@@ -176,7 +171,6 @@
             ));
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">left_field</span> <span class="op">=&gt;</span> <span class="string">&quot;left4 left1&quot;</span>));
             <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
-
         }
         <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();

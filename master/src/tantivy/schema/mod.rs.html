@@ -278,26 +278,26 @@ the field is required during scoring or collection for instance.
 
 */</span>
 
-<span class="kw">mod</span> <span class="ident">schema</span>;
-<span class="kw">mod</span> <span class="ident">term</span>;
 <span class="kw">mod</span> <span class="ident">document</span>;
 <span class="kw">mod</span> <span class="ident">facet</span>;
+<span class="kw">mod</span> <span class="ident">schema</span>;
+<span class="kw">mod</span> <span class="ident">term</span>;
 
-<span class="kw">mod</span> <span class="ident">field_type</span>;
 <span class="kw">mod</span> <span class="ident">field_entry</span>;
+<span class="kw">mod</span> <span class="ident">field_type</span>;
 <span class="kw">mod</span> <span class="ident">field_value</span>;
 
-<span class="kw">mod</span> <span class="ident">text_options</span>;
-<span class="kw">mod</span> <span class="ident">int_options</span>;
 <span class="kw">mod</span> <span class="ident">field</span>;
-<span class="kw">mod</span> <span class="ident">value</span>;
-<span class="kw">mod</span> <span class="ident">named_field_document</span>;
 <span class="kw">mod</span> <span class="ident">index_record_option</span>;
+<span class="kw">mod</span> <span class="ident">int_options</span>;
+<span class="kw">mod</span> <span class="ident">named_field_document</span>;
+<span class="kw">mod</span> <span class="ident">text_options</span>;
+<span class="kw">mod</span> <span class="ident">value</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">named_field_document</span>::<span class="ident">NamedFieldDocument</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">schema</span>::<span class="ident">DocParsingError</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">schema</span>::{<span class="ident">Schema</span>, <span class="ident">SchemaBuilder</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">value</span>::<span class="ident">Value</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">schema</span>::<span class="ident">DocParsingError</span>;
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet</span>::<span class="ident">Facet</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">facet</span>::<span class="ident">FACET_SEP_BYTE</span>;
@@ -306,22 +306,22 @@ the field is required during scoring or collection for instance.
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">field</span>::<span class="ident">Field</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">term</span>::<span class="ident">Term</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">field_type</span>::{<span class="ident">Type</span>, <span class="ident">FieldType</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">field_entry</span>::<span class="ident">FieldEntry</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">field_type</span>::{<span class="ident">FieldType</span>, <span class="ident">Type</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">field_value</span>::<span class="ident">FieldValue</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">TextOptions</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index_record_option</span>::<span class="ident">IndexRecordOption</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">TextFieldIndexing</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">TEXT</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">STRING</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">TextOptions</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">STORED</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">STRING</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">text_options</span>::<span class="ident">TEXT</span>;
 
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">Cardinality</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">IntOptions</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">FAST</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">INT_INDEXED</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">INT_STORED</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">int_options</span>::<span class="ident">Cardinality</span>;
 
 <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
 

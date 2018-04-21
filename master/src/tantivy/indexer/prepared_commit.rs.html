@@ -38,8 +38,8 @@
 <span id="38">38</span>
 <span id="39">39</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">IndexWriter</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// A prepared commit</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">PreparedCommit</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
@@ -53,7 +53,7 @@
         <span class="ident">PreparedCommit</span> {
             <span class="ident">index_writer</span>,
             <span class="ident">payload</span>: <span class="prelude-val">None</span>,
-            <span class="ident">opstamp</span>
+            <span class="ident">opstamp</span>,
         }
     }
 

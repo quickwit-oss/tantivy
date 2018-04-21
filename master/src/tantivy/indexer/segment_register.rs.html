@@ -190,12 +190,12 @@
 <span id="190">190</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">segment_entry</span>::<span class="ident">SegmentEntry</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="ident">Debug</span>, <span class="ident">Formatter</span>};
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">segment_entry</span>::<span class="ident">SegmentEntry</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
 
 <span class="doccomment">/// The segment register keeps track</span>
 <span class="doccomment">/// of the list of segment, their size as well</span>
@@ -304,11 +304,11 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentState</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
     <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentState</span>;
 
     <span class="kw">fn</span> <span class="ident">segment_ids</span>(<span class="ident">segment_register</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentRegister</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">SegmentId</span><span class="op">&gt;</span> {
         <span class="ident">segment_register</span>

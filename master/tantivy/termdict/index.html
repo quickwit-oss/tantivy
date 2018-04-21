@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `termdict` mod in crate `tantivy`."><meta name="keywords" content="rust, rustlang, rust-lang, termdict"><title>tantivy::termdict - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a><p class='location'>Module termdict</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#traits">Traits</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'termdict', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>tantivy</a>::<wbr><a class="mod" href=''>termdict</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#1-589' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>The term dictionary is one of the key datastructure of
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `termdict` mod in crate `tantivy`."><meta name="keywords" content="rust, rustlang, rust-lang, termdict"><title>tantivy::termdict - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a><p class='location'>Module termdict</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'termdict', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>tantivy</a>::<wbr><a class="mod" href=''>termdict</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#1-422' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>The term dictionary is one of the key datastructure of
 tantivy. It associates sorted <code>terms</code> to a <code>TermInfo</code> struct
 that serves as an address in their respective posting list.</p>
 <p>The term dictionary API makes it possible to iterate through
@@ -35,18 +35,19 @@ term <code>stream</code>.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TermDictionaryBuilderImpl.html"
-                                  title='struct tantivy::termdict::TermDictionaryBuilderImpl'>TermDictionaryBuilderImpl</a></td>
+                           <td><a class="struct" href="struct.TermDictionary.html"
+                                  title='struct tantivy::termdict::TermDictionary'>TermDictionary</a></td>
                            <td class='docblock-short'>
-                                <p>See <a href="./trait.TermDictionaryBuilder.html"><code>TermDictionaryBuilder</code></a></p>
+                                <p>The term dictionary contains all of the terms in
+<code>tantivy index</code> in a sorted manner.</p>
 
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TermDictionaryImpl.html"
-                                  title='struct tantivy::termdict::TermDictionaryImpl'>TermDictionaryImpl</a></td>
+                           <td><a class="struct" href="struct.TermDictionaryBuilder.html"
+                                  title='struct tantivy::termdict::TermDictionaryBuilder'>TermDictionaryBuilder</a></td>
                            <td class='docblock-short'>
-                                <p>See <a href="./trait.TermDictionary.html"><code>TermDictionary</code></a></p>
+                                <p>Builder for the new term dictionary.</p>
 
                            </td>
                        </tr>
@@ -60,41 +61,8 @@ returns an iterator over sorted unique terms.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TermStreamerBuilderImpl.html"
-                                  title='struct tantivy::termdict::TermStreamerBuilderImpl'>TermStreamerBuilderImpl</a></td>
-                           <td class='docblock-short'>
-                                <p>See <a href="./trait.TermStreamerBuilder.html"><code>TermStreamerBuilder</code></a></p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.TermStreamerImpl.html"
-                                  title='struct tantivy::termdict::TermStreamerImpl'>TermStreamerImpl</a></td>
-                           <td class='docblock-short'>
-                                <p>See <a href="./trait.TermStreamer.html"><code>TermStreamer</code></a></p>
-
-                           </td>
-                       </tr></table><h2 id='traits' class='section-header'><a href="#traits">Traits</a></h2>
-<table>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.TermDictionary.html"
-                                  title='trait tantivy::termdict::TermDictionary'>TermDictionary</a></td>
-                           <td class='docblock-short'>
-                                <p>Dictionary associating sorted <code>&amp;[u8]</code> to values</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.TermDictionaryBuilder.html"
-                                  title='trait tantivy::termdict::TermDictionaryBuilder'>TermDictionaryBuilder</a></td>
-                           <td class='docblock-short'>
-                                <p>Builder for the new term dictionary.</p>
-
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="trait" href="trait.TermStreamer.html"
-                                  title='trait tantivy::termdict::TermStreamer'>TermStreamer</a></td>
+                           <td><a class="struct" href="struct.TermStreamer.html"
+                                  title='struct tantivy::termdict::TermStreamer'>TermStreamer</a></td>
                            <td class='docblock-short'>
                                 <p><code>TermStreamer</code> acts as a cursor over a range of terms of a segment.
 Terms are guaranteed to be sorted.</p>
@@ -102,8 +70,8 @@ Terms are guaranteed to be sorted.</p>
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="trait" href="trait.TermStreamerBuilder.html"
-                                  title='trait tantivy::termdict::TermStreamerBuilder'>TermStreamerBuilder</a></td>
+                           <td><a class="struct" href="struct.TermStreamerBuilder.html"
+                                  title='struct tantivy::termdict::TermStreamerBuilder'>TermStreamerBuilder</a></td>
                            <td class='docblock-short'>
                                 <p><code>TermStreamerBuilder</code> is an helper object used to define
 a range of terms that should be streamed.</p>

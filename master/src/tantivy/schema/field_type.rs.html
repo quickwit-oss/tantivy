@@ -135,18 +135,13 @@
 <span id="135">135</span>
 <span id="136">136</span>
 <span id="137">137</span>
-<span id="138">138</span>
-<span id="139">139</span>
-<span id="140">140</span>
-<span id="141">141</span>
-<span id="142">142</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IntOptions</span>, <span class="ident">TextOptions</span>};
 
-<span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JsonValue</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
+<span class="kw">use</span> <span class="ident">serde_json</span>::<span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JsonValue</span>;
 
 <span class="doccomment">/// Possible error that may occur while parsing a field value</span>
 <span class="doccomment">/// At this point the JSON is known to be valid.</span>
@@ -173,7 +168,7 @@
     <span class="doccomment">/// `i64`</span>
     <span class="ident">I64</span>,
     <span class="doccomment">/// `tantivy::schema::Facet`. Passed as a string in JSON.</span>
-    <span class="ident">HierarchicalFacet</span>
+    <span class="ident">HierarchicalFacet</span>,
 }
 
 <span class="doccomment">/// A `FieldType` describes the type (text, u64) of a field as well as</span>
@@ -191,18 +186,13 @@
 }
 
 <span class="kw">impl</span> <span class="ident">FieldType</span> {
-
     <span class="doccomment">/// Returns the value type associated for this field.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">value_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Type</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
-            <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
-                <span class="ident">Type</span>::<span class="ident">Str</span>,
-            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
-                <span class="ident">Type</span>::<span class="ident">U64</span>,
-            <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span>
-                <span class="ident">Type</span>::<span class="ident">I64</span>,
-            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span>
-                <span class="ident">Type</span>::<span class="ident">HierarchicalFacet</span>,
+            <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">Str</span>,
+            <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">U64</span>,
+            <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">I64</span>,
+            <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> <span class="ident">Type</span>::<span class="ident">HierarchicalFacet</span>,
         }
     }
 

@@ -598,14 +598,14 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">tests</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BitSet</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TinySet</span>;
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">generate_nonunique_unsorted</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BitSetDocSet</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BitSetDocSet</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashSet</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">generate_nonunique_unsorted</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_tiny_set</span>() {
@@ -750,12 +750,12 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">bench</span> {
 
-    <span class="kw">use</span> <span class="ident">test</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TinySet</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BitSet</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TinySet</span>;
+    <span class="kw">use</span> <span class="ident">test</span>;
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
     <span class="kw">fn</span> <span class="ident">bench_tinyset_pop</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
@@ -788,5 +788,6 @@
     <span class="kw">fn</span> <span class="ident">bench_bitset_initialize</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">test</span>::<span class="ident">Bencher</span>) {
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> <span class="ident">BitSet</span>::<span class="ident">with_max_value</span>(<span class="number">1_000_000</span>));
     }
-}</pre>
+}
+</pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

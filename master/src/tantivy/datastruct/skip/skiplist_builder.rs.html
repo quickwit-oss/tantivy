@@ -98,10 +98,10 @@
 <span id="98">98</span>
 <span id="99">99</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">BinarySerializable</span>, <span class="ident">VInt</span>, <span class="ident">is_power_of_2</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
+<span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">is_power_of_2</span>, <span class="ident">BinarySerializable</span>, <span class="ident">VInt</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 
 <span class="kw">struct</span> <span class="ident">LayerBuilder</span><span class="op">&lt;</span><span class="ident">T</span>: <span class="ident">BinarySerializable</span><span class="op">&gt;</span> {
     <span class="ident">period_mask</span>: <span class="ident">usize</span>,

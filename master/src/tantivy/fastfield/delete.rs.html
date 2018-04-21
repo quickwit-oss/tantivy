@@ -114,16 +114,14 @@
 <span id="114">114</span>
 <span id="115">115</span>
 <span id="116">116</span>
-<span id="117">117</span>
-<span id="118">118</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">bit_set</span>::<span class="ident">BitSet</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="doccomment">/// Write a delete `BitSet`</span>
 <span class="doccomment">///</span>
@@ -181,9 +179,7 @@
             <span class="ident">b</span> <span class="op">&amp;</span> (<span class="number">1u8</span> <span class="op">&lt;&lt;</span> <span class="ident">shift</span>) <span class="op">!=</span> <span class="number">0</span>
         }
     }
-
 }
-
 
 <span class="kw">impl</span> <span class="ident">HasLen</span> <span class="kw">for</span> <span class="ident">DeleteBitSet</span> {
     <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
@@ -193,10 +189,10 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">bit_set</span>::<span class="ident">BitSet</span>;
     <span class="kw">use</span> <span class="ident">directory</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
 
     <span class="kw">fn</span> <span class="ident">test_delete_bitset_helper</span>(<span class="ident">bitset</span>: <span class="kw-2">&amp;</span><span class="ident">BitSet</span>) {
         <span class="kw">let</span> <span class="ident">test_path</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="string">&quot;test&quot;</span>);

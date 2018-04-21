@@ -928,12 +928,14 @@
 <span id="928">928</span>
 <span id="929">929</span>
 <span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_logo_url</span> <span class="op">=</span> <span class="string">&quot;http://fulmicoton.com/tantivy-logo/tantivy-logo.png&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">module_inception</span>))]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>, <span class="ident">allow</span>(<span class="ident">inline_always</span>))]</span>
-
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">all</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>, <span class="ident">test</span>), <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">all</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>, <span class="ident">test</span>), <span class="ident">feature</span>(<span class="ident">test</span>))]</span>
 <span class="attribute">#![<span class="ident">doc</span>(<span class="ident">test</span>(<span class="ident">attr</span>(<span class="ident">allow</span>(<span class="ident">unused_variables</span>), <span class="ident">deny</span>(<span class="ident">warnings</span>))))]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">unknown_lints</span>)]</span>
 <span class="attribute">#![<span class="ident">allow</span>(<span class="ident">new_without_default</span>)]</span>
@@ -1054,9 +1056,10 @@
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">error_chain</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">atomicwrites</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bit_set</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitpacking</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">byteorder</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">chan</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">combine</span>;
@@ -1076,7 +1079,6 @@
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tempdir</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tempfile</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">uuid</span>;
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">bitpacking</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
@@ -1091,7 +1093,7 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rand</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">test</span>;
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">tinysegmenter</span>;
@@ -1110,36 +1112,36 @@
 <span class="doccomment">/// Tantivy result.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, <span class="ident">Error</span><span class="op">&gt;</span>;
 
-<span class="kw">mod</span> <span class="ident">core</span>;
-<span class="kw">mod</span> <span class="ident">compression</span>;
-<span class="kw">mod</span> <span class="ident">indexer</span>;
 <span class="kw">mod</span> <span class="ident">common</span>;
+<span class="kw">mod</span> <span class="ident">compression</span>;
+<span class="kw">mod</span> <span class="ident">core</span>;
+<span class="kw">mod</span> <span class="ident">indexer</span>;
 
+<span class="kw">mod</span> <span class="ident">datastruct</span>;
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">unused_doc_comment</span>)]</span>
 <span class="kw">mod</span> <span class="ident">error</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tokenizer</span>;
-<span class="kw">mod</span> <span class="ident">datastruct</span>;
 
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">termdict</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">store</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">query</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">directory</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">collector</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">postings</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">schema</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">directory</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">fastfield</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">mod</span> <span class="ident">fieldnorm</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">postings</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">query</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">schema</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">store</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">termdict</span>;
 
 <span class="kw">mod</span> <span class="ident">docset</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">Directory</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">Index</span>, <span class="ident">Searcher</span>, <span class="ident">Segment</span>, <span class="ident">SegmentId</span>, <span class="ident">SegmentMeta</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">IndexWriter</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Term</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">InvertedIndexReader</span>, <span class="ident">SegmentReader</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">Index</span>, <span class="ident">Searcher</span>, <span class="ident">Segment</span>, <span class="ident">SegmentId</span>, <span class="ident">SegmentMeta</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">InvertedIndexReader</span>, <span class="ident">SegmentReader</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">Directory</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">IndexWriter</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Document</span>, <span class="ident">Term</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">i64_to_u64</span>, <span class="ident">u64_to_i64</span>};
 
@@ -1155,10 +1157,10 @@
 
 <span class="doccomment">/// Defines tantivy&#39;s merging strategy</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">merge_policy</span> {
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">MergePolicy</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">LogMergePolicy</span>;
-    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">NoMergePolicy</span>;
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">DefaultMergePolicy</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">LogMergePolicy</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">MergePolicy</span>;
+    <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">NoMergePolicy</span>;
 }
 
 <span class="doccomment">/// A `u32` identifying a document within a segment.</span>
@@ -1207,18 +1209,23 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::<span class="ident">TestCollector</span>;
-    <span class="kw">use</span> <span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">IndependentSample</span>, <span class="ident">Range</span>};
+    <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
     <span class="kw">use</span> <span class="ident">IndexWriter</span>;
     <span class="kw">use</span> <span class="ident">Postings</span>;
-    <span class="kw">use</span> <span class="ident">rand</span>::{<span class="ident">Rng</span>, <span class="ident">SeedableRng</span>, <span class="ident">XorShiftRng</span>};
-    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">distributions</span>::{<span class="ident">IndependentSample</span>, <span class="ident">Range</span>};
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">assert_nearly_equals</span>(<span class="ident">expected</span>: <span class="ident">f32</span>, <span class="ident">val</span>: <span class="ident">f32</span>) {
-        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">nearly_equals</span>(<span class="ident">val</span>, <span class="ident">expected</span>), <span class="string">&quot;Got {}, expected {}.&quot;</span>, <span class="ident">val</span>, <span class="ident">expected</span>);
+        <span class="macro">assert</span><span class="macro">!</span>(
+            <span class="ident">nearly_equals</span>(<span class="ident">val</span>, <span class="ident">expected</span>),
+            <span class="string">&quot;Got {}, expected {}.&quot;</span>,
+            <span class="ident">val</span>,
+            <span class="ident">expected</span>
+        );
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nearly_equals</span>(<span class="ident">a</span>: <span class="ident">f32</span>, <span class="ident">b</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -1245,7 +1252,7 @@
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">fn</span> <span class="ident">test_indexing</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
         <span class="kw">let</span> <span class="ident">text_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
@@ -1370,7 +1377,6 @@
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm</span>(<span class="number">2</span>), <span class="number">2</span>);
         }
     }
-
 
     <span class="kw">fn</span> <span class="ident">advance_undeleted</span>(<span class="ident">docset</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">DocSet</span>, <span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">while</span> <span class="ident">docset</span>.<span class="ident">advance</span>() {

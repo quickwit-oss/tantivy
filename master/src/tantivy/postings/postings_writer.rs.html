@@ -260,25 +260,26 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
+<span id="263">263</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Recorder</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">Heap</span>, <span class="ident">TermHashMap</span>};
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Recorder</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldEntry</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">Token</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenStream</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="kw">fn</span> <span class="ident">posting_from_field_entry</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>,
@@ -386,7 +387,8 @@
             <span class="ident">unordered_term_mappings</span>.<span class="ident">insert</span>(<span class="ident">field</span>, <span class="ident">mapping</span>);
 
             <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">field</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>];
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">new_field</span>(<span class="ident">field</span>, <span class="ident">postings_writer</span>.<span class="ident">total_num_tokens</span>())<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span>
+                <span class="ident">serializer</span>.<span class="ident">new_field</span>(<span class="ident">field</span>, <span class="ident">postings_writer</span>.<span class="ident">total_num_tokens</span>())<span class="question-mark">?</span>;
             <span class="ident">postings_writer</span>.<span class="ident">serialize</span>(
                 <span class="kw-2">&amp;</span><span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>],
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">field_serializer</span>,

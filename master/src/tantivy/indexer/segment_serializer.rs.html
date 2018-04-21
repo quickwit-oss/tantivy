@@ -71,9 +71,9 @@
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentComponent</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
-<span class="kw">use</span> <span class="ident">store</span>::<span class="ident">StoreWriter</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsSerializer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">InvertedIndexSerializer</span>;
+<span class="kw">use</span> <span class="ident">store</span>::<span class="ident">StoreWriter</span>;
 
 <span class="doccomment">/// Segment serializer is in charge of laying out on disk</span>
 <span class="doccomment">/// the data accumulated and sorted by the `SegmentWriter`.</span>
@@ -115,7 +115,7 @@
     }
 
     <span class="doccomment">/// Accessor to the field norm serializer.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span>  <span class="ident">get_fieldnorms_serializer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldNormsSerializer</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_fieldnorms_serializer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldNormsSerializer</span> {
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">fieldnorms_serializer</span>
     }
 

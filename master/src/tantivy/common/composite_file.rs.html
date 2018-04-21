@@ -220,19 +220,16 @@
 <span id="220">220</span>
 <span id="221">221</span>
 <span id="222">222</span>
-<span id="223">223</span>
-<span id="224">224</span>
-<span id="225">225</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>};
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Hash</span>, <span class="ident">Copy</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FileAddr</span> {
@@ -256,10 +253,7 @@
     <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Read</span><span class="op">&gt;</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">Field</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">idx</span> <span class="op">=</span> <span class="ident">VInt</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">FileAddr</span> {
-            <span class="ident">field</span>,
-            <span class="ident">idx</span>,
-        })
+        <span class="prelude-val">Ok</span>(<span class="ident">FileAddr</span> { <span class="ident">field</span>, <span class="ident">idx</span> })
     }
 }
 
@@ -392,7 +386,7 @@
     <span class="doccomment">/// to a given `Field` and stored in a `CompositeFile`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open_read_with_idx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">ReadOnlySource</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">offsets_index</span>
-            .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">FileAddr</span> { <span class="ident">field</span>, <span class="ident">idx</span>, })
+            .<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">FileAddr</span> { <span class="ident">field</span>, <span class="ident">idx</span> })
             .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">from</span>, <span class="ident">to</span>)<span class="op">|</span> <span class="self">self</span>.<span class="ident">data</span>.<span class="ident">slice</span>(<span class="ident">from</span>, <span class="ident">to</span>))
     }
 }
@@ -400,12 +394,12 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
 
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
     <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">CompositeFile</span>, <span class="ident">CompositeWrite</span>};
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
     <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>};
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>

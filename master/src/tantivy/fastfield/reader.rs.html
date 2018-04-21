@@ -136,22 +136,22 @@
 <span id="136">136</span>
 <span id="137">137</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">FastValue</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitUnpacker</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">compute_num_bits</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>, <span class="ident">WritePtr</span>};
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastFieldSerializer</span>, <span class="ident">FastFieldsWriter</span>};
 <span class="kw">use</span> <span class="ident">owning_ref</span>::<span class="ident">OwningRef</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FAST</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FAST</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">FastValue</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="doccomment">/// Trait for accessing a fastfield.</span>
 <span class="doccomment">///</span>

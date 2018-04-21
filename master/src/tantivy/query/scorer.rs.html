@@ -153,17 +153,15 @@
 <span id="153">153</span>
 <span id="154">154</span>
 <span id="155">155</span>
-<span id="156">156</span>
-<span id="157">157</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
-<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BitSet</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
 <span class="kw">use</span> <span class="ident">downcast</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="ident">Score</span>;
 
 <span class="doccomment">/// Scored set of documents matching a query within a specific segment.</span>
 <span class="doccomment">///</span>
@@ -192,7 +190,6 @@
     }
 }
 
-
 <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">missing_docs</span>)]</span>
 <span class="kw">mod</span> <span class="ident">downcast_impl</span> {
     <span class="macro">downcast</span><span class="macro">!</span>(<span class="kw">super</span>::<span class="ident">Scorer</span>);
@@ -218,7 +215,6 @@
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="bool-val">false</span>
     }
-
 
     <span class="kw">fn</span> <span class="ident">doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="macro">panic</span><span class="macro">!</span>(

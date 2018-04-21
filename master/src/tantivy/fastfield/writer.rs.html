@@ -219,16 +219,16 @@
 <span id="219">219</span>
 <span id="220">220</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
-<span class="kw">use</span> <span class="ident">common</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">multivalued</span>::<span class="ident">MultiValueIntFastFieldWriter</span>;
+<span class="kw">use</span> <span class="ident">common</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 
 <span class="doccomment">/// The fastfieldswriter regroup all of the fast field writers.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FastFieldsWriter</span> {

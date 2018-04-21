@@ -65,15 +65,15 @@
 <span id="65">65</span>
 <span id="66">66</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Weight</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 <span class="kw">use</span> <span class="ident">Score</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Searcher</span>;
 
 <span class="doccomment">/// Query that matches all of the documents.</span>
 <span class="doccomment">///</span>

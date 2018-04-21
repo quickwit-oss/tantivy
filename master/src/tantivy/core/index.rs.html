@@ -260,38 +260,36 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
-<span id="263">263</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">ErrorKind</span>, <span class="ident">ResultExt</span>};
-<span class="kw">use</span> <span class="ident">serde_json</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="ident">serde_json</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">BorrowMut</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">pool</span>::<span class="ident">LeasedItem</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">pool</span>::<span class="ident">Pool</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment</span>::<span class="ident">create_segment</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment</span>::<span class="ident">Segment</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">IndexMeta</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ManagedDirectory</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">MmapDirectory</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">RAMDirectory</span>};
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">open_index_writer</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">searcher</span>::<span class="ident">Searcher</span>;
-<span class="kw">use</span> <span class="ident">num_cpus</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment</span>::<span class="ident">Segment</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">pool</span>::<span class="ident">Pool</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">pool</span>::<span class="ident">LeasedItem</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">IndexMeta</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">DirectoryLock</span>;
-<span class="kw">use</span> <span class="ident">IndexWriter</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ManagedDirectory</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment</span>::<span class="ident">create_segment</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">segment_updater</span>::<span class="ident">save_new_metas</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">DirectoryLock</span>;
+<span class="kw">use</span> <span class="ident">num_cpus</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">Path</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
+<span class="kw">use</span> <span class="ident">IndexWriter</span>;
 
 <span class="kw">const</span> <span class="ident">NUM_SEARCHERS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">12</span>;
 
@@ -328,7 +326,7 @@
     <span class="doccomment">/// The index will use the `MMapDirectory`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If a previous index was in this directory, then its meta file will be destroyed.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">directory_path</span>: <span class="ident">P</span>, <span class="ident">schema</span>: <span class="ident">Schema</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">open</span>(<span class="ident">directory_path</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;
@@ -348,7 +346,7 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// The temp directory is only used for testing the `MmapDirectory`.</span>
     <span class="doccomment">/// For other unit tests, prefer the `RAMDirectory`, see: `create_in_ram`.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_from_tempdir</span>(<span class="ident">schema</span>: <span class="ident">Schema</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">create_from_tempdir</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;
@@ -376,7 +374,7 @@
     }
 
     <span class="doccomment">/// Opens a new directory from an index path.</span>
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span><span class="op">=</span><span class="string">&quot;mmap&quot;</span>)]</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">open</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">directory_path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Index</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">mmap_directory</span> <span class="op">=</span> <span class="ident">MmapDirectory</span>::<span class="ident">open</span>(<span class="ident">directory_path</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">ManagedDirectory</span>::<span class="ident">new</span>(<span class="ident">mmap_directory</span>)<span class="question-mark">?</span>;
@@ -488,7 +486,7 @@
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>();
         <span class="kw">let</span> <span class="ident">searchers</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">NUM_SEARCHERS</span>)
-            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Searcher</span>::<span class="ident">new</span>(<span class="ident">schema</span>.<span class="ident">clone</span>(),<span class="ident">segment_readers</span>.<span class="ident">clone</span>()))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">Searcher</span>::<span class="ident">new</span>(<span class="ident">schema</span>.<span class="ident">clone</span>(), <span class="ident">segment_readers</span>.<span class="ident">clone</span>()))
             .<span class="ident">collect</span>();
         <span class="self">self</span>.<span class="ident">searcher_pool</span>.<span class="ident">publish_new_generation</span>(<span class="ident">searchers</span>);
         <span class="prelude-val">Ok</span>(())

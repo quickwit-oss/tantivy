@@ -108,13 +108,13 @@
 <span id="108">108</span>
 <span id="109">109</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitPacker</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">compute_num_bits</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeWrite</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
 
 <span class="doccomment">/// `FastFieldSerializer` is in charge of serializing</span>

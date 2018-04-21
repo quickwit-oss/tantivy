@@ -28,32 +28,32 @@
 <span id="28">28</span>
 <span id="29">29</span>
 </pre><pre class="rust ">
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">index_writer</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">segment_serializer</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">merger</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">merge_policy</span>;
-<span class="kw">mod</span> <span class="ident">log_merge_policy</span>;
-<span class="kw">mod</span> <span class="ident">segment_register</span>;
-<span class="kw">mod</span> <span class="ident">segment_writer</span>;
-<span class="kw">mod</span> <span class="ident">segment_manager</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">delete_queue</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">segment_updater</span>;
 <span class="kw">mod</span> <span class="ident">directory_lock</span>;
-<span class="kw">mod</span> <span class="ident">segment_entry</span>;
 <span class="kw">mod</span> <span class="ident">doc_opstamp_mapping</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">index_writer</span>;
+<span class="kw">mod</span> <span class="ident">log_merge_policy</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">merge_policy</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">merger</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">operation</span>;
-<span class="kw">mod</span> <span class="ident">stamper</span>;
 <span class="kw">mod</span> <span class="ident">prepared_commit</span>;
+<span class="kw">mod</span> <span class="ident">segment_entry</span>;
+<span class="kw">mod</span> <span class="ident">segment_manager</span>;
+<span class="kw">mod</span> <span class="ident">segment_register</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">segment_serializer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">segment_updater</span>;
+<span class="kw">mod</span> <span class="ident">segment_writer</span>;
+<span class="kw">mod</span> <span class="ident">stamper</span>;
 
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">prepared_commit</span>::<span class="ident">PreparedCommit</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_entry</span>::{<span class="ident">SegmentEntry</span>, <span class="ident">SegmentState</span>};
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_serializer</span>::<span class="ident">SegmentSerializer</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_writer</span>::<span class="ident">SegmentWriter</span>;
+<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">directory_lock</span>::<span class="ident">DirectoryLock</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">index_writer</span>::<span class="ident">IndexWriter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">log_merge_policy</span>::<span class="ident">LogMergePolicy</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">merge_policy</span>::{<span class="ident">MergeCandidate</span>, <span class="ident">MergePolicy</span>, <span class="ident">NoMergePolicy</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">prepared_commit</span>::<span class="ident">PreparedCommit</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_entry</span>::{<span class="ident">SegmentEntry</span>, <span class="ident">SegmentState</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_manager</span>::<span class="ident">SegmentManager</span>;
-<span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">directory_lock</span>::<span class="ident">DirectoryLock</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_serializer</span>::<span class="ident">SegmentSerializer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">segment_writer</span>::<span class="ident">SegmentWriter</span>;
 
 <span class="doccomment">/// Alias for the default merge policy, which is the `LogMergePolicy`.</span>
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">DefaultMergePolicy</span> <span class="op">=</span> <span class="ident">LogMergePolicy</span>;

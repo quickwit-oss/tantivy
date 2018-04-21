@@ -618,22 +618,23 @@
 <span id="618">618</span>
 <span id="619">619</span>
 <span id="620">620</span>
+<span id="621">621</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">logical_ast</span>::<span class="kw-2">*</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">user_input_ast</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">query_grammar</span>::<span class="ident">parse_to_ast</span>;
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">user_input_ast</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Occur</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">PhraseQuery</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">PhraseQuery</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">FieldType</span>, <span class="ident">Term</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">num</span>::<span class="ident">ParseIntError</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">num</span>::<span class="ident">ParseIntError</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
 
 <span class="doccomment">/// Possible error that may happen when parsing a query.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>)]</span>
@@ -800,14 +801,14 @@
             }
             <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">str_options</span>) <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">option</span>) <span class="op">=</span> <span class="ident">str_options</span>.<span class="ident">get_indexing_options</span>() {
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer_manager</span>
-                        .<span class="ident">get</span>(<span class="ident">option</span>.<span class="ident">tokenizer</span>())
-                        .<span class="ident">ok_or_else</span>(<span class="op">||</span> {
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tokenizer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">tokenizer_manager</span>.<span class="ident">get</span>(<span class="ident">option</span>.<span class="ident">tokenizer</span>()).<span class="ident">ok_or_else</span>(
+                        <span class="op">||</span> {
                             <span class="ident">QueryParserError</span>::<span class="ident">UnknownTokenizer</span>(
                                 <span class="ident">field_entry</span>.<span class="ident">name</span>().<span class="ident">to_string</span>(),
                                 <span class="ident">option</span>.<span class="ident">tokenizer</span>().<span class="ident">to_string</span>(),
                             )
-                        })<span class="question-mark">?</span>;
+                        },
+                    )<span class="question-mark">?</span>;
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">token_stream</span> <span class="op">=</span> <span class="ident">tokenizer</span>.<span class="ident">token_stream</span>(<span class="ident">phrase</span>);
                     <span class="ident">token_stream</span>.<span class="ident">process</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="op">|</span><span class="ident">token</span><span class="op">|</span> {
@@ -828,13 +829,14 @@
                                 <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(<span class="ident">LogicalLiteral</span>::<span class="ident">Phrase</span>(<span class="ident">terms</span>)))
                             } <span class="kw">else</span> {
                                 <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
-                                <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotHavePositionsIndexed</span>(<span class="ident">fieldname</span>))
+                                <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldDoesNotHavePositionsIndexed</span>(
+                                    <span class="ident">fieldname</span>,
+                                ))
                             }
                         } <span class="kw">else</span> {
                             <span class="kw">let</span> <span class="ident">fieldname</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_name</span>(<span class="ident">field</span>).<span class="ident">to_string</span>();
                             <span class="prelude-val">Err</span>(<span class="ident">QueryParserError</span>::<span class="ident">FieldNotIndexed</span>(<span class="ident">fieldname</span>))
                         }
-
                     }
                 } <span class="kw">else</span> {
                     <span class="comment">// This should have been seen earlier really.</span>
@@ -961,16 +963,16 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STORED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
-    <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">logical_ast</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParser</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParserError</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">IndexRecordOption</span>, <span class="ident">TextFieldIndexing</span>, <span class="ident">TextOptions</span>};
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParser</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">QueryParserError</span>;
-    <span class="kw">use</span> <span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">Term</span>, <span class="ident">INT_INDEXED</span>, <span class="ident">STORED</span>, <span class="ident">STRING</span>, <span class="ident">TEXT</span>};
     <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="kw">super</span>::<span class="ident">logical_ast</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenizerManager</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="kw">fn</span> <span class="ident">make_query_parser</span>() <span class="op">-&gt;</span> <span class="ident">QueryParser</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();

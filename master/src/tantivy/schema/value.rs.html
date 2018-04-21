@@ -188,10 +188,10 @@
 <span id="188">188</span>
 <span id="189">189</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Visitor</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Visitor</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
 <span class="doccomment">/// Value represents the value of a any field.</span>
 <span class="doccomment">/// It is an enum over all over all of the possible field type.</span>
@@ -322,10 +322,10 @@
 }
 
 <span class="kw">mod</span> <span class="ident">binary_serialize</span> {
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Value</span>;
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
+    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
 
     <span class="kw">const</span> <span class="ident">TEXT_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">0</span>;
     <span class="kw">const</span> <span class="ident">U64_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">1</span>;

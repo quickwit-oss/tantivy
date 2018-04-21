@@ -209,17 +209,17 @@
 <span id="209">209</span>
 <span id="210">210</span>
 </pre><pre class="rust ">
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">shared_vec_slice</span>::<span class="ident">SharedVecSlice</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">make_io_err</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">IOError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">ReadOnlySource</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">BufWriter</span>, <span class="ident">Cursor</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">Arc</span>, <span class="ident">RwLock</span>};
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">make_io_err</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">Directory</span>, <span class="ident">ReadOnlySource</span>};
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">IOError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">shared_vec_slice</span>::<span class="ident">SharedVecSlice</span>;
 
 <span class="doccomment">/// Writer associated with the `RAMDirectory`</span>
 <span class="doccomment">///</span>

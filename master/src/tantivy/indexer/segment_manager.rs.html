@@ -227,16 +227,16 @@
 <span id="227">227</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_register</span>::<span class="ident">SegmentRegister</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
 <span class="kw">use</span> <span class="ident">core</span>::{<span class="ident">LOCKFILE_FILEPATH</span>, <span class="ident">META_FILEPATH</span>};
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentEntry</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_set</span>::<span class="ident">HashSet</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">RwLockReadGuard</span>, <span class="ident">RwLockWriteGuard</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Formatter</span>};
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentEntry</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_set</span>::<span class="ident">HashSet</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Formatter</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::<span class="ident">PathBuf</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::{<span class="ident">RwLockReadGuard</span>, <span class="ident">RwLockWriteGuard</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Default</span>)]</span>
 <span class="kw">struct</span> <span class="ident">SegmentRegisters</span> {

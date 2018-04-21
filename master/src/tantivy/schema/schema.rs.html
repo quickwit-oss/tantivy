@@ -524,16 +524,16 @@
 <span id="524">524</span>
 <span id="525">525</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">field_type</span>::<span class="ident">ValueParsingError</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 
-<span class="kw">use</span> <span class="ident">serde_json</span>::{<span class="self">self</span>, <span class="ident">Map</span> <span class="kw">as</span> <span class="ident">JsonObject</span>, <span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JsonValue</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeSeq</span>;
-<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="ident">SeqAccess</span>, <span class="ident">Visitor</span>};
 <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="ident">SeqAccess</span>, <span class="ident">Visitor</span>};
+<span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeSeq</span>;
+<span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
+<span class="kw">use</span> <span class="ident">serde_json</span>::{<span class="self">self</span>, <span class="ident">Map</span> <span class="kw">as</span> <span class="ident">JsonObject</span>, <span class="ident">Value</span> <span class="kw">as</span> <span class="ident">JsonValue</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 
 <span class="doccomment">/// Tantivy has a very strict schema.</span>
@@ -831,10 +831,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">serde_json</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">field_type</span>::<span class="ident">ValueParsingError</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">schema</span>::<span class="ident">DocParsingError</span>::<span class="ident">NotJSON</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">serde_json</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_indexed_test</span>() {

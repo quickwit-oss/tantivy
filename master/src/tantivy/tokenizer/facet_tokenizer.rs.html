@@ -128,8 +128,8 @@
 <span id="128">128</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Token</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FACET_SEP_BYTE</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
 
 <span class="doccomment">/// The `FacetTokenizer` process a `Facet` binary representation</span>
 <span class="doccomment">/// and emits a token for all of its parent.</span>
@@ -213,10 +213,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">FacetTokenizer</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>;
+    <span class="kw">use</span> <span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_facet_tokenizer</span>() {

@@ -424,18 +424,18 @@
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">atomicwrites</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">make_io_err</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">Directory</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">IOError</span>, <span class="ident">OpenDirectoryError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">shared_vec_slice</span>::<span class="ident">SharedVecSlice</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">Directory</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
 <span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">raw</span>::<span class="ident">MmapReadOnly</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">hash_map</span>::<span class="ident">Entry</span> <span class="kw">as</span> <span class="ident">HashMapEntry</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">convert</span>::<span class="ident">From</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::{<span class="self">self</span>, <span class="ident">File</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">OpenOptions</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::{<span class="self">self</span>, <span class="ident">File</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Seek</span>, <span class="ident">SeekFrom</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">BufWriter</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">path</span>::{<span class="ident">Path</span>, <span class="ident">PathBuf</span>};

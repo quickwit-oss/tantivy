@@ -537,47 +537,44 @@
 <span id="537">537</span>
 <span id="538">538</span>
 <span id="539">539</span>
-<span id="540">540</span>
-<span id="541">541</span>
-<span id="542">542</span>
 </pre><pre class="rust ">
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_manager</span>::{<span class="ident">get_mergeable_segments</span>, <span class="ident">SegmentManager</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">IndexMeta</span>;
-<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentId</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentMeta</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SerializableSegment</span>;
+<span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">Directory</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">stamper</span>::<span class="ident">Stamper</span>;
+<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">FileProtection</span>;
 <span class="kw">use</span> <span class="ident">error</span>::{<span class="ident">Error</span>, <span class="ident">ErrorKind</span>, <span class="prelude-ty">Result</span>};
-<span class="kw">use</span> <span class="ident">futures_cpupool</span>::<span class="ident">CpuPool</span>;
-<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Future</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">oneshot</span>;
 <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">sync</span>::<span class="ident">oneshot</span>::<span class="ident">Receiver</span>;
-<span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">FileProtection</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::{<span class="ident">DefaultMergePolicy</span>, <span class="ident">MergePolicy</span>};
+<span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Future</span>;
+<span class="kw">use</span> <span class="ident">futures_cpupool</span>::<span class="ident">CpuFuture</span>;
+<span class="kw">use</span> <span class="ident">futures_cpupool</span>::<span class="ident">CpuPool</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">index_writer</span>::<span class="ident">advance_deletes</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">MergeCandidate</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">merger</span>::<span class="ident">IndexMerger</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">stamper</span>::<span class="ident">Stamper</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">MergeCandidate</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentEntry</span>;
 <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">SegmentSerializer</span>;
-<span class="kw">use</span> <span class="ident">futures_cpupool</span>::<span class="ident">CpuFuture</span>;
-<span class="kw">use</span> <span class="ident">serde_json</span>;
-<span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">delete_queue</span>::<span class="ident">DeleteCursor</span>;
+<span class="kw">use</span> <span class="ident">indexer</span>::{<span class="ident">DefaultMergePolicy</span>, <span class="ident">MergePolicy</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">serde_json</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">BorrowMut</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Write</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">DerefMut</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">AtomicUsize</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::<span class="ident">Ordering</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">atomic</span>::{<span class="ident">AtomicBool</span>, <span class="ident">AtomicUsize</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">RwLock</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">JoinHandle</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_manager</span>::{<span class="ident">get_mergeable_segments</span>, <span class="ident">SegmentManager</span>};
 
 <span class="doccomment">/// Save the index meta file.</span>
 <span class="doccomment">/// This operation is atomic :</span>
@@ -826,10 +823,7 @@
         }).<span class="ident">wait</span>()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_merge</span>(
-        <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>],
-    ) <span class="op">-&gt;</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">start_merge</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">segment_ids</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentId</span>]) <span class="op">-&gt;</span> <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">SegmentMeta</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="number">0</span>.<span class="ident">segment_manager</span>.<span class="ident">start_merge</span>(<span class="ident">segment_ids</span>);
         <span class="kw">let</span> <span class="ident">segment_updater_clone</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">clone</span>();
 
@@ -1025,9 +1019,9 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">indexer</span>::<span class="ident">merge_policy</span>::<span class="ident">tests</span>::<span class="ident">MergeWheneverPossible</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_delete_during_merge</span>() {

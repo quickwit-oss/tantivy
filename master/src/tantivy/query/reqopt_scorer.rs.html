@@ -193,13 +193,13 @@
 <span id="193">193</span>
 <span id="194">194</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
-<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">ScoreCombiner</span>;
-<span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::<span class="ident">ScoreCombiner</span>;
+<span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="ident">Score</span>;
 
 <span class="doccomment">/// Given a required scorer and an optional scorer</span>
 <span class="doccomment">/// matches all document from the required scorer</span>
@@ -296,14 +296,14 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">RequiredOptionalScorer</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
     <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
     <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">tests</span>::<span class="ident">test_skip_against_unoptimized</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">score_combiner</span>::{<span class="ident">DoNothingCombiner</span>, <span class="ident">SumCombiner</span>};
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">ConstScorer</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Scorer</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">VecDocSet</span>;
+    <span class="kw">use</span> <span class="ident">tests</span>::<span class="ident">sample_with_seed</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_reqopt_scorer_empty</span>() {

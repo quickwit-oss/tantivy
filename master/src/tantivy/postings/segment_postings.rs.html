@@ -571,20 +571,25 @@
 <span id="571">571</span>
 <span id="572">572</span>
 <span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">BlockDecoder</span>, <span class="ident">CompressedIntStream</span>, <span class="ident">VIntDecoder</span>, <span class="ident">COMPRESSION_BLOCK_SIZE</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BitSet</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
-<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
-<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Streamer</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">compressed_block_size</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::{<span class="ident">ReadOnlySource</span>, <span class="ident">SourceRead</span>};
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FreqReadingOption</span>;
+<span class="kw">use</span> <span class="ident">docset</span>::{<span class="ident">DocSet</span>, <span class="ident">SkipResult</span>};
+<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Streamer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">serializer</span>::<span class="ident">PostingsSerializer</span>;
-<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CountingWriter</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FreqReadingOption</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
 
 <span class="kw">struct</span> <span class="ident">PositionComputer</span> {
     <span class="comment">// store the amount of position int</span>
@@ -658,9 +663,13 @@
             <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">doc</span> <span class="kw">in</span> <span class="ident">docs</span> {
                 <span class="ident">postings_serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="number">1u32</span>).<span class="ident">unwrap</span>();
             }
-            <span class="ident">postings_serializer</span>.<span class="ident">close_term</span>().<span class="ident">expect</span>(<span class="string">&quot;In memory Serialization should never fail.&quot;</span>);
+            <span class="ident">postings_serializer</span>
+                .<span class="ident">close_term</span>()
+                .<span class="ident">expect</span>(<span class="string">&quot;In memory Serialization should never fail.&quot;</span>);
         }
-        <span class="kw">let</span> (<span class="ident">buffer</span> , <span class="kw">_</span>) <span class="op">=</span> <span class="ident">counting_writer</span>.<span class="ident">finish</span>().<span class="ident">expect</span>(<span class="string">&quot;Serializing in a buffer should never fail.&quot;</span>);
+        <span class="kw">let</span> (<span class="ident">buffer</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">counting_writer</span>
+            .<span class="ident">finish</span>()
+            .<span class="ident">expect</span>(<span class="string">&quot;Serializing in a buffer should never fail.&quot;</span>);
         <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="ident">ReadOnlySource</span>::<span class="ident">from</span>(<span class="ident">buffer</span>);
         <span class="kw">let</span> <span class="ident">block_segment_postings</span> <span class="op">=</span> <span class="ident">BlockSegmentPostings</span>::<span class="ident">from_data</span>(
             <span class="ident">docs</span>.<span class="ident">len</span>(),
@@ -672,7 +681,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">SegmentPostings</span> {
-
     <span class="doccomment">/// Reads a Segment postings from an &amp;[u8]</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// * `len` - number of document in the posting lists.</span>
@@ -699,7 +707,7 @@
     <span class="kw">loop</span> {
         <span class="kw">let</span> <span class="ident">new</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">jump</span>;
         <span class="kw">if</span> <span class="ident">new</span> <span class="op">&gt;=</span> <span class="ident">end</span> {
-            <span class="kw">return</span> (<span class="ident">start</span>, <span class="ident">end</span>)
+            <span class="kw">return</span> (<span class="ident">start</span>, <span class="ident">end</span>);
         }
         <span class="kw">if</span> <span class="ident">arr</span>[<span class="ident">new</span>] <span class="op">&gt;</span> <span class="ident">target</span> {
             <span class="kw">return</span> (<span class="ident">start</span>, <span class="ident">new</span>);
@@ -737,7 +745,8 @@
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
                     <span class="kw">let</span> <span class="ident">freqs_skipped</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">freqs</span>()[<span class="self">self</span>.<span class="ident">cur</span>..];
                     <span class="kw">let</span> <span class="ident">sum_freq</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">freqs_skipped</span>.<span class="ident">iter</span>().<span class="ident">sum</span>();
-                    <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>()
+                    <span class="self">self</span>.<span class="ident">position_computer</span>
+                        .<span class="ident">as_mut</span>()
                         .<span class="ident">unwrap</span>()
                         .<span class="ident">add_skip</span>(<span class="ident">sum_freq</span> <span class="kw">as</span> <span class="ident">usize</span>);
                 }
@@ -772,7 +781,8 @@
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
             <span class="kw">let</span> <span class="ident">freqs_skipped</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">freqs</span>()[<span class="self">self</span>.<span class="ident">cur</span>..<span class="ident">start</span>];
             <span class="kw">let</span> <span class="ident">sum_freqs</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">freqs_skipped</span>.<span class="ident">iter</span>().<span class="ident">sum</span>();
-            <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>()
+            <span class="self">self</span>.<span class="ident">position_computer</span>
+                .<span class="ident">as_mut</span>()
                 .<span class="ident">unwrap</span>()
                 .<span class="ident">add_skip</span>(<span class="ident">sum_freqs</span> <span class="kw">as</span> <span class="ident">usize</span>);
         }
@@ -784,7 +794,6 @@
             <span class="kw">return</span> <span class="ident">SkipResult</span>::<span class="ident">OverStep</span>;
         }
     }
-
 
     <span class="comment">// goes to the next element.</span>
     <span class="comment">// next needs to be called a first time to point to the correct element.</span>
@@ -836,7 +845,6 @@
     }
 }
 
-
 <span class="kw">impl</span> <span class="ident">HasLen</span> <span class="kw">for</span> <span class="ident">SegmentPostings</span> {
     <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">block_cursor</span>.<span class="ident">doc_freq</span>()
@@ -858,7 +866,10 @@
             }
             <span class="kw">unsafe</span> {
                 <span class="ident">output</span>.<span class="ident">set_len</span>(<span class="ident">term_freq</span>);
-                <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">as_mut</span>().<span class="ident">unwrap</span>().<span class="ident">positions_with_offset</span>(<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output</span>[..])
+                <span class="self">self</span>.<span class="ident">position_computer</span>
+                    .<span class="ident">as_mut</span>()
+                    .<span class="ident">unwrap</span>()
+                    .<span class="ident">positions_with_offset</span>(<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output</span>[..])
             }
         } <span class="kw">else</span> {
             <span class="ident">output</span>.<span class="ident">clear</span>();
@@ -1047,16 +1058,16 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
-    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BlockSegmentPostings</span>;
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">SegmentPostings</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
+    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">INT_INDEXED</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+    <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
     <span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Streamer</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-    <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
-    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">BlockSegmentPostings</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">INT_INDEXED</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_empty_segment_postings</span>() {
@@ -1144,6 +1155,5 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">block_segments</span>.<span class="ident">docs</span>(), <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">3</span>, <span class="number">5</span>]);
     }
 }
-
 </pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
