@@ -5,7 +5,7 @@ use collector::Collector;
 use query::Query;
 use DocAddress;
 use schema::{Field, Term};
-use termdict::{TermDictionary, TermMerger};
+use termdict::TermMerger;
 use std::sync::Arc;
 use std::fmt;
 use schema::Schema;

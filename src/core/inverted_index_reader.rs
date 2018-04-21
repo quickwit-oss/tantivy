@@ -1,5 +1,5 @@
 use directory::{ReadOnlySource, SourceRead};
-use termdict::{TermDictionary, TermDictionaryImpl};
+use termdict::TermDictionary;
 use postings::{BlockSegmentPostings, SegmentPostings};
 use postings::TermInfo;
 use schema::IndexRecordOption;
@@ -23,7 +23,7 @@ use schema::FieldType;
 /// `InvertedIndexReader` are created by calling
 /// the `SegmentReader`'s [`.inverted_index(...)`] method
 pub struct InvertedIndexReader {
-    termdict: TermDictionaryImpl,
+    termdict: TermDictionary,
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
     record_option: IndexRecordOption,
@@ -32,7 +32,7 @@ pub struct InvertedIndexReader {
 
 impl InvertedIndexReader {
     pub(crate) fn new(
-        termdict: TermDictionaryImpl,
+        termdict: TermDictionary,
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
         record_option: IndexRecordOption,
@@ -56,7 +56,7 @@ impl InvertedIndexReader {
             .get_index_record_option()
             .unwrap_or(IndexRecordOption::Basic);
         InvertedIndexReader {
-            termdict:    TermDictionaryImpl::empty(field_type),
+            termdict:    TermDictionary::empty(field_type),
             postings_source: ReadOnlySource::empty(),
             positions_source: ReadOnlySource::empty(),
             record_option,
@@ -70,7 +70,7 @@ impl InvertedIndexReader {
     }
 
     /// Return the term dictionary datastructure.
-    pub fn terms(&self) -> &TermDictionaryImpl {
+    pub fn terms(&self) -> &TermDictionary {
         &self.termdict
     }
 

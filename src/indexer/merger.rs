@@ -14,8 +14,6 @@ use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
 use std::cmp::{max, min};
-use termdict::TermDictionary;
-use termdict::TermStreamer;
 use fieldnorm::FieldNormsSerializer;
 use fieldnorm::FieldNormsWriter;
 use fieldnorm::FieldNormReader;

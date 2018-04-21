@@ -18,7 +18,6 @@ use core::InvertedIndexReader;
 use schema::Field;
 use schema::FieldType;
 use error::ErrorKind;
-use termdict::TermDictionaryImpl;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
 use schema::Schema;
@@ -162,7 +161,7 @@ impl SegmentReader {
                 field_entry.name()
             ))
         })?;
-        let termdict = TermDictionaryImpl::from_source(termdict_source);
+        let termdict = TermDictionary::from_source(termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Ok(facet_reader)
     }
@@ -286,7 +285,7 @@ impl SegmentReader {
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionaryImpl::from_source(termdict_source),
+            TermDictionary::from_source(termdict_source),
             postings_source,
             positions_source,
             record_option,

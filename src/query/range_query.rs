@@ -1,6 +1,6 @@
 use schema::{Field, IndexRecordOption, Term};
 use query::{Query, Scorer, Weight};
-use termdict::{TermDictionary, TermStreamer, TermStreamerBuilder};
+use termdict::{TermDictionary, TermStreamer};
 use core::SegmentReader;
 use common::BitSet;
 use Result;
@@ -213,10 +213,7 @@ pub struct RangeWeight {
 }
 
 impl RangeWeight {
-    fn term_range<'a, T>(&self, term_dict: &'a T) -> T::Streamer
-    where
-        T: TermDictionary<'a> + 'a,
-    {
+    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> TermStreamer<'a> {
         use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
         term_stream_builder = match self.left_bound {

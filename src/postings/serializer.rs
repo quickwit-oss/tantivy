@@ -1,5 +1,4 @@
 use Result;
-use termdict::TermDictionaryBuilderImpl;
 use super::TermInfo;
 use schema::Field;
 use schema::FieldEntry;
@@ -111,7 +110,7 @@ impl InvertedIndexSerializer {
 /// The field serializer is in charge of
 /// the serialization of a specific field.
 pub struct FieldSerializer<'a> {
-    term_dictionary_builder: TermDictionaryBuilderImpl<&'a mut CountingWriter<WritePtr>>,
+    term_dictionary_builder: TermDictionaryBuilder<&'a mut CountingWriter<WritePtr>>,
     postings_serializer: PostingsSerializer<&'a mut CountingWriter<WritePtr>>,
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
@@ -141,7 +140,7 @@ impl<'a> FieldSerializer<'a> {
             _ => (false, false),
         };
         let term_dictionary_builder =
-            TermDictionaryBuilderImpl::new(term_dictionary_write, field_type)?;
+            TermDictionaryBuilder::new(term_dictionary_write, field_type)?;
         let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
         let positions_serializer_opt = if position_enabled {
             Some(PositionSerializer::new(positions_write))

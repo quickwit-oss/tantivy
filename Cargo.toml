@@ -58,7 +58,6 @@ debug-assertions = false
 [features]
 default = ["mmap"]
 simd = ["bitpacking/simd"]
-streamdict = []
 mmap = ["fst/mmap", "atomicwrites"]
 unstable = ["simd"]
 

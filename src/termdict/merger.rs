@@ -1,11 +1,10 @@
 use std::collections::BinaryHeap;
-use termdict::TermStreamerImpl;
-use std::cmp::Ordering;
 use termdict::TermStreamer;
+use std::cmp::Ordering;
 use schema::Term;
 
 pub struct HeapItem<'a> {
-    pub streamer: TermStreamerImpl<'a>,
+    pub streamer: TermStreamer<'a>,
     pub segment_ord: usize,
 }
 
@@ -45,7 +44,7 @@ impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
     ///
     ///
-    pub fn new(streams: Vec<TermStreamerImpl<'a>>) -> TermMerger<'a> {
+    pub fn new(streams: Vec<TermStreamer<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams

@@ -2,7 +2,7 @@ use super::MultiValueIntFastFieldReader;
 use DocId;
 use termdict::TermOrdinal;
 use schema::Facet;
-use termdict::{TermDictionary, TermDictionaryImpl};
+use termdict::TermDictionary;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific
@@ -19,7 +19,7 @@ use termdict::{TermDictionary, TermDictionaryImpl};
 /// only makes sense for a given segment.
 pub struct FacetReader {
     term_ords: MultiValueIntFastFieldReader<u64>,
-    term_dict: TermDictionaryImpl,
+    term_dict: TermDictionary,
 }
 
 impl FacetReader {
@@ -28,11 +28,11 @@ impl FacetReader {
     /// A facet reader just wraps :
     /// - a `MultiValueIntFastFieldReader` that makes it possible to
     /// access the list of facet ords for a given document.
-    /// - a `TermDictionaryImpl` that helps associating a facet to
+    /// - a `TermDictionary` that helps associating a facet to
     /// an ordinal and vice versa.
     pub fn new(
         term_ords: MultiValueIntFastFieldReader<u64>,
-        term_dict: TermDictionaryImpl,
+        term_dict: TermDictionary,
     ) -> FacetReader {
         FacetReader {
             term_ords,
@@ -50,7 +50,7 @@ impl FacetReader {
     }
 
     /// Accessor for the facet term dictionary.
-    pub fn facet_dict(&self) -> &TermDictionaryImpl {
+    pub fn facet_dict(&self) -> &TermDictionary {
         &self.term_dict
     }
 
