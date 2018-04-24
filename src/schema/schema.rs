@@ -95,6 +95,12 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
+    /// Adds a fast bytes field to the schema
+    pub fn add_bytes_field(&mut self, field_name: &str) -> Field {
+        let field_entry = FieldEntry::new_bytes(field_name.to_string());
+        self.add_field(field_entry)
+    }
+
     /// Adds a field entry to the schema in build.
     fn add_field(&mut self, field_entry: FieldEntry) -> Field {
         let field = Field(self.fields.len() as u32);

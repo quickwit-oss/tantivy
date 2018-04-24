@@ -12,6 +12,7 @@ readme = "README.md"
 keywords = ["search", "information", "retrieval"]
 
 [dependencies]
+base64 = "0.9.1"
 byteorder = "1.0"
 lazy_static = "0.2.1"
 tinysegmenter = "0.1.0"

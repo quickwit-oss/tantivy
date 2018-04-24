@@ -202,6 +202,9 @@ impl<'a> SegmentWriter<'a> {
                         }
                     }
                 }
+                FieldType::Bytes => {
+                    // Do nothing. Bytes only supports fast fields.
+                }
             }
         }
         doc.filter_fields(|field| schema.get_field_entry(field).is_stored());

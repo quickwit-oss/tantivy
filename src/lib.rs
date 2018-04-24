@@ -117,6 +117,9 @@ extern crate lazy_static;
 extern crate serde_derive;
 
 #[macro_use]
+extern crate serde_json;
+
+#[macro_use]
 extern crate log;
 
 #[macro_use]
@@ -124,6 +127,7 @@ extern crate error_chain;
 
 #[cfg(feature = "mmap")]
 extern crate atomicwrites;
+extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
@@ -140,7 +144,6 @@ extern crate owning_ref;
 extern crate regex;
 extern crate rust_stemmers;
 extern crate serde;
-extern crate serde_json;
 extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;

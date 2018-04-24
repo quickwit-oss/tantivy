@@ -36,7 +36,7 @@ fn posting_from_field_entry<'a>(
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)),
-        FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
+        FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet | FieldType::Bytes => {
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
         }
     }
