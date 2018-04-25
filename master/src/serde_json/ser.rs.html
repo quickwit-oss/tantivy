@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.15/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.16/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -3483,7 +3483,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `-123` to the specified writer.</span>
@@ -3492,7 +3492,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `-123` to the specified writer.</span>
@@ -3501,7 +3501,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `-123` to the specified writer.</span>
@@ -3510,7 +3510,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `123` to the specified writer.</span>
@@ -3519,7 +3519,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `123` to the specified writer.</span>
@@ -3528,7 +3528,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `123` to the specified writer.</span>
@@ -3537,7 +3537,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes an integer value like `123` to the specified writer.</span>
@@ -3546,7 +3546,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">itoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes a floating point value like `-31.26e+12` to the specified writer.</span>
@@ -3555,7 +3555,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">dtoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">dtoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes a floating point value like `-31.26e+12` to the specified writer.</span>
@@ -3564,7 +3564,7 @@
     <span class="kw">where</span>
         <span class="ident">W</span>: <span class="ident">io</span>::<span class="ident">Write</span>,
     {
-        <span class="ident">dtoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> ())
+        <span class="ident">dtoa</span>::<span class="ident">write</span>(<span class="ident">writer</span>, <span class="ident">value</span>).<span class="ident">map</span>(<span class="ident">drop</span>)
     }
 
     <span class="doccomment">/// Writes a number that has already been rendered to a string.</span>

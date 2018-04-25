@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.41/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.43/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2043,6 +2043,13 @@
 <span id="2043">2043</span>
 <span id="2044">2044</span>
 <span id="2045">2045</span>
+<span id="2046">2046</span>
+<span id="2047">2047</span>
+<span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2242,6 +2249,7 @@
             <span class="doccomment">/// For example if we try to deserialize a String out of a JSON file</span>
             <span class="doccomment">/// containing an integer, the unexpected type is the integer and the</span>
             <span class="doccomment">/// expected type is the string.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">invalid_type</span>(<span class="ident">unexp</span>: <span class="ident">Unexpected</span>, <span class="ident">exp</span>: <span class="kw-2">&amp;</span><span class="ident">Expected</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;invalid type: {}, expected {}&quot;</span>, <span class="ident">unexp</span>, <span class="ident">exp</span>))
             }
@@ -2259,6 +2267,7 @@
             <span class="doccomment">/// For example if we try to deserialize a String out of some binary data</span>
             <span class="doccomment">/// that is not valid UTF-8, the unexpected value is the bytes and the</span>
             <span class="doccomment">/// expected value is a string.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">invalid_value</span>(<span class="ident">unexp</span>: <span class="ident">Unexpected</span>, <span class="ident">exp</span>: <span class="kw-2">&amp;</span><span class="ident">Expected</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;invalid value: {}, expected {}&quot;</span>, <span class="ident">unexp</span>, <span class="ident">exp</span>))
             }
@@ -2272,12 +2281,14 @@
             <span class="doccomment">/// The `exp` argument provides information about what data was being</span>
             <span class="doccomment">/// expected. For example `exp` might say that a tuple of size 6 was</span>
             <span class="doccomment">/// expected.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">invalid_length</span>(<span class="ident">len</span>: <span class="ident">usize</span>, <span class="ident">exp</span>: <span class="kw-2">&amp;</span><span class="ident">Expected</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;invalid length {}, expected {}&quot;</span>, <span class="ident">len</span>, <span class="ident">exp</span>))
             }
 
             <span class="doccomment">/// Raised when a `Deserialize` enum type received a variant with an</span>
             <span class="doccomment">/// unrecognized name.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">unknown_variant</span>(<span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">expected</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="kw">if</span> <span class="ident">expected</span>.<span class="ident">is_empty</span>() {
                     <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown variant `{}`, there are no variants&quot;</span>,
@@ -2291,6 +2302,7 @@
 
             <span class="doccomment">/// Raised when a `Deserialize` struct type received a field with an</span>
             <span class="doccomment">/// unrecognized name.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">unknown_field</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">expected</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>]) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="kw">if</span> <span class="ident">expected</span>.<span class="ident">is_empty</span>() {
                     <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;unknown field `{}`, there are no fields&quot;</span>,
@@ -2305,12 +2317,14 @@
             <span class="doccomment">/// Raised when a `Deserialize` struct type expected to receive a required</span>
             <span class="doccomment">/// field with a particular name but that field was not present in the</span>
             <span class="doccomment">/// input.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">missing_field</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;missing field `{}`&quot;</span>, <span class="ident">field</span>))
             }
 
             <span class="doccomment">/// Raised when a `Deserialize` struct type received more than one of the</span>
             <span class="doccomment">/// same field.</span>
+            <span class="attribute">#[<span class="ident">cold</span>]</span>
             <span class="kw">fn</span> <span class="ident">duplicate_field</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
                 <span class="ident">Error</span>::<span class="ident">custom</span>(<span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;duplicate field `{}`&quot;</span>, <span class="ident">field</span>))
             }

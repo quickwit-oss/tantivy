@@ -327,61 +327,73 @@
 <span id="327">327</span>
 <span id="328">328</span>
 <span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">heap</span>::{<span class="ident">BytesRef</span>, <span class="ident">Heap</span>, <span class="ident">HeapAllocable</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
+
 
 <span class="kw">mod</span> <span class="ident">murmurhash2</span> {
 
     <span class="kw">const</span> <span class="ident">SEED</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">3_242_157_231u32</span>;
+    <span class="kw">const</span> <span class="ident">M</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0x5bd1_e995</span>;
 
     <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">murmurhash2</span>(<span class="ident">key</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">u32</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key_ptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>;
-        <span class="kw">let</span> <span class="ident">m</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">0x5bd1_e995</span>;
-        <span class="kw">let</span> <span class="ident">r</span> <span class="op">=</span> <span class="number">24</span>;
-        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>;
 
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">key_ptr</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u32</span>;
+        <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">key</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u32</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">h</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="ident">SEED</span> <span class="op">^</span> <span class="ident">len</span>;
+
         <span class="kw">let</span> <span class="ident">num_blocks</span> <span class="op">=</span> <span class="ident">len</span> <span class="op">&gt;&gt;</span> <span class="number">2</span>;
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_blocks</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">k</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span><span class="ident">key_ptr</span> };
-            <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
-            <span class="ident">k</span> <span class="op">^=</span> <span class="ident">k</span> <span class="op">&gt;&gt;</span> <span class="ident">r</span>;
-            <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
-            <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
+            <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
+            <span class="ident">k</span> <span class="op">^=</span> <span class="ident">k</span> <span class="op">&gt;&gt;</span> <span class="number">24</span>;
+            <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
+            <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
             <span class="ident">h</span> <span class="op">^=</span> <span class="ident">k</span>;
             <span class="ident">key_ptr</span> <span class="op">=</span> <span class="ident">key_ptr</span>.<span class="ident">wrapping_offset</span>(<span class="number">1</span>);
         }
 
         <span class="comment">// Handle the last few bytes of the input array</span>
-        <span class="kw">let</span> <span class="ident">remaining</span> <span class="op">=</span> <span class="ident">len</span> <span class="op">&amp;</span> <span class="number">3</span>;
-        <span class="kw">let</span> <span class="ident">key_ptr_u8</span>: <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span> <span class="op">=</span> <span class="ident">key_ptr</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u8</span>;
-        <span class="kw">match</span> <span class="ident">remaining</span> {
+        <span class="kw">let</span> <span class="ident">remaining</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">key</span>[<span class="ident">key</span>.<span class="ident">len</span>() <span class="op">&amp;</span> <span class="op">!</span><span class="number">3</span>..];
+        <span class="kw">match</span> <span class="ident">remaining</span>.<span class="ident">len</span>() {
             <span class="number">3</span> <span class="op">=&gt;</span> {
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>.<span class="ident">wrapping_offset</span>(<span class="number">2</span>)) } <span class="op">&lt;&lt;</span> <span class="number">16</span>;
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>.<span class="ident">wrapping_offset</span>(<span class="number">1</span>)) } <span class="op">&lt;&lt;</span> <span class="number">8</span>;
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>) };
-                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>;
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span>;
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">0</span>]);
+                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
             }
             <span class="number">2</span> <span class="op">=&gt;</span> {
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>.<span class="ident">wrapping_offset</span>(<span class="number">1</span>)) } <span class="op">&lt;&lt;</span> <span class="number">8</span>;
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>) };
-                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span>;
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">0</span>]);
+                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
             }
             <span class="number">1</span> <span class="op">=&gt;</span> {
-                <span class="ident">h</span> <span class="op">^=</span> <span class="kw">unsafe</span> { <span class="ident">u32</span>::<span class="ident">from</span>(<span class="kw-2">*</span><span class="ident">key_ptr_u8</span>) };
-                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
+                <span class="ident">h</span> <span class="op">^=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="ident">remaining</span>[<span class="number">0</span>]);
+                <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
             }
             <span class="kw">_</span> <span class="op">=&gt;</span> {}
         }
         <span class="ident">h</span> <span class="op">^=</span> <span class="ident">h</span> <span class="op">&gt;&gt;</span> <span class="number">13</span>;
-        <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">m</span>);
+        <span class="ident">h</span> <span class="op">=</span> <span class="ident">h</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
         <span class="ident">h</span> <span class="op">^</span> (<span class="ident">h</span> <span class="op">&gt;&gt;</span> <span class="number">15</span>)
     }
 }
+
 
 <span class="doccomment">/// Split the thread memory budget into</span>
 <span class="doccomment">/// - the heap size</span>
@@ -456,8 +468,6 @@
         (<span class="self">self</span>.<span class="ident">hash</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">i</span> <span class="op">*</span> <span class="self">self</span>.<span class="ident">i</span>) <span class="op">&amp;</span> <span class="self">self</span>.<span class="ident">mask</span>
     }
 }
-
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">slice</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Iter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>: <span class="lifetime">&#39;b</span>, <span class="lifetime">&#39;b</span><span class="op">&gt;</span> {
     <span class="ident">hashmap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="ident">TermHashMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
@@ -547,22 +557,20 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">unstable</span>))]</span>
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span><span class="op">=</span><span class="string">&quot;unstable&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">bench</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">murmurhash2</span>::<span class="ident">murmurhash2</span>;
     <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
 
     <span class="attribute">#[<span class="ident">bench</span>]</span>
-    <span class="kw">fn</span> <span class="ident">bench_murmurhash_2</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
-        <span class="kw">let</span> <span class="ident">keys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span>
-            <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;wer qwe qwe qwe &quot;</span>, <span class="string">&quot;werbq weqweqwe2 &quot;</span>, <span class="string">&quot;weraq weqweqwe3 &quot;</span>];
+    <span class="kw">fn</span> <span class="ident">bench_murmurhash2</span>(<span class="ident">b</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Bencher</span>) {
+        <span class="kw">let</span> <span class="ident">keys</span>: [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>; <span class="number">3</span>]<span class="op">=</span> [<span class="string">&quot;wer qwe qwe qwe &quot;</span>, <span class="string">&quot;werbq weqweqwe2 &quot;</span>, <span class="string">&quot;weraq weqweqwe3 &quot;</span>];
         <span class="ident">b</span>.<span class="ident">iter</span>(<span class="op">||</span> {
-            <span class="ident">keys</span>.<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">as_bytes</span>())
-                .<span class="ident">map</span>(<span class="ident">murmurhash2</span>)
-                .<span class="ident">map</span>(<span class="op">|</span><span class="ident">h</span><span class="op">|</span> <span class="ident">h</span> <span class="kw">as</span> <span class="ident">u64</span>)
-                .<span class="ident">last</span>()
-                .<span class="ident">unwrap</span>()
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="number">0</span>;
+            <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">key</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">keys</span> {
+                <span class="ident">s</span> <span class="op">^=</span> <span class="ident">murmurhash2</span>(<span class="ident">key</span>.<span class="ident">as_bytes</span>());
+            }
+            <span class="ident">s</span>
         });
     }
 }
@@ -644,6 +652,18 @@
             );
         }
     }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_murmur_against_reference_impl</span>() {
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">3632506080</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;a&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">455683869</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;ab&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">2448092234</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;abc&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">2066295634</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;abcd&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">2588571162</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;abcde&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">2988696942</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">murmurhash2</span>(<span class="string">&quot;abcdefghijklmnop&quot;</span>.<span class="ident">as_bytes</span>()), <span class="number">2350868870</span>);
+    }
+
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_murmur_collisions</span>() {

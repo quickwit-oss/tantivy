@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.15/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.16/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2146,6 +2146,17 @@
 <span id="2146">2146</span>
 <span id="2147">2147</span>
 <span id="2148">2148</span>
+<span id="2149">2149</span>
+<span id="2150">2150</span>
+<span id="2151">2151</span>
+<span id="2152">2152</span>
+<span id="2153">2153</span>
+<span id="2154">2154</span>
+<span id="2155">2155</span>
+<span id="2156">2156</span>
+<span id="2157">2157</span>
+<span id="2158">2158</span>
+<span id="2159">2159</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2160,6 +2171,8 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="ident">i32</span>, <span class="ident">u64</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">result</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">Expected</span>, <span class="ident">Unexpected</span>};
 
@@ -2169,6 +2182,7 @@
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">read</span>::{<span class="ident">IoRead</span>, <span class="ident">Read</span>, <span class="ident">SliceRead</span>, <span class="ident">StrRead</span>};
 
+<span class="kw">use</span> <span class="ident">number</span>::<span class="ident">Number</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">number</span>::<span class="ident">NumberDeserializer</span>;
 
@@ -2234,7 +2248,7 @@
 
 <span class="comment">// Not public API. Should be pub(crate).</span>
 <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">Number</span> {
+<span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">ParserNumber</span> {
     <span class="ident">F64</span>(<span class="ident">f64</span>),
     <span class="ident">U64</span>(<span class="ident">u64</span>),
     <span class="ident">I64</span>(<span class="ident">i64</span>),
@@ -2242,27 +2256,27 @@
     <span class="ident">String</span>(<span class="ident">String</span>),
 }
 
-<span class="kw">impl</span> <span class="ident">Number</span> {
+<span class="kw">impl</span> <span class="ident">ParserNumber</span> {
     <span class="kw">fn</span> <span class="ident">visit</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span>, <span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">de</span>::<span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_f64</span>(<span class="ident">x</span>),
-            <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_u64</span>(<span class="ident">x</span>),
-            <span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_i64</span>(<span class="ident">x</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_f64</span>(<span class="ident">x</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_u64</span>(<span class="ident">x</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_i64</span>(<span class="ident">x</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-            <span class="ident">Number</span>::<span class="ident">String</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">NumberDeserializer</span> { <span class="ident">number</span>: <span class="ident">x</span>.<span class="ident">into</span>() }),
+            <span class="ident">ParserNumber</span>::<span class="ident">String</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">NumberDeserializer</span> { <span class="ident">number</span>: <span class="ident">x</span>.<span class="ident">into</span>() }),
         }
     }
 
     <span class="kw">fn</span> <span class="ident">invalid_type</span>(<span class="self">self</span>, <span class="ident">exp</span>: <span class="kw-2">&amp;</span><span class="ident">Expected</span>) <span class="op">-&gt;</span> <span class="ident">Error</span> {
         <span class="kw">match</span> <span class="self">self</span> {
-            <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Float</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
-            <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
-            <span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Signed</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Float</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">U64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">I64</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Signed</span>(<span class="ident">x</span>), <span class="ident">exp</span>),
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-            <span class="ident">Number</span>::<span class="ident">String</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;number&quot;</span>), <span class="ident">exp</span>),
+            <span class="ident">ParserNumber</span>::<span class="ident">String</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">de</span>::<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;number&quot;</span>), <span class="ident">exp</span>),
         }
     }
 }
@@ -2435,7 +2449,7 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">parse_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">next_char_or_null</span>()) {
             <span class="string">b&#39;0&#39;</span> <span class="op">=&gt;</span> {
                 <span class="comment">// There can be only one leading &#39;0&#39;.</span>
@@ -2457,7 +2471,7 @@
                             <span class="comment">// number as a `u64` until we grow too large. At that point, switch to</span>
                             <span class="comment">// parsing the value as a `f64`.</span>
                             <span class="kw">if</span> <span class="macro">overflow</span><span class="macro">!</span>(<span class="ident">res</span> <span class="op">*</span> <span class="number">10</span> <span class="op">+</span> <span class="ident">digit</span>, <span class="ident">u64</span>::<span class="ident">max_value</span>()) {
-                                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_long_integer</span>(
+                                <span class="kw">return</span> <span class="prelude-val">Ok</span>(<span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_long_integer</span>(
                                     <span class="ident">positive</span>,
                                     <span class="ident">res</span>,
                                     <span class="number">1</span>, <span class="comment">// res * 10^1</span>
@@ -2503,21 +2517,21 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">parse_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>, <span class="ident">significand</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>, <span class="ident">significand</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> {
         <span class="prelude-val">Ok</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek_or_null</span>()) {
-            <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
-            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
+            <span class="string">b&#39;.&#39;</span> <span class="op">=&gt;</span> <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_decimal</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
+            <span class="string">b&#39;e&#39;</span> <span class="op">|</span> <span class="string">b&#39;E&#39;</span> <span class="op">=&gt;</span> <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">parse_exponent</span>(<span class="ident">positive</span>, <span class="ident">significand</span>, <span class="number">0</span>))),
             <span class="kw">_</span> <span class="op">=&gt;</span> {
                 <span class="kw">if</span> <span class="ident">positive</span> {
-                    <span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">significand</span>)
+                    <span class="ident">ParserNumber</span>::<span class="ident">U64</span>(<span class="ident">significand</span>)
                 } <span class="kw">else</span> {
                     <span class="kw">let</span> <span class="ident">neg</span> <span class="op">=</span> (<span class="ident">significand</span> <span class="kw">as</span> <span class="ident">i64</span>).<span class="ident">wrapping_neg</span>();
 
                     <span class="comment">// Convert into a float if we underflow.</span>
                     <span class="kw">if</span> <span class="ident">neg</span> <span class="op">&gt;</span> <span class="number">0</span> {
-                        <span class="ident">Number</span>::<span class="ident">F64</span>(<span class="op">-</span>(<span class="ident">significand</span> <span class="kw">as</span> <span class="ident">f64</span>))
+                        <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="op">-</span>(<span class="ident">significand</span> <span class="kw">as</span> <span class="ident">f64</span>))
                     } <span class="kw">else</span> {
-                        <span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">neg</span>)
+                        <span class="ident">ParserNumber</span>::<span class="ident">I64</span>(<span class="ident">neg</span>)
                     }
                 }
             }
@@ -2630,9 +2644,7 @@
         <span class="prelude-val">Ok</span>(<span class="kw">if</span> <span class="ident">positive</span> { <span class="number">0.0</span> } <span class="kw">else</span> { <span class="op">-</span><span class="number">0.0</span> })
     }
 
-    <span class="comment">// Not public API. Should be pub(crate).</span>
-    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_any_signed_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_any_signed_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">peek</span> <span class="op">=</span> <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">peek</span>()) {
             <span class="prelude-val">Some</span>(<span class="ident">b</span>) <span class="op">=&gt;</span> <span class="ident">b</span>,
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
@@ -2666,18 +2678,18 @@
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
-    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">parse_integer</span>(<span class="ident">positive</span>)
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Number</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">parse_any_number</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">positive</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buf</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">with_capacity</span>(<span class="number">16</span>);
         <span class="kw">if</span> <span class="op">!</span><span class="ident">positive</span> {
             <span class="ident">buf</span>.<span class="ident">push</span>(<span class="string">&#39;-&#39;</span>);
         }
         <span class="self">self</span>.<span class="ident">scan_integer</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">buf</span>)<span class="question-mark">?</span>;
-        <span class="prelude-val">Ok</span>(<span class="ident">Number</span>::<span class="ident">String</span>(<span class="ident">buf</span>))
+        <span class="prelude-val">Ok</span>(<span class="ident">ParserNumber</span>::<span class="ident">String</span>(<span class="ident">buf</span>))
     }
 
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
@@ -3056,6 +3068,16 @@
                 }
             }
         }
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">Number</span> {
+    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Error</span>;
+
+    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">result</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="prelude-val">Err</span><span class="op">&gt;</span> {
+        <span class="ident">Deserializer</span>::<span class="ident">from_str</span>(<span class="ident">s</span>)
+            .<span class="ident">parse_any_signed_number</span>()
+            .<span class="ident">map</span>(<span class="ident">Into</span>::<span class="ident">into</span>)
     }
 }
 

@@ -1,4 +1,61 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `PrimInt` trait in crate `num_traits`."><meta name="keywords" content="rust, rustlang, rust-lang, PrimInt"><title>num_traits::int::PrimInt - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc trait"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Trait PrimInt</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.count_ones">count_ones</a><a href="#tymethod.count_zeros">count_zeros</a><a href="#tymethod.leading_zeros">leading_zeros</a><a href="#tymethod.trailing_zeros">trailing_zeros</a><a href="#tymethod.rotate_left">rotate_left</a><a href="#tymethod.rotate_right">rotate_right</a><a href="#tymethod.signed_shl">signed_shl</a><a href="#tymethod.signed_shr">signed_shr</a><a href="#tymethod.unsigned_shl">unsigned_shl</a><a href="#tymethod.unsigned_shr">unsigned_shr</a><a href="#tymethod.swap_bytes">swap_bytes</a><a href="#tymethod.from_be">from_be</a><a href="#tymethod.from_le">from_le</a><a href="#tymethod.to_be">to_be</a><a href="#tymethod.to_le">to_le</a><a href="#tymethod.pow">pow</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>num_traits</a>::<wbr><a href='index.html'>int</a></p><script>window.sidebarCurrent = {name: 'PrimInt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>num_traits</a>::<wbr><a href='index.html'>int</a>::<wbr><a class="trait" href=''>PrimInt</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/num_traits/int.rs.html#8-278' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait PrimInt: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> + <a class="trait" href="../../num_traits/trait.Num.html" title="trait num_traits::Num">Num</a> + <a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a> + <a class="trait" href="../../num_traits/bounds/trait.Bounded.html" title="trait num_traits::bounds::Bounded">Bounded</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html" title="trait core::cmp::PartialOrd">PartialOrd</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html" title="trait core::cmp::Ord">Ord</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Not.html" title="trait core::ops::bit::Not">Not</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitAnd.html" title="trait core::ops::bit::BitAnd">BitAnd</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitOr.html" title="trait core::ops::bit::BitOr">BitOr</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitXor.html" title="trait core::ops::bit::BitXor">BitXor</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shl.html" title="trait core::ops::bit::Shl">Shl</a>&lt;usize, Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shr.html" title="trait core::ops::bit::Shr">Shr</a>&lt;usize, Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedAdd.html" title="trait num_traits::ops::checked::CheckedAdd">CheckedAdd</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedSub.html" title="trait num_traits::ops::checked::CheckedSub">CheckedSub</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedMul.html" title="trait num_traits::ops::checked::CheckedMul">CheckedMul</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedDiv.html" title="trait num_traits::ops::checked::CheckedDiv">CheckedDiv</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/saturating/trait.Saturating.html" title="trait num_traits::ops::saturating::Saturating">Saturating</a> {
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="generator" content="rustdoc">
+    <meta name="description" content="API documentation for the Rust `PrimInt` trait in crate `num_traits`.">
+    <meta name="keywords" content="rust, rustlang, rust-lang, PrimInt">
+
+    <title>num_traits::int::PrimInt - Rust</title>
+
+    <link rel="stylesheet" type="text/css" href="../../normalize.css">
+    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
+          id="mainThemeStyle">
+    
+    <link rel="stylesheet" type="text/css" href="../../dark.css">
+    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
+    <script src="../../storage.js"></script>
+    
+
+    
+    
+</head>
+<body class="rustdoc trait">
+    <!--[if lte IE 8]>
+    <div class="warning">
+        This old browser is unsupported and will most likely display funky
+        things.
+    </div>
+    <![endif]-->
+
+    
+
+    <nav class="sidebar">
+        <div class="sidebar-menu">&#9776;</div>
+        
+        <p class='location'>Trait PrimInt</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.count_ones">count_ones</a><a href="#tymethod.count_zeros">count_zeros</a><a href="#tymethod.leading_zeros">leading_zeros</a><a href="#tymethod.trailing_zeros">trailing_zeros</a><a href="#tymethod.rotate_left">rotate_left</a><a href="#tymethod.rotate_right">rotate_right</a><a href="#tymethod.signed_shl">signed_shl</a><a href="#tymethod.signed_shr">signed_shr</a><a href="#tymethod.unsigned_shl">unsigned_shl</a><a href="#tymethod.unsigned_shr">unsigned_shr</a><a href="#tymethod.swap_bytes">swap_bytes</a><a href="#tymethod.from_be">from_be</a><a href="#tymethod.from_le">from_le</a><a href="#tymethod.to_be">to_be</a><a href="#tymethod.to_le">to_le</a><a href="#tymethod.pow">pow</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../index.html'>num_traits</a>::<wbr><a href='index.html'>int</a></p><script>window.sidebarCurrent = {name: 'PrimInt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
+    </nav>
+
+    <div class="theme-picker">
+        <button id="theme-picker" aria-label="Pick another theme!">
+            <img src="../../brush.svg" width="18" alt="Pick another theme!">
+        </button>
+        <div id="theme-choices"></div>
+    </div>
+    <script src="../../theme.js"></script>
+    <nav class="sub">
+        <form class="search-form js-only">
+            <div class="search-container">
+                <input class="search-input" name="search"
+                       autocomplete="off"
+                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
+                       type="search">
+            </div>
+        </form>
+    </nav>
+
+    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../index.html'>num_traits</a>::<wbr><a href='index.html'>int</a>::<wbr><a class="trait" href=''>PrimInt</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/num_traits/int.rs.html#8-278' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait PrimInt: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Copy.html" title="trait core::marker::Copy">Copy</a> + <a class="trait" href="../../num_traits/trait.Num.html" title="trait num_traits::Num">Num</a> + <a class="trait" href="../../num_traits/cast/trait.NumCast.html" title="trait num_traits::cast::NumCast">NumCast</a> + <a class="trait" href="../../num_traits/bounds/trait.Bounded.html" title="trait num_traits::bounds::Bounded">Bounded</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.PartialOrd.html" title="trait core::cmp::PartialOrd">PartialOrd</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Ord.html" title="trait core::cmp::Ord">Ord</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/cmp/trait.Eq.html" title="trait core::cmp::Eq">Eq</a> + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Not.html" title="trait core::ops::bit::Not">Not</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitAnd.html" title="trait core::ops::bit::BitAnd">BitAnd</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitOr.html" title="trait core::ops::bit::BitOr">BitOr</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.BitXor.html" title="trait core::ops::bit::BitXor">BitXor</a>&lt;Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shl.html" title="trait core::ops::bit::Shl">Shl</a>&lt;usize, Output = Self&gt; + <a class="trait" href="https://doc.rust-lang.org/nightly/core/ops/bit/trait.Shr.html" title="trait core::ops::bit::Shr">Shr</a>&lt;usize, Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedAdd.html" title="trait num_traits::ops::checked::CheckedAdd">CheckedAdd</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedSub.html" title="trait num_traits::ops::checked::CheckedSub">CheckedSub</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedMul.html" title="trait num_traits::ops::checked::CheckedMul">CheckedMul</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/checked/trait.CheckedDiv.html" title="trait num_traits::ops::checked::CheckedDiv">CheckedDiv</a>&lt;Output = Self&gt; + <a class="trait" href="../../num_traits/ops/saturating/trait.Saturating.html" title="trait num_traits::ops::saturating::Saturating">Saturating</a> {
     fn <a href='#tymethod.count_ones' class='fnname'>count_ones</a>(self) -&gt; u32;
 <div class='item-spacer'></div>    fn <a href='#tymethod.count_zeros' class='fnname'>count_zeros</a>(self) -&gt; u32;
 <div class='item-spacer'></div>    fn <a href='#tymethod.leading_zeros' class='fnname'>leading_zeros</a>(self) -&gt; u32;
@@ -202,4 +259,68 @@ zeros in the most significant bits.</p>
 <li><table class='table-display'><tbody><tr><td><code>impl PrimInt for isize</code><td><div class='out-of-band'><a class='srclink' href='../../src/num_traits/int.rs.html#282-362' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
 </ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
                          src="../../implementors/num_traits/int/trait.PrimInt.js">
-                 </script></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "num_traits";</script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+                 </script></section>
+    <section id='search' class="content hidden"></section>
+
+    <section class="footer"></section>
+
+    <aside id="help" class="hidden">
+        <div>
+            <h1 class="hidden">Help</h1>
+
+            <div class="shortcuts">
+                <h2>Keyboard Shortcuts</h2>
+
+                <dl>
+                    <dt><kbd>?</kbd></dt>
+                    <dd>Show this help dialog</dd>
+                    <dt><kbd>S</kbd></dt>
+                    <dd>Focus the search field</dd>
+                    <dt><kbd>↑</kbd></dt>
+                    <dd>Move up in search results</dd>
+                    <dt><kbd>↓</kbd></dt>
+                    <dd>Move down in search results</dd>
+                    <dt><kbd>↹</kbd></dt>
+                    <dd>Switch tab</dd>
+                    <dt><kbd>&#9166;</kbd></dt>
+                    <dd>Go to active search result</dd>
+                    <dt><kbd>+</kbd></dt>
+                    <dd>Expand all sections</dd>
+                    <dt><kbd>-</kbd></dt>
+                    <dd>Collapse all sections</dd>
+                </dl>
+            </div>
+
+            <div class="infos">
+                <h2>Search Tricks</h2>
+
+                <p>
+                    Prefix searches with a type followed by a colon (e.g.
+                    <code>fn:</code>) to restrict the search to a given type.
+                </p>
+
+                <p>
+                    Accepted types are: <code>fn</code>, <code>mod</code>,
+                    <code>struct</code>, <code>enum</code>,
+                    <code>trait</code>, <code>type</code>, <code>macro</code>,
+                    and <code>const</code>.
+                </p>
+
+                <p>
+                    Search functions by type signature (e.g.
+                    <code>vec -> usize</code> or <code>* -> vec</code>)
+                </p>
+            </div>
+        </div>
+    </aside>
+
+    
+
+    <script>
+        window.rootPath = "../../";
+        window.currentCrate = "num_traits";
+    </script>
+    <script src="../../main.js"></script>
+    <script defer src="../../search-index.js"></script>
+</body>
+</html>

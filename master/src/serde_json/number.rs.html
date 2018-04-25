@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.15/src/number.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>number.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_json-1.0.16/src/number.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>number.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -765,13 +765,6 @@
 <span id="765">765</span>
 <span id="766">766</span>
 <span id="767">767</span>
-<span id="768">768</span>
-<span id="769">769</span>
-<span id="770">770</span>
-<span id="771">771</span>
-<span id="772">772</span>
-<span id="773">773</span>
-<span id="774">774</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -786,10 +779,6 @@
 <span class="kw">use</span> <span class="ident">serde</span>::{<span class="ident">Deserialize</span>, <span class="ident">Deserializer</span>, <span class="ident">Serialize</span>, <span class="ident">Serializer</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::{<span class="self">self</span>, <span class="ident">Debug</span>, <span class="ident">Display</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">i64</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
-
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
-<span class="kw">use</span> <span class="ident">num_traits</span>::<span class="ident">NumCast</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">dtoa</span>;
@@ -797,6 +786,8 @@
 <span class="kw">use</span> <span class="ident">itoa</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::{<span class="ident">IntoDeserializer</span>, <span class="ident">MapAccess</span>};
+
+<span class="kw">use</span> <span class="ident">de</span>::<span class="ident">ParserNumber</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">error</span>::<span class="ident">ErrorCode</span>;
@@ -962,7 +953,11 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_i64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">i64</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">n</span> {
-            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">NumCast</span>::<span class="ident">from</span>(<span class="ident">n</span>),
+            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="kw">if</span> <span class="ident">n</span> <span class="op">&lt;=</span> <span class="ident">i64</span>::<span class="ident">max_value</span>() <span class="kw">as</span> <span class="ident">u64</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">i64</span>)
+            } <span class="kw">else</span> {
+                <span class="prelude-val">None</span>
+            },
             <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">n</span>),
             <span class="ident">N</span>::<span class="ident">Float</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
@@ -990,8 +985,7 @@
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">n</span> {
             <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">n</span>),
-            <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">NumCast</span>::<span class="ident">from</span>(<span class="ident">n</span>),
-            <span class="ident">N</span>::<span class="ident">Float</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+            <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">N</span>::<span class="ident">Float</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
         <span class="self">self</span>.<span class="ident">n</span>.<span class="ident">parse</span>().<span class="ident">ok</span>()
@@ -1015,8 +1009,8 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_f64</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f64</span><span class="op">&gt;</span> {
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">n</span> {
-            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">NumCast</span>::<span class="ident">from</span>(<span class="ident">n</span>),
-            <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="ident">NumCast</span>::<span class="ident">from</span>(<span class="ident">n</span>),
+            <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">f64</span>),
+            <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">n</span> <span class="kw">as</span> <span class="ident">f64</span>),
             <span class="ident">N</span>::<span class="ident">Float</span>(<span class="ident">n</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">n</span>),
         }
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
@@ -1419,20 +1413,10 @@
     }
 }
 
-<span class="kw">impl</span> <span class="ident">FromStr</span> <span class="kw">for</span> <span class="ident">Number</span> {
-    <span class="kw">type</span> <span class="prelude-val">Err</span> <span class="op">=</span> <span class="ident">Error</span>;
-
-    <span class="kw">fn</span> <span class="ident">from_str</span>(<span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="self">Self</span>::<span class="prelude-val">Err</span><span class="op">&gt;</span> {
-        <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Deserializer</span>::<span class="ident">from_str</span>(<span class="ident">s</span>)
-            .<span class="ident">parse_any_signed_number</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">n</span><span class="op">|</span> <span class="ident">n</span>.<span class="ident">into</span>())
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Number</span> {
-    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">ParserNumber</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">Number</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">value</span>: <span class="ident">ParserNumber</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">value</span> {
-            <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span>::<span class="ident">F64</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> {
+            <span class="ident">ParserNumber</span>::<span class="ident">F64</span>(<span class="ident">f</span>) <span class="op">=&gt;</span> {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
                 {
                     <span class="ident">N</span>::<span class="ident">Float</span>(<span class="ident">f</span>)
@@ -1442,7 +1426,7 @@
                     <span class="ident">f</span>.<span class="ident">to_string</span>()
                 }
             }
-            <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span>::<span class="ident">U64</span>(<span class="ident">u</span>) <span class="op">=&gt;</span> {
+            <span class="ident">ParserNumber</span>::<span class="ident">U64</span>(<span class="ident">u</span>) <span class="op">=&gt;</span> {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
                 {
                     <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">u</span>)
@@ -1452,7 +1436,7 @@
                     <span class="ident">u</span>.<span class="ident">to_string</span>()
                 }
             }
-            <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span>::<span class="ident">I64</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> {
+            <span class="ident">ParserNumber</span>::<span class="ident">I64</span>(<span class="ident">i</span>) <span class="op">=&gt;</span> {
                 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
                 {
                     <span class="ident">N</span>::<span class="ident">NegInt</span>(<span class="ident">i</span>)
@@ -1463,7 +1447,7 @@
                 }
             }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
-            <span class="kw">super</span>::<span class="ident">de</span>::<span class="ident">Number</span>::<span class="ident">String</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span>,
+            <span class="ident">ParserNumber</span>::<span class="ident">String</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">s</span>,
         };
         <span class="ident">Number</span> { <span class="ident">n</span>: <span class="ident">n</span> }
     }
@@ -1532,6 +1516,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>))]</span>
     <span class="comment">// Not public API. Should be pub(crate).</span>
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="attribute">#[<span class="ident">cold</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unexpected</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Unexpected</span> {
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">n</span> {
             <span class="ident">N</span>::<span class="ident">PosInt</span>(<span class="ident">u</span>) <span class="op">=&gt;</span> <span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">u</span>),
@@ -1543,6 +1528,7 @@
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;arbitrary_precision&quot;</span>)]</span>
     <span class="comment">// Not public API. Should be pub(crate).</span>
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="attribute">#[<span class="ident">cold</span>]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">unexpected</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Unexpected</span> {
         <span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;number&quot;</span>)
     }
