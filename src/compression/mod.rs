@@ -275,7 +275,9 @@ mod bench {
 
     use super::*;
     use test::Bencher;
-    use tests;
+    use rand::XorShiftRng;
+    use rand::SeedableRng;
+    use rand::Rng;
 
     fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
         let seed: &[u32; 4] = &[1, 2, 3, seed_val];
