@@ -28,7 +28,7 @@ pub struct BytesFastFieldWriter {
 
 impl BytesFastFieldWriter {
     /// Creates a new `BytesFastFieldWriter`
-    pub(crate) fn new(field: Field) -> Self {
+    pub fn new(field: Field) -> Self {
         BytesFastFieldWriter {
             field,
             vals: Vec::new(),
