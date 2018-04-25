@@ -328,6 +328,9 @@
 <span id="328">328</span>
 <span id="329">329</span>
 <span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">byteorder</span>::<span class="ident">ByteOrder</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitPacker</span>;
@@ -337,8 +340,8 @@
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">ReadOnlySource</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">TermInfo</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="ident">Read</span>, <span class="ident">Write</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Read</span>, <span class="ident">Write</span>};
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
 
 <span class="kw">const</span> <span class="ident">BLOCK_LEN</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">256</span>;
@@ -423,7 +426,10 @@
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">num_bits</span> <span class="op">&lt;=</span> <span class="number">56</span>);
     <span class="kw">let</span> <span class="ident">addr_byte</span> <span class="op">=</span> <span class="ident">addr_bits</span> <span class="op">/</span> <span class="number">8</span>;
     <span class="kw">let</span> <span class="ident">bit_shift</span> <span class="op">=</span> (<span class="ident">addr_bits</span> <span class="op">%</span> <span class="number">8</span>) <span class="kw">as</span> <span class="ident">u64</span>;
-    <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span>(<span class="ident">data</span>[<span class="ident">addr_byte</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) };
+    <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> {
+        <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">as_ptr</span>().<span class="ident">offset</span>(<span class="ident">addr_byte</span> <span class="kw">as</span> <span class="ident">isize</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>;
+        <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">addr</span>)
+    };
     <span class="kw">let</span> <span class="ident">val_shifted_unmasked</span> <span class="op">=</span> <span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> <span class="ident">bit_shift</span>;
     <span class="kw">let</span> <span class="ident">mask</span> <span class="op">=</span> (<span class="number">1u64</span> <span class="op">&lt;&lt;</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">num_bits</span>)) <span class="op">-</span> <span class="number">1</span>;
     <span class="ident">val_shifted_unmasked</span> <span class="op">&amp;</span> <span class="ident">mask</span>
