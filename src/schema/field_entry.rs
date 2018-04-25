@@ -190,10 +190,10 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 }
                                 "text" | "u64" | "i64" => {
                                     // These types require additional options to create a field_type
-                                    ty = Some(type_string);
                                 }
                                 _ => panic!("unhandled type")
                             }
+                            ty = Some(type_string);
                         }
                         Field::Options => match ty {
                             None => {
