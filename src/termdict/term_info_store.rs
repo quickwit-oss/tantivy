@@ -6,8 +6,8 @@ use common::{BinarySerializable, FixedSize};
 use directory::ReadOnlySource;
 use postings::TermInfo;
 use std::cmp;
-use std::io;
-use std::io::{Read, Write};
+use std::ptr;
+use std::io::{self, Read, Write};
 use termdict::TermOrdinal;
 
 const BLOCK_LEN: usize = 256;
@@ -92,7 +92,10 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
-    let val_unshifted_unmasked: u64 = unsafe { *(data[addr_byte..].as_ptr() as *const u64) };
+    let val_unshifted_unmasked: u64 = unsafe {
+        let addr = data.as_ptr().offset(addr_byte as isize) as *const u64;
+        ptr::read_unaligned(addr)
+    };
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
     let mask = (1u64 << u64::from(num_bits)) - 1;
     val_shifted_unmasked & mask
