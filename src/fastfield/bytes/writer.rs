@@ -55,7 +55,7 @@ impl BytesFastFieldWriter {
                 if let &Value::Bytes(ref bytes) = field_value.value() {
                     self.vals.extend_from_slice(bytes);
                 } else {
-                    panic!("MultiValued Bytes contained non-Bytes Value!: {:?}", field_value);
+                    panic!("Bytes field contained non-Bytes Value!. Field {:?} = {:?}", self.field, field_value);
                 }
             }
         }

@@ -180,17 +180,19 @@ impl<'de> Deserialize<'de> for FieldEntry {
                             if ty.is_some() {
                                 return Err(de::Error::duplicate_field("type"));
                             }
-                            ty = Some(map.next_value()?);
-                            match ty {
-                                Some("hierarchical_facet") => {
+                            let type_string = map.next_value()?;
+                            match type_string {
+                                "hierarchical_facet" => {
                                     field_type = Some(FieldType::HierarchicalFacet);
                                 }
-                                Some("bytes") => {
+                                "bytes" => {
                                     field_type = Some(FieldType::Bytes);
                                 }
-                                _ => {
-                                    // Not special
+                                "text" | "u64" | "i64" => {
+                                    // These types require additional options to create a field_type
+                                    ty = Some(type_string);
                                 }
+                                _ => panic!("unhandled type")
                             }
                         }
                         Field::Options => match ty {

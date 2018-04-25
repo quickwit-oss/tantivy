@@ -159,6 +159,7 @@ impl FieldType {
 mod tests {
     use super::FieldType;
     use schema::Value;
+    use schema::field_type::ValueParsingError;
 
     #[test]
     fn test_bytes_value_from_json() {
@@ -166,5 +167,19 @@ mod tests {
             .value_from_json(&json!("dGhpcyBpcyBhIHRlc3Q="))
             .unwrap();
         assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
+
+        let result = FieldType::Bytes
+            .value_from_json(&json!(521));
+        match result {
+            Err(ValueParsingError::TypeError(_)) => {}
+            _ => panic!("Expected parse failure for wrong type")
+        }
+
+        let result = FieldType::Bytes
+            .value_from_json(&json!("-"));
+        match result {
+            Err(ValueParsingError::InvalidBase64(_)) => {}
+            _ => panic!("Expected parse failure for invalid base64")
+        }
     }
 }
