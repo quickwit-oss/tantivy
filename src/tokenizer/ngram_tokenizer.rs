@@ -3,11 +3,27 @@ use super::{Token, TokenStream, Tokenizer};
 ///Tokenize the text by splitting words into ngrams of the given size
 #[derive(Clone)]
 pub struct NgramTokenizer {
-  pub min_gram: usize,
-  pub max_gram: usize,
-  pub edges_only: bool,
+  min_gram: usize,
+  max_gram: usize,
+  edges_only: bool,
 }
 
+impl NgramTokenizer {
+  /// Configures a new Ngram tokenizer
+  pub fn new(min_gram: usize, max_gram: usize, edges_only: bool) -> NgramTokenizer {
+    assert!(min_gram > 0, "min_gram must be greater than 0");
+    assert!(
+      min_gram <= max_gram,
+      "min_gram must not be greater than max_gram"
+    );
+
+    NgramTokenizer {
+      min_gram,
+      max_gram,
+      edges_only,
+    }
+  }
+}
 pub struct NgramTokenStream<'a> {
   text: &'a str,
   location: usize,
@@ -23,7 +39,6 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
   type TokenStreamImpl = NgramTokenStream<'a>;
 
   fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-    // best way to configure min/max gram + edges only
     NgramTokenStream {
       text,
       location: 0,
@@ -38,6 +53,8 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
 }
 
 impl<'a> NgramTokenStream<'a> {
+  // generates a never ending iteration of ngram sizes
+  // TODO: should this be an iterator?
   // Some(1), Some(2), None, Some(1), Some(2), None
   fn cycle(&mut self) -> Option<usize> {
     if self.gram_size <= self.max_gram {
@@ -58,10 +75,12 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
     self.token.text.clear();
 
     loop {
-      if self.location < self.text_length - 1 && (self.location + self.min_gram) <= self.text_length
+      // can we proceed?
+      if self.location < self.text_length - 1
+        && (self.location + self.gram_size) <= self.text_length
       {
-        // set the position of this token as the position of the last token + 1
-        self.token.position = self.token.position.wrapping_add(1);
+        // this token's position is our current location
+        self.token.position = self.location;
 
         // cycle through 1,2 (min...max)
         match self.cycle() {
@@ -79,6 +98,9 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
             self.token.text.push_str(&self.text[offset_from..offset_to]);
           }
           None => {
+            if self.edges_only {
+              break;
+            }
             //println!("next location");
             // move us down the chain of letters
             self.location = self.location + 1;
@@ -91,6 +113,8 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
         return false;
       }
     }
+
+    false
   }
 
   fn token(&self) -> &Token {

@@ -65,14 +65,9 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
   // here we are registering our custome tokenizer
   // this will store tokens of 3 characters each
-  index.tokenizers().register(
-    "ngram3",
-    NgramTokenizer {
-      min_gram: 3,
-      max_gram: 3,
-      edges_only: false,
-    },
-  );
+  index
+    .tokenizers()
+    .register("ngram3", NgramTokenizer::new(3, 3, false));
 
   // To insert document we need an index writer.
   // There must be only one writer at a time.

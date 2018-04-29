@@ -226,20 +226,15 @@ mod test {
         use tokenizer::tokenizer::Tokenizer;
 
         let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register("ngram12", NgramTokenizer::new(1, 2, false));
         tokenizer_manager.register(
-            "ngram12",
-            NgramTokenizer {
-                min_gram: 1,
-                max_gram: 2,
-                edges_only: false,
-            },
+            "ngram3",
+            NgramTokenizer::new(3, 3, false).filter(LowerCaser),
         );
-        let combined = NgramTokenizer {
-            min_gram: 3,
-            max_gram: 3,
-            edges_only: false,
-        };
-        tokenizer_manager.register("ngram3", combined.filter(LowerCaser));
+        tokenizer_manager.register(
+            "edgegram5",
+            NgramTokenizer::new(2, 5, true).filter(LowerCaser),
+        );
 
         let en_tokenizer = tokenizer_manager.get("ngram12").unwrap();
         let mut tokens: Vec<String> = vec![];
@@ -273,6 +268,23 @@ mod test {
         assert_eq!(&tokens[0], "hel");
         assert_eq!(&tokens[1], "ell");
         assert_eq!(&tokens[2], "llo");
+
+        let en_tokenizer = tokenizer_manager.get("edgegram5").unwrap();
+        let mut tokens: Vec<String> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
+            en_tokenizer
+                .token_stream("Frankenstein")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 4);
+        assert_eq!(&tokens[0], "fr");
+        assert_eq!(&tokens[1], "fra");
+        assert_eq!(&tokens[2], "fran");
+        assert_eq!(&tokens[3], "frank");
     }
 
     #[test]
