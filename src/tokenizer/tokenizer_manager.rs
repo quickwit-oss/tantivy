@@ -4,6 +4,7 @@ use tokenizer::tokenizer::box_tokenizer;
 use tokenizer::BoxedTokenizer;
 use tokenizer::JapaneseTokenizer;
 use tokenizer::LowerCaser;
+use tokenizer::NgramTokenizer;
 use tokenizer::RawTokenizer;
 use tokenizer::RemoveLongFilter;
 use tokenizer::SimpleTokenizer;
@@ -75,6 +76,15 @@ impl Default for TokenizerManager {
                 .filter(Stemmer::new()),
         );
         manager.register("ja", JapaneseTokenizer.filter(RemoveLongFilter::limit(40)));
+        manager.register(
+            "ngram",
+            NgramTokenizer {
+                min_gram: 1,
+                max_gram: 2,
+                edges_only: false,
+            },
+        );
+
         manager
     }
 }

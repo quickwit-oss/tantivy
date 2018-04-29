@@ -132,6 +132,7 @@ mod alphanum_only;
 mod facet_tokenizer;
 mod japanese_tokenizer;
 mod lower_caser;
+mod ngram_tokenizer;
 mod raw_tokenizer;
 mod remove_long;
 mod simple_tokenizer;
@@ -144,6 +145,7 @@ pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::lower_caser::LowerCaser;
+pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
@@ -216,6 +218,30 @@ mod test {
         assert_eq!(&tokens[2], "ない");
         assert_eq!(&tokens[3], "と");
         assert_eq!(&tokens[4], "やばい");
+    }
+
+    #[test]
+    fn test_ngram_tokenizer() {
+        let tokenizer_manager = TokenizerManager::default();
+        // assume a 1,2 default setup
+        let en_tokenizer = tokenizer_manager.get("ngram").unwrap();
+        let mut tokens: Vec<String> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
+            en_tokenizer.token_stream("hello").process(&mut add_token);
+        }
+        println!("{:?}", tokens);
+        assert_eq!(tokens.len(), 8);
+        assert_eq!(&tokens[0], "h");
+        assert_eq!(&tokens[1], "he");
+        assert_eq!(&tokens[2], "e");
+        assert_eq!(&tokens[3], "el");
+        assert_eq!(&tokens[4], "l");
+        assert_eq!(&tokens[5], "ll");
+        assert_eq!(&tokens[6], "l");
+        assert_eq!(&tokens[7], "lo");
     }
 
     #[test]
