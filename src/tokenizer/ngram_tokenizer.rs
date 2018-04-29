@@ -76,9 +76,7 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
 
     loop {
       // can we proceed?
-      if self.location < self.text_length - 1
-        && (self.location + self.gram_size) <= self.text_length
-      {
+      if (self.location + self.gram_size) <= self.text_length {
         // this token's position is our current location
         self.token.position = self.location;
 
@@ -88,20 +86,16 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
             let offset_from = self.location;
             let offset_to = offset_from + size;
 
-            // println!(
-            //   "location: {} - size: {} - offset_to:{}",
-            //   self.location, size, offset_to
-            // );
-
             self.token.offset_from = offset_from;
             self.token.offset_to = offset_to;
+
             self.token.text.push_str(&self.text[offset_from..offset_to]);
           }
           None => {
             if self.edges_only {
               break;
             }
-            //println!("next location");
+
             // move us down the chain of letters
             self.location = self.location + 1;
             continue;
@@ -110,7 +104,7 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
 
         return true;
       } else {
-        return false;
+        break;
       }
     }
 
