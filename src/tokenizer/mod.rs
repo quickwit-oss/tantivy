@@ -222,9 +222,26 @@ mod test {
 
     #[test]
     fn test_ngram_tokenizer() {
+        use super::{LowerCaser, NgramTokenizer};
+        use tokenizer::tokenizer::Tokenizer;
+
         let tokenizer_manager = TokenizerManager::default();
-        // assume a 1,2 default setup
-        let en_tokenizer = tokenizer_manager.get("ngram").unwrap();
+        tokenizer_manager.register(
+            "ngram12",
+            NgramTokenizer {
+                min_gram: 1,
+                max_gram: 2,
+                edges_only: false,
+            },
+        );
+        let combined = NgramTokenizer {
+            min_gram: 3,
+            max_gram: 3,
+            edges_only: false,
+        };
+        tokenizer_manager.register("ngram3", combined.filter(LowerCaser));
+
+        let en_tokenizer = tokenizer_manager.get("ngram12").unwrap();
         let mut tokens: Vec<String> = vec![];
         {
             let mut add_token = |token: &Token| {
@@ -232,7 +249,7 @@ mod test {
             };
             en_tokenizer.token_stream("hello").process(&mut add_token);
         }
-        println!("{:?}", tokens);
+
         assert_eq!(tokens.len(), 8);
         assert_eq!(&tokens[0], "h");
         assert_eq!(&tokens[1], "he");
@@ -242,6 +259,20 @@ mod test {
         assert_eq!(&tokens[5], "ll");
         assert_eq!(&tokens[6], "l");
         assert_eq!(&tokens[7], "lo");
+
+        let en_tokenizer = tokenizer_manager.get("ngram3").unwrap();
+        let mut tokens: Vec<String> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.text.clone());
+            };
+            en_tokenizer.token_stream("Hello").process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 3);
+        assert_eq!(&tokens[0], "hel");
+        assert_eq!(&tokens[1], "ell");
+        assert_eq!(&tokens[2], "llo");
     }
 
     #[test]

@@ -3,10 +3,8 @@ use super::{Token, TokenStream, Tokenizer};
 ///Tokenize the text by splitting words into ngrams of the given size
 #[derive(Clone)]
 pub struct NgramTokenizer {
-  // default 1
-  pub min_gram: u32,
-  // default 2
-  pub max_gram: u32,
+  pub min_gram: usize,
+  pub max_gram: usize,
   pub edges_only: bool,
 }
 
@@ -15,10 +13,10 @@ pub struct NgramTokenStream<'a> {
   location: usize,
   text_length: usize,
   token: Token,
-  // i don't really understand usize vs u32
   min_gram: usize,
   max_gram: usize,
   gram_size: usize,
+  edges_only: bool,
 }
 
 impl<'a> Tokenizer<'a> for NgramTokenizer {
@@ -31,9 +29,10 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
       location: 0,
       text_length: text.len(),
       token: Token::default(),
-      min_gram: 1,
-      max_gram: 2,
-      gram_size: 1,
+      min_gram: self.min_gram,
+      max_gram: self.max_gram,
+      edges_only: self.edges_only,
+      gram_size: self.min_gram,
     }
   }
 }
@@ -41,8 +40,8 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
 impl<'a> NgramTokenStream<'a> {
   // Some(1), Some(2), None, Some(1), Some(2), None
   fn cycle(&mut self) -> Option<usize> {
-    // add logic to cycle through min..max
     if self.gram_size <= self.max_gram {
+      // this seems awkward
       let r = Some(self.gram_size);
       self.gram_size += 1;
       r
@@ -58,9 +57,9 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
     // clear out working token text
     self.token.text.clear();
 
-    // why is there a loop here, or simple_tokenizer?
     loop {
-      if self.location < self.text_length - 1 {
+      if self.location < self.text_length - 1 && (self.location + self.min_gram) <= self.text_length
+      {
         // set the position of this token as the position of the last token + 1
         self.token.position = self.token.position.wrapping_add(1);
 
@@ -70,17 +69,17 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
             let offset_from = self.location;
             let offset_to = offset_from + size;
 
-            println!(
-              "location: {} - size: {} - offset_to:{}",
-              self.location, size, offset_to
-            );
+            // println!(
+            //   "location: {} - size: {} - offset_to:{}",
+            //   self.location, size, offset_to
+            // );
 
             self.token.offset_from = offset_from;
             self.token.offset_to = offset_to;
             self.token.text.push_str(&self.text[offset_from..offset_to]);
           }
           None => {
-            println!("next location");
+            //println!("next location");
             // move us down the chain of letters
             self.location = self.location + 1;
             continue;
