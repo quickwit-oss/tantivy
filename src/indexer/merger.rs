@@ -17,6 +17,10 @@ use store::StoreWriter;
 use std::cmp::{max, min};
 use termdict::TermDictionary;
 use termdict::TermStreamer;
+use schema::FieldType;
+use termdict::TermOrdinal;
+use schema::FieldEntry;
+use schema::Cardinality;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -58,6 +62,29 @@ fn extract_fast_field_reader(
     field: Field,
 ) -> Option<FastFieldReader<u64>> {
     segment_reader.fast_field_reader(field).ok()
+}
+
+
+struct TermOrdinalMapping {
+    per_segment_new_term_ordinals: Vec<Vec<TermOrdinal>>
+}
+
+impl TermOrdinalMapping {
+    fn new(max_term_ords: Vec<TermOrdinal>) -> TermOrdinalMapping {
+        TermOrdinalMapping {
+            per_segment_new_term_ordinals: max_term_ords
+                .into_iter()
+                .map(|max_term_ord| vec![TermOrdinal::max_value(); max_term_ord as usize])
+                .collect()
+        }
+    }
+
+    fn register_from_to(&mut self,
+                        segment_ord: usize,
+                        from_ord: TermOrdinal,
+                        to_ord: TermOrdinal) {
+        self.per_segment_new_term_ordinals[segment_ord][from_ord as usize] = to_ord;
+    }
 }
 
 struct DeltaComputer {
@@ -103,204 +130,237 @@ impl IndexMerger {
     }
 
     fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
-        let fieldnorm_fastfields: Vec<Field> = self.schema
-            .fields()
-            .iter()
-            .enumerate()
-            .filter(|&(_, field_entry)| field_entry.is_indexed())
-            .map(|(field_id, _)| Field(field_id as u32))
-            .collect();
-        self.generic_write_fast_field(
-            fieldnorm_fastfields,
-            &extract_fieldnorm_reader,
-            fast_field_serializer,
-        )
-    }
-
-    fn write_fast_fields(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
-        let fast_fields: Vec<Field> = self.schema
-            .fields()
-            .iter()
-            .enumerate()
-            .filter(|&(_, field_entry)| field_entry.is_int_fast())
-            .map(|(field_id, _)| Field(field_id as u32))
-            .collect();
-        self.generic_write_fast_field(
-            fast_fields,
-            &extract_fast_field_reader,
-            fast_field_serializer,
-        )
-    }
-
-    // used both to merge field norms and regular u64 fast fields.
-    fn generic_write_fast_field(
-        &self,
-        fields: Vec<Field>,
-        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<FastFieldReader<u64>>,
-        fast_field_serializer: &mut FastFieldSerializer,
-    ) -> Result<()> {
-        for field in fields {
-            let mut u64_readers = vec![];
-            let mut min_val = u64::max_value();
-            let mut max_val = u64::min_value();
-
-            for reader in &self.readers {
-                match field_reader_extractor(reader, field) {
-                    Some(u64_reader) => {
-                        if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
-                            &u64_reader,
-                            reader.max_doc(),
-                            reader.delete_bitset(),
-                        ) {
-                            // the segment has some non-deleted documents
-                            min_val = min(min_val, seg_min_val);
-                            max_val = max(max_val, seg_max_val);
-                            u64_readers.push((
-                                reader.max_doc(),
-                                u64_reader,
-                                reader.delete_bitset(),
-                            ));
-                        }
-                    }
-                    None => {
-                        let error_msg =
-                            format!("Failed to find a u64_reader for field {:?}", field);
-                        error!("{}", error_msg);
-                        bail!(ErrorKind::SchemaError(error_msg));
-                    }
+        for (field_id, field_entry) in self.schema.fields().iter().enumerate() {
+            if let FieldType::Str(ref text_options) = *field_entry.field_type() {
+                if text_options.get_indexing_options().is_some() {
+                    let field = Field(field_id as u32);
+                    self.write_single_fast_field(
+                        field,
+                        &extract_fieldnorm_reader,
+                        fast_field_serializer,
+                    )?;
                 }
             }
-
-            if u64_readers.is_empty() {
-                // we have actually zero documents.
-                min_val = 0;
-                max_val = 0;
-            }
-
-            assert!(min_val <= max_val);
-
-            let mut fast_single_field_serializer =
-                fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
-            for (max_doc, u64_reader, delete_bitset) in u64_readers {
-                for doc_id in 0..max_doc {
-                    if !delete_bitset.is_deleted(doc_id) {
-                        let val = u64_reader.get(doc_id);
-                        fast_single_field_serializer.add_val(val)?;
-                    }
-                }
-            }
-
-            fast_single_field_serializer.close_field()?;
         }
         Ok(())
     }
 
-    fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<()> {
-        let mut delta_computer = DeltaComputer::new();
+    fn write_fast_fields(&self,
+                         fast_field_serializer: &mut FastFieldSerializer,
+                         term_ord_mappings: Vec<Option<TermOrdinalMapping>>) -> Result<()> {
 
-        let mut indexed_fields = vec![];
-        for (field_ord, field_entry) in self.schema.fields().iter().enumerate() {
-            if field_entry.is_indexed() {
-                indexed_fields.push(Field(field_ord as u32));
+        for (field_id, field_entry) in self.schema.fields().iter().enumerate() {
+            let field = Field(field_id as u32);
+            let field_type = field_entry.field_type();
+            match *field_type {
+                FieldType::HierarchicalFacet => {
+                    unimplemented!();
+                }
+                FieldType::U64(ref options) | FieldType::I64(ref options) => {
+                    match options.get_fastfield_cardinality() {
+                        Some(Cardinality::SingleValue) => {
+                            self.write_single_fast_field(
+                                field,
+                                &extract_fast_field_reader,
+                                fast_field_serializer
+                            )?;
+                        }
+                        Some(Cardinality::MultiValues) => {
+                            unimplemented!();
+                        }
+                        None => {}
+                    }
+                }
+                FieldType::Str(_) => {
+                    // We don't handle str fast field for the moment
+                    // They can be implemented using what is done
+                    // for facets in the future.
+                }
+            }
+
+        }
+        Ok(())
+    }
+
+    // used both to merge field norms, u64 fast fields, and i64 fast fields.
+    fn write_single_fast_field(
+        &self,
+        field: Field,
+        field_reader_extractor: &Fn(&SegmentReader, Field) -> Option<FastFieldReader<u64>>,
+        fast_field_serializer: &mut FastFieldSerializer,
+    ) -> Result<()> {
+
+        let mut u64_readers = vec![];
+        let mut min_val = u64::max_value();
+        let mut max_val = u64::min_value();
+
+        for reader in &self.readers {
+            match field_reader_extractor(reader, field) {
+                Some(u64_reader) => {
+                    if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
+                        &u64_reader,
+                        reader.max_doc(),
+                        reader.delete_bitset(),
+                    ) {
+                        // the segment has some non-deleted documents
+                        min_val = min(min_val, seg_min_val);
+                        max_val = max(max_val, seg_max_val);
+                        u64_readers.push((
+                            reader.max_doc(),
+                            u64_reader,
+                            reader.delete_bitset(),
+                        ));
+                    }
+                }
+                None => {
+                    let error_msg =
+                        format!("Failed to find a u64_reader for field {:?}", field);
+                    error!("{}", error_msg);
+                    bail!(ErrorKind::SchemaError(error_msg));
+                }
             }
         }
 
-        for indexed_field in indexed_fields {
-            let field_readers = self.readers
-                .iter()
-                .map(|reader| reader.inverted_index(indexed_field))
-                .collect::<Vec<_>>();
+        if u64_readers.is_empty() {
+            // we have actually zero documents.
+            min_val = 0;
+            max_val = 0;
+        }
 
-            let field_term_streams = field_readers
+        assert!(min_val <= max_val);
+
+        let mut fast_single_field_serializer =
+            fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
+        for (max_doc, u64_reader, delete_bitset) in u64_readers {
+            for doc_id in 0..max_doc {
+                if !delete_bitset.is_deleted(doc_id) {
+                    let val = u64_reader.get(doc_id);
+                    fast_single_field_serializer.add_val(val)?;
+                }
+            }
+        }
+
+        fast_single_field_serializer.close_field()?;
+        Ok(())
+    }
+
+    fn write_postings_for_field(&self,
+                                indexed_field: Field,
+                                field_type: &FieldType,
+                                serializer: &mut InvertedIndexSerializer) -> Result<Option<TermOrdinalMapping>> {
+        let mut delta_computer= DeltaComputer::new();
+        let field_readers = self.readers
+            .iter()
+            .map(|reader| reader.inverted_index(indexed_field))
+            .collect::<Vec<_>>();
+
+        let mut field_term_streams = Vec::new();
+        let mut max_term_ords: Vec<TermOrdinal> = Vec::new();
+
+        for field_reader in &field_readers {
+            let terms = field_reader.terms();
+            field_term_streams.push(terms.stream());
+            max_term_ords.push(terms.num_terms() as u64);
+        }
+
+        let mut term_ord_mapping_opt =
+            if *field_type == FieldType::HierarchicalFacet {
+                Some(TermOrdinalMapping::new(max_term_ords))
+            } else {
+                None
+            };
+
+
+        let mut merged_terms = TermMerger::new(field_term_streams);
+        let mut max_doc = 0;
+
+        // map from segment doc ids to the resulting merged segment doc id.
+        let mut merged_doc_id_map: Vec<Vec<Option<DocId>>> =
+            Vec::with_capacity(self.readers.len());
+
+        for reader in &self.readers {
+            let mut segment_local_map = Vec::with_capacity(reader.max_doc() as usize);
+            for doc_id in 0..reader.max_doc() {
+                if reader.is_deleted(doc_id) {
+                    segment_local_map.push(None);
+                } else {
+                    segment_local_map.push(Some(max_doc));
+                    max_doc += 1u32;
+                }
+            }
+            merged_doc_id_map.push(segment_local_map);
+        }
+
+        // Create the total list of doc ids
+        // by stacking the doc ids from the different segment.
+        //
+        // In the new segments, the doc id from the different
+        // segment are stacked so that :
+        // - Segment 0's doc ids become doc id [0, seg.max_doc]
+        // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
+        // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
+        //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
+        // ...
+        let mut field_serializer = serializer.new_field(indexed_field)?;
+
+        let field_entry = self.schema.get_field_entry(indexed_field);
+
+        // ... set segment postings option the new field.
+        let segment_postings_option =
+            field_entry.field_type().get_index_record_option().expect(
+                "Encountered a field that is not supposed to be
+                         indexed. Have you modified the schema?",
+            );
+
+        while merged_terms.advance() {
+            let term_bytes: &[u8] = merged_terms.key();
+
+            // Let's compute the list of non-empty posting lists
+            let segment_postings: Vec<_> = merged_terms
+                .current_kvs()
                 .iter()
-                .map(|field_reader| field_reader.terms().stream())
+                .flat_map(|heap_item| {
+                    let segment_ord = heap_item.segment_ord;
+                    let term_info = heap_item.streamer.value();
+                    let segment_reader = &self.readers[heap_item.segment_ord];
+                    let inverted_index = segment_reader.inverted_index(indexed_field);
+                    let mut segment_postings = inverted_index
+                        .read_postings_from_terminfo(term_info, segment_postings_option);
+                    if segment_postings.advance() {
+                        Some((segment_ord, segment_postings))
+                    } else {
+                        None
+                    }
+                })
                 .collect();
 
-            let mut merged_terms = TermMerger::new(field_term_streams);
-            let mut max_doc = 0;
+            // At this point, `segment_postings` contains the posting list
+            // of all of the segments containing the given term.
+            //
+            // These segments are non-empty and advance has already been called.
 
-            // map from segment doc ids to the resulting merged segment doc id.
-            let mut merged_doc_id_map: Vec<Vec<Option<DocId>>> =
-                Vec::with_capacity(self.readers.len());
+            if !segment_postings.is_empty() {
+                // If not, the `term` will be entirely removed.
 
-            for reader in &self.readers {
-                let mut segment_local_map = Vec::with_capacity(reader.max_doc() as usize);
-                for doc_id in 0..reader.max_doc() {
-                    if reader.is_deleted(doc_id) {
-                        segment_local_map.push(None);
-                    } else {
-                        segment_local_map.push(Some(max_doc));
-                        max_doc += 1u32;
+                // We know that there is at least one document containing
+                // the term, so we add it.
+                let to_term_ord = field_serializer.new_term(term_bytes)?;
+
+                if let Some(ref mut term_ord_mapping) = term_ord_mapping_opt {
+                    for (segment_ord, from_term_ord) in merged_terms.matching_segments() {
+                        term_ord_mapping.register_from_to(segment_ord,from_term_ord, to_term_ord);
                     }
                 }
-                merged_doc_id_map.push(segment_local_map);
-            }
 
-            // Create the total list of doc ids
-            // by stacking the doc ids from the different segment.
-            //
-            // In the new segments, the doc id from the different
-            // segment are stacked so that :
-            // - Segment 0's doc ids become doc id [0, seg.max_doc]
-            // - Segment 1's doc ids become  [seg0.max_doc, seg0.max_doc + seg.max_doc]
-            // - Segment 2's doc ids become  [seg0.max_doc + seg1.max_doc,
-            //                                seg0.max_doc + seg1.max_doc + seg2.max_doc]
-            // ...
-
-            let mut field_serializer = serializer.new_field(indexed_field)?;
-
-            let field_entry = self.schema.get_field_entry(indexed_field);
-
-            // ... set segment postings option the new field.
-            let segment_postings_option =
-                field_entry.field_type().get_index_record_option().expect(
-                    "Encountered a field that is not supposed to be
-                         indexed. Have you modified the schema?",
-                );
-
-            while merged_terms.advance() {
-                let term_bytes: &[u8] = merged_terms.key();
-
-                // Let's compute the list of non-empty posting lists
-                let segment_postings: Vec<_> = merged_terms
-                    .current_kvs()
-                    .iter()
-                    .flat_map(|heap_item| {
-                        let segment_ord = heap_item.segment_ord;
-                        let term_info = heap_item.streamer.value();
-                        let segment_reader = &self.readers[heap_item.segment_ord];
-                        let inverted_index = segment_reader.inverted_index(indexed_field);
-                        let mut segment_postings = inverted_index
-                            .read_postings_from_terminfo(term_info, segment_postings_option);
-                        if segment_postings.advance() {
-                            Some((segment_ord, segment_postings))
-                        } else {
-                            None
-                        }
-                    })
-                    .collect();
-
-                // At this point, `segment_postings` contains the posting list
-                // of all of the segments containing the given term.
-                //
-                // These segments are non-empty and advance has already been called.
-
-                if !segment_postings.is_empty() {
-                    // If not, the `term` will be entirely removed.
-
-                    // We know that there is at least one document containing
-                    // the term, so we add it.
-                    field_serializer.new_term(term_bytes)?;
-
-                    // We can now serialize this postings, by pushing each document to the
-                    // postings serializer.
-                    for (segment_ord, mut segment_postings) in segment_postings {
-                        let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
-                        loop {
-                            // `.advance()` has been called once before the loop.
-                            // Hence we cannot use a `while segment_postings.advance()` loop.
-                            if let Some(remapped_doc_id) =
-                                old_to_new_doc_id[segment_postings.doc() as usize]
+                // We can now serialize this postings, by pushing each document to the
+                // postings serializer.
+                for (segment_ord, mut segment_postings) in segment_postings {
+                    let old_to_new_doc_id = &merged_doc_id_map[segment_ord];
+                    loop {
+                        // `.advance()` has been called once before the loop.
+                        // Hence we cannot use a `while segment_postings.advance()` loop.
+                        if let Some(remapped_doc_id) =
+                        old_to_new_doc_id[segment_postings.doc() as usize]
                             {
                                 // we make sure to only write the term iff
                                 // there is at least one document.
@@ -313,20 +373,32 @@ impl IndexMerger {
                                     delta_positions,
                                 )?;
                             }
-                            if !segment_postings.advance() {
-                                break;
-                            }
+                        if !segment_postings.advance() {
+                            break;
                         }
                     }
-
-                    // closing the term.
-                    field_serializer.close_term()?;
                 }
-            }
 
-            field_serializer.close()?;
+                // closing the term.
+                field_serializer.close_term()?;
+            }
         }
-        Ok(())
+        field_serializer.close()?;
+        Ok(term_ord_mapping_opt)
+    }
+
+    fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<Vec<Option<TermOrdinalMapping>>> {
+        let mut term_ordinal_mappings = Vec::new();
+        for (field_ord, field_entry) in self.schema.fields().iter().enumerate() {
+            if field_entry.is_indexed() {
+                let indexed_field = Field(field_ord as u32);
+                let term_ordinal_mapping_opt = self.write_postings_for_field(indexed_field, field_entry.field_type(), serializer)?;
+                term_ordinal_mappings.push(term_ordinal_mapping_opt);
+            } else {
+                term_ordinal_mappings.push(None);
+            }
+        }
+        Ok(term_ordinal_mappings)
     }
 
     fn write_storable_fields(&self, store_writer: &mut StoreWriter) -> Result<()> {
@@ -349,9 +421,9 @@ impl IndexMerger {
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> Result<u32> {
-        self.write_postings(serializer.get_postings_serializer())?;
+        let termord_mappings = self.write_postings(serializer.get_postings_serializer())?;
         self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
-        self.write_fast_fields(serializer.get_fast_field_serializer())?;
+        self.write_fast_fields(serializer.get_fast_field_serializer(), termord_mappings)?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
         Ok(self.max_doc)
@@ -805,4 +877,86 @@ mod tests {
             assert_eq!(searcher.num_docs(), 0);
         }
     }
+
+
+    #[test]
+    fn test_merge_facets() {
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let facet_field = schema_builder.add_facet_field("facet");
+        let index = Index::create_in_ram(schema_builder.build());
+        use schema::Facet;
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
+                let mut doc = Document::new();
+                doc.add_facet(facet_field, Facet::from("/top/tip"));
+                index_writer.add_document(doc);
+            }
+            {
+                let mut doc = Document::new();
+                doc.add_facet(facet_field, Facet::from("/top/tap"));
+                index_writer.add_document(doc);
+            }
+            {
+                let mut doc = Document::new();
+                doc.add_facet(facet_field, Facet::from("/tap/tip"));
+                index_writer.add_document(doc);
+            }
+            index_writer.commit().expect("committed");
+            {
+                index_writer.add_document(doc!(
+                facet_field=>Facet::from("/top/tap/toup")
+            ));
+                index_writer.add_document(doc!(
+                facet_field=>Facet::from("/top/tup")
+            ));
+                index_writer.commit().expect("committed");
+            }
+        }
+        index.load_searchers().unwrap();
+        let test_searcher = || {
+            let searcher = index.searcher();
+            use query::AllQuery;
+            use collector::FacetCollector;
+            let mut facet_collector = FacetCollector::for_field(facet_field);
+            facet_collector.add_facet(Facet::from("/top"));
+            use collector::{MultiCollector, CountCollector};
+            let mut count_collector = CountCollector::default();
+            {
+                let mut multi_collectors = MultiCollector::from(vec![&mut count_collector, &mut facet_collector]);
+                searcher.search(&AllQuery, &mut multi_collectors).unwrap();
+            }
+            assert_eq!(count_collector.count(), 5);
+            let facet_counts = facet_collector.harvest();
+            let facets: Vec<(String, u64)> = facet_counts.get("/top")
+                .map(|(facet, count)| (facet.to_string(), count))
+                .collect();
+            assert_eq!(
+                facets,
+                [
+                    ("/top/tap", 2),
+                    ("/top/tip", 1),
+                    ("/top/tup", 1),
+                ].iter()
+                    .map(|&(facet_str, count)| (String::from(facet_str), count))
+                    .collect::<Vec<_>>()
+            );
+        };
+        test_searcher();
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
+        }
+        index.load_searchers().unwrap();
+        test_searcher();
+    }
+
 }
+

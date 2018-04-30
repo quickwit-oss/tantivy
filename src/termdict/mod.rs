@@ -197,6 +197,14 @@ pub trait TermStreamer: Sized {
             None
         }
     }
+
+
+    // Returns an unreachable upperbound for the
+    // maximum term ordinal in this stream.
+    //
+    // All term ordinals are guaranteed to be stricly smaller
+    // than the result of `.max_term_ord()`.
+    fn max_term_ord(&self) -> TermOrdinal;
 }
 
 /// `TermStreamerBuilder` is an helper object used to define

@@ -86,4 +86,8 @@ impl<'a> TermStreamer for TermStreamerImpl<'a> {
     fn value(&self) -> &TermInfo {
         &self.current_value
     }
+
+    fn max_term_ord(&self) -> TermOrdinal {
+        self.fst_map.num_terms() as TermOrdinal
+    }
 }
