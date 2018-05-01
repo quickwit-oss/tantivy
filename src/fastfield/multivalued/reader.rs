@@ -26,13 +26,31 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
         }
     }
 
+    /// Returns `(start, stop)`, such that the values associated
+    /// to the given document are `start..stop`.
+    fn range(&self, doc: DocId) -> (u64, u64) {
+        let start = self.idx_reader.get(doc);
+        let stop = self.idx_reader.get(doc + 1);
+        (start, stop)
+    }
+
+    /// Returns the number of values associated to a given document.
+    pub fn num_vals(&self, doc: DocId) -> usize {
+        let (start, stop) = self.range(doc);
+        (stop - start) as usize
+    }
+
+    /// Returns the overall number of values associated to documents.
+    pub(crate) fn total_num_vals(&self) -> u64 {
+        self.idx_reader.max_value()
+    }
+
     /// Returns the array of values associated to the given `doc`.
     pub fn get_vals(&self, doc: DocId, vals: &mut Vec<Item>) {
-        let start = self.idx_reader.get(doc) as u32;
-        let stop = self.idx_reader.get(doc + 1) as u32;
+        let (start, stop) = self.range(doc);
         let len = (stop - start) as usize;
         vals.resize(len, Item::default());
-        self.vals_reader.get_range(start, &mut vals[..]);
+        self.vals_reader.get_range(start as u32, &mut vals[..]);
     }
 }
 

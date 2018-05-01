@@ -61,7 +61,7 @@ impl<'a> TermMerger<'a> {
         }
     }
 
-    pub fn matching_segments<'b: 'a>(&'b self) -> Box<'b + Iterator<Item=(usize, TermOrdinal)>> {
+    pub(crate) fn matching_segments<'b: 'a>(&'b self) -> Box<'b + Iterator<Item=(usize, TermOrdinal)>> {
         Box::new(self.current_streamers
             .iter()
             .map(|heap_item| {

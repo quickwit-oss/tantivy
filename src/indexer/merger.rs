@@ -19,8 +19,10 @@ use termdict::TermDictionary;
 use termdict::TermStreamer;
 use schema::FieldType;
 use termdict::TermOrdinal;
-use schema::FieldEntry;
 use schema::Cardinality;
+use std::collections::HashMap;
+use fastfield::MultiValueIntFastFieldReader;
+use std::cmp;
 
 pub struct IndexMerger {
     schema: Schema,
@@ -74,7 +76,7 @@ impl TermOrdinalMapping {
         TermOrdinalMapping {
             per_segment_new_term_ordinals: max_term_ords
                 .into_iter()
-                .map(|max_term_ord| vec![TermOrdinal::max_value(); max_term_ord as usize])
+                .map(|max_term_ord| vec![TermOrdinal::default(); max_term_ord as usize])
                 .collect()
         }
     }
@@ -84,6 +86,20 @@ impl TermOrdinalMapping {
                         from_ord: TermOrdinal,
                         to_ord: TermOrdinal) {
         self.per_segment_new_term_ordinals[segment_ord][from_ord as usize] = to_ord;
+    }
+
+    fn get_segment(&self, segment_ord: usize) -> &[TermOrdinal] {
+        &(self.per_segment_new_term_ordinals[segment_ord])[..]
+    }
+
+    fn max_term_ord(&self) -> TermOrdinal {
+        self.per_segment_new_term_ordinals
+            .iter()
+            .flat_map(|term_ordinals| {
+                term_ordinals.iter().cloned().max()
+            })
+            .max()
+            .unwrap_or(TermOrdinal::default())
     }
 }
 
@@ -147,14 +163,20 @@ impl IndexMerger {
 
     fn write_fast_fields(&self,
                          fast_field_serializer: &mut FastFieldSerializer,
-                         term_ord_mappings: Vec<Option<TermOrdinalMapping>>) -> Result<()> {
-
+                         mut term_ord_mappings: HashMap<Field, TermOrdinalMapping>) -> Result<()> {
         for (field_id, field_entry) in self.schema.fields().iter().enumerate() {
             let field = Field(field_id as u32);
             let field_type = field_entry.field_type();
             match *field_type {
                 FieldType::HierarchicalFacet => {
-                    unimplemented!();
+                    let term_ordinal_mapping = term_ord_mappings
+                        .remove(&field)
+                        .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have requires a\
+                        `term_ordinal_mapping`.");
+                    self.write_hierarchical_facet_field(
+                            field,
+                            term_ordinal_mapping,
+                            fast_field_serializer)?;
                 }
                 FieldType::U64(ref options) | FieldType::I64(ref options) => {
                     match options.get_fastfield_cardinality() {
@@ -166,7 +188,7 @@ impl IndexMerger {
                             )?;
                         }
                         Some(Cardinality::MultiValues) => {
-                            unimplemented!();
+                            self.write_multi_fast_field(field, fast_field_serializer)?;
                         }
                         None => {}
                     }
@@ -177,10 +199,10 @@ impl IndexMerger {
                     // for facets in the future.
                 }
             }
-
         }
         Ok(())
     }
+
 
     // used both to merge field norms, u64 fast fields, and i64 fast fields.
     fn write_single_fast_field(
@@ -193,6 +215,33 @@ impl IndexMerger {
         let mut u64_readers = vec![];
         let mut min_val = u64::max_value();
         let mut max_val = u64::min_value();
+
+        for reader in &self.readers {
+            match field_reader_extractor(reader, field) {
+                Some(u64_reader) => {
+                    if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
+                        &u64_reader,
+                        reader.max_doc(),
+                        reader.delete_bitset(),
+                    ) {
+                        // the segment has some non-deleted documents
+                        min_val = min(min_val, seg_min_val);
+                        max_val = max(max_val, seg_max_val);
+                        u64_readers.push((
+                            reader.max_doc(),
+                            u64_reader,
+                             reader.delete_bitset(),
+                        ));
+                    }
+                }
+                None => {
+                    let error_msg =
+                        format!("Failed to find a u64_reader for field {:?}", field);
+                    error!("{}", error_msg);
+                    bail!(ErrorKind::SchemaError(error_msg));
+                }
+            }
+        }
 
         for reader in &self.readers {
             match field_reader_extractor(reader, field) {
@@ -241,6 +290,123 @@ impl IndexMerger {
         }
 
         fast_single_field_serializer.close_field()?;
+        Ok(())
+    }
+
+    fn write_multi_fast_field_idx(&self,
+                                  field: Field,
+                                  fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
+        let mut max_idx = 0u64;
+        for reader in &self.readers {
+            let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
+            let delete_bitset = reader.delete_bitset();
+            if delete_bitset.has_deletes() {
+                for doc in 0u32..reader.max_doc() {
+                    if !delete_bitset.is_deleted(doc) {
+                        max_idx += multi_ff_reader.num_vals(doc) as u64;
+                    }
+                }
+            } else {
+                max_idx += multi_ff_reader.total_num_vals();
+            }
+        }
+        let mut serialize_idx = fast_field_serializer.new_u64_fast_field_with_idx(field, 0, max_idx, 0)?;
+        let mut idx = 0;
+        for reader in &self.readers {
+            let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
+            let delete_bitset = reader.delete_bitset();
+            for doc in 0u32..reader.max_doc() {
+                if !delete_bitset.is_deleted(doc) {
+                    serialize_idx.add_val(idx)?;
+                    idx += multi_ff_reader.num_vals(doc) as u64;
+                }
+            }
+        }
+        serialize_idx.add_val(idx)?;
+        serialize_idx.close_field()?;
+        Ok(())
+    }
+
+    fn write_hierarchical_facet_field(&self,
+                                      field: Field,
+                                      term_ordinal_mappings: TermOrdinalMapping,
+                                      fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
+
+        // Multifastfield consists in 2 fastfields.
+        // The first serves as an index into the second one and is stricly increasing.
+        // The second contains the actual values.
+
+        // First we merge the idx fast field.
+        self.write_multi_fast_field_idx(field, fast_field_serializer)?;
+
+        let max_term_ord = term_ordinal_mappings.max_term_ord();
+        {
+            let mut serialize_vals = fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
+            let mut vals = Vec::with_capacity(100);
+            for (segment_ord, segment_reader) in self.readers.iter().enumerate() {
+                let delete_bitset = segment_reader.delete_bitset();
+                let term_ordinal_mapping: &[TermOrdinal] = term_ordinal_mappings.get_segment(segment_ord);
+                let ff_reader: MultiValueIntFastFieldReader<u64> = segment_reader.multi_fast_field_reader(field)?;
+                // TODO optimize if no deletes
+                for doc in 0..segment_reader.max_doc() {
+                    if !delete_bitset.is_deleted(doc) {
+                        ff_reader.get_vals(doc, &mut vals);
+                        for prev_term_ord in vals.iter().cloned() {
+                            let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
+                            serialize_vals.add_val(new_term_ord)?;
+                        }
+                    }
+                }
+            }
+            serialize_vals.close_field()?;
+        }
+        Ok(())
+    }
+
+    fn write_multi_fast_field(&self, field: Field, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
+
+        // Multifastfield consists in 2 fastfields.
+        // The first serves as an index into the second one and is stricly increasing.
+        // The second contains the actual values.
+
+        // First we merge the idx fast field.
+        self.write_multi_fast_field_idx(field, fast_field_serializer)?;
+
+        let mut min_value = u64::max_value();
+        let mut max_value = u64::min_value();
+
+        for reader in &self.readers {
+            let ff_reader = reader.fast_field_reader_with_idx::<u64>(field, 1)?;
+            let delete_bitset = reader.delete_bitset();
+            for doc in 0u32..reader.max_doc() {
+                if !delete_bitset.is_deleted(doc) {
+                    let val: u64 = ff_reader.get(doc);
+                    min_value = cmp::min(val, min_value);
+                    max_value = cmp::max(val, max_value);
+                }
+            }
+            // TODO optimize when no deletes
+        }
+
+        // then we serialize the values
+        {
+            let mut serialize_vals = fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+            let mut vals = Vec::with_capacity(100);
+            for segment_reader in &self.readers {
+                let delete_bitset = segment_reader.delete_bitset();
+                let ff_reader: MultiValueIntFastFieldReader<u64> = segment_reader.multi_fast_field_reader(field)?;
+                // TODO optimize if no deletes
+                for doc in 0..segment_reader.max_doc() {
+                    if !delete_bitset.is_deleted(doc) {
+                        ff_reader.get_vals(doc, &mut vals);
+                        for val in vals {
+                            serialize_vals.add_val(val)?;
+                        }
+                    }
+                }
+            }
+            serialize_vals.close_field()?;
+        }
         Ok(())
     }
 
@@ -387,15 +553,14 @@ impl IndexMerger {
         Ok(term_ord_mapping_opt)
     }
 
-    fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<Vec<Option<TermOrdinalMapping>>> {
-        let mut term_ordinal_mappings = Vec::new();
+    fn write_postings(&self, serializer: &mut InvertedIndexSerializer) -> Result<HashMap<Field, TermOrdinalMapping>> {
+        let mut term_ordinal_mappings = HashMap::new();
         for (field_ord, field_entry) in self.schema.fields().iter().enumerate() {
             if field_entry.is_indexed() {
                 let indexed_field = Field(field_ord as u32);
-                let term_ordinal_mapping_opt = self.write_postings_for_field(indexed_field, field_entry.field_type(), serializer)?;
-                term_ordinal_mappings.push(term_ordinal_mapping_opt);
-            } else {
-                term_ordinal_mappings.push(None);
+                if let Some(term_ordinal_mapping) = self.write_postings_for_field(indexed_field, field_entry.field_type(), serializer)? {
+                    term_ordinal_mappings.insert(indexed_field, term_ordinal_mapping);
+                }
             }
         }
         Ok(term_ordinal_mappings)
@@ -421,9 +586,9 @@ impl IndexMerger {
 
 impl SerializableSegment for IndexMerger {
     fn write(&self, mut serializer: SegmentSerializer) -> Result<u32> {
-        let termord_mappings = self.write_postings(serializer.get_postings_serializer())?;
+        let term_ord_mappings = self.write_postings(serializer.get_postings_serializer())?;
         self.write_fieldnorms(serializer.get_fieldnorms_serializer())?;
-        self.write_fast_fields(serializer.get_fast_field_serializer(), termord_mappings)?;
+        self.write_fast_fields(serializer.get_fast_field_serializer(), term_ord_mappings)?;
         self.write_storable_fields(serializer.get_store_writer())?;
         serializer.close()?;
         Ok(self.max_doc)

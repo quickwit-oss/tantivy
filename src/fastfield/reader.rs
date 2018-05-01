@@ -71,6 +71,9 @@ impl<Item: FastValue> FastFieldReader<Item> {
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
+    ///
+    // TODO change start to `u64`.
+    // For multifastfield, start is an index in a second fastfield, not a `DocId`
     pub fn get_range(&self, start: u32, output: &mut [Item]) {
         let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
         self.bit_unpacker.get_range(start, output_u64);
