@@ -200,7 +200,6 @@ pub fn advance_deletes(
     target_opstamp: u64,
 ) -> Result<Option<FileProtection>> {
     let mut file_protect: Option<FileProtection> = None;
-
     {
         if let Some(previous_opstamp) = segment_entry.meta().delete_opstamp() {
             // We are already up-to-date here.
@@ -241,7 +240,6 @@ pub fn advance_deletes(
         }
     }
     segment_entry.set_meta(segment.meta().clone());
-
     Ok(file_protect)
 }
 

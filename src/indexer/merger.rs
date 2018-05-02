@@ -351,7 +351,7 @@ impl IndexMerger {
                 for doc in 0..segment_reader.max_doc() {
                     if !delete_bitset.is_deleted(doc) {
                         ff_reader.get_vals(doc, &mut vals);
-                        for prev_term_ord in vals.iter().cloned() {
+                        for &prev_term_ord in &vals {
                             let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
                             serialize_vals.add_val(new_term_ord)?;
                         }
@@ -399,7 +399,7 @@ impl IndexMerger {
                 for doc in 0..segment_reader.max_doc() {
                     if !delete_bitset.is_deleted(doc) {
                         ff_reader.get_vals(doc, &mut vals);
-                        for val in vals {
+                        for &val in &vals {
                             serialize_vals.add_val(val)?;
                         }
                     }
@@ -612,6 +612,9 @@ mod tests {
     use schema::IndexRecordOption;
     use schema::Cardinality;
     use futures::Future;
+    use IndexWriter;
+    use query::AllQuery;
+    use collector::FacetCollector;
 
     #[test]
     fn test_index_merger_no_deletes() {
@@ -1052,37 +1055,35 @@ mod tests {
         use schema::Facet;
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                let mut doc = Document::new();
-                doc.add_facet(facet_field, Facet::from("/top/tip"));
+            let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
+                let mut doc = Document::default();
+                for facet in doc_facets {
+                    doc.add_facet(facet_field, Facet::from(facet));
+                }
                 index_writer.add_document(doc);
-            }
-            {
-                let mut doc = Document::new();
-                doc.add_facet(facet_field, Facet::from("/top/tap"));
-                index_writer.add_document(doc);
-            }
-            {
-                let mut doc = Document::new();
-                doc.add_facet(facet_field, Facet::from("/tap/tip"));
-                index_writer.add_document(doc);
-            }
+            };
+
+            index_doc(&mut index_writer, &["/top/a/firstdoc", "/top/b"]);
+            index_doc(&mut index_writer, &["/top/a/firstdoc", "/top/b", "/top/c"]);
+            index_doc(&mut index_writer, &["/top/a", "/top/b"]);
+            index_doc(&mut index_writer, &["/top/a"]);
+
+            index_doc(&mut index_writer, &["/top/b", "/top/d"]);
+            index_doc(&mut index_writer, &["/top/d"]);
+            index_doc(&mut index_writer, &["/top/e"]);
             index_writer.commit().expect("committed");
-            {
-                index_writer.add_document(doc!(
-                facet_field=>Facet::from("/top/tap/toup")
-            ));
-                index_writer.add_document(doc!(
-                facet_field=>Facet::from("/top/tup")
-            ));
-                index_writer.commit().expect("committed");
-            }
+
+            index_doc(&mut index_writer, &["/top/a"]);
+            index_doc(&mut index_writer, &["/top/b"]);
+            index_doc(&mut index_writer, &["/top/c"]);
+            index_writer.commit().expect("committed");
+
+            index_doc(&mut index_writer, &["/top/e", "/top/f"]);
+            index_writer.commit().expect("committed");
         }
         index.load_searchers().unwrap();
-        let test_searcher = || {
+        let test_searcher = |expected_num_docs: usize, expected: &[(&str, u64)]| {
             let searcher = index.searcher();
-            use query::AllQuery;
-            use collector::FacetCollector;
             let mut facet_collector = FacetCollector::for_field(facet_field);
             facet_collector.add_facet(Facet::from("/top"));
             use collector::{MultiCollector, CountCollector};
@@ -1091,23 +1092,29 @@ mod tests {
                 let mut multi_collectors = MultiCollector::from(vec![&mut count_collector, &mut facet_collector]);
                 searcher.search(&AllQuery, &mut multi_collectors).unwrap();
             }
-            assert_eq!(count_collector.count(), 5);
+            assert_eq!(count_collector.count(), expected_num_docs);
             let facet_counts = facet_collector.harvest();
             let facets: Vec<(String, u64)> = facet_counts.get("/top")
                 .map(|(facet, count)| (facet.to_string(), count))
                 .collect();
             assert_eq!(
                 facets,
-                [
-                    ("/top/tap", 2),
-                    ("/top/tip", 1),
-                    ("/top/tup", 1),
-                ].iter()
+                expected
+                    .iter()
                     .map(|&(facet_str, count)| (String::from(facet_str), count))
                     .collect::<Vec<_>>()
             );
         };
-        test_searcher();
+        test_searcher(11, &[
+            ("/top/a", 5),
+            ("/top/b", 5),
+            ("/top/c", 2),
+            ("/top/d", 2),
+            ("/top/e", 2),
+            ("/top/f", 1)
+        ]);
+
+        // Merging the segments
         {
             let segment_ids = index
                 .searchable_segment_ids()
@@ -1118,9 +1125,36 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
+
+            index.load_searchers().unwrap();
+            test_searcher(11, &[
+                ("/top/a", 5),
+                ("/top/b", 5),
+                ("/top/c", 2),
+                ("/top/d", 2),
+                ("/top/e", 2),
+                ("/top/f", 1)
+            ]);
         }
-        index.load_searchers().unwrap();
-        test_searcher();
+
+        // Deleting one term
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let facet = Facet::from_path(vec!["top", "a", "firstdoc"]);
+            let facet_term = Term::from_facet(facet_field, &facet);
+            index_writer.delete_term(facet_term);
+            index_writer.commit().unwrap();
+            index.load_searchers().unwrap();
+            test_searcher(9, &[
+                ("/top/a", 3),
+                ("/top/b", 3),
+                ("/top/c", 1),
+                ("/top/d", 2),
+                ("/top/e", 2),
+                ("/top/f", 1)
+            ]);
+        }
+
     }
 
 }

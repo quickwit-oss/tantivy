@@ -213,6 +213,14 @@ mod tests {
     }
 
     #[test]
+    fn test_from_path() {
+        assert_eq!(
+            Facet::from_path(vec!["top", "a", "firstdoc"]),
+            Facet::from("/top/a/firstdoc")
+        );
+    }
+
+    #[test]
     fn test_facet_display() {
         {
             let v = ["first", "second", "third"];

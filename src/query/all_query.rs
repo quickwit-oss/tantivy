@@ -7,6 +7,7 @@ use Result;
 use Score;
 use DocId;
 use core::Searcher;
+use fastfield::DeleteBitSet;
 
 /// Query that matches all of the documents.
 ///
@@ -26,28 +27,52 @@ pub struct AllWeight;
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         Ok(box AllScorer {
-            started: false,
+            state: State::NotStarted,
             doc: 0u32,
             max_doc: reader.max_doc(),
+            deleted_bitset: reader.delete_bitset().clone()
         })
     }
 }
 
+enum State {
+    NotStarted,
+    Started,
+    Finished
+}
+
 /// Scorer associated to the `AllQuery` query.
 pub struct AllScorer {
-    started: bool,
+    state: State,
     doc: DocId,
     max_doc: DocId,
+    deleted_bitset: DeleteBitSet
 }
 
 impl DocSet for AllScorer {
     fn advance(&mut self) -> bool {
-        if self.started {
-            self.doc += 1u32;
-        } else {
-            self.started = true;
+        loop {
+            match self.state {
+                State::NotStarted => {
+                    self.state = State::Started;
+                    self.doc = 0;
+                }
+                State::Started => {
+                    self.doc += 1u32;
+                }
+                State::Finished => {
+                    return false;
+                }
+            }
+            if self.doc < self.max_doc {
+                if !self.deleted_bitset.is_deleted(self.doc) {
+                    return true;
+                }
+            } else {
+                self.state = State::Finished;
+                return false;
+            }
         }
-        self.doc < self.max_doc
     }
 
     fn doc(&self) -> DocId {

@@ -31,8 +31,6 @@ impl<'a> Ord for HeapItem<'a> {
 }
 
 
-
-
 /// Given a list of sorted term streams,
 /// returns an iterator over sorted unique terms.
 ///
@@ -42,7 +40,7 @@ impl<'a> Ord for HeapItem<'a> {
 /// the terms.
 pub struct TermMerger<'a> {
     heap: BinaryHeap<HeapItem<'a>>,
-    current_streamers: Vec<HeapItem<'a>>
+    current_streamers: Vec<HeapItem<'a>>,
 }
 
 impl<'a> TermMerger<'a> {
