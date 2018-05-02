@@ -2,6 +2,7 @@ use bit_set::BitSet;
 use common::HasLen;
 use directory::ReadOnlySource;
 use directory::WritePtr;
+use space_usage::ByteCount;
 use std::io;
 use std::io::Write;
 use DocId;
@@ -61,6 +62,11 @@ impl DeleteBitSet {
             let shift = (doc & 7u32) as u8;
             b & (1u8 << shift) != 0
         }
+    }
+
+    /// Summarize total space usage of this bitset.
+    pub fn space_usage(&self) -> ByteCount {
+        ByteCount(self.data.len())
     }
 }
 
