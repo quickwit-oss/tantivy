@@ -7,12 +7,11 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use query::Query;
+use Searcher;
 
 mod count_collector;
 pub use self::count_collector::CountCollector;
-
-mod multi_collector;
-pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
 pub use self::top_collector::TopCollector;
@@ -53,35 +52,75 @@ pub use self::chained_collector::chain;
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
+    type Child : SegmentCollector;
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
-    fn set_segment(
+    fn for_segment(
         &mut self,
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
-    ) -> Result<()>;
-    /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, doc: DocId, score: Score);
+    ) -> Result<Self::Child>;
 
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
+
+    fn merge_children(&mut self, children: Vec<Self::Child>);
+
+    /// Search works as follows :
+    ///
+    /// First the weight object associated to the query is created.
+    ///
+    /// Then, the query loops over the segments and for each segment :
+    /// - setup the collector and informs it that the segment being processed has changed.
+    /// - creates a SegmentCollector for collecting documents associated to the segment
+    /// - creates a `Scorer` object associated for this segment
+    /// - iterate throw the matched documents and push them to the segment collector.
+    ///
+    /// Finally, the Collector merges each of the child collectors into itself for result usability
+    /// by the caller.
+    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<()> {
+        let scoring_enabled = self.requires_scoring();
+        let weight = query.weight(searcher, scoring_enabled)?;
+        let mut children = Vec::new();
+        for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
+            let mut child: Self::Child = self.for_segment(segment_ord as SegmentLocalId, segment_reader)?;
+            let mut scorer = weight.scorer(segment_reader)?;
+            scorer.collect(&mut child, segment_reader.delete_bitset());
+            children.push(child);
+        }
+        self.merge_children(children);
+        Ok(())
+    }
+}
+
+pub trait SegmentCollector {
+    /// The query pushes the scored document to the collector via this method.
+    fn collect(&mut self, doc: DocId, score: Score);
 }
 
 impl<'a, C: Collector> Collector for &'a mut C {
-    fn set_segment(
+    type Child = C::Child;
+
+    fn for_segment(
         &mut self,
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
-    ) -> Result<()> {
-        (*self).set_segment(segment_local_id, segment)
-    }
-    /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, doc: DocId, score: Score) {
-        C::collect(self, doc, score)
+    ) -> Result<C::Child> {
+        (*self).for_segment(segment_local_id, segment)
     }
 
     fn requires_scoring(&self) -> bool {
         C::requires_scoring(self)
+    }
+
+    fn merge_children(&mut self, children: Vec<C::Child>) {
+        (*self).merge_children(children);
+    }
+}
+
+impl<'a, S: SegmentCollector> SegmentCollector for &'a mut S {
+    fn collect(&mut self, doc: u32, score: f32) {
+        (*self).collect(doc, score);
     }
 }
 
@@ -101,8 +140,13 @@ pub mod tests {
     /// It is unusable in practise, as it does not store
     /// the segment ordinals
     pub struct TestCollector {
+        next_offset: DocId,
+        docs: Vec<DocId>,
+        scores: Vec<Score>,
+    }
+
+    pub struct TestSegmentCollector {
         offset: DocId,
-        segment_max_doc: DocId,
         docs: Vec<DocId>,
         scores: Vec<Score>,
     }
@@ -121,8 +165,7 @@ pub mod tests {
     impl Default for TestCollector {
         fn default() -> TestCollector {
             TestCollector {
-                offset: 0,
-                segment_max_doc: 0,
+                next_offset: 0,
                 docs: Vec::new(),
                 scores: Vec::new(),
             }
@@ -130,19 +173,35 @@ pub mod tests {
     }
 
     impl Collector for TestCollector {
-        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
-            self.offset += self.segment_max_doc;
-            self.segment_max_doc = reader.max_doc();
-            Ok(())
-        }
+        type Child = TestSegmentCollector;
 
-        fn collect(&mut self, doc: DocId, score: Score) {
-            self.docs.push(doc + self.offset);
-            self.scores.push(score);
+        fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<TestSegmentCollector> {
+            let offset = self.next_offset;
+            self.next_offset += reader.max_doc();
+            Ok(TestSegmentCollector {
+                offset,
+                docs: Vec::new(),
+                scores: Vec::new(),
+            })
         }
 
         fn requires_scoring(&self) -> bool {
             true
+        }
+
+        fn merge_children(&mut self, mut children: Vec<TestSegmentCollector>) {
+            children.sort_by_key(|x| x.offset);
+            for child in children.into_iter() {
+                self.docs.extend(child.docs);
+                self.scores.extend(child.scores);
+            }
+        }
+    }
+
+    impl SegmentCollector for TestSegmentCollector {
+        fn collect(&mut self, doc: DocId, score: Score) {
+            self.docs.push(doc + self.offset);
+            self.scores.push(score);
         }
     }
 
@@ -151,17 +210,23 @@ pub mod tests {
     ///
     /// This collector is mainly useful for tests.
     pub struct FastFieldTestCollector {
+        next_counter: usize,
         vals: Vec<u64>,
         field: Field,
-        ff_reader: Option<FastFieldReader<u64>>,
+    }
+
+    pub struct FastFieldSegmentCollector {
+        counter: usize,
+        vals: Vec<u64>,
+        reader: FastFieldReader<u64>,
     }
 
     impl FastFieldTestCollector {
         pub fn for_field(field: Field) -> FastFieldTestCollector {
             FastFieldTestCollector {
+                next_counter: 0,
                 vals: Vec::new(),
                 field,
-                ff_reader: None,
             }
         }
 
@@ -171,20 +236,36 @@ pub mod tests {
     }
 
     impl Collector for FastFieldTestCollector {
-        fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
-            self.ff_reader = Some(reader.fast_field_reader(self.field)?);
-            Ok(())
+        type Child = FastFieldSegmentCollector;
+
+        fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FastFieldSegmentCollector> {
+            let counter = self.next_counter;
+            self.next_counter += 1;
+            Ok(FastFieldSegmentCollector {
+                counter,
+                vals: Vec::new(),
+                reader: reader.fast_field_reader(self.field)?,
+            })
         }
 
-        fn collect(&mut self, doc: DocId, _score: Score) {
-            let val = self.ff_reader.as_ref().unwrap().get(doc);
-            self.vals.push(val);
-        }
         fn requires_scoring(&self) -> bool {
             false
         }
+
+        fn merge_children(&mut self, mut children: Vec<FastFieldSegmentCollector>) {
+            children.sort_by_key(|x| x.counter);
+            for child in children.into_iter() {
+                self.vals.extend(child.vals);
+            }
+        }
     }
 
+    impl SegmentCollector for FastFieldSegmentCollector {
+        fn collect(&mut self, doc: DocId, _score: Score) {
+            let val = self.reader.get(doc);
+            self.vals.push(val);
+        }
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

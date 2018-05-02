@@ -4,28 +4,40 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use collector::SegmentCollector;
 
 /// Collector that does nothing.
 /// This is used in the chain Collector and will hopefully
 /// be optimized away by the compiler.
 pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
+    type Child = DoNothingCollector;
     #[inline]
-    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
-        Ok(())
+    fn for_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<DoNothingCollector> {
+        Ok(DoNothingCollector)
     }
-    #[inline]
-    fn collect(&mut self, _doc: DocId, _score: Score) {}
     #[inline]
     fn requires_scoring(&self) -> bool {
         false
     }
+    #[inline]
+    fn merge_children(&mut self, _children: Vec<DoNothingCollector>) {}
+}
+
+impl SegmentCollector for DoNothingCollector {
+    #[inline]
+    fn collect(&mut self, _doc: DocId, _score: Score) {}
 }
 
 /// Zero-cost abstraction used to collect on multiple collectors.
 /// This contraption is only usable if the type of your collectors
 /// are known at compile time.
 pub struct ChainedCollector<Left: Collector, Right: Collector> {
+    left: Left,
+    right: Right,
+}
+
+pub struct ChainedSegmentCollector<Left: SegmentCollector, Right: SegmentCollector> {
     left: Left,
     right: Right,
 }
@@ -41,23 +53,48 @@ impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
 }
 
 impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Right> {
-    fn set_segment(
+    type Child = ChainedSegmentCollector<Left::Child, Right::Child>;
+    fn for_segment(
         &mut self,
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
-    ) -> Result<()> {
-        self.left.set_segment(segment_local_id, segment)?;
-        self.right.set_segment(segment_local_id, segment)?;
-        Ok(())
-    }
-
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.left.collect(doc, score);
-        self.right.collect(doc, score);
+    ) -> Result<Self::Child> {
+        Ok(ChainedSegmentCollector {
+            left: self.left.for_segment(segment_local_id, segment)?,
+            right: self.right.for_segment(segment_local_id, segment)?,
+        })
     }
 
     fn requires_scoring(&self) -> bool {
         self.left.requires_scoring() || self.right.requires_scoring()
+    }
+
+    fn merge_children(&mut self, children: Vec<Self::Child>) {
+        let mut lefts = Vec::new();
+        let mut rights = Vec::new();
+
+        for child in children.into_iter() {
+            lefts.push(child.left);
+            rights.push(child.right);
+        }
+
+        self.left.merge_children(lefts);
+        self.right.merge_children(rights);
+    }
+}
+
+impl<Left: SegmentCollector, Right: SegmentCollector> SegmentCollector for ChainedSegmentCollector<Left, Right> {
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.left.collect(doc, score);
+        self.right.collect(doc, score);
+    }
+}
+
+// For unit tests to keep working. I don't know if this should stick around.
+impl<Left: Collector+SegmentCollector, Right: Collector+SegmentCollector> SegmentCollector for ChainedCollector<Left, Right> {
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.left.collect(doc, score);
+        self.right.collect(doc, score);
     }
 }
 
@@ -73,7 +110,7 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
 mod tests {
 
     use super::*;
-    use collector::{Collector, CountCollector, TopCollector};
+    use collector::{CountCollector, SegmentCollector, TopCollector};
 
     #[test]
     fn test_chained_collector() {

@@ -3,14 +3,12 @@ use docset::SkipResult;
 use fastfield::FacetReader;
 use schema::Facet;
 use schema::Field;
-use std::cell::UnsafeCell;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use std::collections::BinaryHeap;
 use std::collections::Bound;
 use std::iter::Peekable;
-use std::mem;
 use std::{u64, usize};
 use termdict::TermMerger;
 
@@ -20,6 +18,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use collector::SegmentCollector;
 
 struct Hit<'a> {
     count: u64,
@@ -194,19 +193,22 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// }
 /// ```
 pub struct FacetCollector {
-    facet_ords: Vec<u64>,
     field: Field,
-    ff_reader: Option<UnsafeCell<FacetReader>>,
     segment_counters: Vec<SegmentFacetCounter>,
+    facets: BTreeSet<Facet>,
+}
+
+pub struct FacetSegmentCollector {
+    reader: FacetReader,
+
+    facet_ords_buf: Vec<u64>,
 
     // facet_ord -> collapse facet_id
-    current_segment_collapse_mapping: Vec<usize>,
+    collapse_mapping: Vec<usize>,
     // collapse facet_id -> count
-    current_segment_counts: Vec<u64>,
+    counts: Vec<u64>,
     // collapse facet_id -> facet_ord
-    current_collapse_facet_ords: Vec<u64>,
-
-    facets: BTreeSet<Facet>,
+    collapse_facet_ords: Vec<u64>,
 }
 
 fn skip<'a, I: Iterator<Item = &'a Facet>>(
@@ -240,15 +242,9 @@ impl FacetCollector {
     /// is of the proper type.
     pub fn for_field(field: Field) -> FacetCollector {
         FacetCollector {
-            facet_ords: Vec::with_capacity(255),
             segment_counters: Vec::new(),
             field,
-            ff_reader: None,
             facets: BTreeSet::new(),
-
-            current_segment_collapse_mapping: Vec::new(),
-            current_collapse_facet_ords: Vec::new(),
-            current_segment_counts: Vec::new(),
         }
     }
 
@@ -279,69 +275,11 @@ impl FacetCollector {
         self.facets.insert(facet);
     }
 
-    fn set_collapse_mapping(&mut self, facet_reader: &FacetReader) {
-        self.current_segment_collapse_mapping.clear();
-        self.current_collapse_facet_ords.clear();
-        self.current_segment_counts.clear();
-        let mut collapse_facet_it = self.facets.iter().peekable();
-        self.current_collapse_facet_ords.push(0);
-        let mut facet_streamer = facet_reader.facet_dict().range().into_stream();
-        if !facet_streamer.advance() {
-            return;
-        }
-        'outer: loop {
-            // at the begining of this loop, facet_streamer
-            // is positionned on a term that has not been processed yet.
-            let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
-            match skip_result {
-                SkipResult::Reached => {
-                    // we reach a facet we decided to collapse.
-                    let collapse_depth = facet_depth(facet_streamer.key());
-                    let mut collapsed_id = 0;
-                    self.current_segment_collapse_mapping.push(0);
-                    while facet_streamer.advance() {
-                        let depth = facet_depth(facet_streamer.key());
-                        if depth <= collapse_depth {
-                            continue 'outer;
-                        }
-                        if depth == collapse_depth + 1 {
-                            collapsed_id = self.current_collapse_facet_ords.len();
-                            self.current_collapse_facet_ords
-                                .push(facet_streamer.term_ord());
-                            self.current_segment_collapse_mapping.push(collapsed_id);
-                        } else {
-                            self.current_segment_collapse_mapping.push(collapsed_id);
-                        }
-                    }
-                    break;
-                }
-                SkipResult::End | SkipResult::OverStep => {
-                    self.current_segment_collapse_mapping.push(0);
-                    if !facet_streamer.advance() {
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    fn finalize_segment(&mut self) {
-        if self.ff_reader.is_some() {
-            self.segment_counters.push(SegmentFacetCounter {
-                facet_reader: self.ff_reader.take().unwrap().into_inner(),
-                facet_ords: mem::replace(&mut self.current_collapse_facet_ords, Vec::new()),
-                facet_counts: mem::replace(&mut self.current_segment_counts, Vec::new()),
-            });
-        }
-    }
-
     /// Returns the results of the collection.
     ///
     /// This method does not just return the counters,
     /// it also translates the facet ordinals of the last segment.
-    pub fn harvest(mut self) -> FacetCounts {
-        self.finalize_segment();
-
+    pub fn harvest(self) -> FacetCounts {
         let collapsed_facet_ords: Vec<&[u64]> = self.segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_ords[..])
@@ -387,40 +325,102 @@ impl FacetCollector {
     }
 }
 
+impl FacetSegmentCollector {
+    fn into_segment_facet_counter(self) -> SegmentFacetCounter {
+        SegmentFacetCounter {
+            facet_reader: self.reader,
+            facet_ords: self.collapse_facet_ords,
+            facet_counts: self.counts,
+        }
+    }
+}
+
 impl Collector for FacetCollector {
-    fn set_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<()> {
-        self.finalize_segment();
+    type Child = FacetSegmentCollector;
+
+    fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
-        self.set_collapse_mapping(&facet_reader);
-        self.current_segment_counts
-            .resize(self.current_collapse_facet_ords.len(), 0);
-        self.ff_reader = Some(UnsafeCell::new(facet_reader));
-        Ok(())
+
+        let mut collapse_mapping = Vec::new();
+        let mut counts = Vec::new();
+        let mut collapse_facet_ords = Vec::new();
+
+        let mut collapse_facet_it = self.facets.iter().peekable();
+        collapse_facet_ords.push(0);
+        {
+            let mut facet_streamer = facet_reader.facet_dict().range().into_stream();
+            if facet_streamer.advance() {
+                'outer: loop {
+                    // at the begining of this loop, facet_streamer
+                    // is positionned on a term that has not been processed yet.
+                    let skip_result = skip(facet_streamer.key(), &mut collapse_facet_it);
+                    match skip_result {
+                        SkipResult::Reached => {
+                            // we reach a facet we decided to collapse.
+                            let collapse_depth = facet_depth(facet_streamer.key());
+                            let mut collapsed_id = 0;
+                            collapse_mapping.push(0);
+                            while facet_streamer.advance() {
+                                let depth = facet_depth(facet_streamer.key());
+                                if depth <= collapse_depth {
+                                    continue 'outer;
+                                }
+                                if depth == collapse_depth + 1 {
+                                    collapsed_id = collapse_facet_ords.len();
+                                    collapse_facet_ords.push(facet_streamer.term_ord());
+                                    collapse_mapping.push(collapsed_id);
+                                } else {
+                                    collapse_mapping.push(collapsed_id);
+                                }
+                            }
+                            break;
+                        }
+                        SkipResult::End | SkipResult::OverStep => {
+                            collapse_mapping.push(0);
+                            if !facet_streamer.advance() {
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        counts.resize(collapse_facet_ords.len(), 0);
+
+        Ok(FacetSegmentCollector {
+            reader: facet_reader,
+            facet_ords_buf: Vec::with_capacity(255),
+            collapse_mapping,
+            counts,
+            collapse_facet_ords,
+        })
     }
 
+    fn requires_scoring(&self) -> bool {
+        false
+    }
+
+    fn merge_children(&mut self, children: Vec<FacetSegmentCollector>) {
+        for child in children.into_iter() {
+            self.segment_counters.push(child.into_segment_facet_counter());
+        }
+    }
+}
+
+impl SegmentCollector for FacetSegmentCollector {
     fn collect(&mut self, doc: DocId, _: Score) {
-        let facet_reader: &mut FacetReader = unsafe {
-            &mut *self.ff_reader
-                .as_ref()
-                .expect("collect() was called before set_segment. This should never happen.")
-                .get()
-        };
-        facet_reader.facet_ords(doc, &mut self.facet_ords);
+        self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
-        for &facet_ord in &self.facet_ords {
-            let collapsed_ord = self.current_segment_collapse_mapping[facet_ord as usize];
-            self.current_segment_counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord
-            {
+        for &facet_ord in &self.facet_ords_buf {
+            let collapsed_ord = self.collapse_mapping[facet_ord as usize];
+            self.counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord {
                 0
             } else {
                 1
             };
             previous_collapsed_ord = collapsed_ord;
         }
-    }
-
-    fn requires_scoring(&self) -> bool {
-        false
     }
 }
 

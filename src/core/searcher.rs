@@ -73,7 +73,7 @@ impl Searcher {
 
     /// Runs a query on the segment readers wrapped by the searcher
     pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<()> {
-        query.search(self, collector)
+        collector.search(self, query)
     }
 
     /// Return the field searcher associated to a `Field`.

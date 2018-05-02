@@ -4,6 +4,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use collector::SegmentCollector;
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
@@ -21,23 +22,33 @@ impl CountCollector {
 }
 
 impl Collector for CountCollector {
-    fn set_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<()> {
-        Ok(())
-    }
+    type Child = CountCollector;
 
-    fn collect(&mut self, _: DocId, _: Score) {
-        self.count += 1;
+    fn for_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<CountCollector> {
+        Ok(CountCollector::default())
     }
 
     fn requires_scoring(&self) -> bool {
         false
+    }
+
+    fn merge_children(&mut self, children: Vec<CountCollector>) {
+        for child in children.into_iter() {
+            self.count += child.count;
+        }
+    }
+}
+
+impl SegmentCollector for CountCollector {
+    fn collect(&mut self, _: DocId, _: Score) {
+        self.count += 1;
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use collector::{Collector, CountCollector};
+    use collector::{Collector, CountCollector, SegmentCollector};
 
     #[test]
     fn test_count_collector() {

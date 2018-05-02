@@ -41,8 +41,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 /// # extern crate tantivy;
 /// # use tantivy::Index;
 /// # use tantivy::schema::{SchemaBuilder, INT_INDEXED};
-/// # use tantivy::collector::CountCollector;
-/// # use tantivy::query::Query;
+/// # use tantivy::collector::{Collector, CountCollector};
 /// # use tantivy::Result;
 /// # use tantivy::query::RangeQuery;
 /// #
@@ -68,7 +67,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
 ///
 /// let mut count_collector = CountCollector::default();
-/// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+/// count_collector.search(&*searcher, &docs_in_the_sixties)?;
 ///
 /// let num_60s_books = count_collector.count();
 ///
@@ -259,8 +258,7 @@ impl Weight for RangeWeight {
 mod tests {
 
     use super::RangeQuery;
-    use collector::CountCollector;
-    use query::Query;
+    use collector::{Collector, CountCollector};
     use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
     use std::collections::Bound;
     use Index;
@@ -291,7 +289,7 @@ mod tests {
 
             // ... or `1960..=1969` if inclusive range is enabled.
             let mut count_collector = CountCollector::default();
-            docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+            count_collector.search(&*searcher, &docs_in_the_sixties)?;
             assert_eq!(count_collector.count(), 2285);
             Ok(())
         }
@@ -328,9 +326,7 @@ mod tests {
         let searcher = index.searcher();
         let count_multiples = |range_query: RangeQuery| {
             let mut count_collector = CountCollector::default();
-            range_query
-                .search(&*searcher, &mut count_collector)
-                .unwrap();
+            count_collector.search(&*searcher, &range_query).unwrap();
             count_collector.count()
         };
 

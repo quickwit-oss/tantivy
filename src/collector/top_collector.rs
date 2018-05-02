@@ -7,6 +7,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use collector::SegmentCollector;
 
 // Rust heap is a max-heap and we need a min heap.
 #[derive(Clone, Copy)]
@@ -99,11 +100,32 @@ impl TopCollector {
 }
 
 impl Collector for TopCollector {
-    fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
-        self.segment_id = segment_id;
-        Ok(())
+    type Child = TopCollector;
+
+    fn for_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<TopCollector> {
+        Ok(TopCollector {
+            limit: self.limit,
+            heap: BinaryHeap::new(),
+            segment_id,
+        })
     }
 
+    fn requires_scoring(&self) -> bool {
+        true
+    }
+
+    fn merge_children(&mut self, children: Vec<TopCollector>) {
+        // TODO: Could this be much better?
+        for mut child in children.into_iter() {
+            self.segment_id = child.segment_id;
+            while let Some(doc) = child.heap.pop() {
+                self.collect(doc.doc_address.doc(), doc.score)
+            }
+        }
+    }
+}
+
+impl SegmentCollector for TopCollector {
     fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
@@ -125,17 +147,12 @@ impl Collector for TopCollector {
             self.heap.push(wrapped_doc);
         }
     }
-
-    fn requires_scoring(&self) -> bool {
-        true
-    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use collector::Collector;
     use DocId;
     use Score;
 
