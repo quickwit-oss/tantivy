@@ -103,6 +103,13 @@ impl Index {
         Ok(index)
     }
 
+    /// Open the index using the provided directory
+    pub fn open_directory<D: Directory>(directory: D) -> Result<Index> {
+        let directory = ManagedDirectory::new(directory)?;
+        let metas = load_metas(&directory)?;
+        Index::create_from_metas(directory, &metas)
+    }
+
     /// Create a new index from a directory.
     pub fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
