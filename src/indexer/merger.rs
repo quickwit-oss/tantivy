@@ -14,7 +14,6 @@ use termdict::TermMerger;
 use fastfield::FastFieldSerializer;
 use fastfield::FastFieldReader;
 use store::StoreWriter;
-use std::cmp::{max, min};
 use termdict::TermDictionary;
 use termdict::TermStreamer;
 use schema::FieldType;
@@ -171,7 +170,7 @@ impl IndexMerger {
                 FieldType::HierarchicalFacet => {
                     let term_ordinal_mapping = term_ord_mappings
                         .remove(&field)
-                        .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have requires a\
+                        .expect("Logic Error in Tantivy (Please report). HierarchicalFact field should have required a\
                         `term_ordinal_mapping`.");
                     self.write_hierarchical_facet_field(
                             field,
@@ -204,7 +203,7 @@ impl IndexMerger {
     }
 
 
-    // used both to merge field norms, u64 fast fields, and i64 fast fields.
+    // used both to merge field norms, `u64/i64` single fast fields.
     fn write_single_fast_field(
         &self,
         field: Field,
@@ -225,8 +224,8 @@ impl IndexMerger {
                         reader.delete_bitset(),
                     ) {
                         // the segment has some non-deleted documents
-                        min_val = min(min_val, seg_min_val);
-                        max_val = max(max_val, seg_max_val);
+                        min_val = cmp::min(min_val, seg_min_val);
+                        max_val = cmp::max(max_val, seg_max_val);
                         u64_readers.push((
                             reader.max_doc(),
                             u64_reader,
@@ -237,34 +236,6 @@ impl IndexMerger {
                 None => {
                     let error_msg =
                         format!("Failed to find a u64_reader for field {:?}", field);
-                    error!("{}", error_msg);
-                    bail!(ErrorKind::SchemaError(error_msg));
-                }
-            }
-        }
-
-        for reader in &self.readers {
-            match field_reader_extractor(reader, field) {
-                Some(u64_reader) => {
-                    if let Some((seg_min_val, seg_max_val)) = compute_min_max_val(
-                        &u64_reader,
-                        reader.max_doc(),
-                        reader.delete_bitset(),
-                    ) {
-                        // the segment has some non-deleted documents
-                        min_val = min(min_val, seg_min_val);
-                        max_val = max(max_val, seg_max_val);
-                        u64_readers.push((
-                            reader.max_doc(),
-                            u64_reader,
-                            reader.delete_bitset(),
-                        ));
-                    }
-                }
-                None => {
-                    let error_msg =
-                        format!("Failed to find a u64_reader for field {:?}", field);
-                    error!("{}", error_msg);
                     bail!(ErrorKind::SchemaError(error_msg));
                 }
             }
@@ -296,21 +267,28 @@ impl IndexMerger {
     fn write_multi_fast_field_idx(&self,
                                   field: Field,
                                   fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
-        let mut max_idx = 0u64;
+        let mut total_num_vals = 0u64;
+
+        // First we compute the total number of vals.
+        //
+        // This is required by the bitpacker, as it needs to know
+        // what should be the bit length use for bitpacking.
         for reader in &self.readers {
             let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
             let delete_bitset = reader.delete_bitset();
             if delete_bitset.has_deletes() {
                 for doc in 0u32..reader.max_doc() {
                     if !delete_bitset.is_deleted(doc) {
-                        max_idx += multi_ff_reader.num_vals(doc) as u64;
+                        total_num_vals += multi_ff_reader.num_vals(doc) as u64;
                     }
                 }
             } else {
-                max_idx += multi_ff_reader.total_num_vals();
+                total_num_vals += multi_ff_reader.total_num_vals();
             }
         }
-        let mut serialize_idx = fast_field_serializer.new_u64_fast_field_with_idx(field, 0, max_idx, 0)?;
+
+        // We can now create our `idx` serializer and push our indexes to it.
+        let mut serialize_idx = fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
         let mut idx = 0;
         for reader in &self.readers {
             let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
@@ -375,14 +353,18 @@ impl IndexMerger {
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();
 
+        let mut vals = Vec::with_capacity(100);
+
         for reader in &self.readers {
-            let ff_reader = reader.fast_field_reader_with_idx::<u64>(field, 1)?;
+            let ff_reader: MultiValueIntFastFieldReader<u64> = reader.multi_fast_field_reader(field)?;
             let delete_bitset = reader.delete_bitset();
             for doc in 0u32..reader.max_doc() {
                 if !delete_bitset.is_deleted(doc) {
-                    let val: u64 = ff_reader.get(doc);
-                    min_value = cmp::min(val, min_value);
-                    max_value = cmp::max(val, max_value);
+                    ff_reader.get_vals(doc, &mut vals);
+                    for &val in &vals {
+                        min_value = cmp::min(val, min_value);
+                        max_value = cmp::max(val, max_value);
+                    }
                 }
             }
             // TODO optimize when no deletes
@@ -391,12 +373,11 @@ impl IndexMerger {
         // then we serialize the values
         {
             let mut serialize_vals = fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
-            let mut vals = Vec::with_capacity(100);
-            for segment_reader in &self.readers {
-                let delete_bitset = segment_reader.delete_bitset();
-                let ff_reader: MultiValueIntFastFieldReader<u64> = segment_reader.multi_fast_field_reader(field)?;
+            for reader in &self.readers {
+                let delete_bitset = reader.delete_bitset();
+                let ff_reader: MultiValueIntFastFieldReader<u64> = reader.multi_fast_field_reader(field)?;
                 // TODO optimize if no deletes
-                for doc in 0..segment_reader.max_doc() {
+                for doc in 0..reader.max_doc() {
                     if !delete_bitset.is_deleted(doc) {
                         ff_reader.get_vals(doc, &mut vals);
                         for &val in &vals {
@@ -1223,6 +1204,9 @@ mod tests {
 
             ff_reader.get_vals(5, &mut vals);
             assert_eq!(&vals, &[3]);
+
+            ff_reader.get_vals(6, &mut vals);
+            assert_eq!(&vals, &[17]);
         }
 
 
@@ -1243,9 +1227,6 @@ mod tests {
             assert_eq!(&vals, &[1_000]);
         }
 
-
-
-
         // Merging the segments
         {
             let segment_ids = index
@@ -1259,6 +1240,43 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
 
+        index.load_searchers().unwrap();
+
+        {
+            let searcher = index.searcher();
+            let segment = searcher.segment_reader(0u32);
+            let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
+
+            ff_reader.get_vals(0, &mut vals);
+            assert_eq!(&vals, &[1, 2]);
+
+            ff_reader.get_vals(1, &mut vals);
+            assert_eq!(&vals, &[1, 2, 3]);
+
+            ff_reader.get_vals(2, &mut vals);
+            assert_eq!(&vals, &[4, 5]);
+
+            ff_reader.get_vals(3, &mut vals);
+            assert_eq!(&vals, &[1, 2]);
+
+            ff_reader.get_vals(4, &mut vals);
+            assert_eq!(&vals, &[1, 5]);
+
+            ff_reader.get_vals(5, &mut vals);
+            assert_eq!(&vals, &[3]);
+
+            ff_reader.get_vals(6, &mut vals);
+            assert_eq!(&vals, &[17]);
+
+            ff_reader.get_vals(7, &mut vals);
+            assert_eq!(&vals, &[20]);
+
+            ff_reader.get_vals(8, &mut vals);
+            assert_eq!(&vals, &[28, 27]);
+
+            ff_reader.get_vals(9, &mut vals);
+            assert_eq!(&vals, &[1_000]);
+        }
 
     }
 }
