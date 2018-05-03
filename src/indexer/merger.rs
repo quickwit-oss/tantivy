@@ -615,6 +615,7 @@ mod tests {
     use IndexWriter;
     use query::AllQuery;
     use collector::FacetCollector;
+    use schema::IntOptions;
 
     #[test]
     fn test_index_merger_no_deletes() {
@@ -1157,5 +1158,108 @@ mod tests {
 
     }
 
+
+    #[test]
+    fn test_merge_multivalued_int_fields() {
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let int_options = IntOptions::default()
+            .set_fast(Cardinality::MultiValues)
+            .set_indexed();
+        let int_field = schema_builder.add_u64_field("intvals", int_options);
+        let index = Index::create_in_ram(schema_builder.build());
+
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
+                let mut doc = Document::default();
+                for &val in int_vals {
+                    doc.add_u64(int_field,  val);
+                }
+                index_writer.add_document(doc);
+            };
+
+            index_doc(&mut index_writer, &[1, 2]);
+            index_doc(&mut index_writer, &[1, 2, 3]);
+            index_doc(&mut index_writer, &[4, 5]);
+            index_doc(&mut index_writer, &[1, 2]);
+            index_doc(&mut index_writer, &[1, 5]);
+            index_doc(&mut index_writer, &[3]);
+            index_doc(&mut index_writer, &[17]);
+            index_writer.commit().expect("committed");
+
+            index_doc(&mut index_writer, &[20]);
+            index_writer.commit().expect("committed");
+
+            index_doc(&mut index_writer, &[28, 27]);
+            index_doc(&mut index_writer, &[1_000]);
+
+            index_writer.commit().expect("committed");
+        }
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+
+        let mut vals: Vec<u64> = Vec::new();
+
+        {
+            let segment = searcher.segment_reader(0u32);
+            let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
+
+            ff_reader.get_vals(0, &mut vals);
+            assert_eq!(&vals, &[1, 2]);
+
+            ff_reader.get_vals(1, &mut vals);
+            assert_eq!(&vals, &[1, 2, 3]);
+
+            ff_reader.get_vals(2, &mut vals);
+            assert_eq!(&vals, &[4, 5]);
+
+            ff_reader.get_vals(3, &mut vals);
+            assert_eq!(&vals, &[1, 2]);
+
+            ff_reader.get_vals(4, &mut vals);
+            assert_eq!(&vals, &[1, 5]);
+
+            ff_reader.get_vals(5, &mut vals);
+            assert_eq!(&vals, &[3]);
+        }
+
+
+        {
+            let segment = searcher.segment_reader(1u32);
+            let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
+            ff_reader.get_vals(0, &mut vals);
+            assert_eq!(&vals, &[20]);
+        }
+
+        {
+            let segment = searcher.segment_reader(2u32);
+            let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
+            ff_reader.get_vals(0, &mut vals);
+            assert_eq!(&vals, &[28, 27]);
+
+            ff_reader.get_vals(1, &mut vals);
+            assert_eq!(&vals, &[1_000]);
+        }
+
+
+
+
+        // Merging the segments
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
+        }
+
+
+    }
 }
 

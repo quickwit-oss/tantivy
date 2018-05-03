@@ -44,6 +44,7 @@ fn posting_from_field_entry<'a>(
 
 pub struct MultiFieldPostingsWriter<'a> {
     heap: &'a Heap,
+    schema: Schema,
     term_index: TermHashMap<'a>,
     per_field_postings_writers: Vec<Box<PostingsWriter + 'a>>,
 }
@@ -58,8 +59,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .iter()
             .map(|field_entry| posting_from_field_entry(field_entry, heap))
             .collect();
-
         MultiFieldPostingsWriter {
+            schema: schema.clone(),
             heap,
             term_index,
             per_field_postings_writers,
@@ -110,17 +111,24 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let (field, start) = offsets[i];
             let (_, stop) = offsets[i + 1];
 
-            // populating the unordered term ord -> ordered term ord mapping
-            // for the field.
-            let mut mapping = HashMap::new();
-            for (term_ord, term_unord_id) in term_offsets[start..stop]
-                .iter()
-                .map(|&(_, _, bucket)| bucket)
-                .enumerate()
-            {
-                mapping.insert(term_unord_id, term_ord);
+            let field_entry = self.schema.get_field_entry(field);
+
+            match field_entry.field_type() {
+                FieldType::Str(_) | FieldType::HierarchicalFacet => {
+                    // populating the unordered term ord -> ordered term ord mapping
+                    // for the field.
+                    let mut mapping = HashMap::new();
+                    for (term_ord, term_unord_id) in term_offsets[start..stop]
+                        .iter()
+                        .map(|&(_, _, bucket)| bucket)
+                        .enumerate()
+                        {
+                            mapping.insert(term_unord_id, term_ord);
+                        }
+                    unordered_term_mappings.insert(field, mapping);
+                }
+                FieldType::U64(_) | FieldType::I64(_) => {}
             }
-            unordered_term_mappings.insert(field, mapping);
 
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
             let mut field_serializer = serializer.new_field(field)?;

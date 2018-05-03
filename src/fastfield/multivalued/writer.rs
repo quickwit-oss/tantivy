@@ -96,7 +96,7 @@ impl MultiValueIntFastFieldWriter {
                 }
                 None => {
                     let val_min_max = self.vals.iter().cloned().minmax();
-                    let (val_min, val_max) = val_min_max.into_option().unwrap_or((0u64, 0));
+                    let (val_min, val_max) = val_min_max.into_option().unwrap_or((0u64, 0u64));
                     value_serializer =
                         serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
                     for &val in &self.vals {
