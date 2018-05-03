@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.1/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.4/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -722,6 +722,10 @@
 <span id="722">722</span>
 <span id="723">723</span>
 <span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -979,16 +983,22 @@
 <span class="doccomment">//!   types.</span>
 <span class="doccomment">//! - **`extra-traits`** — Debug, Eq, PartialEq, Hash impls for all syntax tree</span>
 <span class="doccomment">//!   types.</span>
+<span class="doccomment">//! - **`proc-macro`** *(enabled by default)* — Runtime dependency on the</span>
+<span class="doccomment">//!   dynamic library libproc_macro from rustc toolchain.</span>
 
 <span class="comment">// Syn types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.13.1&quot;</span>)]</span>
-<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
-            <span class="ident">allow</span>(<span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">large_enum_variant</span>, <span class="ident">match_bool</span>,
-                  <span class="ident">redundant_closure</span>, <span class="ident">needless_pass_by_value</span>, <span class="ident">redundant_field_names</span>))]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.13.4&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(
+    <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
+    <span class="ident">allow</span>(
+        <span class="ident">const_static_lifetime</span>, <span class="ident">doc_markdown</span>, <span class="ident">large_enum_variant</span>, <span class="ident">match_bool</span>, <span class="ident">redundant_closure</span>,
+        <span class="ident">needless_pass_by_value</span>, <span class="ident">redundant_field_names</span>
+    )
+)]</span>
 
-<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro2</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro2</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">unicode_xid</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>)]</span>
@@ -1019,11 +1029,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">expr</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Expr</span>, <span class="ident">ExprReference</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>,
-               <span class="ident">ExprBox</span>, <span class="ident">ExprBreak</span>, <span class="ident">ExprCall</span>, <span class="ident">ExprCast</span>, <span class="ident">ExprCatch</span>, <span class="ident">ExprClosure</span>, <span class="ident">ExprContinue</span>,
-               <span class="ident">ExprField</span>, <span class="ident">ExprForLoop</span>, <span class="ident">ExprGroup</span>, <span class="ident">ExprIf</span>, <span class="ident">ExprIfLet</span>, <span class="ident">ExprInPlace</span>, <span class="ident">ExprIndex</span>,
-               <span class="ident">ExprLit</span>, <span class="ident">ExprLoop</span>, <span class="ident">ExprMacro</span>, <span class="ident">ExprMatch</span>, <span class="ident">ExprMethodCall</span>, <span class="ident">ExprParen</span>, <span class="ident">ExprPath</span>,
-               <span class="ident">ExprRange</span>, <span class="ident">ExprRepeat</span>, <span class="ident">ExprReturn</span>, <span class="ident">ExprStruct</span>, <span class="ident">ExprTry</span>, <span class="ident">ExprTuple</span>, <span class="ident">ExprType</span>,
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Expr</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>, <span class="ident">ExprBox</span>,
+               <span class="ident">ExprBreak</span>, <span class="ident">ExprCall</span>, <span class="ident">ExprCast</span>, <span class="ident">ExprCatch</span>, <span class="ident">ExprClosure</span>, <span class="ident">ExprContinue</span>, <span class="ident">ExprField</span>,
+               <span class="ident">ExprForLoop</span>, <span class="ident">ExprGroup</span>, <span class="ident">ExprIf</span>, <span class="ident">ExprIfLet</span>, <span class="ident">ExprInPlace</span>, <span class="ident">ExprIndex</span>, <span class="ident">ExprLit</span>,
+               <span class="ident">ExprLoop</span>, <span class="ident">ExprMacro</span>, <span class="ident">ExprMatch</span>, <span class="ident">ExprMethodCall</span>, <span class="ident">ExprParen</span>, <span class="ident">ExprPath</span>, <span class="ident">ExprRange</span>,
+               <span class="ident">ExprReference</span>, <span class="ident">ExprRepeat</span>, <span class="ident">ExprReturn</span>, <span class="ident">ExprStruct</span>, <span class="ident">ExprTry</span>, <span class="ident">ExprTuple</span>, <span class="ident">ExprType</span>,
                <span class="ident">ExprUnary</span>, <span class="ident">ExprUnsafe</span>, <span class="ident">ExprVerbatim</span>, <span class="ident">ExprWhile</span>, <span class="ident">ExprWhileLet</span>, <span class="ident">ExprYield</span>, <span class="ident">Index</span>,
                <span class="ident">Member</span>};
 
@@ -1097,17 +1107,17 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">path</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>))]</span>
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::<span class="ident">PathTokens</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::{<span class="ident">AngleBracketedGenericArguments</span>, <span class="ident">Binding</span>, <span class="ident">GenericArgument</span>,
                <span class="ident">ParenthesizedGenericArguments</span>, <span class="ident">Path</span>, <span class="ident">PathArguments</span>, <span class="ident">PathSegment</span>, <span class="ident">QSelf</span>};
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::<span class="ident">PathTokens</span>;
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">buffer</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">punctuated</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">synom</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">punctuated</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">tt</span>;
 
@@ -1154,7 +1164,6 @@
     <span class="doccomment">/// *This module is available if Syn is built with the `&quot;visit&quot;` feature.*</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;visit&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">visit</span>;
-
 
     <span class="doccomment">/// Syntax tree traversal to mutate an exclusive borrow of a syntax tree in</span>
     <span class="doccomment">/// place.</span>
@@ -1240,7 +1249,7 @@
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
-<span class="kw">use</span> <span class="ident">synom</span>::{<span class="ident">Synom</span>, <span class="ident">Parser</span>};
+<span class="kw">use</span> <span class="ident">synom</span>::{<span class="ident">Parser</span>, <span class="ident">Synom</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">error</span>;
@@ -1265,7 +1274,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// [`syn::parse2`]: fn.parse2.html</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// *This function is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
+<span class="doccomment">/// *This function is available if Syn is built with both the `&quot;parsing&quot;` and</span>
+<span class="doccomment">/// `&quot;proc-macro&quot;` features.*</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Examples</span>
 <span class="doccomment">///</span>
@@ -1324,11 +1334,9 @@
     <span class="ident">T</span>: <span class="ident">Synom</span>,
 {
     <span class="kw">let</span> <span class="ident">parser</span> <span class="op">=</span> <span class="ident">T</span>::<span class="ident">parse</span>;
-    <span class="ident">parser</span>.<span class="ident">parse2</span>(<span class="ident">tokens</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> {
-        <span class="kw">match</span> <span class="ident">T</span>::<span class="ident">description</span>() {
-            <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">ParseError</span>::<span class="ident">new</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;failed to parse {}: {}&quot;</span>, <span class="ident">s</span>, <span class="ident">err</span>)),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">err</span>,
-        }
+    <span class="ident">parser</span>.<span class="ident">parse2</span>(<span class="ident">tokens</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">T</span>::<span class="ident">description</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">ParseError</span>::<span class="ident">new</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;failed to parse {}: {}&quot;</span>, <span class="ident">s</span>, <span class="ident">err</span>)),
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">err</span>,
     })
 }
 
@@ -1448,4 +1456,4 @@
     }
 }
 </pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "syn";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>

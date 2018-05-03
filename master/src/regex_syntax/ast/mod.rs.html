@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.5/src/ast/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/regex-syntax-0.5.6/src/ast/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1505,6 +1505,14 @@
 <span id="1505">1505</span>
 <span id="1506">1506</span>
 <span id="1507">1507</span>
+<span id="1508">1508</span>
+<span id="1509">1509</span>
+<span id="1510">1510</span>
+<span id="1511">1511</span>
+<span id="1512">1512</span>
+<span id="1513">1513</span>
+<span id="1514">1514</span>
+<span id="1515">1515</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 The Rust Project Developers. See the COPYRIGHT</span>
 <span class="comment">// file at the top-level directory of this distribution and at</span>
@@ -1597,6 +1605,10 @@ Defines an abstract syntax for regular expressions.
     <span class="doccomment">/// An invalid character class range was found. An invalid range is any</span>
     <span class="doccomment">/// range where the start is greater than the end.</span>
     <span class="ident">ClassRangeInvalid</span>,
+    <span class="doccomment">/// An invalid range boundary was found in a character class. Range</span>
+    <span class="doccomment">/// boundaries must be a single literal codepoint, but this error indicates</span>
+    <span class="doccomment">/// that something else was found, such as a nested class.</span>
+    <span class="ident">ClassRangeLiteral</span>,
     <span class="doccomment">/// An opening `[` was found with no corresponding closing `]`.</span>
     <span class="ident">ClassUnclosed</span>,
     <span class="doccomment">/// An empty decimal number was given where one was expected.</span>
@@ -1660,9 +1672,9 @@ Defines an abstract syntax for regular expressions.
     <span class="doccomment">/// An opening `{` was found with no corresponding closing `}`.</span>
     <span class="ident">RepetitionCountUnclosed</span>,
     <span class="doccomment">/// A repetition operator was applied to a missing sub-expression. This</span>
-    <span class="doccomment">/// occurs, for example, in the regex consisting of just a `*`. It is,</span>
-    <span class="doccomment">/// however, possible to create a repetition operating on an empty</span>
-    <span class="doccomment">/// sub-expression. For example, `()*` is still considered valid.</span>
+    <span class="doccomment">/// occurs, for example, in the regex consisting of just a `*` or even</span>
+    <span class="doccomment">/// `(?i)*`. It is, however, possible to create a repetition operating on</span>
+    <span class="doccomment">/// an empty sub-expression. For example, `()*` is still considered valid.</span>
     <span class="ident">RepetitionMissing</span>,
     <span class="doccomment">/// When octal support is disabled, this error is produced when an octal</span>
     <span class="doccomment">/// escape is used. The octal escape is assumed to be an invocation of</span>
@@ -1690,6 +1702,7 @@ Defines an abstract syntax for regular expressions.
             <span class="ident">CaptureLimitExceeded</span> <span class="op">=&gt;</span> <span class="string">&quot;capture group limit exceeded&quot;</span>,
             <span class="ident">ClassEscapeInvalid</span> <span class="op">=&gt;</span> <span class="string">&quot;invalid escape sequence in character class&quot;</span>,
             <span class="ident">ClassRangeInvalid</span> <span class="op">=&gt;</span> <span class="string">&quot;invalid character class range&quot;</span>,
+            <span class="ident">ClassRangeLiteral</span> <span class="op">=&gt;</span> <span class="string">&quot;invalid range boundary, must be a literal&quot;</span>,
             <span class="ident">ClassUnclosed</span> <span class="op">=&gt;</span> <span class="string">&quot;unclosed character class&quot;</span>,
             <span class="ident">DecimalEmpty</span> <span class="op">=&gt;</span> <span class="string">&quot;empty decimal literal&quot;</span>,
             <span class="ident">DecimalInvalid</span> <span class="op">=&gt;</span> <span class="string">&quot;invalid decimal literal&quot;</span>,
@@ -1740,6 +1753,9 @@ Defines an abstract syntax for regular expressions.
             <span class="ident">ClassRangeInvalid</span> <span class="op">=&gt;</span> {
                 <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid character class range, \
                            the start must be &lt;= the end&quot;</span>)
+            }
+            <span class="ident">ClassRangeLiteral</span> <span class="op">=&gt;</span> {
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;invalid range boundary, must be a literal&quot;</span>)
             }
             <span class="ident">ClassUnclosed</span> <span class="op">=&gt;</span> {
                 <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;unclosed character class&quot;</span>)
@@ -3014,4 +3030,4 @@ Defines an abstract syntax for regular expressions.
     }
 }
 </pre>
-</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
+</section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "regex_syntax";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
