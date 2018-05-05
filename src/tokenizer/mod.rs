@@ -160,21 +160,40 @@ mod test {
     use super::Token;
     use super::TokenizerManager;
 
+    fn assert_token(token: &Token, position: usize, text: &str, from: usize, to: usize) {
+        assert_eq!(
+            token.position, position,
+            "expected position {} but {:?}",
+            position, token
+        );
+        assert_eq!(token.text, text, "expected text {} but {:?}", text, token);
+        assert_eq!(
+            token.offset_from, from,
+            "expected offset_from {} but {:?}",
+            from, token
+        );
+        assert_eq!(
+            token.offset_to, to,
+            "expected offset_to {} but {:?}",
+            to, token
+        );
+    }
+
     #[test]
     fn test_raw_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("raw").unwrap();
-        let mut tokens: Vec<String> = vec![];
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
             en_tokenizer
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);
-        assert_eq!(&tokens[0], "Hello, happy tax payer!");
+        assert_token(&tokens[0], 0, "Hello, happy tax payer!", 0, 23);
     }
 
     #[test]
@@ -182,20 +201,20 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         assert!(tokenizer_manager.get("en_doesnotexist").is_none());
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
-        let mut tokens: Vec<String> = vec![];
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
             en_tokenizer
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
-        assert_eq!(&tokens[0], "hello");
-        assert_eq!(&tokens[1], "happi");
-        assert_eq!(&tokens[2], "tax");
-        assert_eq!(&tokens[3], "payer");
+        assert_token(&tokens[0], 0, "hello", 0, 5);
+        assert_token(&tokens[1], 1, "happi", 7, 12);
+        assert_token(&tokens[2], 2, "tax", 13, 16);
+        assert_token(&tokens[3], 3, "payer", 17, 22);
     }
 
     #[test]
@@ -203,21 +222,21 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("ja").unwrap();
 
-        let mut tokens: Vec<String> = vec![];
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
             en_tokenizer
                 .token_stream("野菜食べないとやばい!")
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 5);
-        assert_eq!(&tokens[0], "野菜");
-        assert_eq!(&tokens[1], "食べ");
-        assert_eq!(&tokens[2], "ない");
-        assert_eq!(&tokens[3], "と");
-        assert_eq!(&tokens[4], "やばい");
+        assert_token(&tokens[0], 0, "野菜", 0, 6);
+        assert_token(&tokens[1], 1, "食べ", 6, 12);
+        assert_token(&tokens[2], 2, "ない", 12, 18);
+        assert_token(&tokens[3], 3, "と", 18, 21);
+        assert_token(&tokens[4], 4, "やばい", 21, 30);
     }
 
     #[test]
@@ -236,55 +255,53 @@ mod test {
             NgramTokenizer::new(2, 5, true).filter(LowerCaser),
         );
 
-        let en_tokenizer = tokenizer_manager.get("ngram12").unwrap();
-        let mut tokens: Vec<String> = vec![];
+        let tokenizer = tokenizer_manager.get("ngram12").unwrap();
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
-            en_tokenizer.token_stream("hello").process(&mut add_token);
+            tokenizer.token_stream("hello").process(&mut add_token);
         }
+        assert_eq!(tokens.len(), 9);
+        assert_token(&tokens[0], 0, "h", 0, 1);
+        assert_token(&tokens[1], 0, "he", 0, 2);
+        assert_token(&tokens[2], 1, "e", 1, 2);
+        assert_token(&tokens[3], 1, "el", 1, 3);
+        assert_token(&tokens[4], 2, "l", 2, 3);
+        assert_token(&tokens[5], 2, "ll", 2, 4);
+        assert_token(&tokens[6], 3, "l", 3, 4);
+        assert_token(&tokens[7], 3, "lo", 3, 5);
+        assert_token(&tokens[8], 4, "o", 4, 5);
 
-        assert_eq!(tokens.len(), 8);
-        assert_eq!(&tokens[0], "h");
-        assert_eq!(&tokens[1], "he");
-        assert_eq!(&tokens[2], "e");
-        assert_eq!(&tokens[3], "el");
-        assert_eq!(&tokens[4], "l");
-        assert_eq!(&tokens[5], "ll");
-        assert_eq!(&tokens[6], "l");
-        assert_eq!(&tokens[7], "lo");
-
-        let en_tokenizer = tokenizer_manager.get("ngram3").unwrap();
-        let mut tokens: Vec<String> = vec![];
+        let tokenizer = tokenizer_manager.get("ngram3").unwrap();
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
-            en_tokenizer.token_stream("Hello").process(&mut add_token);
+            tokenizer.token_stream("Hello").process(&mut add_token);
         }
-
         assert_eq!(tokens.len(), 3);
-        assert_eq!(&tokens[0], "hel");
-        assert_eq!(&tokens[1], "ell");
-        assert_eq!(&tokens[2], "llo");
+        assert_token(&tokens[0], 0, "hel", 0, 3);
+        assert_token(&tokens[1], 1, "ell", 1, 4);
+        assert_token(&tokens[2], 2, "llo", 2, 5);
 
-        let en_tokenizer = tokenizer_manager.get("edgegram5").unwrap();
-        let mut tokens: Vec<String> = vec![];
+        let tokenizer = tokenizer_manager.get("edgegram5").unwrap();
+        let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
-                tokens.push(token.text.clone());
+                tokens.push(token.clone());
             };
-            en_tokenizer
+            tokenizer
                 .token_stream("Frankenstein")
                 .process(&mut add_token);
         }
-
         assert_eq!(tokens.len(), 4);
-        assert_eq!(&tokens[0], "fr");
-        assert_eq!(&tokens[1], "fra");
-        assert_eq!(&tokens[2], "fran");
-        assert_eq!(&tokens[3], "frank");
+        assert_token(&tokens[0], 0, "fr", 0, 2);
+        assert_token(&tokens[1], 0, "fra", 0, 3);
+        assert_token(&tokens[2], 0, "fran", 0, 4);
+        assert_token(&tokens[3], 0, "frank", 0, 5);
     }
 
     #[test]
@@ -292,20 +309,20 @@ mod test {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();
         {
-            let mut tokens: Vec<String> = vec![];
+            let mut tokens: Vec<Token> = vec![];
             {
                 let mut add_token = |token: &Token| {
-                    tokens.push(token.text.clone());
+                    tokens.push(token.clone());
                 };
                 en_tokenizer.token_stream(" ").process(&mut add_token);
             }
             assert!(tokens.is_empty());
         }
         {
-            let mut tokens: Vec<String> = vec![];
+            let mut tokens: Vec<Token> = vec![];
             {
                 let mut add_token = |token: &Token| {
-                    tokens.push(token.text.clone());
+                    tokens.push(token.clone());
                 };
                 en_tokenizer.token_stream(" ").process(&mut add_token);
             }
