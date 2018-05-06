@@ -146,9 +146,9 @@ impl IndexMerger {
 
     fn write_fieldnorms(&self, fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         for (field_id, field_entry) in self.schema.fields().iter().enumerate() {
+            let field = Field(field_id as u32);
             if let FieldType::Str(ref text_options) = *field_entry.field_type() {
                 if text_options.get_indexing_options().is_some() {
-                    let field = Field(field_id as u32);
                     self.write_single_fast_field(
                         field,
                         &extract_fieldnorm_reader,
@@ -212,8 +212,8 @@ impl IndexMerger {
     ) -> Result<()> {
 
         let mut u64_readers = vec![];
-        let mut min_val = u64::max_value();
-        let mut max_val = u64::min_value();
+        let mut min_value = u64::max_value();
+        let mut max_value = u64::min_value();
 
         for reader in &self.readers {
             match field_reader_extractor(reader, field) {
@@ -224,13 +224,15 @@ impl IndexMerger {
                         reader.delete_bitset(),
                     ) {
                         // the segment has some non-deleted documents
-                        min_val = cmp::min(min_val, seg_min_val);
-                        max_val = cmp::max(max_val, seg_max_val);
+                        min_value = cmp::min(min_value, seg_min_val);
+                        max_value = cmp::max(max_value, seg_max_val);
                         u64_readers.push((
                             reader.max_doc(),
                             u64_reader,
                              reader.delete_bitset(),
                         ));
+                    } else {
+                        // all documents have been deleted.
                     }
                 }
                 None => {
@@ -239,20 +241,18 @@ impl IndexMerger {
                     bail!(ErrorKind::SchemaError(error_msg));
                 }
             }
-        }
+        }   
 
-        if u64_readers.is_empty() {
-            // we have actually zero documents.
-            min_val = 0;
-            max_val = 0;
+        if min_value > max_value {
+            // There is not a single document remaining in the index.
+            min_value = 0;
+            max_value = 0;
         }
-
-        assert!(min_val <= max_val);
 
         let mut fast_single_field_serializer =
-            fast_field_serializer.new_u64_fast_field(field, min_val, max_val)?;
+            fast_field_serializer.new_u64_fast_field(field, min_value, max_value)?;
         for (max_doc, u64_reader, delete_bitset) in u64_readers {
-            for doc_id in 0..max_doc {
+            for doc_id in 0u32..max_doc {
                 if !delete_bitset.is_deleted(doc_id) {
                     let val = u64_reader.get(doc_id);
                     fast_single_field_serializer.add_val(val)?;
@@ -269,7 +269,7 @@ impl IndexMerger {
                                   fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         let mut total_num_vals = 0u64;
 
-        // First we compute the total number of vals.
+        // In the first pass, we compute the total number of vals.
         //
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
@@ -287,7 +287,8 @@ impl IndexMerger {
             }
         }
 
-        // We can now create our `idx` serializer and push our indexes to it.
+        // We can now create our `idx` serializer, and in a second pass,
+        // can effectively push the different indexes.
         let mut serialize_idx = fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
         let mut idx = 0;
         for reader in &self.readers {
@@ -317,6 +318,8 @@ impl IndexMerger {
         // First we merge the idx fast field.
         self.write_multi_fast_field_idx(field, fast_field_serializer)?;
 
+        // We can now write the actual fast field values.
+        // In the case of hierarchical facets, they are actually term ordinals.
         let max_term_ord = term_ordinal_mappings.max_term_ord();
         {
             let mut serialize_vals = fast_field_serializer.new_u64_fast_field_with_idx(field, 0u64, max_term_ord, 1)?;
@@ -355,6 +358,13 @@ impl IndexMerger {
 
         let mut vals = Vec::with_capacity(100);
 
+
+        // Our values are bitpacked and we need to know what should be
+        // our bitwidth and our minimum value before serializing any values.
+        //
+        // Computing those is non-trivial if some documents are deleted.
+        // We go through a complete first pass to compute the minimum and the
+        // maximum value and initialize our Serializer.
         for reader in &self.readers {
             let ff_reader: MultiValueIntFastFieldReader<u64> = reader.multi_fast_field_reader(field)?;
             let delete_bitset = reader.delete_bitset();
@@ -370,7 +380,12 @@ impl IndexMerger {
             // TODO optimize when no deletes
         }
 
-        // then we serialize the values
+        if min_value > max_value {
+            min_value = 0;
+            max_value = 0;
+        }
+
+        // We can now initialize our serializer, and push it the different values
         {
             let mut serialize_vals = fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
             for reader in &self.readers {
@@ -1139,6 +1154,46 @@ mod tests {
 
     }
 
+
+    #[test]
+    fn test_merge_multivalued_int_fields_all_deleted() {
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let int_options = IntOptions::default()
+            .set_fast(Cardinality::MultiValues)
+            .set_indexed();
+        let int_field = schema_builder.add_u64_field("intvals", int_options);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut doc = Document::default();
+            doc.add_u64(int_field,  1);
+            index_writer.add_document(doc.clone());
+            index_writer.commit().expect("commit failed");
+            index_writer.add_document(doc);
+            index_writer.commit().expect("commit failed");
+            index_writer.delete_term(Term::from_field_u64(int_field, 1));
+            index_writer.commit().expect("commit failed");
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 0);
+        // Merging the segments
+        {
+            let segment_ids = index
+                .searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer
+                .merge(&segment_ids)
+                .wait()
+                .expect("Merging failed");
+            index_writer.wait_merging_threads().unwrap();
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 0);
+    }
 
     #[test]
     fn test_merge_multivalued_int_fields() {

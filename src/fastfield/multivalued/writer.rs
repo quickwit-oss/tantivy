@@ -6,6 +6,7 @@ use postings::UnorderedTermId;
 use schema::{Document, Field};
 use std::io;
 use itertools::Itertools;
+use termdict::TermOrdinal;
 
 pub struct MultiValueIntFastFieldWriter {
     field: Field,
@@ -66,7 +67,7 @@ impl MultiValueIntFastFieldWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping_opt: Option<&HashMap<UnorderedTermId, usize>>,
+        mapping_opt: Option<&HashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         {
             // writing the offset index
@@ -90,7 +91,7 @@ impl MultiValueIntFastFieldWriter {
                         1,
                     )?;
                     for val in &self.vals {
-                        let remapped_val = *mapping.get(val).expect("Missing term ordinal") as u64;
+                        let remapped_val = *mapping.get(val).expect("Missing term ordinal");
                         value_serializer.add_val(remapped_val)?;
                     }
                 }

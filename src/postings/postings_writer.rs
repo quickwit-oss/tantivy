@@ -16,6 +16,7 @@ use tokenizer::Token;
 use tokenizer::TokenStream;
 use schema::IndexRecordOption;
 use postings::UnorderedTermId;
+use termdict::TermOrdinal;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -84,7 +85,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
-    ) -> Result<HashMap<Field, HashMap<UnorderedTermId, usize>>> {
+    ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
         let mut term_offsets: Vec<(&[u8], u32, UnorderedTermId)> = self.term_index.iter().collect();
         term_offsets.sort_by_key(|&(k, _, _)| k);
 
@@ -95,7 +96,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .map(|(key, _, _)| Term::wrap(key).field())
             .enumerate();
 
-        let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, usize>> =
+        let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
             HashMap::new();
 
         let mut prev_field = Field(u32::max_value());
@@ -115,16 +116,15 @@ impl<'a> MultiFieldPostingsWriter<'a> {
 
             match field_entry.field_type() {
                 FieldType::Str(_) | FieldType::HierarchicalFacet => {
-                    // populating the unordered term ord -> ordered term ord mapping
+                    // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
-                    let mut mapping = HashMap::new();
-                    for (term_ord, term_unord_id) in term_offsets[start..stop]
+                    let mut unordered_term_ids = term_offsets[start..stop]
                         .iter()
-                        .map(|&(_, _, bucket)| bucket)
+                        .map(|&(_, _, bucket)| bucket);
+                    let mut mapping: HashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
                         .enumerate()
-                        {
-                            mapping.insert(term_unord_id, term_ord);
-                        }
+                        .map(|(term_ord, unord_term_id)| (unord_term_id as UnorderedTermId, term_ord as TermOrdinal))
+                        .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
                 FieldType::U64(_) | FieldType::I64(_) => {}

@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use postings::UnorderedTermId;
 use super::multivalued::MultiValueIntFastFieldWriter;
 use common::BinarySerializable;
+use termdict::TermOrdinal;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
@@ -105,7 +106,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: &HashMap<Field, HashMap<UnorderedTermId, usize>>,
+        mapping: &HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;
