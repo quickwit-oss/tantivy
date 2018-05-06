@@ -73,14 +73,12 @@ where
   }
 
   fn advance(&mut self) -> bool {
-    loop {
-      if self.tail.advance() {
-        if self.predicate(self.tail.token()) {
-          return true;
-        }
-      } else {
-        return false;
+    while self.tail.advance() {
+      if self.predicate(self.tail.token()) {
+        return true;
       }
     }
+
+    false
   }
 }
