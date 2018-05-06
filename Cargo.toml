@@ -67,3 +67,6 @@ travis-ci = { repository = "tantivy-search/tantivy" }
 [[example]]
 name = "simple_search"
 required-features = ["mmap"]
+
+[[example]]
+name = "custom_tokenizer"
