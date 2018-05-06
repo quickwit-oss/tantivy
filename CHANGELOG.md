@@ -1,3 +1,9 @@
+Tantivy 0.5.2
+===========================
+- bugfix #274
+- bugfix #280
+- bugfix #289
+
 Tantivy 0.5.1
 ==========================
 - bugfix #254 : tantivy failed if no documents in a segment contained a specific field.
