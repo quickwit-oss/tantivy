@@ -5,7 +5,7 @@
 //!
 //! # fn main() {
 //! let tokenizer = SimpleTokenizer
-//!   .filter(StopWordFilter::remove(vec!["the".to_string(),"is".to_string()]));
+//!   .filter(StopWordFilter::remove(vec!["the".to_string(), "is".to_string()]));
 //!
 //! let mut stream = tokenizer.token_stream("the fox is crafty");
 //! assert_eq!(stream.next().unwrap().text, "fox");
@@ -14,17 +14,30 @@
 //! # }
 //! ```
 use super::{Token, TokenFilter, TokenStream};
+use fnv::FnvHasher;
+use std::collections::HashSet;
+use std::hash::BuildHasherDefault;
+
+// configure our hashers for SPEED
+type StopWordHasher = BuildHasherDefault<FnvHasher>;
+type StopWordHashSet = HashSet<String, StopWordHasher>;
 
 /// `TokenFilter` that removes stop words from a token stream
 #[derive(Clone)]
 pub struct StopWordFilter {
-  words: Vec<String>,
+  words: StopWordHashSet,
 }
 
 impl StopWordFilter {
   /// Creates a `StopWordFilter` given a list of words to remove
   pub fn remove(words: Vec<String>) -> StopWordFilter {
-    StopWordFilter { words }
+    let mut set = StopWordHashSet::default();
+
+    for word in words {
+      set.insert(word);
+    }
+
+    StopWordFilter { words: set }
   }
 }
 
@@ -32,7 +45,7 @@ pub struct StopWordFilterStream<TailTokenStream>
 where
   TailTokenStream: TokenStream,
 {
-  words: Vec<String>,
+  words: StopWordHashSet,
   tail: TailTokenStream,
 }
 
@@ -55,7 +68,7 @@ where
     !self.words.contains(&token.text)
   }
 
-  fn wrap(words: Vec<String>, tail: TailTokenStream) -> StopWordFilterStream<TailTokenStream> {
+  fn wrap(words: StopWordHashSet, tail: TailTokenStream) -> StopWordFilterStream<TailTokenStream> {
     StopWordFilterStream { words, tail }
   }
 }

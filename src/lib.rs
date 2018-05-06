@@ -134,6 +134,7 @@ extern crate byteorder;
 extern crate chan;
 extern crate combine;
 extern crate crossbeam;
+extern crate fnv;
 extern crate fst;
 extern crate futures;
 extern crate futures_cpupool;

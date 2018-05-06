@@ -42,6 +42,7 @@ rust-stemmers = "0.1.0"
 downcast = { version="0.9" }
 matches = "0.1"
 bitpacking = "0.4"
+fnv = "1.0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
