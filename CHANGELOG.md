@@ -7,6 +7,8 @@ Tantivy 0.6
 - Add &[u8] fastfield for associating arbitrary bytes to each document (@jason-wolfe) (#270)
     - Completely uncompressed
     - Internally: One u64 fast field for indexes, one fast field for the bytes themselves.
+- Add NGram token support (@drusellers)
+- Add Stopword Filter support (@drusellers)
 
 Tantivy 0.5.2
 ===========================
@@ -91,7 +93,7 @@ Tantivy 0.3
 Special thanks to @Kodraus @lnicola @Ameobea @manuel-woelker @celaus
 for their contribution to this release.
 
-Thanks also to everyone in tantivy gitter chat 
+Thanks also to everyone in tantivy gitter chat
 for their advise and company :)
 
 https://gitter.im/tantivy-search/tantivy
@@ -99,9 +101,9 @@ https://gitter.im/tantivy-search/tantivy
 
 Warning:
 
-Tantivy 0.3 is NOT backward compatible with tantivy 0.2 
+Tantivy 0.3 is NOT backward compatible with tantivy 0.2
 code and index format.
-You should not expect backward compatibility before 
+You should not expect backward compatibility before
 tantivy 1.0.
 
 
@@ -127,7 +129,7 @@ Thanks to @KodrAus ! (#108)
   the natural ordering.
 - Building binary targets for tantivy-cli (Thanks to @KodrAus)
 - Misc invisible bug fixes, and code cleanup.
-- Use 
+- Use
 
 
 
