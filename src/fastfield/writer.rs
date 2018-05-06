@@ -1,13 +1,11 @@
-use super::multivalued::MultiValueIntFastFieldWriter;
-use common;
-use common::BinarySerializable;
-use common::VInt;
+use common::{self, VInt, BinarySerializable};
 use fastfield::FastFieldSerializer;
 use postings::UnorderedTermId;
-use schema::FieldType;
-use schema::{Cardinality, Document, Field, Schema};
+use schema::{FieldType, Cardinality, Document, Field, Schema};
 use std::collections::HashMap;
 use std::io;
+use super::multivalued::MultiValueIntFastFieldWriter;
+use termdict::TermOrdinal;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
@@ -93,7 +91,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: &HashMap<Field, HashMap<UnorderedTermId, usize>>,
+        mapping: &HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;

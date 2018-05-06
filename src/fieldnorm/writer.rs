@@ -17,7 +17,8 @@ impl FieldNormsWriter {
             .fields()
             .iter()
             .enumerate()
-            .filter(|&(_, field_entry)| field_entry.is_indexed())
+            .filter(|&(_, field_entry)|
+                field_entry.is_indexed())
             .map(|(field, _)| Field(field as u32))
             .collect::<Vec<Field>>()
     }
