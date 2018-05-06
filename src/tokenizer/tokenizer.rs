@@ -276,6 +276,9 @@ mod test {
         };
         let t2 = t1.clone();
 
+        assert_eq!(t1.position, t2.position);
         assert_eq!(t1.offset_from, t2.offset_from);
+        assert_eq!(t1.offset_to, t2.offset_to);
+        assert_eq!(t1.text, t2.text);
     }
 }

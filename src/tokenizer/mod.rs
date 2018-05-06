@@ -155,29 +155,34 @@ pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer_manager::TokenizerManager;
 
+/// This is a function that can be used in tests and doc tests
+/// to assert a token's correctness.
+/// TODO: can this be wrapped in #[cfg(test)] so as not to be in the
+/// public api?
+pub fn assert_token(token: &Token, position: usize, text: &str, from: usize, to: usize) {
+    assert_eq!(
+        token.position, position,
+        "expected position {} but {:?}",
+        position, token
+    );
+    assert_eq!(token.text, text, "expected text {} but {:?}", text, token);
+    assert_eq!(
+        token.offset_from, from,
+        "expected offset_from {} but {:?}",
+        from, token
+    );
+    assert_eq!(
+        token.offset_to, to,
+        "expected offset_to {} but {:?}",
+        to, token
+    );
+}
+
 #[cfg(test)]
-mod test {
+pub mod test {
+    use super::assert_token;
     use super::Token;
     use super::TokenizerManager;
-
-    fn assert_token(token: &Token, position: usize, text: &str, from: usize, to: usize) {
-        assert_eq!(
-            token.position, position,
-            "expected position {} but {:?}",
-            position, token
-        );
-        assert_eq!(token.text, text, "expected text {} but {:?}", text, token);
-        assert_eq!(
-            token.offset_from, from,
-            "expected offset_from {} but {:?}",
-            from, token
-        );
-        assert_eq!(
-            token.offset_to, to,
-            "expected offset_to {} but {:?}",
-            to, token
-        );
-    }
 
     #[test]
     fn test_raw_tokenizer() {
@@ -242,6 +247,7 @@ mod test {
     #[test]
     fn test_ngram_tokenizer() {
         use super::{LowerCaser, NgramTokenizer};
+        use tokenizer::tokenizer::TokenStream;
         use tokenizer::tokenizer::Tokenizer;
 
         let tokenizer_manager = TokenizerManager::default();
@@ -255,7 +261,7 @@ mod test {
             NgramTokenizer::new(2, 5, true).filter(LowerCaser),
         );
 
-        let tokenizer = tokenizer_manager.get("ngram12").unwrap();
+        let tokenizer = NgramTokenizer::new(1, 2, false);
         let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {

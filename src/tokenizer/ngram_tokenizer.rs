@@ -2,72 +2,57 @@ use super::{Token, TokenStream, Tokenizer};
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
-/// Example: `hello` would be tokenized as (min_gram: 2, max_gram: 3)
+/// With this tokenizer, the `position` field expresses the starting offset of the ngram
+/// rather than the `token` offset.
+///
+/// Example 1: `hello` would be tokenized as (min_gram: 2, max_gram: 3, prefix_only: false)
 ///
 /// | Term     | he  | hel | el  | ell | ll  | llo | lo |
 /// |----------|-----|-----|-----|-----|-----|-----|----|
 /// | Position | 0   | 0   | 1   | 1   | 2   | 2   | 3  |
 /// | Offsets  | 0,2 | 0,3 | 1,3 | 1,4 | 2,4 | 2,5 | 3,5|
 ///
+/// Example 2: `hello` would be tokenized as (min_gram: 2, max_gram: 5, prefix_only: **true**)
+///
+/// | Term     | he  | hel | hell  | hello |
+/// |----------|-----|-----|-------|-------|
+/// | Position | 0   | 0   | 0     | 0     |
+/// | Offsets  | 0,2 | 0,3 | 0,4   | 0,5   |
+///
 /// # Example
 ///
 /// ```
 /// extern crate tantivy;
 /// use tantivy::tokenizer::*;
+/// use tantivy::tokenizer::assert_token;
 ///
-/// fn assert_token(token: &Token, position: usize, text: &str, from: usize, to: usize) {
-///   assert_eq!(
-///       token.position, position,
-///       "expected position {} but {:?}",
-///       position, token
-///   );
-///   assert_eq!(token.text, text, "expected text {} but {:?}", text, token);
-///   assert_eq!(
-///       token.offset_from, from,
-///       "expected offset_from {} but {:?}",
-///       from, token
-///   );
-///   assert_eq!(
-///       token.offset_to, to,
-///       "expected offset_to {} but {:?}",
-///       to, token
-///   );
-/// }
 /// # fn main() {
-/// let tokenizer_manager = TokenizerManager::default();
-/// tokenizer_manager.register("ngram23", NgramTokenizer::new(2, 3, false));
-/// let tokenizer = tokenizer_manager.get("ngram23").unwrap();
-/// let mut tokens: Vec<Token> = vec![];
-/// {
-///     let mut add_token = |token: &Token| {
-///         tokens.push(token.clone());
-///     };
-///     tokenizer.token_stream("hello").process(&mut add_token);
-/// }
-/// assert_eq!(tokens.len(), 7);
-/// assert_token(&tokens[0], 0, "he", 0, 2);
-/// assert_token(&tokens[1], 0, "hel", 0, 3);
-/// assert_token(&tokens[2], 1, "el", 1, 3);
-/// assert_token(&tokens[3], 1, "ell", 1, 4);
-/// assert_token(&tokens[4], 2, "ll", 2, 4);
-/// assert_token(&tokens[5], 2, "llo", 2, 5);
-/// assert_token(&tokens[6], 3, "lo", 3, 5);
+/// let tokenizer = NgramTokenizer::new(2, 3, false);
+/// let mut stream = tokenizer.token_stream("hello");
+///
+/// assert_token(stream.next().unwrap(), 0, "he", 0, 2);
+/// assert_token(stream.next().unwrap(), 0, "hel", 0, 3);
+/// assert_token(stream.next().unwrap(), 1, "el", 1, 3);
+/// assert_token(stream.next().unwrap(), 1, "ell", 1, 4);
+/// assert_token(stream.next().unwrap(), 2, "ll", 2, 4);
+/// assert_token(stream.next().unwrap(), 2, "llo", 2, 5);
+/// assert_token(stream.next().unwrap(), 3, "lo", 3, 5);
+/// assert!(stream.next().is_none());
 /// # }
 /// ```
-///
 #[derive(Clone)]
 pub struct NgramTokenizer {
   /// min size of the n-gram
   min_gram: usize,
   /// max size of the n-gram
   max_gram: usize,
-  /// should we only process the leading edge of the input
-  edges_only: bool,
+  /// if true, will only parse the leading edge of the input
+  prefix_only: bool,
 }
 
 impl NgramTokenizer {
   /// Configures a new Ngram tokenizer
-  pub fn new(min_gram: usize, max_gram: usize, edges_only: bool) -> NgramTokenizer {
+  pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> NgramTokenizer {
     assert!(min_gram > 0, "min_gram must be greater than 0");
     assert!(
       min_gram <= max_gram,
@@ -77,7 +62,7 @@ impl NgramTokenizer {
     NgramTokenizer {
       min_gram,
       max_gram,
-      edges_only,
+      prefix_only,
     }
   }
 }
@@ -89,7 +74,7 @@ pub struct NgramTokenStream<'a> {
   min_gram: usize,
   max_gram: usize,
   gram_size: usize,
-  edges_only: bool,
+  prefix_only: bool,
 }
 
 impl<'a> Tokenizer<'a> for NgramTokenizer {
@@ -103,7 +88,7 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
       token: Token::default(),
       min_gram: self.min_gram,
       max_gram: self.max_gram,
-      edges_only: self.edges_only,
+      prefix_only: self.prefix_only,
       gram_size: self.min_gram,
     }
   }
@@ -116,7 +101,7 @@ impl<'a> NgramTokenStream<'a> {
   fn chomp(&mut self) -> Option<(usize, usize)> {
     // Have we exceeded the bounds of the text we are indexing?
     if self.gram_size > self.max_gram {
-      if self.edges_only {
+      if self.prefix_only {
         return None;
       }
 
@@ -146,10 +131,9 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
     // clear out working token text
     self.token.text.clear();
 
-    if let Some((location, size)) = self.chomp() {
-      // this token's position is our current location
-      self.token.position = location;
-      let offset_from = location;
+    if let Some((position, size)) = self.chomp() {
+      self.token.position = position;
+      let offset_from = position;
       let offset_to = offset_from + size;
 
       self.token.offset_from = offset_from;
