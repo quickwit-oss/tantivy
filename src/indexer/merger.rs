@@ -32,11 +32,9 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
             let fieldnorms_reader = reader.get_fieldnorms_reader(field);
-            for doc in 0..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
-                    count[fieldnorm_id as usize] += 1;
-                }
+            for doc in reader.doc_ids_alive() {
+                let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
+                count[fieldnorm_id as usize] += 1;
             }
         } else {
             total_tokens += reader.inverted_index(field).total_num_tokens();
@@ -166,11 +164,9 @@ impl IndexMerger {
             fieldnorms_data.clear();
             for reader in &self.readers {
                 let fieldnorms_reader = reader.get_fieldnorms_reader(field);
-                for doc_id in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc_id) {
-                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
-                        fieldnorms_data.push(fieldnorm_id);
-                    }
+                for doc_id in reader.doc_ids_alive() {
+                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
+                    fieldnorms_data.push(fieldnorm_id);
                 }
             }
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
@@ -625,11 +621,9 @@ impl IndexMerger {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
             if reader.num_deleted_docs() > 0 {
-                for doc_id in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc_id) {
-                        let doc = store_reader.get(doc_id)?;
-                        store_writer.store(&doc)?;
-                    }
+                for doc_id in reader.doc_ids_alive() {
+                    let doc = store_reader.get(doc_id)?;
+                    store_writer.store(&doc)?;
                 }
             } else {
                 store_writer.stack(store_reader)?;
