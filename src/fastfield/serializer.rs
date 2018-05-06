@@ -77,11 +77,21 @@ pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
 }
 
 impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
+
+    /// Creates a new fast field serializer.
+    ///
+    /// The serializer in fact encode the values by bitpacking
+    /// `(val - min_value)`.
+    ///
+    /// It requires a `min_value` and a `max_value` to compute
+    /// compute the minimum number of bits required to encode
+    /// values.
     fn open(
         write: &'a mut W,
         min_value: u64,
         max_value: u64,
     ) -> io::Result<FastSingleFieldSerializer<'a, W>> {
+        assert!(min_value <= max_value);
         min_value.serialize(write)?;
         let amplitude = max_value - min_value;
         amplitude.serialize(write)?;
