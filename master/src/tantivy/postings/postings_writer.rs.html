@@ -261,17 +261,17 @@
 <span id="261">261</span>
 <span id="262">262</span>
 <span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">Heap</span>, <span class="ident">TermHashMap</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Recorder</span>;
-<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldEntry</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">FieldEntry</span>, <span class="ident">FieldType</span>, <span class="ident">Term</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
@@ -280,6 +280,9 @@
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenStream</span>;
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+<span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
+<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
 
 <span class="kw">fn</span> <span class="ident">posting_from_field_entry</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>,
@@ -308,6 +311,7 @@
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiFieldPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>,
+    <span class="ident">schema</span>: <span class="ident">Schema</span>,
     <span class="ident">term_index</span>: <span class="ident">TermHashMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
     <span class="ident">per_field_postings_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>,
 }
@@ -322,8 +326,8 @@
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field_entry</span><span class="op">|</span> <span class="ident">posting_from_field_entry</span>(<span class="ident">field_entry</span>, <span class="ident">heap</span>))
             .<span class="ident">collect</span>();
-
         <span class="ident">MultiFieldPostingsWriter</span> {
+            <span class="ident">schema</span>: <span class="ident">schema</span>.<span class="ident">clone</span>(),
             <span class="ident">heap</span>,
             <span class="ident">term_index</span>,
             <span class="ident">per_field_postings_writers</span>,
@@ -347,7 +351,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">usize</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">UnorderedTermId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
         <span class="ident">term_offsets</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">k</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>);
 
@@ -358,7 +362,7 @@
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">key</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">Term</span>::<span class="ident">wrap</span>(<span class="ident">key</span>).<span class="ident">field</span>())
             .<span class="ident">enumerate</span>();
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">usize</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span> <span class="op">=</span>
             <span class="ident">HashMap</span>::<span class="ident">new</span>();
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">u32</span>::<span class="ident">max_value</span>());
@@ -374,17 +378,23 @@
             <span class="kw">let</span> (<span class="ident">field</span>, <span class="ident">start</span>) <span class="op">=</span> <span class="ident">offsets</span>[<span class="ident">i</span>];
             <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">stop</span>) <span class="op">=</span> <span class="ident">offsets</span>[<span class="ident">i</span> <span class="op">+</span> <span class="number">1</span>];
 
-            <span class="comment">// populating the unordered term ord -&gt; ordered term ord mapping</span>
-            <span class="comment">// for the field.</span>
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mapping</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
-            <span class="kw">for</span> (<span class="ident">term_ord</span>, <span class="ident">term_unord_id</span>) <span class="kw">in</span> <span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>]
-                .<span class="ident">iter</span>()
-                .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">bucket</span>)<span class="op">|</span> <span class="ident">bucket</span>)
-                .<span class="ident">enumerate</span>()
-            {
-                <span class="ident">mapping</span>.<span class="ident">insert</span>(<span class="ident">term_unord_id</span>, <span class="ident">term_ord</span>);
+            <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
+
+            <span class="kw">match</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
+                <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
+                    <span class="comment">// populating the (unordered term ord) -&gt; (ordered term ord) mapping</span>
+                    <span class="comment">// for the field.</span>
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_ids</span> <span class="op">=</span> <span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>]
+                        .<span class="ident">iter</span>()
+                        .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw">_</span>, <span class="ident">bucket</span>)<span class="op">|</span> <span class="ident">bucket</span>);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">mapping</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">unordered_term_ids</span>
+                        .<span class="ident">enumerate</span>()
+                        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">term_ord</span>, <span class="ident">unord_term_id</span>)<span class="op">|</span> (<span class="ident">unord_term_id</span> <span class="kw">as</span> <span class="ident">UnorderedTermId</span>, <span class="ident">term_ord</span> <span class="kw">as</span> <span class="ident">TermOrdinal</span>))
+                        .<span class="ident">collect</span>();
+                    <span class="ident">unordered_term_mappings</span>.<span class="ident">insert</span>(<span class="ident">field</span>, <span class="ident">mapping</span>);
+                }
+                <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {}
             }
-            <span class="ident">unordered_term_mappings</span>.<span class="ident">insert</span>(<span class="ident">field</span>, <span class="ident">mapping</span>);
 
             <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">field</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>];
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_serializer</span> <span class="op">=</span>

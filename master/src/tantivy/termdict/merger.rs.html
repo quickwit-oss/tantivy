@@ -122,11 +122,21 @@
 <span id="122">122</span>
 <span id="123">123</span>
 <span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BinaryHeap</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermStreamer</span>;
+<span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">HeapItem</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="kw">pub</span> <span class="ident">streamer</span>: <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
@@ -153,6 +163,7 @@
     }
 }
 
+
 <span class="doccomment">/// Given a list of sorted term streams,</span>
 <span class="doccomment">/// returns an iterator over sorted unique terms.</span>
 <span class="doccomment">///</span>
@@ -168,7 +179,6 @@
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TermMerger</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
     <span class="doccomment">/// Stream of merged term dictionary</span>
     <span class="doccomment">///</span>
-    <span class="doccomment">///</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">streams</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>) <span class="op">-&gt;</span> <span class="ident">TermMerger</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
         <span class="ident">TermMerger</span> {
             <span class="ident">heap</span>: <span class="ident">BinaryHeap</span>::<span class="ident">new</span>(),
@@ -181,6 +191,14 @@
                 })
                 .<span class="ident">collect</span>(),
         }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">matching_segments</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span>: <span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;b</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="lifetime">&#39;b</span> <span class="op">+</span> <span class="ident">Iterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span>(<span class="ident">usize</span>, <span class="ident">TermOrdinal</span>)<span class="op">&gt;&gt;</span> {
+        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="self">self</span>.<span class="ident">current_streamers</span>
+            .<span class="ident">iter</span>()
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">heap_item</span><span class="op">|</span> {
+                (<span class="ident">heap_item</span>.<span class="ident">segment_ord</span>, <span class="ident">heap_item</span>.<span class="ident">streamer</span>.<span class="ident">term_ord</span>())
+            }))
     }
 
     <span class="kw">fn</span> <span class="ident">advance_segments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {

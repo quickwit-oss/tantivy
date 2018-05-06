@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.4/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.7/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -726,6 +726,19 @@
 <span id="726">726</span>
 <span id="727">727</span>
 <span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -987,7 +1000,7 @@
 <span class="doccomment">//!   dynamic library libproc_macro from rustc toolchain.</span>
 
 <span class="comment">// Syn types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.13.4&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/syn/0.13.7&quot;</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(
     <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;cargo-clippy&quot;</span>,
     <span class="ident">allow</span>(
@@ -1023,32 +1036,38 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">data</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">data</span>::{<span class="ident">Field</span>, <span class="ident">Fields</span>, <span class="ident">FieldsNamed</span>, <span class="ident">FieldsUnnamed</span>, <span class="ident">Variant</span>, <span class="ident">VisCrate</span>, <span class="ident">VisPublic</span>,
-               <span class="ident">VisRestricted</span>, <span class="ident">Visibility</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">data</span>::{
+    <span class="ident">Field</span>, <span class="ident">Fields</span>, <span class="ident">FieldsNamed</span>, <span class="ident">FieldsUnnamed</span>, <span class="ident">Variant</span>, <span class="ident">VisCrate</span>, <span class="ident">VisPublic</span>, <span class="ident">VisRestricted</span>,
+    <span class="ident">Visibility</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">expr</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Expr</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>, <span class="ident">ExprBox</span>,
-               <span class="ident">ExprBreak</span>, <span class="ident">ExprCall</span>, <span class="ident">ExprCast</span>, <span class="ident">ExprCatch</span>, <span class="ident">ExprClosure</span>, <span class="ident">ExprContinue</span>, <span class="ident">ExprField</span>,
-               <span class="ident">ExprForLoop</span>, <span class="ident">ExprGroup</span>, <span class="ident">ExprIf</span>, <span class="ident">ExprIfLet</span>, <span class="ident">ExprInPlace</span>, <span class="ident">ExprIndex</span>, <span class="ident">ExprLit</span>,
-               <span class="ident">ExprLoop</span>, <span class="ident">ExprMacro</span>, <span class="ident">ExprMatch</span>, <span class="ident">ExprMethodCall</span>, <span class="ident">ExprParen</span>, <span class="ident">ExprPath</span>, <span class="ident">ExprRange</span>,
-               <span class="ident">ExprReference</span>, <span class="ident">ExprRepeat</span>, <span class="ident">ExprReturn</span>, <span class="ident">ExprStruct</span>, <span class="ident">ExprTry</span>, <span class="ident">ExprTuple</span>, <span class="ident">ExprType</span>,
-               <span class="ident">ExprUnary</span>, <span class="ident">ExprUnsafe</span>, <span class="ident">ExprVerbatim</span>, <span class="ident">ExprWhile</span>, <span class="ident">ExprWhileLet</span>, <span class="ident">ExprYield</span>, <span class="ident">Index</span>,
-               <span class="ident">Member</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{
+    <span class="ident">Expr</span>, <span class="ident">ExprArray</span>, <span class="ident">ExprAssign</span>, <span class="ident">ExprAssignOp</span>, <span class="ident">ExprBinary</span>, <span class="ident">ExprBlock</span>, <span class="ident">ExprBox</span>, <span class="ident">ExprBreak</span>, <span class="ident">ExprCall</span>,
+    <span class="ident">ExprCast</span>, <span class="ident">ExprCatch</span>, <span class="ident">ExprClosure</span>, <span class="ident">ExprContinue</span>, <span class="ident">ExprField</span>, <span class="ident">ExprForLoop</span>, <span class="ident">ExprGroup</span>, <span class="ident">ExprIf</span>,
+    <span class="ident">ExprIfLet</span>, <span class="ident">ExprInPlace</span>, <span class="ident">ExprIndex</span>, <span class="ident">ExprLit</span>, <span class="ident">ExprLoop</span>, <span class="ident">ExprMacro</span>, <span class="ident">ExprMatch</span>, <span class="ident">ExprMethodCall</span>,
+    <span class="ident">ExprParen</span>, <span class="ident">ExprPath</span>, <span class="ident">ExprRange</span>, <span class="ident">ExprReference</span>, <span class="ident">ExprRepeat</span>, <span class="ident">ExprReturn</span>, <span class="ident">ExprStruct</span>, <span class="ident">ExprTry</span>,
+    <span class="ident">ExprTuple</span>, <span class="ident">ExprType</span>, <span class="ident">ExprUnary</span>, <span class="ident">ExprUnsafe</span>, <span class="ident">ExprVerbatim</span>, <span class="ident">ExprWhile</span>, <span class="ident">ExprWhileLet</span>, <span class="ident">ExprYield</span>,
+    <span class="ident">Index</span>, <span class="ident">Member</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{<span class="ident">Arm</span>, <span class="ident">Block</span>, <span class="ident">FieldPat</span>, <span class="ident">FieldValue</span>, <span class="ident">GenericMethodArgument</span>, <span class="ident">Label</span>, <span class="ident">Local</span>,
-               <span class="ident">MethodTurbofish</span>, <span class="ident">Pat</span>, <span class="ident">PatBox</span>, <span class="ident">PatIdent</span>, <span class="ident">PatLit</span>, <span class="ident">PatMacro</span>, <span class="ident">PatPath</span>, <span class="ident">PatRange</span>,
-               <span class="ident">PatRef</span>, <span class="ident">PatSlice</span>, <span class="ident">PatStruct</span>, <span class="ident">PatTuple</span>, <span class="ident">PatTupleStruct</span>, <span class="ident">PatVerbatim</span>, <span class="ident">PatWild</span>,
-               <span class="ident">RangeLimits</span>, <span class="ident">Stmt</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">expr</span>::{
+    <span class="ident">Arm</span>, <span class="ident">Block</span>, <span class="ident">FieldPat</span>, <span class="ident">FieldValue</span>, <span class="ident">GenericMethodArgument</span>, <span class="ident">Label</span>, <span class="ident">Local</span>, <span class="ident">MethodTurbofish</span>, <span class="ident">Pat</span>,
+    <span class="ident">PatBox</span>, <span class="ident">PatIdent</span>, <span class="ident">PatLit</span>, <span class="ident">PatMacro</span>, <span class="ident">PatPath</span>, <span class="ident">PatRange</span>, <span class="ident">PatRef</span>, <span class="ident">PatSlice</span>, <span class="ident">PatStruct</span>, <span class="ident">PatTuple</span>,
+    <span class="ident">PatTupleStruct</span>, <span class="ident">PatVerbatim</span>, <span class="ident">PatWild</span>, <span class="ident">RangeLimits</span>, <span class="ident">Stmt</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">generics</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">generics</span>::{<span class="ident">BoundLifetimes</span>, <span class="ident">ConstParam</span>, <span class="ident">GenericParam</span>, <span class="ident">Generics</span>, <span class="ident">LifetimeDef</span>, <span class="ident">PredicateEq</span>,
-                   <span class="ident">PredicateLifetime</span>, <span class="ident">PredicateType</span>, <span class="ident">TraitBound</span>, <span class="ident">TraitBoundModifier</span>, <span class="ident">TypeParam</span>,
-                   <span class="ident">TypeParamBound</span>, <span class="ident">WhereClause</span>, <span class="ident">WherePredicate</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">generics</span>::{
+    <span class="ident">BoundLifetimes</span>, <span class="ident">ConstParam</span>, <span class="ident">GenericParam</span>, <span class="ident">Generics</span>, <span class="ident">LifetimeDef</span>, <span class="ident">PredicateEq</span>,
+    <span class="ident">PredicateLifetime</span>, <span class="ident">PredicateType</span>, <span class="ident">TraitBound</span>, <span class="ident">TraitBoundModifier</span>, <span class="ident">TypeParam</span>, <span class="ident">TypeParamBound</span>,
+    <span class="ident">WhereClause</span>, <span class="ident">WherePredicate</span>,
+};
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">generics</span>::{<span class="ident">ImplGenerics</span>, <span class="ident">Turbofish</span>, <span class="ident">TypeGenerics</span>};
 
@@ -1058,14 +1077,15 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">item</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">item</span>::{<span class="ident">ArgCaptured</span>, <span class="ident">ArgSelf</span>, <span class="ident">ArgSelfRef</span>, <span class="ident">FnArg</span>, <span class="ident">FnDecl</span>, <span class="ident">ForeignItem</span>, <span class="ident">ForeignItemFn</span>,
-               <span class="ident">ForeignItemStatic</span>, <span class="ident">ForeignItemType</span>, <span class="ident">ForeignItemVerbatim</span>, <span class="ident">ImplItem</span>, <span class="ident">ImplItemConst</span>,
-               <span class="ident">ImplItemMacro</span>, <span class="ident">ImplItemMethod</span>, <span class="ident">ImplItemType</span>, <span class="ident">ImplItemVerbatim</span>, <span class="ident">Item</span>, <span class="ident">ItemConst</span>,
-               <span class="ident">ItemEnum</span>, <span class="ident">ItemExternCrate</span>, <span class="ident">ItemFn</span>, <span class="ident">ItemForeignMod</span>, <span class="ident">ItemImpl</span>, <span class="ident">ItemMacro</span>, <span class="ident">ItemMacro2</span>,
-               <span class="ident">ItemMod</span>, <span class="ident">ItemStatic</span>, <span class="ident">ItemStruct</span>, <span class="ident">ItemTrait</span>, <span class="ident">ItemType</span>, <span class="ident">ItemUnion</span>, <span class="ident">ItemUse</span>,
-               <span class="ident">ItemVerbatim</span>, <span class="ident">MethodSig</span>, <span class="ident">TraitItem</span>, <span class="ident">TraitItemConst</span>, <span class="ident">TraitItemMacro</span>,
-               <span class="ident">TraitItemMethod</span>, <span class="ident">TraitItemType</span>, <span class="ident">TraitItemVerbatim</span>, <span class="ident">UseGlob</span>, <span class="ident">UseGroup</span>, <span class="ident">UseName</span>,
-               <span class="ident">UsePath</span>, <span class="ident">UseRename</span>, <span class="ident">UseTree</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">item</span>::{
+    <span class="ident">ArgCaptured</span>, <span class="ident">ArgSelf</span>, <span class="ident">ArgSelfRef</span>, <span class="ident">FnArg</span>, <span class="ident">FnDecl</span>, <span class="ident">ForeignItem</span>, <span class="ident">ForeignItemFn</span>, <span class="ident">ForeignItemStatic</span>,
+    <span class="ident">ForeignItemType</span>, <span class="ident">ForeignItemVerbatim</span>, <span class="ident">ImplItem</span>, <span class="ident">ImplItemConst</span>, <span class="ident">ImplItemMacro</span>, <span class="ident">ImplItemMethod</span>,
+    <span class="ident">ImplItemType</span>, <span class="ident">ImplItemVerbatim</span>, <span class="ident">Item</span>, <span class="ident">ItemConst</span>, <span class="ident">ItemEnum</span>, <span class="ident">ItemExternCrate</span>, <span class="ident">ItemFn</span>,
+    <span class="ident">ItemForeignMod</span>, <span class="ident">ItemImpl</span>, <span class="ident">ItemMacro</span>, <span class="ident">ItemMacro2</span>, <span class="ident">ItemMod</span>, <span class="ident">ItemStatic</span>, <span class="ident">ItemStruct</span>, <span class="ident">ItemTrait</span>,
+    <span class="ident">ItemType</span>, <span class="ident">ItemUnion</span>, <span class="ident">ItemUse</span>, <span class="ident">ItemVerbatim</span>, <span class="ident">MethodSig</span>, <span class="ident">TraitItem</span>, <span class="ident">TraitItemConst</span>,
+    <span class="ident">TraitItemMacro</span>, <span class="ident">TraitItemMethod</span>, <span class="ident">TraitItemType</span>, <span class="ident">TraitItemVerbatim</span>, <span class="ident">UseGlob</span>, <span class="ident">UseGroup</span>, <span class="ident">UseName</span>,
+    <span class="ident">UsePath</span>, <span class="ident">UseRename</span>, <span class="ident">UseTree</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>)]</span>
 <span class="kw">mod</span> <span class="ident">file</span>;
@@ -1080,8 +1100,10 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">lit</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">lit</span>::{<span class="ident">FloatSuffix</span>, <span class="ident">IntSuffix</span>, <span class="ident">Lit</span>, <span class="ident">LitBool</span>, <span class="ident">LitByte</span>, <span class="ident">LitByteStr</span>, <span class="ident">LitChar</span>, <span class="ident">LitFloat</span>,
-              <span class="ident">LitInt</span>, <span class="ident">LitStr</span>, <span class="ident">LitVerbatim</span>, <span class="ident">StrStyle</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">lit</span>::{
+    <span class="ident">FloatSuffix</span>, <span class="ident">IntSuffix</span>, <span class="ident">Lit</span>, <span class="ident">LitBool</span>, <span class="ident">LitByte</span>, <span class="ident">LitByteStr</span>, <span class="ident">LitChar</span>, <span class="ident">LitFloat</span>, <span class="ident">LitInt</span>, <span class="ident">LitStr</span>,
+    <span class="ident">LitVerbatim</span>, <span class="ident">StrStyle</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">mac</span>;
@@ -1101,17 +1123,21 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">ty</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ty</span>::{<span class="ident">Abi</span>, <span class="ident">BareFnArg</span>, <span class="ident">BareFnArgName</span>, <span class="ident">ReturnType</span>, <span class="ident">Type</span>, <span class="ident">TypeArray</span>, <span class="ident">TypeBareFn</span>, <span class="ident">TypeGroup</span>,
-             <span class="ident">TypeImplTrait</span>, <span class="ident">TypeInfer</span>, <span class="ident">TypeMacro</span>, <span class="ident">TypeNever</span>, <span class="ident">TypeParen</span>, <span class="ident">TypePath</span>, <span class="ident">TypePtr</span>,
-             <span class="ident">TypeReference</span>, <span class="ident">TypeSlice</span>, <span class="ident">TypeTraitObject</span>, <span class="ident">TypeTuple</span>, <span class="ident">TypeVerbatim</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ty</span>::{
+    <span class="ident">Abi</span>, <span class="ident">BareFnArg</span>, <span class="ident">BareFnArgName</span>, <span class="ident">ReturnType</span>, <span class="ident">Type</span>, <span class="ident">TypeArray</span>, <span class="ident">TypeBareFn</span>, <span class="ident">TypeGroup</span>,
+    <span class="ident">TypeImplTrait</span>, <span class="ident">TypeInfer</span>, <span class="ident">TypeMacro</span>, <span class="ident">TypeNever</span>, <span class="ident">TypeParen</span>, <span class="ident">TypePath</span>, <span class="ident">TypePtr</span>, <span class="ident">TypeReference</span>,
+    <span class="ident">TypeSlice</span>, <span class="ident">TypeTraitObject</span>, <span class="ident">TypeTuple</span>, <span class="ident">TypeVerbatim</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
 <span class="kw">mod</span> <span class="ident">path</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>), <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;printing&quot;</span>))]</span>
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::<span class="ident">PathTokens</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;full&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;derive&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::{<span class="ident">AngleBracketedGenericArguments</span>, <span class="ident">Binding</span>, <span class="ident">GenericArgument</span>,
-               <span class="ident">ParenthesizedGenericArguments</span>, <span class="ident">Path</span>, <span class="ident">PathArguments</span>, <span class="ident">PathSegment</span>, <span class="ident">QSelf</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">path</span>::{
+    <span class="ident">AngleBracketedGenericArguments</span>, <span class="ident">Binding</span>, <span class="ident">GenericArgument</span>, <span class="ident">ParenthesizedGenericArguments</span>, <span class="ident">Path</span>,
+    <span class="ident">PathArguments</span>, <span class="ident">PathSegment</span>, <span class="ident">QSelf</span>,
+};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;parsing&quot;</span>)]</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">buffer</span>;

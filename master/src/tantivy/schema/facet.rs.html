@@ -234,6 +234,14 @@
 <span id="234">234</span>
 <span id="235">235</span>
 <span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">regex</span>::<span class="ident">Regex</span>;
@@ -447,6 +455,14 @@
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">Facet</span>::<span class="ident">root</span>(), <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/&quot;</span>));
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="ident">Facet</span>::<span class="ident">root</span>()), <span class="string">&quot;/&quot;</span>);
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">Facet</span>::<span class="ident">root</span>().<span class="ident">is_root</span>());
+    }
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_from_path</span>() {
+        <span class="macro">assert_eq</span><span class="macro">!</span>(
+            <span class="ident">Facet</span>::<span class="ident">from_path</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;top&quot;</span>, <span class="string">&quot;a&quot;</span>, <span class="string">&quot;firstdoc&quot;</span>]),
+            <span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/top/a/firstdoc&quot;</span>)
+        );
     }
 
     <span class="attribute">#[<span class="ident">test</span>]</span>

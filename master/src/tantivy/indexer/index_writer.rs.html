@@ -832,8 +832,6 @@
 <span id="832">832</span>
 <span id="833">833</span>
 <span id="834">834</span>
-<span id="835">835</span>
-<span id="836">836</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_updater</span>::<span class="ident">SegmentUpdater</span>;
@@ -1032,7 +1030,6 @@
     <span class="ident">target_opstamp</span>: <span class="ident">u64</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FileProtection</span><span class="op">&gt;&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">file_protect</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">FileProtection</span><span class="op">&gt;</span> <span class="op">=</span> <span class="prelude-val">None</span>;
-
     {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">previous_opstamp</span>) <span class="op">=</span> <span class="ident">segment_entry</span>.<span class="ident">meta</span>().<span class="ident">delete_opstamp</span>() {
             <span class="comment">// We are already up-to-date here.</span>
@@ -1073,7 +1070,6 @@
         }
     }
     <span class="ident">segment_entry</span>.<span class="ident">set_meta</span>(<span class="ident">segment</span>.<span class="ident">meta</span>().<span class="ident">clone</span>());
-
     <span class="prelude-val">Ok</span>(<span class="ident">file_protect</span>)
 }
 

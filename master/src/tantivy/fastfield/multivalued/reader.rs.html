@@ -107,6 +107,24 @@
 <span id="107">107</span>
 <span id="108">108</span>
 <span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastFieldReader</span>, <span class="ident">FastValue</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -136,13 +154,31 @@
         }
     }
 
+    <span class="doccomment">/// Returns `(start, stop)`, such that the values associated</span>
+    <span class="doccomment">/// to the given document are `start..stop`.</span>
+    <span class="kw">fn</span> <span class="ident">range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> (<span class="ident">u64</span>, <span class="ident">u64</span>) {
+        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>);
+        <span class="kw">let</span> <span class="ident">stop</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="number">1</span>);
+        (<span class="ident">start</span>, <span class="ident">stop</span>)
+    }
+
+    <span class="doccomment">/// Returns the number of values associated to a given document.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">num_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">stop</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">range</span>(<span class="ident">doc</span>);
+        (<span class="ident">stop</span> <span class="op">-</span> <span class="ident">start</span>) <span class="kw">as</span> <span class="ident">usize</span>
+    }
+
+    <span class="doccomment">/// Returns the overall number of values associated to documents.</span>
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">total_num_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
+        <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">max_value</span>()
+    }
+
     <span class="doccomment">/// Returns the array of values associated to the given `doc`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">vals</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;</span>) {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>) <span class="kw">as</span> <span class="ident">u32</span>;
-        <span class="kw">let</span> <span class="ident">stop</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="number">1</span>) <span class="kw">as</span> <span class="ident">u32</span>;
+        <span class="kw">let</span> (<span class="ident">start</span>, <span class="ident">stop</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">range</span>(<span class="ident">doc</span>);
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> (<span class="ident">stop</span> <span class="op">-</span> <span class="ident">start</span>) <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="ident">vals</span>.<span class="ident">resize</span>(<span class="ident">len</span>, <span class="ident">Item</span>::<span class="ident">default</span>());
-        <span class="self">self</span>.<span class="ident">vals_reader</span>.<span class="ident">get_range</span>(<span class="ident">start</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>[..]);
+        <span class="self">self</span>.<span class="ident">vals_reader</span>.<span class="ident">get_range</span>(<span class="ident">start</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>[..]);
     }
 }
 

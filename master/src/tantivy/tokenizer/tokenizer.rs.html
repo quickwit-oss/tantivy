@@ -260,6 +260,28 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
 </pre><pre class="rust ">
 <span class="doccomment">/// The tokenizer module contains all of the tools used to process</span>
 <span class="doccomment">/// text in `tantivy`.</span>
@@ -267,22 +289,23 @@
 <span class="kw">use</span> <span class="ident">tokenizer</span>::<span class="ident">TokenStreamChain</span>;
 
 <span class="doccomment">/// Token</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Token</span> {
-    <span class="doccomment">/// Offset (byte index) of the first character of the token.</span>
-    <span class="doccomment">/// Offsets shall not be modified by token filters.</span>
-    <span class="kw">pub</span> <span class="ident">offset_from</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Offset (byte index) of the last character of the token + 1.</span>
-    <span class="doccomment">/// The text that generated the token should be obtained by</span>
-    <span class="doccomment">/// &amp;text[token.offset_from..token.offset_to]</span>
-    <span class="kw">pub</span> <span class="ident">offset_to</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Position, expressed in number of tokens.</span>
-    <span class="kw">pub</span> <span class="ident">position</span>: <span class="ident">usize</span>,
-    <span class="doccomment">/// Actual text content of the token.</span>
-    <span class="kw">pub</span> <span class="ident">text</span>: <span class="ident">String</span>,
+        <span class="doccomment">/// Offset (byte index) of the first character of the token.</span>
+        <span class="doccomment">/// Offsets shall not be modified by token filters.</span>
+        <span class="kw">pub</span> <span class="ident">offset_from</span>: <span class="ident">usize</span>,
+        <span class="doccomment">/// Offset (byte index) of the last character of the token + 1.</span>
+        <span class="doccomment">/// The text that generated the token should be obtained by</span>
+        <span class="doccomment">/// &amp;text[token.offset_from..token.offset_to]</span>
+        <span class="kw">pub</span> <span class="ident">offset_to</span>: <span class="ident">usize</span>,
+        <span class="doccomment">/// Position, expressed in number of tokens.</span>
+        <span class="kw">pub</span> <span class="ident">position</span>: <span class="ident">usize</span>,
+        <span class="doccomment">/// Actual text content of the token.</span>
+        <span class="kw">pub</span> <span class="ident">text</span>: <span class="ident">String</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Token</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Token</span> {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Token</span>           {
         <span class="ident">Token</span> {
             <span class="ident">offset_from</span>: <span class="number">0</span>,
             <span class="ident">offset_to</span>: <span class="number">0</span>,
@@ -522,6 +545,27 @@
 
     <span class="doccomment">/// Wraps a token stream and returns the modified one.</span>
     <span class="kw">fn</span> <span class="ident">transform</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">token_stream</span>: <span class="ident">TailTokenStream</span>) <span class="op">-&gt;</span> <span class="self">Self</span>::<span class="ident">ResultTokenStream</span>;
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
+<span class="kw">mod</span> <span class="ident">test</span> {
+    <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Token</span>;
+
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">clone</span>() {
+        <span class="kw">let</span> <span class="ident">t1</span> <span class="op">=</span> <span class="ident">Token</span> {
+            <span class="ident">position</span>: <span class="number">1</span>,
+            <span class="ident">offset_from</span>: <span class="number">2</span>,
+            <span class="ident">offset_to</span>: <span class="number">3</span>,
+            <span class="ident">text</span>: <span class="string">&quot;abc&quot;</span>.<span class="ident">to_string</span>(),
+        };
+        <span class="kw">let</span> <span class="ident">t2</span> <span class="op">=</span> <span class="ident">t1</span>.<span class="ident">clone</span>();
+
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t1</span>.<span class="ident">position</span>, <span class="ident">t2</span>.<span class="ident">position</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t1</span>.<span class="ident">offset_from</span>, <span class="ident">t2</span>.<span class="ident">offset_from</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t1</span>.<span class="ident">offset_to</span>, <span class="ident">t2</span>.<span class="ident">offset_to</span>);
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">t1</span>.<span class="ident">text</span>, <span class="ident">t2</span>.<span class="ident">text</span>);
+    }
 }
 </pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

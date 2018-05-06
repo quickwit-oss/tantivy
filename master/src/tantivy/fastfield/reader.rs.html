@@ -135,6 +135,9 @@
 <span id="135">135</span>
 <span id="136">136</span>
 <span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">FastValue</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitUnpacker</span>;
@@ -209,6 +212,9 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// May panic if `start + output.len()` is greater than</span>
     <span class="doccomment">/// the segment&#39;s `maxdoc`.</span>
+    <span class="doccomment">///</span>
+    <span class="comment">// TODO change start to `u64`.</span>
+    <span class="comment">// For multifastfield, start is an index in a second fastfield, not a `DocId`</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">start</span>: <span class="ident">u32</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Item</span>]) {
         <span class="kw">let</span> <span class="ident">output_u64</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u64</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">output</span>) };
         <span class="self">self</span>.<span class="ident">bit_unpacker</span>.<span class="ident">get_range</span>(<span class="ident">start</span>, <span class="ident">output_u64</span>);

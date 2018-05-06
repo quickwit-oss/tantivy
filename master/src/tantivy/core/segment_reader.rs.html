@@ -335,6 +335,13 @@
 <span id="335">335</span>
 <span id="336">336</span>
 <span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
@@ -457,6 +464,19 @@
         }
     }
 
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">fast_field_reader_with_idx</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">idx</span>: <span class="ident">usize</span>
+    ) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">&gt;&gt;</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">ff_source</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>.<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="ident">idx</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>(<span class="ident">ff_source</span>))
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
+            <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
+        }
+    }
+
     <span class="doccomment">/// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.</span>
     <span class="doccomment">/// May panick if the field is not a multivalued fastfield of the type `Item`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">multi_fast_field_reader</span><span class="op">&lt;</span><span class="ident">Item</span>: <span class="ident">FastValue</span><span class="op">&gt;</span>(
@@ -466,14 +486,8 @@
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
         <span class="kw">if</span> <span class="ident">Item</span>::<span class="ident">fast_field_cardinality</span>(<span class="ident">field_entry</span>.<span class="ident">field_type</span>()) <span class="op">==</span> <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>)
         {
-            <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
-            <span class="kw">let</span> <span class="ident">vals_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
-                .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)
-                .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
-                .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_field_reader_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">vals_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_field_reader_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
             <span class="prelude-val">Ok</span>(<span class="ident">MultiValueIntFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">vals_reader</span>))
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))

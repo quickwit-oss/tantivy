@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.4/src/parsers.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>parsers.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.7/src/parsers.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>parsers.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1382,6 +1382,58 @@
 <span id="1382">1382</span>
 <span id="1383">1383</span>
 <span id="1384">1384</span>
+<span id="1385">1385</span>
+<span id="1386">1386</span>
+<span id="1387">1387</span>
+<span id="1388">1388</span>
+<span id="1389">1389</span>
+<span id="1390">1390</span>
+<span id="1391">1391</span>
+<span id="1392">1392</span>
+<span id="1393">1393</span>
+<span id="1394">1394</span>
+<span id="1395">1395</span>
+<span id="1396">1396</span>
+<span id="1397">1397</span>
+<span id="1398">1398</span>
+<span id="1399">1399</span>
+<span id="1400">1400</span>
+<span id="1401">1401</span>
+<span id="1402">1402</span>
+<span id="1403">1403</span>
+<span id="1404">1404</span>
+<span id="1405">1405</span>
+<span id="1406">1406</span>
+<span id="1407">1407</span>
+<span id="1408">1408</span>
+<span id="1409">1409</span>
+<span id="1410">1410</span>
+<span id="1411">1411</span>
+<span id="1412">1412</span>
+<span id="1413">1413</span>
+<span id="1414">1414</span>
+<span id="1415">1415</span>
+<span id="1416">1416</span>
+<span id="1417">1417</span>
+<span id="1418">1418</span>
+<span id="1419">1419</span>
+<span id="1420">1420</span>
+<span id="1421">1421</span>
+<span id="1422">1422</span>
+<span id="1423">1423</span>
+<span id="1424">1424</span>
+<span id="1425">1425</span>
+<span id="1426">1426</span>
+<span id="1427">1427</span>
+<span id="1428">1428</span>
+<span id="1429">1429</span>
+<span id="1430">1430</span>
+<span id="1431">1431</span>
+<span id="1432">1432</span>
+<span id="1433">1433</span>
+<span id="1434">1434</span>
+<span id="1435">1435</span>
+<span id="1436">1436</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2018 Syn Developers</span>
 <span class="comment">//</span>
@@ -2644,6 +2696,58 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">syn</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span>:<span class="ident">ty</span>) <span class="op">=&gt;</span> {
         <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="macro-nonterminal">t</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">synom</span>::<span class="ident">Synom</span><span class="op">&gt;</span>::<span class="ident">parse</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>)
+    };
+}
+
+<span class="doccomment">/// Parse the given word as a keyword.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// For words that are keywords in the Rust language, it is better to use the</span>
+<span class="doccomment">/// [`keyword!`] parser which returns a unique type for each keyword.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [`keyword!`]: macro.keyword.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// - **Syntax:** `custom_keyword!(KEYWORD)`</span>
+<span class="doccomment">/// - **Output:** `Ident`</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ```rust</span>
+<span class="doccomment">/// #[macro_use]</span>
+<span class="doccomment">/// extern crate syn;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// use syn::Ident;</span>
+<span class="doccomment">/// use syn::synom::Synom;</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// struct Flag {</span>
+<span class="doccomment">///     name: Ident,</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// // Parses the custom keyword `flag` followed by any name for a flag.</span>
+<span class="doccomment">/// //</span>
+<span class="doccomment">/// // Example: `flag Verbose`</span>
+<span class="doccomment">/// impl Synom for Flag {</span>
+<span class="doccomment">///     named!(parse -&gt; Flag, do_parse!(</span>
+<span class="doccomment">///         custom_keyword!(flag) &gt;&gt;</span>
+<span class="doccomment">///         name: syn!(Ident) &gt;&gt;</span>
+<span class="doccomment">///         (Flag { name })</span>
+<span class="doccomment">///     ));</span>
+<span class="doccomment">/// }</span>
+<span class="doccomment">/// #</span>
+<span class="doccomment">/// # fn main() {}</span>
+<span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// *This macro is available if Syn is built with the `&quot;parsing&quot;` feature.*</span>
+<span class="attribute">#[<span class="ident">macro_export</span>]</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">custom_keyword</span> {
+    (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">keyword</span>:<span class="ident">ident</span>) <span class="op">=&gt;</span> {
+        <span class="kw">match</span> <span class="op">&lt;</span><span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Ident</span> <span class="kw">as</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">synom</span>::<span class="ident">Synom</span><span class="op">&gt;</span>::<span class="ident">parse</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">i</span>) {
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>) <span class="op">=&gt;</span> ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Err</span>(<span class="ident">err</span>),
+            ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="ident">token</span>, <span class="ident">i</span>)) <span class="op">=&gt;</span> {
+                <span class="kw">if</span> <span class="ident">token</span> <span class="op">==</span> <span class="macro">stringify</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">keyword</span>) {
+                    ::<span class="ident">std</span>::<span class="ident">result</span>::<span class="prelude-ty">Result</span>::<span class="prelude-val">Ok</span>((<span class="ident">token</span>, <span class="ident">i</span>))
+                } <span class="kw">else</span> {
+                    <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">parse_error</span>()
+                }
+            }
+        }
     };
 }
 
