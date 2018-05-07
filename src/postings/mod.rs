@@ -14,7 +14,6 @@ mod serializer;
 mod term_info;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
-use self::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
 pub use self::postings::Postings;

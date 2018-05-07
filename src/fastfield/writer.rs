@@ -1,4 +1,3 @@
-use super::multivalued::MultiValueIntFastFieldWriter;
 use common;
 use common::BinarySerializable;
 use common::VInt;

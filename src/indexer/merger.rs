@@ -221,6 +221,9 @@ impl IndexMerger {
                     // They can be implemented using what is done
                     // for facets in the future.
                 }
+                FieldType::Bytes => {
+                    unimplemented!("TODO: write_bytes_fast_field")
+                }
             }
         }
         Ok(())
