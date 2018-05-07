@@ -198,8 +198,8 @@ impl FieldUsage {
     }
 
     pub(crate) fn add_field_idx(&mut self, idx: usize, size: ByteCount) {
-        if self.sub_weights.len() < idx {
-            self.sub_weights.resize(idx, None);
+        if self.sub_weights.len() < idx + 1{
+            self.sub_weights.resize(idx + 1, None);
         }
         assert!(self.sub_weights[idx].is_none());
         self.sub_weights[idx] = Some(size);
