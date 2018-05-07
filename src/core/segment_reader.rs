@@ -121,6 +121,19 @@ impl SegmentReader {
         }
     }
 
+    pub(crate) fn fast_field_reader_with_idx<Item: FastValue>(
+        &self,
+        field: Field,
+        idx: usize
+    ) -> fastfield::Result<FastFieldReader<Item>> {
+        if let Some(ff_source) = self.fast_fields_composite.open_read_with_idx(field, idx) {
+            Ok(FastFieldReader::open(ff_source))
+        } else {
+            let field_entry = self.schema.get_field_entry(field);
+            Err(FastFieldNotAvailableError::new(field_entry))
+        }
+    }
+
     /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
     /// May panick if the field is not a multivalued fastfield of the type `Item`.
     pub fn multi_fast_field_reader<Item: FastValue>(
@@ -130,14 +143,8 @@ impl SegmentReader {
         let field_entry = self.schema.get_field_entry(field);
         if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues)
         {
-            let idx_reader = self.fast_fields_composite
-                .open_read_with_idx(field, 0)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)?;
-            let vals_reader = self.fast_fields_composite
-                .open_read_with_idx(field, 1)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)?;
+            let idx_reader = self.fast_field_reader_with_idx(field, 0)?;
+            let vals_reader = self.fast_field_reader_with_idx(field, 1)?;
             Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
         } else {
             Err(FastFieldNotAvailableError::new(field_entry))

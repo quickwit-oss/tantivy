@@ -1,12 +1,10 @@
-use core::Searcher;
-use core::SegmentReader;
-use docset::DocSet;
-use query::Query;
-use query::Scorer;
-use query::Weight;
 use DocId;
 use Result;
 use Score;
+use core::Searcher;
+use core::SegmentReader;
+use docset::DocSet;
+use query::{Query, Weight, Scorer};
 
 /// Query that matches all of the documents.
 ///
@@ -26,28 +24,46 @@ pub struct AllWeight;
 impl Weight for AllWeight {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         Ok(Box::new(AllScorer {
-            started: false,
+            state: State::NotStarted,
             doc: 0u32,
-            max_doc: reader.max_doc(),
+            max_doc: reader.max_doc()
         }))
     }
 }
 
+enum State {
+    NotStarted,
+    Started,
+    Finished
+}
+
 /// Scorer associated to the `AllQuery` query.
 pub struct AllScorer {
-    started: bool,
+    state: State,
     doc: DocId,
-    max_doc: DocId,
+    max_doc: DocId
 }
 
 impl DocSet for AllScorer {
     fn advance(&mut self) -> bool {
-        if self.started {
-            self.doc += 1u32;
-        } else {
-            self.started = true;
+        match self.state {
+            State::NotStarted => {
+                self.state = State::Started;
+                self.doc = 0;
+            }
+            State::Started => {
+                self.doc += 1u32;
+            }
+            State::Finished => {
+                return false;
+            }
         }
-        self.doc < self.max_doc
+        if self.doc < self.max_doc {
+            return true;
+        } else {
+            self.state = State::Finished;
+            return false;
+        }
     }
 
     fn doc(&self) -> DocId {
@@ -63,4 +79,50 @@ impl Scorer for AllScorer {
     fn score(&mut self) -> Score {
         1f32
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::AllQuery;
+    use Index;
+    use schema::{TEXT, SchemaBuilder};
+    use query::Query;
+
+    #[test]
+    fn test_all_query() {
+        let mut schema_builder = SchemaBuilder::default();
+        let field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index
+            .writer_with_num_threads(1, 10_000_000)
+            .unwrap();
+        index_writer.add_document(doc!(field=>"aaa"));
+        index_writer.add_document(doc!(field=>"bbb"));
+        index_writer.commit().unwrap();
+        index_writer.add_document(doc!(field=>"ccc"));
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let weight = AllQuery.weight(&searcher, false).unwrap();
+        {
+            let reader = searcher.segment_reader(0);
+            let mut scorer = weight.scorer(reader).unwrap();
+            assert!(scorer.advance());
+            assert_eq!(scorer.doc(), 0u32);
+            assert!(scorer.advance());
+            assert_eq!(scorer.doc(), 1u32);
+            assert!(!scorer.advance());
+        }
+        {
+            let reader = searcher.segment_reader(1);
+            let mut scorer = weight.scorer(reader).unwrap();
+            assert!(scorer.advance());
+            assert_eq!(scorer.doc(), 0u32);
+            assert!(!scorer.advance());
+        }
+    }
+
 }
