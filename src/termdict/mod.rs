@@ -1,7 +1,7 @@
 /*!
-The term dictionary is one of the key datastructure of
+The term dictionary is one of the key data structures of
 tantivy. It associates sorted `terms` to a `TermInfo` struct
-that serves as an address in their respective posting list.
+that serves as an address to their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
@@ -9,12 +9,12 @@ a range of keys in a sorted manner.
 
 # Implementations
 
-There is currently two implementations of the term dictionary.
+There are currently two implementations of the term dictionary.
 
 ## Default implementation : `fstdict`
 
 The default one relies heavily on the `fst` crate.
-It associate each terms `&[u8]` representation to a `u64`
+It associate each term's `&[u8]` representation to a `u64`
 that is in fact an address in a buffer. The value is then accessible
 via deserializing the value at this address.
 

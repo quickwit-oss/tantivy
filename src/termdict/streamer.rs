@@ -4,7 +4,7 @@ use fst::{IntoStreamer, Streamer};
 use postings::TermInfo;
 use termdict::TermOrdinal;
 
-/// `TermStreamerBuilder` is an helper object used to define
+/// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
 pub struct TermStreamerBuilder<'a> {
     fst_map: &'a TermDictionary,

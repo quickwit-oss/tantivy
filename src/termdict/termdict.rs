@@ -101,7 +101,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
 /// The term dictionary contains all of the terms in
 /// `tantivy index` in a sorted manner.
 ///
-/// The `Fst` crate is used to assoicated terms to their
+/// The `Fst` crate is used to assoicate terms to their
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
 pub struct TermDictionary {
