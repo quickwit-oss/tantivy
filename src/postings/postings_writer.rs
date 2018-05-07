@@ -33,7 +33,12 @@ fn posting_from_field_entry<'a>(
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)),
-        FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet | FieldType::Bytes => {
+        FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+        }
+        FieldType::Bytes => {
+            // FieldType::Bytes cannot actually be indexed.
+            // TODO fix during the indexer refactoring described in #276
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
         }
     }
