@@ -2,56 +2,58 @@ use super::heap::{BytesRef, Heap, HeapAllocable};
 use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
+use std::slice;
+
 
 mod murmurhash2 {
 
     const SEED: u32 = 3_242_157_231u32;
+    const M: u32 = 0x5bd1_e995;
 
     #[inline(always)]
     pub fn murmurhash2(key: &[u8]) -> u32 {
-        let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
-        let m: u32 = 0x5bd1_e995;
-        let r = 24;
-        let len = key.len() as u32;
 
+        let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
+        let len = key.len() as u32;
         let mut h: u32 = SEED ^ len;
+
         let num_blocks = len >> 2;
         for _ in 0..num_blocks {
             let mut k: u32 = unsafe { *key_ptr };
-            k = k.wrapping_mul(m);
-            k ^= k >> r;
-            k = k.wrapping_mul(m);
-            k = k.wrapping_mul(m);
+            k = k.wrapping_mul(M);
+            k ^= k >> 24;
+            k = k.wrapping_mul(M);
+            h = h.wrapping_mul(M);
             h ^= k;
             key_ptr = key_ptr.wrapping_offset(1);
         }
 
         // Handle the last few bytes of the input array
-        let remaining = len & 3;
-        let key_ptr_u8: *const u8 = key_ptr as *const u8;
-        match remaining {
+        let remaining: &[u8] = &key[key.len() & !3..];
+        match remaining.len() {
             3 => {
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(2)) } << 16;
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
-                h ^= unsafe { u32::from(*key_ptr_u8) };
-                h = h.wrapping_mul(m);
+                h ^= u32::from(remaining[2]) << 16;
+                h ^= u32::from(remaining[1]) << 8;
+                h ^= u32::from(remaining[0]);
+                h = h.wrapping_mul(M);
             }
             2 => {
-                h ^= unsafe { u32::from(*key_ptr_u8.wrapping_offset(1)) } << 8;
-                h ^= unsafe { u32::from(*key_ptr_u8) };
-                h = h.wrapping_mul(m);
+                h ^= u32::from(remaining[1]) << 8;
+                h ^= u32::from(remaining[0]);
+                h = h.wrapping_mul(M);
             }
             1 => {
-                h ^= unsafe { u32::from(*key_ptr_u8) };
-                h = h.wrapping_mul(m);
+                h ^= u32::from(remaining[0]);
+                h = h.wrapping_mul(M);
             }
             _ => {}
         }
         h ^= h >> 13;
-        h = h.wrapping_mul(m);
+        h = h.wrapping_mul(M);
         h ^ (h >> 15)
     }
 }
+
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -126,8 +128,6 @@ impl QuadraticProbing {
         (self.hash + self.i * self.i) & self.mask
     }
 }
-
-use std::slice;
 
 pub struct Iter<'a: 'b, 'b> {
     hashmap: &'b TermHashMap<'a>,
@@ -217,22 +217,20 @@ impl<'a> TermHashMap<'a> {
     }
 }
 
-#[cfg(all(test, unstable))]
+#[cfg(all(test, feature="unstable"))]
 mod bench {
     use super::murmurhash2::murmurhash2;
     use test::Bencher;
 
     #[bench]
-    fn bench_murmurhash_2(b: &mut Bencher) {
-        let keys: Vec<&'static str> =
-            vec!["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
+    fn bench_murmurhash2(b: &mut Bencher) {
+        let keys: [&'static str; 3]= ["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
         b.iter(|| {
-            keys.iter()
-                .map(|&s| s.as_bytes())
-                .map(murmurhash2)
-                .map(|h| h as u64)
-                .last()
-                .unwrap()
+            let mut s = 0;
+            for &key in &keys {
+                s ^= murmurhash2(key.as_bytes());
+            }
+            s
         });
     }
 }
@@ -314,6 +312,18 @@ mod tests {
             );
         }
     }
+
+    #[test]
+    fn test_murmur_against_reference_impl() {
+        assert_eq!(murmurhash2("".as_bytes()), 3632506080);
+        assert_eq!(murmurhash2("a".as_bytes()), 455683869);
+        assert_eq!(murmurhash2("ab".as_bytes()), 2448092234);
+        assert_eq!(murmurhash2("abc".as_bytes()), 2066295634);
+        assert_eq!(murmurhash2("abcd".as_bytes()), 2588571162);
+        assert_eq!(murmurhash2("abcde".as_bytes()), 2988696942);
+        assert_eq!(murmurhash2("abcdefghijklmnop".as_bytes()), 2350868870);
+    }
+
 
     #[test]
     fn test_murmur_collisions() {

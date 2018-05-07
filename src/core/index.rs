@@ -103,10 +103,10 @@ impl Index {
         Ok(index)
     }
 
-    /// Create a new index from a directory.
-    pub fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
-        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
-        let metas = IndexMeta::with_schema(schema);
+    /// Open the index using the provided directory
+    pub fn open_directory<D: Directory>(directory: D) -> Result<Index> {
+        let directory = ManagedDirectory::new(directory)?;
+        let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, &metas)
     }
 
@@ -114,8 +114,13 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        let directory = ManagedDirectory::new(mmap_directory)?;
-        let metas = load_metas(&directory)?;
+        Index::open_directory(mmap_directory)
+    }
+
+    /// Create a new index from a directory.
+    pub fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
+        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
+        let metas = IndexMeta::with_schema(schema);
         Index::create_from_metas(directory, &metas)
     }
 

@@ -1,10 +1,17 @@
-Tantivy 0.5.2
+Tantivy 0.6
 ==========================
-
 - Removed C code. Tantivy is now pure Rust.
 - BM25
 - Approximate field norms encoded over 1 byte.
 - Compiles on stable rust
+
+
+Tantivy 0.5.2
+===========================
+- bugfix #274
+- bugfix #280
+- bugfix #289
+
 
 Tantivy 0.5.1
 ==========================

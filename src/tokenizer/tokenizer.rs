@@ -4,22 +4,23 @@ use std::borrow::{Borrow, BorrowMut};
 use tokenizer::TokenStreamChain;
 
 /// Token
+#[derive(Debug, Clone)]
 pub struct Token {
-    /// Offset (byte index) of the first character of the token.
-    /// Offsets shall not be modified by token filters.
-    pub offset_from: usize,
-    /// Offset (byte index) of the last character of the token + 1.
-    /// The text that generated the token should be obtained by
-    /// &text[token.offset_from..token.offset_to]
-    pub offset_to: usize,
-    /// Position, expressed in number of tokens.
-    pub position: usize,
-    /// Actual text content of the token.
-    pub text: String,
+        /// Offset (byte index) of the first character of the token.
+        /// Offsets shall not be modified by token filters.
+        pub offset_from: usize,
+        /// Offset (byte index) of the last character of the token + 1.
+        /// The text that generated the token should be obtained by
+        /// &text[token.offset_from..token.offset_to]
+        pub offset_to: usize,
+        /// Position, expressed in number of tokens.
+        pub position: usize,
+        /// Actual text content of the token.
+        pub text: String,
 }
 
 impl Default for Token {
-    fn default() -> Token {
+    fn default() -> Token           {
         Token {
             offset_from: 0,
             offset_to: 0,
@@ -259,4 +260,25 @@ pub trait TokenFilter<TailTokenStream: TokenStream>: Clone {
 
     /// Wraps a token stream and returns the modified one.
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream;
+}
+
+#[cfg(test)]
+mod test {
+    use super::Token;
+
+    #[test]
+    fn clone() {
+        let t1 = Token {
+            position: 1,
+            offset_from: 2,
+            offset_to: 3,
+            text: "abc".to_string(),
+        };
+        let t2 = t1.clone();
+
+        assert_eq!(t1.position, t2.position);
+        assert_eq!(t1.offset_from, t2.offset_from);
+        assert_eq!(t1.offset_to, t2.offset_to);
+        assert_eq!(t1.text, t2.text);
+    }
 }
