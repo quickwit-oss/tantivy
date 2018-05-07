@@ -4,7 +4,9 @@ Tantivy 0.6
 - BM25
 - Approximate field norms encoded over 1 byte.
 - Compiles on stable rust
-
+- Add &[u8] fastfield for associating arbitrary bytes to each document (@jason-wolfe) (#270)
+    - Completely uncompressed
+    - Internally: One u64 fast field for indexes, one fast field for the bytes themselves.
 
 Tantivy 0.5.2
 ===========================
