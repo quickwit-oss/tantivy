@@ -140,4 +140,8 @@ impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
     pub fn write_all(&mut self, vals: &[u8]) -> io::Result<()> {
         self.write.write_all(vals)
     }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.write.flush()
+    }
 }
