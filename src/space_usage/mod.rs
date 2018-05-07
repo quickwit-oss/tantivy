@@ -12,10 +12,26 @@ under-count actual resultant space usage by up to 4095 bytes per file.
 use schema::Field;
 use std::collections::HashMap;
 use std::ops::{Add, AddAssign};
+use serde::Serialize;
+use serde::Serializer;
+use serde::Deserialize;
+use serde::Deserializer;
 
 /// Indicates space usage in bytes
 #[derive(Clone, Copy, Debug)]
 pub struct ByteCount(pub usize);
+
+impl Serialize for ByteCount {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+        self.0.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for ByteCount {
+    fn deserialize<D>(deserializer: D) -> Result<ByteCount, D::Error> where D: Deserializer<'de> {
+        Ok(ByteCount(usize::deserialize(deserializer)?))
+    }
+}
 
 impl Add for ByteCount {
     type Output = ByteCount;
@@ -31,7 +47,7 @@ impl AddAssign for ByteCount {
 }
 
 /// Represents combined space usage of an entire searcher and its component segments.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SearcherSpaceUsage {
     segments: Vec<SegmentSpaceUsage>,
     total: ByteCount,
@@ -60,7 +76,7 @@ impl SearcherSpaceUsage {
 }
 
 /// Represents combined space usage for all of the large components comprising a segment.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SegmentSpaceUsage {
     num_docs: u32,
 
@@ -119,7 +135,7 @@ impl SegmentSpaceUsage {
 /// This is composed of two parts.
 /// `data` represents the compressed data itself.
 /// `offsets` represents a lookup to find the start of a block
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct StoreSpaceUsage {
     data: ByteCount,
     offsets: ByteCount,
@@ -140,7 +156,7 @@ impl StoreSpaceUsage {
 ///
 /// A field can appear with a single index (typically 0) or with multiple indexes.
 /// Multiple indexes are used to handle variable length things, where
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PerFieldSpaceUsage {
     fields: HashMap<Field, FieldUsage>,
     total: ByteCount
@@ -162,7 +178,7 @@ impl PerFieldSpaceUsage {
 /// comprise it.
 ///
 /// See documentation for PerFieldSpaceUsage for slightly more information.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldUsage {
     field: Field,
     weight: ByteCount,
