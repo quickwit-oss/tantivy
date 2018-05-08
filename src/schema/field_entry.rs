@@ -191,7 +191,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "text" | "u64" | "i64" => {
                                     // These types require additional options to create a field_type
                                 }
-                                _ => panic!("unhandled type")
+                                _ => panic!("unhandled type"),
                             }
                             ty = Some(type_string);
                         }

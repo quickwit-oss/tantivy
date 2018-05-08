@@ -3,10 +3,10 @@ use fastfield::value_to_u64;
 use fastfield::FastFieldSerializer;
 use itertools::Itertools;
 use postings::UnorderedTermId;
-use termdict::TermOrdinal;
 use schema::{Document, Field};
 use std::collections::HashMap;
 use std::io;
+use termdict::TermOrdinal;
 use DocId;
 
 /// Writer for multi-valued (as in, more than one value per document)

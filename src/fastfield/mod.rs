@@ -23,6 +23,7 @@ values stored.
 Read access performance is comparable to that of an array lookup.
 */
 
+pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 pub use self::delete::write_delete_bitset;
 pub use self::delete::DeleteBitSet;
 pub use self::error::{FastFieldNotAvailableError, Result};
@@ -31,7 +32,6 @@ pub use self::multivalued::{MultiValueIntFastFieldReader, MultiValueIntFastField
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
-pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 use common;
 use schema::Cardinality;
 use schema::FieldType;

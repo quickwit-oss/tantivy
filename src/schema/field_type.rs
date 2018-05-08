@@ -114,13 +114,12 @@ impl FieldType {
                     format!("Expected an integer, got {:?}", json),
                 )),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
-                FieldType::Bytes => {
-                    decode(field_text)
-                        .map(Value::Bytes)
-                        .map_err(|_| ValueParsingError::InvalidBase64(
-                            format!("Expected base64 string, got {:?}", field_text)
-                        ))
-                }
+                FieldType::Bytes => decode(field_text).map(Value::Bytes).map_err(|_| {
+                    ValueParsingError::InvalidBase64(format!(
+                        "Expected base64 string, got {:?}",
+                        field_text
+                    ))
+                }),
             },
             JsonValue::Number(ref field_val_num) => match *self {
                 FieldType::I64(_) => {
@@ -158,8 +157,8 @@ impl FieldType {
 #[cfg(test)]
 mod tests {
     use super::FieldType;
-    use schema::Value;
     use schema::field_type::ValueParsingError;
+    use schema::Value;
 
     #[test]
     fn test_bytes_value_from_json() {
@@ -168,18 +167,16 @@ mod tests {
             .unwrap();
         assert_eq!(result, Value::Bytes("this is a test".as_bytes().to_vec()));
 
-        let result = FieldType::Bytes
-            .value_from_json(&json!(521));
+        let result = FieldType::Bytes.value_from_json(&json!(521));
         match result {
             Err(ValueParsingError::TypeError(_)) => {}
-            _ => panic!("Expected parse failure for wrong type")
+            _ => panic!("Expected parse failure for wrong type"),
         }
 
-        let result = FieldType::Bytes
-            .value_from_json(&json!("-"));
+        let result = FieldType::Bytes.value_from_json(&json!("-"));
         match result {
             Err(ValueParsingError::InvalidBase64(_)) => {}
-            _ => panic!("Expected parse failure for invalid base64")
+            _ => panic!("Expected parse failure for invalid base64"),
         }
     }
 }

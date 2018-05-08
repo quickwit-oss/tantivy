@@ -42,116 +42,116 @@ use super::{Token, TokenStream, Tokenizer};
 /// ```
 #[derive(Clone)]
 pub struct NgramTokenizer {
-  /// min size of the n-gram
-  min_gram: usize,
-  /// max size of the n-gram
-  max_gram: usize,
-  /// if true, will only parse the leading edge of the input
-  prefix_only: bool,
+    /// min size of the n-gram
+    min_gram: usize,
+    /// max size of the n-gram
+    max_gram: usize,
+    /// if true, will only parse the leading edge of the input
+    prefix_only: bool,
 }
 
 impl NgramTokenizer {
-  /// Configures a new Ngram tokenizer
-  pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> NgramTokenizer {
-    assert!(min_gram > 0, "min_gram must be greater than 0");
-    assert!(
-      min_gram <= max_gram,
-      "min_gram must not be greater than max_gram"
-    );
+    /// Configures a new Ngram tokenizer
+    pub fn new(min_gram: usize, max_gram: usize, prefix_only: bool) -> NgramTokenizer {
+        assert!(min_gram > 0, "min_gram must be greater than 0");
+        assert!(
+            min_gram <= max_gram,
+            "min_gram must not be greater than max_gram"
+        );
 
-    NgramTokenizer {
-      min_gram,
-      max_gram,
-      prefix_only,
+        NgramTokenizer {
+            min_gram,
+            max_gram,
+            prefix_only,
+        }
     }
-  }
 }
 pub struct NgramTokenStream<'a> {
-  text: &'a str,
-  location: usize,
-  text_length: usize,
-  token: Token,
-  min_gram: usize,
-  max_gram: usize,
-  gram_size: usize,
-  prefix_only: bool,
+    text: &'a str,
+    location: usize,
+    text_length: usize,
+    token: Token,
+    min_gram: usize,
+    max_gram: usize,
+    gram_size: usize,
+    prefix_only: bool,
 }
 
 impl<'a> Tokenizer<'a> for NgramTokenizer {
-  type TokenStreamImpl = NgramTokenStream<'a>;
+    type TokenStreamImpl = NgramTokenStream<'a>;
 
-  fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-    NgramTokenStream {
-      text,
-      location: 0,
-      text_length: text.len(),
-      token: Token::default(),
-      min_gram: self.min_gram,
-      max_gram: self.max_gram,
-      prefix_only: self.prefix_only,
-      gram_size: self.min_gram,
+    fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
+        NgramTokenStream {
+            text,
+            location: 0,
+            text_length: text.len(),
+            token: Token::default(),
+            min_gram: self.min_gram,
+            max_gram: self.max_gram,
+            prefix_only: self.prefix_only,
+            gram_size: self.min_gram,
+        }
     }
-  }
 }
 
 impl<'a> NgramTokenStream<'a> {
-  /// Get the next set of token options
-  /// cycle through 1,2 (min..=max)
-  /// returning None if processing should stop
-  fn chomp(&mut self) -> Option<(usize, usize)> {
-    // Have we exceeded the bounds of the text we are indexing?
-    if self.gram_size > self.max_gram {
-      if self.prefix_only {
-        return None;
-      }
+    /// Get the next set of token options
+    /// cycle through 1,2 (min..=max)
+    /// returning None if processing should stop
+    fn chomp(&mut self) -> Option<(usize, usize)> {
+        // Have we exceeded the bounds of the text we are indexing?
+        if self.gram_size > self.max_gram {
+            if self.prefix_only {
+                return None;
+            }
 
-      // since we aren't just processing edges
-      // we need to reset the gram size
-      self.gram_size = self.min_gram;
+            // since we aren't just processing edges
+            // we need to reset the gram size
+            self.gram_size = self.min_gram;
 
-      // and move down the chain of letters
-      self.location += 1;
+            // and move down the chain of letters
+            self.location += 1;
+        }
+
+        let result = if (self.location + self.gram_size) <= self.text_length {
+            Some((self.location, self.gram_size))
+        } else {
+            None
+        };
+
+        // increase the gram size for the next pass
+        self.gram_size += 1;
+
+        result
     }
-
-    let result = if (self.location + self.gram_size) <= self.text_length {
-      Some((self.location, self.gram_size))
-    } else {
-      None
-    };
-
-    // increase the gram size for the next pass
-    self.gram_size += 1;
-
-    result
-  }
 }
 
 impl<'a> TokenStream for NgramTokenStream<'a> {
-  fn advance(&mut self) -> bool {
-    // clear out working token text
-    self.token.text.clear();
+    fn advance(&mut self) -> bool {
+        // clear out working token text
+        self.token.text.clear();
 
-    if let Some((position, size)) = self.chomp() {
-      self.token.position = position;
-      let offset_from = position;
-      let offset_to = offset_from + size;
+        if let Some((position, size)) = self.chomp() {
+            self.token.position = position;
+            let offset_from = position;
+            let offset_to = offset_from + size;
 
-      self.token.offset_from = offset_from;
-      self.token.offset_to = offset_to;
+            self.token.offset_from = offset_from;
+            self.token.offset_to = offset_to;
 
-      self.token.text.push_str(&self.text[offset_from..offset_to]);
+            self.token.text.push_str(&self.text[offset_from..offset_to]);
 
-      true
-    } else {
-      false
+            true
+        } else {
+            false
+        }
     }
-  }
 
-  fn token(&self) -> &Token {
-    &self.token
-  }
+    fn token(&self) -> &Token {
+        &self.token
+    }
 
-  fn token_mut(&mut self) -> &mut Token {
-    &mut self.token
-  }
+    fn token_mut(&mut self) -> &mut Token {
+        &mut self.token
+    }
 }

@@ -3,8 +3,8 @@ use std::fmt;
 use super::Field;
 use byteorder::{BigEndian, ByteOrder};
 use common;
-use std::str;
 use schema::Facet;
+use std::str;
 
 /// Size (in bytes) of the buffer of a int field.
 const INT_TERM_LEN: usize = 4 + 8;

@@ -90,12 +90,12 @@ pub mod tests {
 
     use super::*;
     use core::SegmentReader;
+    use fastfield::BytesFastFieldReader;
     use fastfield::FastFieldReader;
     use schema::Field;
     use DocId;
     use Score;
     use SegmentLocalId;
-    use fastfield::BytesFastFieldReader;
 
     /// Stores all of the doc ids.
     /// This collector is only used for tests.

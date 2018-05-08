@@ -1,17 +1,16 @@
-use Result;
-use DocId;
 use super::TermInfo;
 use common::BinarySerializable;
+use common::{CompositeWrite, CountingWriter};
 use compression::VIntEncoder;
 use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
 use core::Segment;
 use directory::WritePtr;
-use schema::{Field, FieldEntry, FieldType};
 use schema::Schema;
+use schema::{Field, FieldEntry, FieldType};
 use std::io::{self, Write};
-use common::{CompositeWrite, CountingWriter};
-use termdict::{TermOrdinal, TermDictionaryBuilder};
-
+use termdict::{TermDictionaryBuilder, TermOrdinal};
+use DocId;
+use Result;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the

@@ -1,18 +1,18 @@
 use datastruct::stacker::{Heap, TermHashMap};
+use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
+use postings::UnorderedTermId;
 use postings::{FieldSerializer, InvertedIndexSerializer};
-use postings::recorder::{Recorder, NothingRecorder, TFAndPositionRecorder, TermFrequencyRecorder};
-use schema::{FieldEntry, FieldType, Term, Field, Schema};
+use schema::IndexRecordOption;
+use schema::{Field, FieldEntry, FieldType, Schema, Term};
 use std::collections::HashMap;
 use std::io;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
+use termdict::TermOrdinal;
 use tokenizer::Token;
 use tokenizer::TokenStream;
 use DocId;
 use Result;
-use schema::IndexRecordOption;
-use postings::UnorderedTermId;
-use termdict::TermOrdinal;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -97,8 +97,10 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             .map(|(key, _, _)| Term::wrap(key).field())
             .enumerate();
 
-        let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
-            HashMap::new();
+        let mut unordered_term_mappings: HashMap<
+            Field,
+            HashMap<UnorderedTermId, TermOrdinal>,
+        > = HashMap::new();
 
         let mut prev_field = Field(u32::max_value());
         for (offset, field) in term_offsets_it {
@@ -124,7 +126,9 @@ impl<'a> MultiFieldPostingsWriter<'a> {
                         .map(|&(_, _, bucket)| bucket);
                     let mut mapping: HashMap<UnorderedTermId, TermOrdinal> = unordered_term_ids
                         .enumerate()
-                        .map(|(term_ord, unord_term_id)| (unord_term_id as UnorderedTermId, term_ord as TermOrdinal))
+                        .map(|(term_ord, unord_term_id)| {
+                            (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
+                        })
                         .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }

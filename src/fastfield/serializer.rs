@@ -65,7 +65,7 @@ impl FastFieldSerializer {
     pub fn new_bytes_fast_field_with_idx(
         &mut self,
         field: Field,
-        idx: usize
+        idx: usize,
     ) -> io::Result<FastBytesFieldSerializer<CountingWriter<WritePtr>>> {
         let field_write = self.composite_write.for_field_with_idx(field, idx);
         FastBytesFieldSerializer::open(field_write)
@@ -87,7 +87,6 @@ pub struct FastSingleFieldSerializer<'a, W: Write + 'a> {
 }
 
 impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
-
     /// Creates a new fast field serializer.
     ///
     /// The serializer in fact encode the values by bitpacking

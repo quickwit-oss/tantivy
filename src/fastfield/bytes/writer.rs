@@ -1,4 +1,3 @@
-
 use std::io;
 
 use fastfield::serializer::FastFieldSerializer;
@@ -55,7 +54,10 @@ impl BytesFastFieldWriter {
                 if let &Value::Bytes(ref bytes) = field_value.value() {
                     self.vals.extend_from_slice(bytes);
                 } else {
-                    panic!("Bytes field contained non-Bytes Value!. Field {:?} = {:?}", self.field, field_value);
+                    panic!(
+                        "Bytes field contained non-Bytes Value!. Field {:?} = {:?}",
+                        self.field, field_value
+                    );
                 }
             }
         }
@@ -73,10 +75,7 @@ impl BytesFastFieldWriter {
     }
 
     /// Serializes the fast field values by pushing them to the `FastFieldSerializer`.
-    pub fn serialize(
-        &self,
-        serializer: &mut FastFieldSerializer
-    ) -> io::Result<()> {
+    pub fn serialize(&self, serializer: &mut FastFieldSerializer) -> io::Result<()> {
         {
             // writing the offset index
             let mut doc_index_serializer =

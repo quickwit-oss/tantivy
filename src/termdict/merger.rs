@@ -1,8 +1,8 @@
+use schema::Term;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use termdict::TermStreamer;
 use termdict::TermOrdinal;
-use schema::Term;
+use termdict::TermStreamer;
 
 pub struct HeapItem<'a> {
     pub streamer: TermStreamer<'a>,
@@ -28,7 +28,6 @@ impl<'a> Ord for HeapItem<'a> {
         (&other.streamer.key(), &other.segment_ord).cmp(&(&self.streamer.key(), &self.segment_ord))
     }
 }
-
 
 /// Given a list of sorted term streams,
 /// returns an iterator over sorted unique terms.
@@ -59,12 +58,14 @@ impl<'a> TermMerger<'a> {
         }
     }
 
-    pub(crate) fn matching_segments<'b: 'a>(&'b self) -> Box<'b + Iterator<Item=(usize, TermOrdinal)>> {
-        Box::new(self.current_streamers
-            .iter()
-            .map(|heap_item| {
-                (heap_item.segment_ord, heap_item.streamer.term_ord())
-            }))
+    pub(crate) fn matching_segments<'b: 'a>(
+        &'b self,
+    ) -> Box<'b + Iterator<Item = (usize, TermOrdinal)>> {
+        Box::new(
+            self.current_streamers
+                .iter()
+                .map(|heap_item| (heap_item.segment_ord, heap_item.streamer.term_ord())),
+        )
     }
 
     fn advance_segments(&mut self) {

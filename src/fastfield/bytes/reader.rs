@@ -25,10 +25,7 @@ impl BytesFastFieldReader {
         values_source: ReadOnlySource,
     ) -> BytesFastFieldReader {
         let values = OwningRef::new(values_source).map(|source| &source[..]);
-        BytesFastFieldReader {
-            idx_reader,
-            values,
-        }
+        BytesFastFieldReader { idx_reader, values }
     }
 
     /// Returns the bytes associated to the given `doc`

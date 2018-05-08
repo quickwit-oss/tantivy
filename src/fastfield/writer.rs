@@ -1,12 +1,12 @@
+use super::multivalued::MultiValueIntFastFieldWriter;
 use common;
 use common::BinarySerializable;
 use common::VInt;
 use fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use postings::UnorderedTermId;
-use schema::{FieldType, Cardinality, Document, Field, Schema};
+use schema::{Cardinality, Document, Field, FieldType, Schema};
 use std::collections::HashMap;
 use std::io;
-use super::multivalued::MultiValueIntFastFieldWriter;
 use termdict::TermOrdinal;
 
 /// The fastfieldswriter regroup all of the fast field writers.
@@ -89,10 +89,7 @@ impl FastFieldsWriter {
     ///
     /// Returns None if the field does not exist, or is not
     /// configured as a bytes fastfield in the schema.
-    pub fn get_bytes_writer(
-        &mut self,
-        field: Field,
-    ) -> Option<&mut BytesFastFieldWriter> {
+    pub fn get_bytes_writer(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
         // TODO optimize
         self.bytes_value_writers
             .iter_mut()

@@ -59,7 +59,6 @@ pub use self::merger::TermMerger;
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
 
-
 #[cfg(test)]
 mod tests {
     use super::{TermDictionary, TermDictionaryBuilder, TermStreamer};
