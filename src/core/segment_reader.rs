@@ -410,3 +410,57 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
         result
     }
 }
+
+#[cfg(test)]
+mod test {
+    use core::{Index, SegmentReader};
+    use schema::*;
+
+    #[test]
+    fn test_iterator() {
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("name", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let name = schema.get_field("name").unwrap();
+
+        {
+            let mut index_writer = index.writer(50_000_000).unwrap();
+            let mut doc1 = Document::default();
+            doc1.add_text(name, "tantivy");
+            index_writer.add_document(doc1);
+
+            let mut doc2 = Document::default();
+            doc2.add_text(name, "horse");
+            index_writer.add_document(doc2);
+
+            // we should now have one segment with two docs
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            index_writer2.delete_term(Term::from_field_text(name, "horse"));
+
+            // ok, now we should have a deleted doc
+            index_writer2.commit().unwrap();
+        }
+
+        let segments = index.searchable_segments().unwrap();
+        assert_eq!(segments.len(), 2);
+
+        // ok, we have two segments, lets grab the first segment and walk it
+        let sr = SegmentReader::open(&segments[0]).unwrap();
+        let mut it = sr.doc_ids_alive();
+        let f = it.next();
+        assert!(f.is_some());
+        assert_eq!(f.unwrap(), 0);
+        assert!(it.next().is_none());
+
+        // ok, the second segment should have no docs
+        let sr2 = SegmentReader::open(&segments[1]).unwrap();
+        let mut it2 = sr2.doc_ids_alive();
+        assert_eq!(it2.next().unwrap(), 1);
+        assert!(it2.next().is_none());
+    }
+}
