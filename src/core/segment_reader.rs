@@ -387,6 +387,7 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
     type Item = DocId;
 
     fn next(&mut self) -> Option<Self::Item> {
+        // TODO: Use TinySet (like in BitSetDocSet) to speed this process up
         if self.current >= self.max_doc {
             return None;
         }
