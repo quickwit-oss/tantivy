@@ -523,6 +523,12 @@
 <span id="523">523</span>
 <span id="524">524</span>
 <span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">field_type</span>::<span class="ident">ValueParsingError</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeMap</span>;
@@ -618,6 +624,12 @@
     <span class="doccomment">/// Adds a facet field to the schema.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_facet_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Field</span> {
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="ident">FieldEntry</span>::<span class="ident">new_facet</span>(<span class="ident">field_name</span>.<span class="ident">to_string</span>());
+        <span class="self">self</span>.<span class="ident">add_field</span>(<span class="ident">field_entry</span>)
+    }
+
+    <span class="doccomment">/// Adds a fast bytes field to the schema</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_bytes_field</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Field</span> {
+        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="ident">FieldEntry</span>::<span class="ident">new_bytes</span>(<span class="ident">field_name</span>.<span class="ident">to_string</span>());
         <span class="self">self</span>.<span class="ident">add_field</span>(<span class="ident">field_entry</span>)
     }
 

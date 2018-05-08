@@ -721,7 +721,6 @@
 <span id="721">721</span>
 <span id="722">722</span>
 <span id="723">723</span>
-<span id="724">724</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Postings module (also called inverted index)
@@ -739,7 +738,6 @@ Postings module (also called inverted index)
 <span class="kw">mod</span> <span class="ident">term_info</span>;
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings_writer</span>::<span class="ident">MultiFieldPostingsWriter</span>;
-<span class="kw">use</span> <span class="self">self</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
 
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">postings</span>::<span class="ident">Postings</span>;

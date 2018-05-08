@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.45/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.50/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2050,6 +2050,49 @@
 <span id="2050">2050</span>
 <span id="2051">2051</span>
 <span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
+<span id="2068">2068</span>
+<span id="2069">2069</span>
+<span id="2070">2070</span>
+<span id="2071">2071</span>
+<span id="2072">2072</span>
+<span id="2073">2073</span>
+<span id="2074">2074</span>
+<span id="2075">2075</span>
+<span id="2076">2076</span>
+<span id="2077">2077</span>
+<span id="2078">2078</span>
+<span id="2079">2079</span>
+<span id="2080">2080</span>
+<span id="2081">2081</span>
+<span id="2082">2082</span>
+<span id="2083">2083</span>
+<span id="2084">2084</span>
+<span id="2085">2085</span>
+<span id="2086">2086</span>
+<span id="2087">2087</span>
+<span id="2088">2088</span>
+<span id="2089">2089</span>
+<span id="2090">2090</span>
+<span id="2091">2091</span>
+<span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2225,7 +2268,8 @@
             <span class="doccomment">///</span>
             <span class="doccomment">/// impl&lt;&#39;de&gt; Deserialize&lt;&#39;de&gt; for IpAddr {</span>
             <span class="doccomment">///     fn deserialize&lt;D&gt;(deserializer: D) -&gt; Result&lt;Self, D::Error&gt;</span>
-            <span class="doccomment">///         where D: Deserializer&lt;&#39;de&gt;</span>
+            <span class="doccomment">///     where</span>
+            <span class="doccomment">///         D: Deserializer&lt;&#39;de&gt;,</span>
             <span class="doccomment">///     {</span>
             <span class="doccomment">///         let s = try!(String::deserialize(deserializer));</span>
             <span class="doccomment">///         s.parse().map_err(de::Error::custom)</span>
@@ -2359,7 +2403,8 @@
 <span class="doccomment">/// #     }</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// fn visit_bool&lt;E&gt;(self, v: bool) -&gt; Result&lt;Self::Value, E&gt;</span>
-<span class="doccomment">///     where E: de::Error</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     E: de::Error,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     Err(de::Error::invalid_type(Unexpected::Bool(v), &amp;self))</span>
 <span class="doccomment">/// }</span>
@@ -2483,7 +2528,8 @@
 <span class="doccomment">/// #     }</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// fn visit_bool&lt;E&gt;(self, v: bool) -&gt; Result&lt;Self::Value, E&gt;</span>
-<span class="doccomment">///     where E: de::Error</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     E: de::Error,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     Err(de::Error::invalid_type(Unexpected::Bool(v), &amp;self))</span>
 <span class="doccomment">/// }</span>
@@ -2496,7 +2542,8 @@
 <span class="doccomment">/// # use serde::de::{self, Unexpected};</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # fn example&lt;E&gt;() -&gt; Result&lt;(), E&gt;</span>
-<span class="doccomment">/// #     where E: de::Error</span>
+<span class="doccomment">/// # where</span>
+<span class="doccomment">/// #     E: de::Error,</span>
 <span class="doccomment">/// # {</span>
 <span class="doccomment">/// #     let v = true;</span>
 <span class="doccomment">/// return Err(de::Error::invalid_type(Unexpected::Bool(v), &amp;&quot;a negative integer&quot;));</span>
@@ -2610,11 +2657,13 @@
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # trait Ignore {</span>
 <span class="doccomment">/// fn from_str&lt;&#39;a, T&gt;(s: &amp;&#39;a str) -&gt; Result&lt;T&gt;</span>
-<span class="doccomment">///     where T: Deserialize&lt;&#39;a&gt;;</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     T: Deserialize&lt;&#39;a&gt;;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// fn from_reader&lt;R, T&gt;(rdr: R) -&gt; Result&lt;T&gt;</span>
-<span class="doccomment">///     where R: Read,</span>
-<span class="doccomment">///           T: DeserializeOwned;</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     R: Read,</span>
+<span class="doccomment">///     T: DeserializeOwned;</span>
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// ```</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DeserializeOwned</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {}
@@ -2690,7 +2739,8 @@
 <span class="doccomment">/// struct ExtendVec&lt;&#39;a, T: &#39;a&gt;(&amp;&#39;a mut Vec&lt;T&gt;);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl&lt;&#39;de, &#39;a, T&gt; DeserializeSeed&lt;&#39;de&gt; for ExtendVec&lt;&#39;a, T&gt;</span>
-<span class="doccomment">///     where T: Deserialize&lt;&#39;de&gt;</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     T: Deserialize&lt;&#39;de&gt;,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     // The return type of the `deserialize` method. This implementation</span>
 <span class="doccomment">///     // appends onto an existing vector but does not create any new data</span>
@@ -2698,14 +2748,16 @@
 <span class="doccomment">///     type Value = ();</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     fn deserialize&lt;D&gt;(self, deserializer: D) -&gt; Result&lt;Self::Value, D::Error&gt;</span>
-<span class="doccomment">///         where D: Deserializer&lt;&#39;de&gt;</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         D: Deserializer&lt;&#39;de&gt;,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         // Visitor implementation that will walk an inner array of the JSON</span>
 <span class="doccomment">///         // input.</span>
 <span class="doccomment">///         struct ExtendVecVisitor&lt;&#39;a, T: &#39;a&gt;(&amp;&#39;a mut Vec&lt;T&gt;);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///         impl&lt;&#39;de, &#39;a, T&gt; Visitor&lt;&#39;de&gt; for ExtendVecVisitor&lt;&#39;a, T&gt;</span>
-<span class="doccomment">///             where T: Deserialize&lt;&#39;de&gt;</span>
+<span class="doccomment">///         where</span>
+<span class="doccomment">///             T: Deserialize&lt;&#39;de&gt;,</span>
 <span class="doccomment">///         {</span>
 <span class="doccomment">///             type Value = ();</span>
 <span class="doccomment">///</span>
@@ -2714,7 +2766,8 @@
 <span class="doccomment">///             }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///             fn visit_seq&lt;A&gt;(self, mut seq: A) -&gt; Result&lt;(), A::Error&gt;</span>
-<span class="doccomment">///                 where A: SeqAccess&lt;&#39;de&gt;</span>
+<span class="doccomment">///             where</span>
+<span class="doccomment">///                 A: SeqAccess&lt;&#39;de&gt;,</span>
 <span class="doccomment">///             {</span>
 <span class="doccomment">///                 // Visit each element in the inner array and push it onto</span>
 <span class="doccomment">///                 // the existing vector.</span>
@@ -2733,7 +2786,8 @@
 <span class="doccomment">/// struct FlattenedVecVisitor&lt;T&gt;(PhantomData&lt;T&gt;);</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl&lt;&#39;de, T&gt; Visitor&lt;&#39;de&gt; for FlattenedVecVisitor&lt;T&gt;</span>
-<span class="doccomment">///     where T: Deserialize&lt;&#39;de&gt;</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     T: Deserialize&lt;&#39;de&gt;,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     // This Visitor constructs a single Vec&lt;T&gt; to hold the flattened</span>
 <span class="doccomment">///     // contents of the inner arrays.</span>
@@ -2744,7 +2798,8 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     fn visit_seq&lt;A&gt;(self, mut seq: A) -&gt; Result&lt;Vec&lt;T&gt;, A::Error&gt;</span>
-<span class="doccomment">///         where A: SeqAccess&lt;&#39;de&gt;</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         A: SeqAccess&lt;&#39;de&gt;,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         // Create a single Vec to hold the flattened contents.</span>
 <span class="doccomment">///         let mut vec = Vec::new();</span>
@@ -2760,7 +2815,8 @@
 <span class="doccomment">/// }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # fn example&lt;&#39;de, D&gt;(deserializer: D) -&gt; Result&lt;(), D::Error&gt;</span>
-<span class="doccomment">/// #     where D: Deserializer&lt;&#39;de&gt;</span>
+<span class="doccomment">/// # where</span>
+<span class="doccomment">/// #     D: Deserializer&lt;&#39;de&gt;,</span>
 <span class="doccomment">/// # {</span>
 <span class="doccomment">/// let visitor = FlattenedVecVisitor(PhantomData);</span>
 <span class="doccomment">/// let flattened: Vec&lt;u64&gt; = deserializer.deserialize_seq(visitor)?;</span>
@@ -3145,7 +3201,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl&lt;&#39;de&gt; Deserialize&lt;&#39;de&gt; for Timestamp {</span>
     <span class="doccomment">///     fn deserialize&lt;D&gt;(deserializer: D) -&gt; Result&lt;Self, D::Error&gt;</span>
-    <span class="doccomment">///         where D: Deserializer&lt;&#39;de&gt;</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         D: Deserializer&lt;&#39;de&gt;,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         if deserializer.is_human_readable() {</span>
     <span class="doccomment">///             // Deserialize from a human-readable string like &quot;2015-05-15T17:01:00Z&quot;.</span>
@@ -3170,6 +3227,18 @@
     <span class="attribute">#[<span class="ident">inline</span>]</span>
     <span class="kw">fn</span> <span class="ident">is_human_readable</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="bool-val">true</span>
+    }
+
+    <span class="comment">// Not public API.</span>
+    <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">private_deserialize_internally_tagged_enum</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">visitor</span>: <span class="ident">V</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="self">self</span>.<span class="ident">deserialize_any</span>(<span class="ident">visitor</span>)
     }
 }
 
@@ -3196,7 +3265,8 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">///</span>
 <span class="doccomment">///     fn visit_str&lt;E&gt;(self, s: &amp;str) -&gt; Result&lt;Self::Value, E&gt;</span>
-<span class="doccomment">///         where E: de::Error</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         E: de::Error,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         if s.len() &gt;= self.min {</span>
 <span class="doccomment">///             Ok(s.to_owned())</span>
@@ -3876,15 +3946,18 @@
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn newtype_variant_seed&lt;T&gt;(self, _: T) -&gt; Result&lt;T::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where T: DeserializeSeed&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         T: DeserializeSeed&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn tuple_variant&lt;V&gt;(self, _: usize, _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn struct_variant&lt;V&gt;(self, _: &amp;[&amp;str], _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
@@ -3911,7 +3984,8 @@
     <span class="doccomment">/// #     }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// fn newtype_variant_seed&lt;T&gt;(self, _seed: T) -&gt; Result&lt;T::Value, Self::Error&gt;</span>
-    <span class="doccomment">///     where T: DeserializeSeed&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     T: DeserializeSeed&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     // What the data actually contained; suppose it is a unit variant.</span>
     <span class="doccomment">///     let unexp = Unexpected::UnitVariant;</span>
@@ -3919,11 +3993,13 @@
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn tuple_variant&lt;V&gt;(self, _: usize, _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn struct_variant&lt;V&gt;(self, _: &amp;[&amp;str], _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
@@ -3964,13 +4040,17 @@
     <span class="doccomment">/// #     }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn newtype_variant_seed&lt;T&gt;(self, _: T) -&gt; Result&lt;T::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where T: DeserializeSeed&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         T: DeserializeSeed&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// fn tuple_variant&lt;V&gt;(self,</span>
-    <span class="doccomment">///                         _len: usize,</span>
-    <span class="doccomment">///                         _visitor: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">///     where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// fn tuple_variant&lt;V&gt;(</span>
+    <span class="doccomment">///     self,</span>
+    <span class="doccomment">///     _len: usize,</span>
+    <span class="doccomment">///     _visitor: V,</span>
+    <span class="doccomment">/// ) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     // What the data actually contained; suppose it is a unit variant.</span>
     <span class="doccomment">///     let unexp = Unexpected::UnitVariant;</span>
@@ -3978,7 +4058,8 @@
     <span class="doccomment">/// }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn struct_variant&lt;V&gt;(self, _: &amp;[&amp;str], _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// # }</span>
     <span class="doccomment">/// ```</span>
@@ -4006,17 +4087,22 @@
     <span class="doccomment">/// #     }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn newtype_variant_seed&lt;T&gt;(self, _: T) -&gt; Result&lt;T::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where T: DeserializeSeed&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         T: DeserializeSeed&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// #     fn tuple_variant&lt;V&gt;(self, _: usize, _: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">/// #         where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// #     where</span>
+    <span class="doccomment">/// #         V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// #     { unimplemented!() }</span>
     <span class="doccomment">/// #</span>
-    <span class="doccomment">/// fn struct_variant&lt;V&gt;(self,</span>
-    <span class="doccomment">///                          _fields: &amp;&#39;static [&amp;&#39;static str],</span>
-    <span class="doccomment">///                          _visitor: V) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
-    <span class="doccomment">///     where V: Visitor&lt;&#39;de&gt;</span>
+    <span class="doccomment">/// fn struct_variant&lt;V&gt;(</span>
+    <span class="doccomment">///     self,</span>
+    <span class="doccomment">///     _fields: &amp;&#39;static [&amp;&#39;static str],</span>
+    <span class="doccomment">///     _visitor: V,</span>
+    <span class="doccomment">/// ) -&gt; Result&lt;V::Value, Self::Error&gt;</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     V: Visitor&lt;&#39;de&gt;,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     // What the data actually contained; suppose it is a unit variant.</span>
     <span class="doccomment">///     let unexp = Unexpected::UnitVariant;</span>

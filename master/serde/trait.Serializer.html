@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `Serializer` trait in crate `serde`."><meta name="keywords" content="rust, rustlang, rust-lang, Serializer"><title>serde::Serializer - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc trait"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Trait Serializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.Ok">Ok</a><a href="#associatedtype.Error">Error</a><a href="#associatedtype.SerializeSeq">SerializeSeq</a><a href="#associatedtype.SerializeTuple">SerializeTuple</a><a href="#associatedtype.SerializeTupleStruct">SerializeTupleStruct</a><a href="#associatedtype.SerializeTupleVariant">SerializeTupleVariant</a><a href="#associatedtype.SerializeMap">SerializeMap</a><a href="#associatedtype.SerializeStruct">SerializeStruct</a><a href="#associatedtype.SerializeStructVariant">SerializeStructVariant</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.serialize_bool">serialize_bool</a><a href="#tymethod.serialize_i8">serialize_i8</a><a href="#tymethod.serialize_i16">serialize_i16</a><a href="#tymethod.serialize_i32">serialize_i32</a><a href="#tymethod.serialize_i64">serialize_i64</a><a href="#tymethod.serialize_u8">serialize_u8</a><a href="#tymethod.serialize_u16">serialize_u16</a><a href="#tymethod.serialize_u32">serialize_u32</a><a href="#tymethod.serialize_u64">serialize_u64</a><a href="#tymethod.serialize_f32">serialize_f32</a><a href="#tymethod.serialize_f64">serialize_f64</a><a href="#tymethod.serialize_char">serialize_char</a><a href="#tymethod.serialize_str">serialize_str</a><a href="#tymethod.serialize_bytes">serialize_bytes</a><a href="#tymethod.serialize_none">serialize_none</a><a href="#tymethod.serialize_some">serialize_some</a><a href="#tymethod.serialize_unit">serialize_unit</a><a href="#tymethod.serialize_unit_struct">serialize_unit_struct</a><a href="#tymethod.serialize_unit_variant">serialize_unit_variant</a><a href="#tymethod.serialize_newtype_struct">serialize_newtype_struct</a><a href="#tymethod.serialize_newtype_variant">serialize_newtype_variant</a><a href="#tymethod.serialize_seq">serialize_seq</a><a href="#tymethod.serialize_tuple">serialize_tuple</a><a href="#tymethod.serialize_tuple_struct">serialize_tuple_struct</a><a href="#tymethod.serialize_tuple_variant">serialize_tuple_variant</a><a href="#tymethod.serialize_map">serialize_map</a><a href="#tymethod.serialize_struct">serialize_struct</a><a href="#tymethod.serialize_struct_variant">serialize_struct_variant</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.collect_seq">collect_seq</a><a href="#method.collect_map">collect_map</a><a href="#method.collect_str">collect_str</a><a href="#method.is_human_readable">is_human_readable</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>serde</a></p><script>window.sidebarCurrent = {name: 'Serializer', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>serde</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/serde/ser/mod.rs.html#312-1419' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `Serializer` trait in crate `serde`."><meta name="keywords" content="rust, rustlang, rust-lang, Serializer"><title>serde::Serializer - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc trait"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Trait Serializer</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#associated-types">Associated Types</a><div class="sidebar-links"><a href="#associatedtype.Ok">Ok</a><a href="#associatedtype.Error">Error</a><a href="#associatedtype.SerializeSeq">SerializeSeq</a><a href="#associatedtype.SerializeTuple">SerializeTuple</a><a href="#associatedtype.SerializeTupleStruct">SerializeTupleStruct</a><a href="#associatedtype.SerializeTupleVariant">SerializeTupleVariant</a><a href="#associatedtype.SerializeMap">SerializeMap</a><a href="#associatedtype.SerializeStruct">SerializeStruct</a><a href="#associatedtype.SerializeStructVariant">SerializeStructVariant</a></div><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.serialize_bool">serialize_bool</a><a href="#tymethod.serialize_i8">serialize_i8</a><a href="#tymethod.serialize_i16">serialize_i16</a><a href="#tymethod.serialize_i32">serialize_i32</a><a href="#tymethod.serialize_i64">serialize_i64</a><a href="#tymethod.serialize_u8">serialize_u8</a><a href="#tymethod.serialize_u16">serialize_u16</a><a href="#tymethod.serialize_u32">serialize_u32</a><a href="#tymethod.serialize_u64">serialize_u64</a><a href="#tymethod.serialize_f32">serialize_f32</a><a href="#tymethod.serialize_f64">serialize_f64</a><a href="#tymethod.serialize_char">serialize_char</a><a href="#tymethod.serialize_str">serialize_str</a><a href="#tymethod.serialize_bytes">serialize_bytes</a><a href="#tymethod.serialize_none">serialize_none</a><a href="#tymethod.serialize_some">serialize_some</a><a href="#tymethod.serialize_unit">serialize_unit</a><a href="#tymethod.serialize_unit_struct">serialize_unit_struct</a><a href="#tymethod.serialize_unit_variant">serialize_unit_variant</a><a href="#tymethod.serialize_newtype_struct">serialize_newtype_struct</a><a href="#tymethod.serialize_newtype_variant">serialize_newtype_variant</a><a href="#tymethod.serialize_seq">serialize_seq</a><a href="#tymethod.serialize_tuple">serialize_tuple</a><a href="#tymethod.serialize_tuple_struct">serialize_tuple_struct</a><a href="#tymethod.serialize_tuple_variant">serialize_tuple_variant</a><a href="#tymethod.serialize_map">serialize_map</a><a href="#tymethod.serialize_struct">serialize_struct</a><a href="#tymethod.serialize_struct_variant">serialize_struct_variant</a></div><a class="sidebar-title" href="#provided-methods">Provided Methods</a><div class="sidebar-links"><a href="#method.collect_seq">collect_seq</a><a href="#method.collect_map">collect_map</a><a href="#method.collect_str">collect_str</a><a href="#method.is_human_readable">is_human_readable</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='index.html'>serde</a></p><script>window.sidebarCurrent = {name: 'Serializer', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='index.html'>serde</a>::<wbr><a class="trait" href=''>Serializer</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/serde/ser/mod.rs.html#314-1459' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait Serializer: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> {
     type <a href='#associatedtype.Ok' class="type">Ok</a>;
     type <a href='#associatedtype.Error' class="type">Error</a>: <a class="trait" href="../serde/ser/trait.Error.html" title="trait serde::ser::Error">Error</a>;
     type <a href='#associatedtype.SerializeSeq' class="type">SerializeSeq</a>: <a class="trait" href="../serde/ser/trait.SerializeSeq.html" title="trait serde::ser::SerializeSeq">SerializeSeq</a>&lt;Ok = Self::<a class="type" href="../serde/trait.Serializer.html#associatedtype.Ok" title="type serde::Serializer::Ok">Ok</a>, Error = Self::<a class="type" href="../serde/trait.Serializer.html#associatedtype.Error" title="type serde::Serializer::Error">Error</a>&gt;;
@@ -192,7 +192,8 @@ content of the struct variant.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">bool</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_bool</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -205,7 +206,8 @@ forward to <code>serialize_i64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">i8</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_i8</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -218,7 +220,8 @@ forward to <code>serialize_i64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">i16</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_i16</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -231,7 +234,8 @@ forward to <code>serialize_i64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">i32</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_i32</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -241,7 +245,8 @@ forward to <code>serialize_i64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">i64</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_i64</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -254,7 +259,8 @@ forward to <code>serialize_u64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">u8</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_u8</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -267,7 +273,8 @@ forward to <code>serialize_u64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">u16</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_u16</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -280,7 +287,8 @@ forward to <code>serialize_u64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">u32</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_u32</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -290,7 +298,8 @@ forward to <code>serialize_u64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">u64</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_u64</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -303,7 +312,8 @@ forward to <code>serialize_f64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">f32</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_f32</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -313,7 +323,8 @@ forward to <code>serialize_f64</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">f64</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_f64</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -325,7 +336,8 @@ it as a single element <code>str</code> or a <code>u32</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">char</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_char</span>(<span class="kw-2">*</span><span class="self">self</span>)
     }
@@ -335,7 +347,8 @@ it as a single element <code>str</code> or a <code>u32</code>.</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">str</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_str</span>(<span class="self">self</span>)
     }
@@ -359,10 +372,12 @@ like this:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Serialize</span>,
 {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_some</span>(<span class="ident">value</span>),
@@ -374,10 +389,12 @@ like this:</p>
 
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Serialize</span>,
 {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_some</span>(<span class="ident">value</span>),
@@ -390,7 +407,8 @@ like this:</p>
 <pre class="rust rust-example-rendered">
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> () {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_unit</span>()
     }
@@ -405,7 +423,8 @@ like this:</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Nothing</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_unit_struct</span>(<span class="string">&quot;Nothing&quot;</span>)
     }
@@ -425,7 +444,8 @@ variant.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">E</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">E</span>::<span class="ident">A</span> <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_unit_variant</span>(<span class="string">&quot;E&quot;</span>, <span class="number">0</span>, <span class="string">&quot;A&quot;</span>),
@@ -445,7 +465,8 @@ be to forward to <code>value.serialize(self)</code>.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Millimeters</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">serialize_newtype_struct</span>(<span class="string">&quot;Millimeters&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)
     }
@@ -465,7 +486,8 @@ variant. The <code>value</code> is the data contained within this newtype varian
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">E</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">E</span>::<span class="ident">M</span>(<span class="kw-2">ref</span> <span class="ident">s</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_newtype_variant</span>(<span class="string">&quot;E&quot;</span>, <span class="number">0</span>, <span class="string">&quot;M&quot;</span>, <span class="ident">s</span>),
@@ -484,10 +506,12 @@ support sequences whose length is known up front.</p>
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>, <span class="ident">SerializeSeq</span>};
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">T</span>: <span class="ident">Serialize</span>
+<span class="kw">where</span>
+    <span class="ident">T</span>: <span class="ident">Serialize</span>,
 {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_seq</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
         <span class="kw">for</span> <span class="ident">element</span> <span class="kw">in</span> <span class="self">self</span> {
@@ -505,12 +529,14 @@ then a call to <code>end</code>.</p>
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>, <span class="ident">SerializeTuple</span>};
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">A</span>, <span class="ident">B</span>, <span class="ident">C</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> (<span class="ident">A</span>, <span class="ident">B</span>, <span class="ident">C</span>)
-    <span class="kw">where</span> <span class="ident">A</span>: <span class="ident">Serialize</span>,
-          <span class="ident">B</span>: <span class="ident">Serialize</span>,
-          <span class="ident">C</span>: <span class="ident">Serialize</span>
+<span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Serialize</span>,
+    <span class="ident">B</span>: <span class="ident">Serialize</span>,
+    <span class="ident">C</span>: <span class="ident">Serialize</span>,
 {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">tup</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_tuple</span>(<span class="number">3</span>)<span class="question-mark">?</span>;
         <span class="ident">tup</span>.<span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
@@ -528,7 +554,8 @@ then a call to <code>end</code>.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Vram</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seq</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_tuple</span>(<span class="ident">VRAM_SIZE</span>)<span class="question-mark">?</span>;
         <span class="kw">for</span> <span class="ident">element</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>[..] {
@@ -550,7 +577,8 @@ of data fields that will be serialized.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Rgb</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_tuple_struct</span>(<span class="string">&quot;Rgb&quot;</span>, <span class="number">3</span>)<span class="question-mark">?</span>;
         <span class="ident">ts</span>.<span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>)<span class="question-mark">?</span>;
@@ -575,7 +603,8 @@ and the <code>len</code> is the number of data fields that will be serialized.</
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">E</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">E</span>::<span class="ident">T</span>(<span class="kw-2">ref</span> <span class="ident">a</span>, <span class="kw-2">ref</span> <span class="ident">b</span>) <span class="op">=&gt;</span> {
@@ -604,11 +633,13 @@ maps whose length is known up front.</p>
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">ser</span>::{<span class="ident">Serialize</span>, <span class="ident">Serializer</span>, <span class="ident">SerializeMap</span>};
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">V</span><span class="op">&gt;</span>
-    <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">Serialize</span>,
-          <span class="ident">V</span>: <span class="ident">Serialize</span>
+<span class="kw">where</span>
+    <span class="ident">K</span>: <span class="ident">Serialize</span>,
+    <span class="ident">V</span>: <span class="ident">Serialize</span>,
 {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">map</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_map</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">len</span>()))<span class="question-mark">?</span>;
         <span class="kw">for</span> (<span class="ident">k</span>, <span class="ident">v</span>) <span class="kw">in</span> <span class="self">self</span> {
@@ -634,7 +665,8 @@ data fields that will be serialized.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Rgb</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rgb</span> <span class="op">=</span> <span class="ident">serializer</span>.<span class="ident">serialize_struct</span>(<span class="string">&quot;Rgb&quot;</span>, <span class="number">3</span>)<span class="question-mark">?</span>;
         <span class="ident">rgb</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;r&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">r</span>)<span class="question-mark">?</span>;
@@ -658,7 +690,8 @@ and the <code>len</code> is the number of data fields that will be serialized.</
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">E</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">E</span>::<span class="ident">S</span> { <span class="kw-2">ref</span> <span class="ident">r</span>, <span class="kw-2">ref</span> <span class="ident">g</span>, <span class="kw-2">ref</span> <span class="ident">b</span> } <span class="op">=&gt;</span> {
@@ -690,7 +723,8 @@ method.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">SecretlyOneHigher</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">collect_seq</span>(<span class="self">self</span>.<span class="ident">data</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">x</span><span class="op">|</span> <span class="ident">x</span> <span class="op">+</span> <span class="number">1</span>))
     }
@@ -711,7 +745,8 @@ method.</p>
 <span class="comment">// Serializes as a map in which the values are all unit.</span>
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">MapToUnit</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">collect_map</span>(<span class="self">self</span>.<span class="ident">keys</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">k</span><span class="op">|</span> (<span class="ident">k</span>, ())))
     }
@@ -726,7 +761,8 @@ more efficient implementation if possible.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">DateTime</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="ident">serializer</span>.<span class="ident">collect_str</span>(<span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{:?}{:?}&quot;</span>,
                                              <span class="self">self</span>.<span class="ident">naive_local</span>(),
@@ -746,7 +782,8 @@ compact one.</p>
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Timestamp</span> {
     <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-        <span class="kw">where</span> <span class="ident">S</span>: <span class="ident">Serializer</span>
+    <span class="kw">where</span>
+        <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">if</span> <span class="ident">serializer</span>.<span class="ident">is_human_readable</span>() {
             <span class="comment">// Serialize to a human-readable string &quot;2015-05-15T17:01:00Z&quot;.</span>

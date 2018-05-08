@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.45/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.50/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2783,6 +2783,66 @@
 <span id="2783">2783</span>
 <span id="2784">2784</span>
 <span id="2785">2785</span>
+<span id="2786">2786</span>
+<span id="2787">2787</span>
+<span id="2788">2788</span>
+<span id="2789">2789</span>
+<span id="2790">2790</span>
+<span id="2791">2791</span>
+<span id="2792">2792</span>
+<span id="2793">2793</span>
+<span id="2794">2794</span>
+<span id="2795">2795</span>
+<span id="2796">2796</span>
+<span id="2797">2797</span>
+<span id="2798">2798</span>
+<span id="2799">2799</span>
+<span id="2800">2800</span>
+<span id="2801">2801</span>
+<span id="2802">2802</span>
+<span id="2803">2803</span>
+<span id="2804">2804</span>
+<span id="2805">2805</span>
+<span id="2806">2806</span>
+<span id="2807">2807</span>
+<span id="2808">2808</span>
+<span id="2809">2809</span>
+<span id="2810">2810</span>
+<span id="2811">2811</span>
+<span id="2812">2812</span>
+<span id="2813">2813</span>
+<span id="2814">2814</span>
+<span id="2815">2815</span>
+<span id="2816">2816</span>
+<span id="2817">2817</span>
+<span id="2818">2818</span>
+<span id="2819">2819</span>
+<span id="2820">2820</span>
+<span id="2821">2821</span>
+<span id="2822">2822</span>
+<span id="2823">2823</span>
+<span id="2824">2824</span>
+<span id="2825">2825</span>
+<span id="2826">2826</span>
+<span id="2827">2827</span>
+<span id="2828">2828</span>
+<span id="2829">2829</span>
+<span id="2830">2830</span>
+<span id="2831">2831</span>
+<span id="2832">2832</span>
+<span id="2833">2833</span>
+<span id="2834">2834</span>
+<span id="2835">2835</span>
+<span id="2836">2836</span>
+<span id="2837">2837</span>
+<span id="2838">2838</span>
+<span id="2839">2839</span>
+<span id="2840">2840</span>
+<span id="2841">2841</span>
+<span id="2842">2842</span>
+<span id="2843">2843</span>
+<span id="2844">2844</span>
+<span id="2845">2845</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2800,10 +2860,11 @@
 <span class="kw">use</span> <span class="ident">de</span>::{<span class="ident">MapAccess</span>, <span class="ident">Unexpected</span>};
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
-<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">content</span>::{<span class="ident">Content</span>, <span class="ident">ContentDeserializer</span>, <span class="ident">ContentRefDeserializer</span>, <span class="ident">EnumDeserializer</span>,
-                        <span class="ident">InternallyTaggedUnitVisitor</span>, <span class="ident">TagContentOtherField</span>,
-                        <span class="ident">TagContentOtherFieldVisitor</span>, <span class="ident">TagOrContentField</span>, <span class="ident">TagOrContentFieldVisitor</span>,
-                        <span class="ident">TaggedContentVisitor</span>, <span class="ident">UntaggedUnitVisitor</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">content</span>::{
+    <span class="ident">Content</span>, <span class="ident">ContentDeserializer</span>, <span class="ident">ContentRefDeserializer</span>, <span class="ident">EnumDeserializer</span>,
+    <span class="ident">InternallyTaggedUnitVisitor</span>, <span class="ident">TagContentOtherField</span>, <span class="ident">TagContentOtherFieldVisitor</span>,
+    <span class="ident">TagOrContentField</span>, <span class="ident">TagOrContentFieldVisitor</span>, <span class="ident">TaggedContentVisitor</span>, <span class="ident">UntaggedUnitVisitor</span>,
+};
 
 <span class="doccomment">/// If the missing field is of type `Option&lt;T&gt;` then treat is as `None`,</span>
 <span class="doccomment">/// otherwise it is an error.</span>
@@ -3015,8 +3076,10 @@
     <span class="kw">use</span> <span class="ident">lib</span>::<span class="kw-2">*</span>;
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">size_hint</span>;
-    <span class="kw">use</span> <span class="ident">de</span>::{<span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">DeserializeSeed</span>, <span class="ident">Deserializer</span>, <span class="ident">EnumAccess</span>, <span class="ident">Expected</span>, <span class="ident">MapAccess</span>,
-             <span class="ident">SeqAccess</span>, <span class="ident">Unexpected</span>, <span class="ident">Visitor</span>};
+    <span class="kw">use</span> <span class="ident">de</span>::{
+        <span class="self">self</span>, <span class="ident">Deserialize</span>, <span class="ident">DeserializeSeed</span>, <span class="ident">Deserializer</span>, <span class="ident">EnumAccess</span>, <span class="ident">Expected</span>, <span class="ident">MapAccess</span>,
+        <span class="ident">SeqAccess</span>, <span class="ident">Unexpected</span>, <span class="ident">Visitor</span>,
+    };
 
     <span class="doccomment">/// Used from generated code to buffer the contents of the Deserializer when</span>
     <span class="doccomment">/// deserializing untagged enums and internally tagged enums.</span>
@@ -5498,6 +5561,20 @@
         <span class="ident">byte_buf</span> <span class="ident">option</span> <span class="ident">unit</span> <span class="ident">unit_struct</span> <span class="ident">seq</span> <span class="ident">tuple</span> <span class="ident">tuple_struct</span> <span class="ident">identifier</span>
         <span class="ident">ignored_any</span>
     }
+
+    <span class="kw">fn</span> <span class="ident">private_deserialize_internally_tagged_enum</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(
+        <span class="self">self</span>,
+        <span class="ident">visitor</span>: <span class="ident">V</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">FlatInternallyTaggedAccess</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter_mut</span>(),
+            <span class="ident">pending</span>: <span class="prelude-val">None</span>,
+            <span class="ident">_marker</span>: <span class="ident">PhantomData</span>,
+        })
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
@@ -5566,6 +5643,49 @@
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">pending_content</span>.<span class="ident">take</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">ContentDeserializer</span>::<span class="ident">new</span>(<span class="ident">value</span>)),
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;value is missing&quot;</span>)),
+        }
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FlatInternallyTaggedAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>: <span class="lifetime">&#39;a</span>, <span class="ident">E</span><span class="op">&gt;</span> {
+    <span class="ident">iter</span>: <span class="ident">slice</span>::<span class="ident">IterMut</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Content</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>, <span class="ident">Content</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>)<span class="op">&gt;&gt;</span>,
+    <span class="ident">pending</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Content</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">_marker</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>,
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FlatInternallyTaggedAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">E</span>: <span class="ident">Error</span>,
+{
+    <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
+
+    <span class="kw">fn</span> <span class="ident">next_key_seed</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">seed</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">Value</span><span class="op">&gt;</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">DeserializeSeed</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">iter</span>.<span class="ident">next</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">item</span>) <span class="op">=&gt;</span> {
+                <span class="comment">// Do not take(), instead borrow this entry. The internally tagged</span>
+                <span class="comment">// enum does its own buffering so we can&#39;t tell whether this entry</span>
+                <span class="comment">// is going to be consumed. Borrowing here leaves the entry</span>
+                <span class="comment">// available for later flattened fields.</span>
+                <span class="kw">let</span> (<span class="kw-2">ref</span> <span class="ident">key</span>, <span class="kw-2">ref</span> <span class="ident">content</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">item</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>();
+                <span class="self">self</span>.<span class="ident">pending</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">content</span>);
+                <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">ContentRefDeserializer</span>::<span class="ident">new</span>(<span class="ident">key</span>)).<span class="ident">map</span>(<span class="prelude-val">Some</span>)
+            }
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+        }
+    }
+
+    <span class="kw">fn</span> <span class="ident">next_value_seed</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">seed</span>: <span class="ident">T</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">T</span>: <span class="ident">DeserializeSeed</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">match</span> <span class="self">self</span>.<span class="ident">pending</span>.<span class="ident">take</span>() {
+            <span class="prelude-val">Some</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="ident">seed</span>.<span class="ident">deserialize</span>(<span class="ident">ContentRefDeserializer</span>::<span class="ident">new</span>(<span class="ident">value</span>)),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;value is missing&quot;</span>),
         }
     }
 }

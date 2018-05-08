@@ -258,6 +258,9 @@
 <span id="258">258</span>
 <span id="259">259</span>
 <span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
@@ -462,6 +465,9 @@
                             <span class="self">self</span>.<span class="ident">multifield_postings</span>.<span class="ident">subscribe</span>(<span class="ident">doc_id</span>, <span class="kw-2">&amp;</span><span class="ident">term</span>);
                         }
                     }
+                }
+                <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {
+                    <span class="comment">// Do nothing. Bytes only supports fast fields.</span>
                 }
             }
         }

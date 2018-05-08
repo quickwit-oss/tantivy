@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.45/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.50/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2812,6 +2812,69 @@
 <span id="2812">2812</span>
 <span id="2813">2813</span>
 <span id="2814">2814</span>
+<span id="2815">2815</span>
+<span id="2816">2816</span>
+<span id="2817">2817</span>
+<span id="2818">2818</span>
+<span id="2819">2819</span>
+<span id="2820">2820</span>
+<span id="2821">2821</span>
+<span id="2822">2822</span>
+<span id="2823">2823</span>
+<span id="2824">2824</span>
+<span id="2825">2825</span>
+<span id="2826">2826</span>
+<span id="2827">2827</span>
+<span id="2828">2828</span>
+<span id="2829">2829</span>
+<span id="2830">2830</span>
+<span id="2831">2831</span>
+<span id="2832">2832</span>
+<span id="2833">2833</span>
+<span id="2834">2834</span>
+<span id="2835">2835</span>
+<span id="2836">2836</span>
+<span id="2837">2837</span>
+<span id="2838">2838</span>
+<span id="2839">2839</span>
+<span id="2840">2840</span>
+<span id="2841">2841</span>
+<span id="2842">2842</span>
+<span id="2843">2843</span>
+<span id="2844">2844</span>
+<span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
+<span id="2868">2868</span>
+<span id="2869">2869</span>
+<span id="2870">2870</span>
+<span id="2871">2871</span>
+<span id="2872">2872</span>
+<span id="2873">2873</span>
+<span id="2874">2874</span>
+<span id="2875">2875</span>
+<span id="2876">2876</span>
+<span id="2877">2877</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2830,18 +2893,19 @@
 <span class="kw">use</span> <span class="ident">bound</span>;
 <span class="kw">use</span> <span class="ident">fragment</span>::{<span class="ident">Expr</span>, <span class="ident">Fragment</span>, <span class="ident">Match</span>, <span class="ident">Stmts</span>};
 <span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">ast</span>::{<span class="ident">Container</span>, <span class="ident">Data</span>, <span class="ident">Field</span>, <span class="ident">Style</span>, <span class="ident">Variant</span>};
-<span class="kw">use</span> <span class="ident">internals</span>::{<span class="self">self</span>, <span class="ident">attr</span>};
+<span class="kw">use</span> <span class="ident">internals</span>::{<span class="ident">attr</span>, <span class="ident">Ctxt</span>};
 <span class="kw">use</span> <span class="ident">pretend</span>;
 <span class="kw">use</span> <span class="ident">try</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">BTreeSet</span>;
 
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_derive_deserialize</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">DeriveInput</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Tokens</span>, <span class="ident">String</span><span class="op">&gt;</span> {
-    <span class="kw">let</span> <span class="ident">ctxt</span> <span class="op">=</span> <span class="ident">internals</span>::<span class="ident">Ctxt</span>::<span class="ident">new</span>();
+    <span class="kw">let</span> <span class="ident">ctxt</span> <span class="op">=</span> <span class="ident">Ctxt</span>::<span class="ident">new</span>();
     <span class="kw">let</span> <span class="ident">cont</span> <span class="op">=</span> <span class="ident">Container</span>::<span class="ident">from_ast</span>(<span class="kw-2">&amp;</span><span class="ident">ctxt</span>, <span class="ident">input</span>);
+    <span class="ident">precondition</span>(<span class="kw-2">&amp;</span><span class="ident">ctxt</span>, <span class="kw-2">&amp;</span><span class="ident">cont</span>);
     <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ctxt</span>.<span class="ident">check</span>());
 
-    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">cont</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">ident</span>;
     <span class="kw">let</span> <span class="ident">params</span> <span class="op">=</span> <span class="ident">Parameters</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">cont</span>);
     <span class="kw">let</span> (<span class="ident">de_impl_generics</span>, <span class="kw">_</span>, <span class="ident">ty_generics</span>, <span class="ident">where_clause</span>) <span class="op">=</span> <span class="ident">split_with_de_lifetime</span>(<span class="kw-2">&amp;</span><span class="ident">params</span>);
     <span class="kw">let</span> <span class="ident">dummy_const</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(
@@ -2857,7 +2921,8 @@
         <span class="macro">quote</span><span class="macro">!</span> {
             <span class="kw">impl</span> #<span class="ident">de_impl_generics</span> #<span class="ident">ident</span> #<span class="ident">ty_generics</span> #<span class="ident">where_clause</span> {
                 #<span class="ident">vis</span> <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>#<span class="ident">remote</span> #<span class="ident">ty_generics</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                    <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+                <span class="kw">where</span>
+                    <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
                 {
                     #<span class="ident">used</span>
                     #<span class="ident">body</span>
@@ -2871,7 +2936,8 @@
             <span class="attribute">#[<span class="ident">automatically_derived</span>]</span>
             <span class="kw">impl</span> #<span class="ident">de_impl_generics</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span> <span class="kw">for</span> #<span class="ident">ident</span> #<span class="ident">ty_generics</span> #<span class="ident">where_clause</span> {
                 <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                    <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+                <span class="kw">where</span>
+                    <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
                 {
                     #<span class="ident">body</span>
                 }
@@ -2891,6 +2957,16 @@
         };
     };
     <span class="prelude-val">Ok</span>(<span class="ident">generated</span>)
+}
+
+<span class="kw">fn</span> <span class="ident">precondition</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>) {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">data</span> {
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">last</span>) <span class="op">=</span> <span class="ident">fields</span>.<span class="ident">last</span>() {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Slice</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">last</span>.<span class="ident">ty</span> {
+                <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;cannot deserialize a dynamically sized struct&quot;</span>);
+            }
+        }
+    }
 }
 
 <span class="kw">struct</span> <span class="ident">Parameters</span> {
@@ -3111,7 +3187,8 @@
 
     <span class="kw">let</span> <span class="ident">fn_deserialize_in_place</span> <span class="op">=</span> <span class="macro">quote_block</span><span class="macro">!</span> {
         <span class="kw">fn</span> <span class="ident">deserialize_in_place</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="ident">__deserializer</span>: <span class="ident">__D</span>, <span class="ident">__place</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">Self</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
         {
             #<span class="ident">stmts</span>
         }
@@ -3151,7 +3228,8 @@
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_unit</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(#<span class="ident">this</span>)
             }
@@ -3162,7 +3240,7 @@
 }
 
 <span class="kw">fn</span> <span class="ident">deserialize_tuple</span>(
-    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
@@ -3179,7 +3257,7 @@
     <span class="comment">// and use an `Into` conversion to get the remote type. If there are no</span>
     <span class="comment">// getters then construct the target type directly.</span>
     <span class="kw">let</span> <span class="ident">construct</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">params</span>.<span class="ident">has_getter</span> {
-        <span class="kw">let</span> <span class="ident">local</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">local</span>;
+        <span class="kw">let</span> <span class="ident">local</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">local</span>;
         <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">local</span>)
     } <span class="kw">else</span> {
         <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">this</span>)
@@ -3247,7 +3325,8 @@
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, #<span class="ident">visitor_var</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">visit_seq</span>
             }
@@ -3259,7 +3338,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;deserialize_in_place&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">deserialize_tuple_in_place</span>(
-    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
@@ -3335,7 +3414,8 @@
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, #<span class="ident">visitor_var</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">visit_seq</span>
             }
@@ -3362,7 +3442,7 @@
         .<span class="ident">count</span>();
     <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;tuple of {} elements&quot;</span>, <span class="ident">deserialized_count</span>);
 
-    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_in_seq</span> <span class="op">=</span> <span class="number">0usize</span>;
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_in_seq</span> <span class="op">=</span> <span class="number">0_usize</span>;
     <span class="kw">let</span> <span class="ident">let_values</span> <span class="op">=</span> <span class="ident">vars</span>.<span class="ident">clone</span>().<span class="ident">zip</span>(<span class="ident">fields</span>).<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">var</span>, <span class="ident">field</span>)<span class="op">|</span> {
         <span class="kw">if</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>() {
             <span class="kw">let</span> <span class="ident">default</span> <span class="op">=</span> <span class="ident">Expr</span>(<span class="ident">expr_is_missing</span>(<span class="ident">field</span>, <span class="ident">cattrs</span>));
@@ -3372,7 +3452,7 @@
         } <span class="kw">else</span> {
             <span class="kw">let</span> <span class="ident">visit</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
+                    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
                     <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">original</span>.<span class="ident">span</span>();
                     <span class="kw">let</span> <span class="ident">func</span> <span class="op">=</span>
                         <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="ident">span</span><span class="op">=&gt;</span> <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span>::<span class="ident">next_element</span>::<span class="op">&lt;</span>#<span class="ident">field_ty</span><span class="op">&gt;</span>);
@@ -3534,20 +3614,18 @@
 
 <span class="kw">fn</span> <span class="ident">deserialize_newtype_struct</span>(<span class="ident">type_path</span>: <span class="kw-2">&amp;</span><span class="ident">Tokens</span>, <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
     <span class="kw">let</span> <span class="ident">delife</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">borrowed</span>.<span class="ident">de_lifetime</span>();
+    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
 
     <span class="kw">let</span> <span class="ident">value</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
             <span class="macro">quote</span><span class="macro">!</span> {
                 <span class="macro">try</span><span class="macro">!</span>(<span class="op">&lt;</span>#<span class="ident">field_ty</span> <span class="kw">as</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">__e</span>))
             }
         }
         <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
-            <span class="kw">let</span> (<span class="ident">wrapper</span>, <span class="ident">wrapper_ty</span>) <span class="op">=</span> <span class="ident">wrap_deserialize_field_with</span>(<span class="ident">params</span>, <span class="ident">field</span>.<span class="ident">ty</span>, <span class="ident">path</span>);
-            <span class="macro">quote</span><span class="macro">!</span>({
-                #<span class="ident">wrapper</span>
-                <span class="macro">try</span><span class="macro">!</span>(<span class="op">&lt;</span>#<span class="ident">wrapper_ty</span> <span class="kw">as</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">__e</span>)).<span class="ident">value</span>
-            })
+            <span class="macro">quote</span><span class="macro">!</span> {
+                <span class="macro">try</span><span class="macro">!</span>(#<span class="ident">path</span>(<span class="ident">__e</span>))
+            }
         }
     };
 
@@ -3562,9 +3640,10 @@
     <span class="macro">quote</span><span class="macro">!</span> {
         <span class="attribute">#[<span class="ident">inline</span>]</span>
         <span class="kw">fn</span> <span class="ident">visit_newtype_struct</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__e</span>: <span class="ident">__E</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
         {
-            <span class="kw">let</span> <span class="ident">__field0</span> <span class="op">=</span> #<span class="ident">value</span>;
+            <span class="kw">let</span> <span class="ident">__field0</span>: #<span class="ident">field_ty</span> <span class="op">=</span> #<span class="ident">value</span>;
             <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(#<span class="ident">result</span>)
         }
     }
@@ -3580,7 +3659,8 @@
     <span class="macro">quote</span><span class="macro">!</span> {
         <span class="attribute">#[<span class="ident">inline</span>]</span>
         <span class="kw">fn</span> <span class="ident">visit_newtype_struct</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__e</span>: <span class="ident">__E</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
         {
             <span class="ident">_serde</span>::<span class="ident">Deserialize</span>::<span class="ident">deserialize_in_place</span>(<span class="ident">__e</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">place</span>.<span class="number">0</span>)
         }
@@ -3593,7 +3673,7 @@
 }
 
 <span class="kw">fn</span> <span class="ident">deserialize_struct</span>(
-    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
@@ -3611,7 +3691,7 @@
     <span class="comment">// and use an `Into` conversion to get the remote type. If there are no</span>
     <span class="comment">// getters then construct the target type directly.</span>
     <span class="kw">let</span> <span class="ident">construct</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">params</span>.<span class="ident">has_getter</span> {
-        <span class="kw">let</span> <span class="ident">local</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">local</span>;
+        <span class="kw">let</span> <span class="ident">local</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">local</span>;
         <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">local</span>)
     } <span class="kw">else</span> {
         <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">this</span>)
@@ -3647,6 +3727,10 @@
         <span class="macro">quote</span><span class="macro">!</span> {
             <span class="ident">_serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(#<span class="ident">deserializer</span>, #<span class="ident">visitor_expr</span>)
         }
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">is_enum</span> <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
+        <span class="macro">quote</span><span class="macro">!</span> {
+            <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">VariantAccess</span>::<span class="ident">newtype_variant_seed</span>(<span class="ident">__variant</span>, #<span class="ident">visitor_expr</span>)
+        }
     } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">is_enum</span> {
         <span class="macro">quote</span><span class="macro">!</span> {
             <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">VariantAccess</span>::<span class="ident">struct_variant</span>(<span class="ident">__variant</span>, <span class="ident">FIELDS</span>, #<span class="ident">visitor_expr</span>)
@@ -3675,12 +3759,30 @@
         <span class="ident">Untagged</span>::<span class="ident">No</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, #<span class="ident">visitor_var</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">visit_seq</span>
             }
         }),
         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
+    };
+
+    <span class="kw">let</span> <span class="ident">visitor_seed</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_enum</span> <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
+        <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
+            <span class="kw">impl</span> #<span class="ident">de_impl_generics</span> <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">DeserializeSeed</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">__Visitor</span> #<span class="ident">de_ty_generics</span> #<span class="ident">where_clause</span> {
+                <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> #<span class="ident">this</span> #<span class="ident">ty_generics</span>;
+
+                <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+                <span class="kw">where</span>
+                    <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+                {
+                    <span class="ident">_serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_map</span>(<span class="ident">__deserializer</span>, <span class="self">self</span>)
+                }
+            }
+        })
+    } <span class="kw">else</span> {
+        <span class="prelude-val">None</span>
     };
 
     <span class="macro">quote_block</span><span class="macro">!</span> {
@@ -3702,11 +3804,14 @@
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">__map</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">visit_map</span>
             }
         }
+
+        #<span class="ident">visitor_seed</span>
 
         #<span class="ident">fields_stmt</span>
 
@@ -3716,7 +3821,7 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;deserialize_in_place&quot;</span>)]</span>
 <span class="kw">fn</span> <span class="ident">deserialize_struct_in_place</span>(
-    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
+    <span class="ident">variant_ident</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Ident</span><span class="op">&gt;</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
@@ -3780,7 +3885,8 @@
     <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
         <span class="attribute">#[<span class="ident">inline</span>]</span>
         <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, #<span class="ident">visitor_var</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
         {
             #<span class="ident">visit_seq</span>
         }
@@ -3809,7 +3915,8 @@
 
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">__map</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">visit_map</span>
             }
@@ -3928,7 +4035,8 @@
             }
 
             <span class="kw">fn</span> <span class="ident">visit_enum</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__data</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">EnumAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">EnumAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 #<span class="ident">match_variant</span>
             }
@@ -3997,7 +4105,7 @@
 
         #<span class="ident">variants_stmt</span>
 
-        <span class="kw">let</span> <span class="ident">__tagged</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_any</span>(
+        <span class="kw">let</span> <span class="ident">__tagged</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">Deserializer</span>::<span class="ident">private_deserialize_internally_tagged_enum</span>(
             <span class="ident">__deserializer</span>,
             <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">TaggedContentVisitor</span>::<span class="op">&lt;</span><span class="ident">__Field</span><span class="op">&gt;</span>::<span class="ident">new</span>(#<span class="ident">tag</span>)));
 
@@ -4102,7 +4210,7 @@
             .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="ident">variant</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">is_unit</span>(<span class="ident">variant</span>))
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">variant</span>)<span class="op">|</span> {
                 <span class="kw">let</span> <span class="ident">variant_index</span> <span class="op">=</span> <span class="ident">field_i</span>(<span class="ident">i</span>);
-                <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
+                <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
                 <span class="macro">quote</span><span class="macro">!</span> {
                     <span class="ident">__Field</span>::#<span class="ident">variant_index</span> <span class="op">=&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(#<span class="ident">this</span>::#<span class="ident">variant_ident</span>),
                 }
@@ -4178,7 +4286,8 @@
             <span class="kw">type</span> <span class="ident">Value</span> <span class="op">=</span> #<span class="ident">this</span> #<span class="ident">ty_generics</span>;
 
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 <span class="kw">match</span> <span class="self">self</span>.<span class="ident">field</span> {
                     #(#<span class="ident">variant_arms</span>)<span class="op">*</span>
@@ -4199,7 +4308,8 @@
             }
 
             <span class="kw">fn</span> <span class="ident">visit_map</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">__map</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 <span class="comment">// Visit the first relevant key.</span>
                 <span class="kw">match</span> #<span class="ident">next_relevant_key</span> {
@@ -4263,7 +4373,8 @@
             }
 
             <span class="kw">fn</span> <span class="ident">visit_seq</span><span class="op">&lt;</span><span class="ident">__A</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw-2">mut</span> <span class="ident">__seq</span>: <span class="ident">__A</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__A</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 <span class="comment">// Visit the first element - the tag.</span>
                 <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">SeqAccess</span>::<span class="ident">next_element</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__seq</span>)) {
@@ -4354,7 +4465,7 @@
         };
     }
 
-    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
 
     <span class="kw">match</span> <span class="ident">variant</span>.<span class="ident">style</span> {
         <span class="ident">Style</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> {
@@ -4391,7 +4502,7 @@
         <span class="kw">return</span> <span class="ident">deserialize_untagged_variant</span>(<span class="ident">params</span>, <span class="ident">variant</span>, <span class="ident">cattrs</span>, <span class="ident">deserializer</span>);
     }
 
-    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
 
     <span class="kw">match</span> <span class="ident">variant</span>.<span class="ident">style</span> {
         <span class="ident">Style</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> {
@@ -4436,7 +4547,7 @@
         };
     }
 
-    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
 
     <span class="kw">match</span> <span class="ident">variant</span>.<span class="ident">style</span> {
         <span class="ident">Style</span>::<span class="ident">Unit</span> <span class="op">=&gt;</span> {
@@ -4478,14 +4589,14 @@
 }
 
 <span class="kw">fn</span> <span class="ident">deserialize_externally_tagged_newtype_variant</span>(
-    <span class="ident">variant_ident</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span>,
+    <span class="ident">variant_ident</span>: <span class="ident">syn</span>::<span class="ident">Ident</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Field</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
     <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
+            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
             <span class="macro">quote_expr</span><span class="macro">!</span> {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span>::<span class="ident">map</span>(
                     <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">VariantAccess</span>::<span class="ident">newtype_variant</span>::<span class="op">&lt;</span>#<span class="ident">field_ty</span><span class="op">&gt;</span>(<span class="ident">__variant</span>),
@@ -4505,15 +4616,15 @@
 }
 
 <span class="kw">fn</span> <span class="ident">deserialize_untagged_newtype_variant</span>(
-    <span class="ident">variant_ident</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Ident</span>,
+    <span class="ident">variant_ident</span>: <span class="ident">syn</span>::<span class="ident">Ident</span>,
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Field</span>,
     <span class="ident">deserializer</span>: <span class="kw-2">&amp;</span><span class="ident">Tokens</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
+    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
     <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
             <span class="macro">quote_expr</span><span class="macro">!</span> {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span>::<span class="ident">map</span>(
                     <span class="op">&lt;</span>#<span class="ident">field_ty</span> <span class="kw">as</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(#<span class="ident">deserializer</span>),
@@ -4521,12 +4632,11 @@
             }
         }
         <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
-            <span class="kw">let</span> (<span class="ident">wrapper</span>, <span class="ident">wrapper_ty</span>) <span class="op">=</span> <span class="ident">wrap_deserialize_field_with</span>(<span class="ident">params</span>, <span class="ident">field</span>.<span class="ident">ty</span>, <span class="ident">path</span>);
             <span class="macro">quote_block</span><span class="macro">!</span> {
-                #<span class="ident">wrapper</span>
-                <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span>::<span class="ident">map</span>(
-                    <span class="op">&lt;</span>#<span class="ident">wrapper_ty</span> <span class="kw">as</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(#<span class="ident">deserializer</span>),
-                    <span class="op">|</span><span class="ident">__wrapper</span><span class="op">|</span> #<span class="ident">this</span>::#<span class="ident">variant_ident</span>(<span class="ident">__wrapper</span>.<span class="ident">value</span>))
+                <span class="kw">let</span> <span class="ident">__value</span>: #<span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span>::<span class="ident">map</span>(
+                    #<span class="ident">path</span>(#<span class="ident">deserializer</span>),
+                    #<span class="ident">this</span>::#<span class="ident">variant_ident</span>);
+                <span class="ident">__value</span>
             }
         }
     }
@@ -4540,7 +4650,7 @@
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="ident">__Field</span>);
     <span class="kw">let</span> <span class="ident">field_idents</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">ident</span>)<span class="op">|</span> <span class="ident">ident</span>).<span class="ident">collect</span>();
 
-    <span class="kw">let</span> (<span class="ident">ignore_variant</span>, <span class="ident">fallthrough</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
+    <span class="kw">let</span> (<span class="ident">ignore_variant</span>, <span class="ident">fallthrough</span>) <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">is_variant</span> <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
         <span class="kw">let</span> <span class="ident">ignore_variant</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>),);
         <span class="kw">let</span> <span class="ident">fallthrough</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">__value</span>)));
         (<span class="prelude-val">Some</span>(<span class="ident">ignore_variant</span>), <span class="prelude-val">Some</span>(<span class="ident">fallthrough</span>))
@@ -4557,10 +4667,10 @@
         <span class="ident">fields</span>,
         <span class="ident">is_variant</span>,
         <span class="ident">fallthrough</span>,
-        <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>(),
+        <span class="op">!</span><span class="ident">is_variant</span> <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>(),
     ));
 
-    <span class="kw">let</span> <span class="ident">lifetime</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
+    <span class="kw">let</span> <span class="ident">lifetime</span> <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">is_variant</span> <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
         <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span>(<span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>))
     } <span class="kw">else</span> {
         <span class="prelude-val">None</span>
@@ -4584,7 +4694,8 @@
         <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">__Field</span> #<span class="ident">lifetime</span> {
             <span class="attribute">#[<span class="ident">inline</span>]</span>
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">Deserializer</span>::<span class="ident">deserialize_identifier</span>(<span class="ident">__deserializer</span>, <span class="ident">__FieldVisitor</span>)
             }
@@ -4607,7 +4718,7 @@
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">this</span>);
 
     <span class="kw">let</span> (<span class="ident">ordinary</span>, <span class="ident">fallthrough</span>) <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">last</span>) <span class="op">=</span> <span class="ident">variants</span>.<span class="ident">last</span>() {
-        <span class="kw">let</span> <span class="ident">last_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">last</span>.<span class="ident">ident</span>;
+        <span class="kw">let</span> <span class="ident">last_ident</span> <span class="op">=</span> <span class="ident">last</span>.<span class="ident">ident</span>;
         <span class="kw">if</span> <span class="ident">last</span>.<span class="ident">attrs</span>.<span class="ident">other</span>() {
             <span class="kw">let</span> <span class="ident">ordinary</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variants</span>[..<span class="ident">variants</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>];
             <span class="kw">let</span> <span class="ident">fallthrough</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(#<span class="ident">this</span>::#<span class="ident">last_ident</span>));
@@ -4724,9 +4835,7 @@
         <span class="ident">value_as_borrowed_str_content</span>,
         <span class="ident">value_as_bytes_content</span>,
         <span class="ident">value_as_borrowed_bytes_content</span>,
-    ) <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="ident">collect_other_fields</span> {
-        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
-    } <span class="kw">else</span> {
+    ) <span class="op">=</span> <span class="kw">if</span> <span class="ident">collect_other_fields</span> {
         (
             <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span> {
                 <span class="kw">let</span> <span class="ident">__value</span> <span class="op">=</span> <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">String</span>(<span class="ident">__value</span>.<span class="ident">to_string</span>());
@@ -4741,6 +4850,8 @@
                 <span class="kw">let</span> <span class="ident">__value</span> <span class="op">=</span> <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">Bytes</span>(<span class="ident">__value</span>);
             }),
         )
+    } <span class="kw">else</span> {
+        (<span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>, <span class="prelude-val">None</span>)
     };
 
     <span class="kw">let</span> <span class="ident">fallthrough_arm</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">fallthrough</span>) <span class="op">=</span> <span class="ident">fallthrough</span> {
@@ -4755,90 +4866,104 @@
         }
     };
 
-    <span class="kw">let</span> <span class="ident">variant_indices</span> <span class="op">=</span> <span class="number">0u64</span>..;
+    <span class="kw">let</span> <span class="ident">variant_indices</span> <span class="op">=</span> <span class="number">0_u64</span>..;
     <span class="kw">let</span> <span class="ident">fallthrough_msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} index 0 &lt;= i &lt; {}&quot;</span>, <span class="ident">index_expecting</span>, <span class="ident">fields</span>.<span class="ident">len</span>());
     <span class="kw">let</span> <span class="ident">visit_other</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">collect_other_fields</span> {
         <span class="macro">quote</span><span class="macro">!</span> {
             <span class="kw">fn</span> <span class="ident">visit_bool</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">Bool</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_i8</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">i8</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">I8</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_i16</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">i16</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">I16</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_i32</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">i32</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">I32</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_i64</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">i64</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">I64</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_u8</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">U8</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_u16</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">u16</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">U16</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_u32</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">U32</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">U64</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_f32</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">f32</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">F32</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_f64</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">f64</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">F64</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_char</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">Char</span>(<span class="ident">__value</span>)))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_unit</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__Field</span>::<span class="ident">__other</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">Content</span>::<span class="ident">Unit</span>))
             }
 
             <span class="kw">fn</span> <span class="ident">visit_borrowed_str</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de</span> <span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="kw">match</span> <span class="ident">__value</span> {
                     #(
@@ -4852,7 +4977,8 @@
             }
 
             <span class="kw">fn</span> <span class="ident">visit_borrowed_bytes</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;de</span> [<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="kw">match</span> <span class="ident">__value</span> {
                     #(
@@ -4869,7 +4995,8 @@
     } <span class="kw">else</span> {
         <span class="macro">quote</span><span class="macro">!</span> {
             <span class="kw">fn</span> <span class="ident">visit_u64</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+            <span class="kw">where</span>
+                <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
             {
                 <span class="kw">match</span> <span class="ident">__value</span> {
                     #(
@@ -4891,7 +5018,8 @@
         #<span class="ident">visit_other</span>
 
         <span class="kw">fn</span> <span class="ident">visit_str</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+        <span class="kw">where</span>
+            <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
         {
             <span class="kw">match</span> <span class="ident">__value</span> {
                 #(
@@ -4905,7 +5033,8 @@
         }
 
         <span class="kw">fn</span> <span class="ident">visit_bytes</span><span class="op">&lt;</span><span class="ident">__E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">__value</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">__E</span><span class="op">&gt;</span>
-            <span class="kw">where</span> <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>
+        <span class="kw">where</span>
+            <span class="ident">__E</span>: <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">Error</span>,
         {
             <span class="kw">match</span> <span class="ident">__value</span> {
                 #(
@@ -4988,7 +5117,7 @@
         .<span class="ident">iter</span>()
         .<span class="ident">filter</span>(<span class="op">|</span><span class="op">&amp;&amp;</span>(<span class="ident">field</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">flatten</span>())
         .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">field</span>, <span class="kw-2">ref</span> <span class="ident">name</span>)<span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
+            <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
             <span class="macro">quote</span><span class="macro">!</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> #<span class="ident">name</span>: <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Option</span><span class="op">&lt;</span>#<span class="ident">field_ty</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">None</span>;
             }
@@ -5015,7 +5144,7 @@
 
             <span class="kw">let</span> <span class="ident">visit</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>;
+                    <span class="kw">let</span> <span class="ident">field_ty</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ty</span>;
                     <span class="kw">let</span> <span class="ident">span</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">original</span>.<span class="ident">span</span>();
                     <span class="kw">let</span> <span class="ident">func</span> <span class="op">=</span>
                         <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="ident">span</span><span class="op">=&gt;</span> <span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span>::<span class="ident">next_value</span>::<span class="op">&lt;</span>#<span class="ident">field_ty</span><span class="op">&gt;</span>);
@@ -5236,7 +5365,7 @@
         .<span class="ident">filter</span>(<span class="op">|</span><span class="op">&amp;&amp;</span>(<span class="ident">field</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>())
         .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">field</span>, <span class="kw-2">ref</span> <span class="ident">name</span>)<span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">deser_name</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">name</span>().<span class="ident">deserialize_name</span>();
-            <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ident</span>;
+            <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>;
 
             <span class="kw">let</span> <span class="ident">visit</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
@@ -5299,13 +5428,9 @@
         .<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">field</span>, <span class="kw-2">ref</span> <span class="ident">name</span>)<span class="op">|</span> {
             <span class="kw">let</span> <span class="ident">missing_expr</span> <span class="op">=</span> <span class="ident">expr_is_missing</span>(<span class="ident">field</span>, <span class="ident">cattrs</span>);
             <span class="comment">// If missing_expr unconditionally returns an error, don&#39;t try</span>
-            <span class="comment">// to assign its value to self.place. Maybe this could be handled</span>
-            <span class="comment">// more elegantly.</span>
-            <span class="kw">if</span> <span class="ident">missing_expr</span>
-                .<span class="ident">as_ref</span>()
-                .<span class="ident">into_tokens</span>()
-                .<span class="ident">to_string</span>()
-                .<span class="ident">starts_with</span>(<span class="string">&quot;return &quot;</span>)
+            <span class="comment">// to assign its value to self.place.</span>
+            <span class="kw">if</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">default</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">cattrs</span>.<span class="ident">default</span>().<span class="ident">is_none</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_some</span>()
             {
                 <span class="kw">let</span> <span class="ident">missing_expr</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">missing_expr</span>);
                 <span class="macro">quote</span><span class="macro">!</span> {
@@ -5314,7 +5439,7 @@
                     }
                 }
             } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ident</span>;
+                <span class="kw">let</span> <span class="ident">field_name</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>;
                 <span class="kw">let</span> <span class="ident">missing_expr</span> <span class="op">=</span> <span class="ident">Expr</span>(<span class="ident">missing_expr</span>);
                 <span class="macro">quote</span><span class="macro">!</span> {
                     <span class="kw">if</span> <span class="op">!</span>#<span class="ident">name</span> {
@@ -5379,7 +5504,8 @@
 
         <span class="kw">impl</span> #<span class="ident">de_impl_generics</span> <span class="ident">_serde</span>::<span class="ident">Deserialize</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">__DeserializeWith</span> #<span class="ident">de_ty_generics</span> #<span class="ident">where_clause</span> {
             <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">__D</span><span class="op">&gt;</span>(<span class="ident">__deserializer</span>: <span class="ident">__D</span>) <span class="op">-&gt;</span> <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>, <span class="ident">__D</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-                <span class="kw">where</span> <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">__D</span>: <span class="ident">_serde</span>::<span class="ident">Deserializer</span><span class="op">&lt;</span>#<span class="ident">delife</span><span class="op">&gt;</span>,
             {
                 <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Ok</span>(<span class="ident">__DeserializeWith</span> {
                     <span class="ident">value</span>: <span class="macro">try</span><span class="macro">!</span>(#<span class="ident">deserialize_with</span>(<span class="ident">__deserializer</span>)),
@@ -5409,7 +5535,7 @@
     <span class="ident">deserialize_with</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span>,
 ) <span class="op">-&gt;</span> (<span class="ident">Tokens</span>, <span class="ident">Tokens</span>, <span class="ident">Tokens</span>) {
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
-    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
 
     <span class="kw">let</span> <span class="ident">field_tys</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">ty</span>);
     <span class="kw">let</span> (<span class="ident">wrapper</span>, <span class="ident">wrapper_ty</span>) <span class="op">=</span>
@@ -5464,7 +5590,7 @@
 
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">cattrs</span>.<span class="ident">default</span>() {
         <span class="ident">attr</span>::<span class="ident">Default</span>::<span class="ident">Default</span> <span class="op">|</span> <span class="ident">attr</span>::<span class="ident">Default</span>::<span class="ident">Path</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
-            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ident</span>;
+            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>;
             <span class="kw">return</span> <span class="macro">quote_expr</span><span class="macro">!</span>(<span class="ident">__default</span>.#<span class="ident">ident</span>);
         }
         <span class="ident">attr</span>::<span class="ident">Default</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> { <span class="comment">/* below */</span> }

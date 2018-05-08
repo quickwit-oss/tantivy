@@ -514,6 +514,8 @@
 <span id="514">514</span>
 <span id="515">515</span>
 <span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Column oriented field storage for tantivy.
@@ -548,11 +550,13 @@ Read access performance is comparable to that of an array lookup.
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">reader</span>::<span class="ident">FastFieldReader</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">serializer</span>::<span class="ident">FastFieldSerializer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">writer</span>::{<span class="ident">FastFieldsWriter</span>, <span class="ident">IntFastFieldWriter</span>};
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">bytes</span>::{<span class="ident">BytesFastFieldReader</span>, <span class="ident">BytesFastFieldWriter</span>};
 <span class="kw">use</span> <span class="ident">common</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Value</span>;
 
+<span class="kw">mod</span> <span class="ident">bytes</span>;
 <span class="kw">mod</span> <span class="ident">delete</span>;
 <span class="kw">mod</span> <span class="ident">error</span>;
 <span class="kw">mod</span> <span class="ident">facet_reader</span>;

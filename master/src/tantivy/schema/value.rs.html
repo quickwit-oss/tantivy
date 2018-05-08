@@ -187,6 +187,21 @@
 <span id="187">187</span>
 <span id="188">188</span>
 <span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Facet</span>;
 <span class="kw">use</span> <span class="ident">serde</span>::<span class="ident">de</span>::<span class="ident">Visitor</span>;
@@ -205,6 +220,8 @@
     <span class="ident">I64</span>(<span class="ident">i64</span>),
     <span class="doccomment">/// Hierarchical Facet</span>
     <span class="ident">Facet</span>(<span class="ident">Facet</span>),
+    <span class="doccomment">/// Arbitrarily sized byte array</span>
+    <span class="ident">Bytes</span>(<span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>),
 }
 
 <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">Value</span> {
@@ -217,6 +234,7 @@
             <span class="ident">Value</span>::<span class="ident">U64</span>(<span class="ident">u</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_u64</span>(<span class="ident">u</span>),
             <span class="ident">Value</span>::<span class="ident">I64</span>(<span class="ident">u</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_i64</span>(<span class="ident">u</span>),
             <span class="ident">Value</span>::<span class="ident">Facet</span>(<span class="kw-2">ref</span> <span class="ident">facet</span>) <span class="op">=&gt;</span> <span class="ident">facet</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>),
+            <span class="ident">Value</span>::<span class="ident">Bytes</span>(<span class="kw-2">ref</span> <span class="ident">bytes</span>) <span class="op">=&gt;</span> <span class="ident">serializer</span>.<span class="ident">serialize_bytes</span>(<span class="ident">bytes</span>),
         }
     }
 }
@@ -321,6 +339,12 @@
     }
 }
 
+<span class="kw">impl</span> <span class="ident">From</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;&gt;</span> <span class="kw">for</span> <span class="ident">Value</span> {
+    <span class="kw">fn</span> <span class="ident">from</span>(<span class="ident">bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Value</span> {
+        <span class="ident">Value</span>::<span class="ident">Bytes</span>(<span class="ident">bytes</span>)
+    }
+}
+
 <span class="kw">mod</span> <span class="ident">binary_serialize</span> {
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">Value</span>;
     <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
@@ -331,6 +355,7 @@
     <span class="kw">const</span> <span class="ident">U64_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">1</span>;
     <span class="kw">const</span> <span class="ident">I64_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">2</span>;
     <span class="kw">const</span> <span class="ident">HIERARCHICAL_FACET_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">3</span>;
+    <span class="kw">const</span> <span class="ident">BYTES_CODE</span>: <span class="ident">u8</span> <span class="op">=</span> <span class="number">4</span>;
 
     <span class="kw">impl</span> <span class="ident">BinarySerializable</span> <span class="kw">for</span> <span class="ident">Value</span> {
         <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">W</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">W</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
@@ -351,6 +376,10 @@
                     <span class="ident">HIERARCHICAL_FACET_CODE</span>.<span class="ident">serialize</span>(<span class="ident">writer</span>)<span class="question-mark">?</span>;
                     <span class="ident">facet</span>.<span class="ident">serialize</span>(<span class="ident">writer</span>)
                 }
+                <span class="ident">Value</span>::<span class="ident">Bytes</span>(<span class="kw-2">ref</span> <span class="ident">bytes</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">BYTES_CODE</span>.<span class="ident">serialize</span>(<span class="ident">writer</span>)<span class="question-mark">?</span>;
+                    <span class="ident">bytes</span>.<span class="ident">serialize</span>(<span class="ident">writer</span>)
+                }
             }
         }
         <span class="kw">fn</span> <span class="ident">deserialize</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">Read</span><span class="op">&gt;</span>(<span class="ident">reader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">R</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
@@ -369,6 +398,7 @@
                     <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">I64</span>(<span class="ident">value</span>))
                 }
                 <span class="ident">HIERARCHICAL_FACET_CODE</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">Facet</span>(<span class="ident">Facet</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>)),
+                <span class="ident">BYTES_CODE</span> <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">Value</span>::<span class="ident">Bytes</span>(<span class="ident">Vec</span>::<span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>::<span class="ident">deserialize</span>(<span class="ident">reader</span>)<span class="question-mark">?</span>)),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">io</span>::<span class="ident">Error</span>::<span class="ident">new</span>(
                     <span class="ident">io</span>::<span class="ident">ErrorKind</span>::<span class="ident">InvalidData</span>,
                     <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;No field type is associated with code {:?}&quot;</span>, <span class="ident">type_code</span>),

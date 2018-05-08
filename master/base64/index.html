@@ -1,0 +1,215 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `base64` crate."><meta name="keywords" content="rust, rustlang, rust-lang, base64"><title>base64 - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate base64</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'base64', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>base64</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/base64/lib.rs.html#1-220' title='goto source code'>[src]</a></span></h1><div class='docblock'><h1 id="configs" class="section-header"><a href="#configs">Configs</a></h1>
+<p>There isn't just one type of Base64; that would be too simple. You need to choose a character
+set (standard or URL-safe), padding suffix (yes/no), and line wrap (line length, line ending).
+The <code>Config</code> struct encapsulates this info. There are some common configs included: <code>STANDARD</code>,
+<code>MIME</code>, etc. You can also make your own <code>Config</code> if needed.</p>
+<p>The functions that don't have <code>config</code> in the name (e.g. <code>encode()</code> and <code>decode()</code>) use the
+<code>STANDARD</code> config .</p>
+<p>The functions that write to a slice (the ones that end in <code>_slice</code>) are generally the fastest
+because they don't need to resize anything. If it fits in your workflow and you care about
+performance, keep using the same buffer (growing as need be) and use the <code>_slice</code> methods for
+the best performance.</p>
+<h1 id="encoding" class="section-header"><a href="#encoding">Encoding</a></h1>
+<p>Several different encoding functions are available to you depending on your desire for
+convenience vs performance.</p>
+<table><thead><tr><th> Function                </th><th> Output                       </th><th> Allocates                      </th></tr></thead><tbody>
+<tr><td> <code>encode</code>                </td><td> Returns a new <code>String</code>       </td><td> Always                         </td></tr>
+<tr><td> <code>encode_config</code>         </td><td> Returns a new <code>String</code>       </td><td> Always                         </td></tr>
+<tr><td> <code>encode_config_buf</code>     </td><td> Appends to provided <code>String</code> </td><td> Only if <code>String</code> needs to grow </td></tr>
+<tr><td> <code>encode_config_slice</code>   </td><td> Writes to provided <code>&amp;[u8]</code>   </td><td> Never                          </td></tr>
+</tbody></table>
+<p>All of the encoding functions that take a <code>Config</code> will pad, line wrap, etc, as per the config.</p>
+<h1 id="decoding" class="section-header"><a href="#decoding">Decoding</a></h1>
+<p>Just as for encoding, there are different decoding functions available.</p>
+<p>Note that all decode functions that take a config will allocate a copy of the input if you
+specify a config that requires whitespace to be stripped. If you care about speed, don't use
+formats that line wrap and then require whitespace stripping.</p>
+<table><thead><tr><th> Function                </th><th> Output                        </th><th> Allocates                      </th></tr></thead><tbody>
+<tr><td> <code>decode</code>                </td><td> Returns a new <code>Vec&lt;u8&gt;</code>       </td><td> Always                         </td></tr>
+<tr><td> <code>decode_config</code>         </td><td> Returns a new <code>Vec&lt;u8&gt;</code>       </td><td> Always                         </td></tr>
+<tr><td> <code>decode_config_buf</code>     </td><td> Appends to provided <code>Vec&lt;u8&gt;</code> </td><td> Only if <code>Vec</code> needs to grow    </td></tr>
+<tr><td> <code>decode_config_slice</code>   </td><td> Writes to provided <code>&amp;[u8]</code>    </td><td> Never                          </td></tr>
+</tbody></table>
+<p>Unlike encoding, where all possible input is valid, decoding can fail (see <code>DecodeError</code>).</p>
+<p>Input can be invalid because it has invalid characters or invalid padding. (No padding at all is
+valid, but excess padding is not.)</p>
+<p>Whitespace in the input is invalid unless <code>strip_whitespace</code> is enabled in the <code>Config</code> used.</p>
+<h1 id="panics" class="section-header"><a href="#panics">Panics</a></h1>
+<p>If length calculations result in overflowing <code>usize</code>, a panic will result.</p>
+<p>The <code>_slice</code> flavors of encode or decode will panic if the provided output slice is too small,</p>
+</div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="mod" href="display/index.html"
+                                  title='mod base64::display'>display</a></td>
+                           <td class='docblock-short'>
+                                <p>Enables base64'd output anywhere you might use a <code>Display</code> implementation, like a format string.</p>
+
+                           </td>
+                       </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Config.html"
+                                  title='struct base64::Config'>Config</a></td>
+                           <td class='docblock-short'>
+                                <p>Contains configuration parameters for base64 encoding</p>
+
+                           </td>
+                       </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.CharacterSet.html"
+                                  title='enum base64::CharacterSet'>CharacterSet</a></td>
+                           <td class='docblock-short'>
+                                <p>Available encoding character sets</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.DecodeError.html"
+                                  title='enum base64::DecodeError'>DecodeError</a></td>
+                           <td class='docblock-short'>
+                                <p>Errors that can occur while decoding.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.LineEnding.html"
+                                  title='enum base64::LineEnding'>LineEnding</a></td>
+                           <td class='docblock-short'>
+                                <p>Line ending used in optional line wrapping.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="enum" href="enum.LineWrap.html"
+                                  title='enum base64::LineWrap'>LineWrap</a></td>
+                           <td class='docblock-short'>
+                                <p>Line wrap configuration.</p>
+
+                           </td>
+                       </tr></table><h2 id='constants' class='section-header'><a href="#constants">Constants</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.CRYPT.html"
+                                  title='constant base64::CRYPT'>CRYPT</a></td>
+                           <td class='docblock-short'>
+                                <p>As per <code>crypt(3)</code> requirements</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.MIME.html"
+                                  title='constant base64::MIME'>MIME</a></td>
+                           <td class='docblock-short'>
+                                <p>As per standards for MIME encoded messages</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.STANDARD.html"
+                                  title='constant base64::STANDARD'>STANDARD</a></td>
+                           <td class='docblock-short'>
+                                <p>Standard character set with padding.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.STANDARD_NO_PAD.html"
+                                  title='constant base64::STANDARD_NO_PAD'>STANDARD_NO_PAD</a></td>
+                           <td class='docblock-short'>
+                                <p>Standard character set without padding.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.URL_SAFE.html"
+                                  title='constant base64::URL_SAFE'>URL_SAFE</a></td>
+                           <td class='docblock-short'>
+                                <p>URL-safe character set with padding</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="constant" href="constant.URL_SAFE_NO_PAD.html"
+                                  title='constant base64::URL_SAFE_NO_PAD'>URL_SAFE_NO_PAD</a></td>
+                           <td class='docblock-short'>
+                                <p>URL-safe character set without padding</p>
+
+                           </td>
+                       </tr></table><h2 id='functions' class='section-header'><a href="#functions">Functions</a></h2>
+<table>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.decode.html"
+                                  title='fn base64::decode'>decode</a></td>
+                           <td class='docblock-short'>
+                                <p>Decode from string reference as octets.
+Returns a Result containing a Vec<u8>.
+Convenience <code>decode_config(input, base64::STANDARD);</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.decode_config.html"
+                                  title='fn base64::decode_config'>decode_config</a></td>
+                           <td class='docblock-short'>
+                                <p>Decode from string reference as octets.
+Returns a Result containing a Vec<u8>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.decode_config_buf.html"
+                                  title='fn base64::decode_config_buf'>decode_config_buf</a></td>
+                           <td class='docblock-short'>
+                                <p>Decode from string reference as octets.
+Writes into the supplied buffer to avoid allocation.
+Returns a Result containing an empty tuple, aka ().</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.decode_config_slice.html"
+                                  title='fn base64::decode_config_slice'>decode_config_slice</a></td>
+                           <td class='docblock-short'>
+                                <p>Decode the input into the provided output slice.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.encode.html"
+                                  title='fn base64::encode'>encode</a></td>
+                           <td class='docblock-short'>
+                                <p>Encode arbitrary octets as base64.
+Returns a String.
+Convenience for <code>encode_config(input, base64::STANDARD);</code>.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.encode_config.html"
+                                  title='fn base64::encode_config'>encode_config</a></td>
+                           <td class='docblock-short'>
+                                <p>Encode arbitrary octets as base64.
+Returns a String.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.encode_config_buf.html"
+                                  title='fn base64::encode_config_buf'>encode_config_buf</a></td>
+                           <td class='docblock-short'>
+                                <p>Encode arbitrary octets as base64.
+Writes into the supplied output buffer, which will grow the buffer if needed.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="fn" href="fn.encode_config_slice.html"
+                                  title='fn base64::encode_config_slice'>encode_config_slice</a></td>
+                           <td class='docblock-short'>
+                                <p>Encode arbitrary octets as base64.
+Writes into the supplied output buffer.</p>
+
+                           </td>
+                       </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "base64";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

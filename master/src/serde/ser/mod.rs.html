@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.45/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.50/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1881,6 +1881,58 @@
 <span id="1881">1881</span>
 <span id="1882">1882</span>
 <span id="1883">1883</span>
+<span id="1884">1884</span>
+<span id="1885">1885</span>
+<span id="1886">1886</span>
+<span id="1887">1887</span>
+<span id="1888">1888</span>
+<span id="1889">1889</span>
+<span id="1890">1890</span>
+<span id="1891">1891</span>
+<span id="1892">1892</span>
+<span id="1893">1893</span>
+<span id="1894">1894</span>
+<span id="1895">1895</span>
+<span id="1896">1896</span>
+<span id="1897">1897</span>
+<span id="1898">1898</span>
+<span id="1899">1899</span>
+<span id="1900">1900</span>
+<span id="1901">1901</span>
+<span id="1902">1902</span>
+<span id="1903">1903</span>
+<span id="1904">1904</span>
+<span id="1905">1905</span>
+<span id="1906">1906</span>
+<span id="1907">1907</span>
+<span id="1908">1908</span>
+<span id="1909">1909</span>
+<span id="1910">1910</span>
+<span id="1911">1911</span>
+<span id="1912">1912</span>
+<span id="1913">1913</span>
+<span id="1914">1914</span>
+<span id="1915">1915</span>
+<span id="1916">1916</span>
+<span id="1917">1917</span>
+<span id="1918">1918</span>
+<span id="1919">1919</span>
+<span id="1920">1920</span>
+<span id="1921">1921</span>
+<span id="1922">1922</span>
+<span id="1923">1923</span>
+<span id="1924">1924</span>
+<span id="1925">1925</span>
+<span id="1926">1926</span>
+<span id="1927">1927</span>
+<span id="1928">1928</span>
+<span id="1929">1929</span>
+<span id="1930">1930</span>
+<span id="1931">1931</span>
+<span id="1932">1932</span>
+<span id="1933">1933</span>
+<span id="1934">1934</span>
+<span id="1935">1935</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2036,7 +2088,8 @@
             <span class="doccomment">///</span>
             <span class="doccomment">/// impl Serialize for Path {</span>
             <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-            <span class="doccomment">///         where S: Serializer</span>
+            <span class="doccomment">///     where</span>
+            <span class="doccomment">///         S: Serializer,</span>
             <span class="doccomment">///     {</span>
             <span class="doccomment">///         match self.to_str() {</span>
             <span class="doccomment">///             Some(s) =&gt; serializer.serialize_str(s),</span>
@@ -2107,7 +2160,8 @@
     <span class="doccomment">/// // This is what #[derive(Serialize)] would generate.</span>
     <span class="doccomment">/// impl Serialize for Person {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut s = serializer.serialize_struct(&quot;Person&quot;, 3)?;</span>
     <span class="doccomment">///         s.serialize_field(&quot;name&quot;, &amp;self.name)?;</span>
@@ -2261,7 +2315,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for bool {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_bool(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2287,7 +2342,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i8 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_i8(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2313,7 +2369,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i16 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_i16(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2339,7 +2396,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_i32(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2361,7 +2419,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for i64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_i64(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2387,7 +2446,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u8 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_u8(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2413,7 +2473,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u16 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_u16(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2439,7 +2500,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_u32(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2461,7 +2523,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for u64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_u64(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2487,7 +2550,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for f32 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_f32(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2509,7 +2573,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for f64 {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_f64(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2534,7 +2599,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for char {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_char(*self)</span>
     <span class="doccomment">///     }</span>
@@ -2556,7 +2622,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for str {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_str(self)</span>
     <span class="doccomment">///     }</span>
@@ -2621,10 +2688,12 @@
     <span class="doccomment">/// # use Option::{Some, None};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl&lt;T&gt; Serialize for Option&lt;T&gt;</span>
-    <span class="doccomment">///     where T: Serialize</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     T: Serialize,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             Some(ref value) =&gt; serializer.serialize_some(value),</span>
@@ -2654,10 +2723,12 @@
     <span class="doccomment">/// # use Option::{Some, None};</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl&lt;T&gt; Serialize for Option&lt;T&gt;</span>
-    <span class="doccomment">///     where T: Serialize</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     T: Serialize,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             Some(ref value) =&gt; serializer.serialize_some(value),</span>
@@ -2686,7 +2757,8 @@
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// impl Serialize for () {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_unit()</span>
     <span class="doccomment">///     }</span>
@@ -2707,7 +2779,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Nothing {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_unit_struct(&quot;Nothing&quot;)</span>
     <span class="doccomment">///     }</span>
@@ -2731,7 +2804,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for E {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             E::A =&gt; serializer.serialize_unit_variant(&quot;E&quot;, 0, &quot;A&quot;),</span>
@@ -2760,7 +2834,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Millimeters {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.serialize_newtype_struct(&quot;Millimeters&quot;, &amp;self.0)</span>
     <span class="doccomment">///     }</span>
@@ -2790,7 +2865,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for E {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             E::M(ref s) =&gt; serializer.serialize_newtype_variant(&quot;E&quot;, 0, &quot;M&quot;, s),</span>
@@ -2840,10 +2916,12 @@
     <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeSeq};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl&lt;T&gt; Serialize for Vec&lt;T&gt;</span>
-    <span class="doccomment">///     where T: Serialize</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     T: Serialize,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut seq = serializer.serialize_seq(Some(self.len()))?;</span>
     <span class="doccomment">///         for element in self {</span>
@@ -2872,12 +2950,14 @@
     <span class="doccomment">/// # struct Tuple3&lt;A, B, C&gt;(A, B, C);</span>
     <span class="doccomment">/// #</span>
     <span class="doccomment">/// # impl&lt;A, B, C&gt; Serialize for Tuple3&lt;A, B, C&gt;</span>
-    <span class="doccomment">///     where A: Serialize,</span>
-    <span class="doccomment">///           B: Serialize,</span>
-    <span class="doccomment">///           C: Serialize</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     A: Serialize,</span>
+    <span class="doccomment">///     B: Serialize,</span>
+    <span class="doccomment">///     C: Serialize,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut tup = serializer.serialize_tuple(3)?;</span>
     <span class="doccomment">///         tup.serialize_element(&amp;self.0)?;</span>
@@ -2896,7 +2976,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Vram {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut seq = serializer.serialize_tuple(VRAM_SIZE)?;</span>
     <span class="doccomment">///         for element in &amp;self.0[..] {</span>
@@ -2922,7 +3003,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Rgb {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut ts = serializer.serialize_tuple_struct(&quot;Rgb&quot;, 3)?;</span>
     <span class="doccomment">///         ts.serialize_field(&amp;self.0)?;</span>
@@ -2956,7 +3038,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for E {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             E::T(ref a, ref b) =&gt; {</span>
@@ -3014,11 +3097,13 @@
     <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeMap};</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl&lt;K, V&gt; Serialize for HashMap&lt;K, V&gt;</span>
-    <span class="doccomment">///     where K: Serialize,</span>
-    <span class="doccomment">///           V: Serialize</span>
+    <span class="doccomment">/// where</span>
+    <span class="doccomment">///     K: Serialize,</span>
+    <span class="doccomment">///     V: Serialize,</span>
     <span class="doccomment">/// {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut map = serializer.serialize_map(Some(self.len()))?;</span>
     <span class="doccomment">///         for (k, v) in self {</span>
@@ -3048,7 +3133,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Rgb {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         let mut rgb = serializer.serialize_struct(&quot;Rgb&quot;, 3)?;</span>
     <span class="doccomment">///         rgb.serialize_field(&quot;r&quot;, &amp;self.r)?;</span>
@@ -3081,7 +3167,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for E {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         match *self {</span>
     <span class="doccomment">///             E::S { ref r, ref g, ref b } =&gt; {</span>
@@ -3118,7 +3205,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for SecretlyOneHigher {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.collect_seq(self.data.iter().map(|x| x + 1))</span>
     <span class="doccomment">///     }</span>
@@ -3156,7 +3244,8 @@
     <span class="doccomment">/// // Serializes as a map in which the values are all unit.</span>
     <span class="doccomment">/// impl Serialize for MapToUnit {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.collect_map(self.keys.iter().map(|k| (k, ())))</span>
     <span class="doccomment">///     }</span>
@@ -3196,7 +3285,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for DateTime {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.collect_str(&amp;format_args!(&quot;{:?}{:?}&quot;,</span>
     <span class="doccomment">///                                              self.naive_local(),</span>
@@ -3236,7 +3326,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for DateTime {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         serializer.collect_str(&amp;format_args!(&quot;{:?}{:?}&quot;,</span>
     <span class="doccomment">///                                              self.naive_local(),</span>
@@ -3277,7 +3368,8 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// impl Serialize for Timestamp {</span>
     <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-    <span class="doccomment">///         where S: Serializer</span>
+    <span class="doccomment">///     where</span>
+    <span class="doccomment">///         S: Serializer,</span>
     <span class="doccomment">///     {</span>
     <span class="doccomment">///         if serializer.is_human_readable() {</span>
     <span class="doccomment">///             // Serialize to a human-readable string &quot;2015-05-15T17:01:00Z&quot;.</span>
@@ -3326,10 +3418,12 @@
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeSeq};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl&lt;T&gt; Serialize for Vec&lt;T&gt;</span>
-<span class="doccomment">///     where T: Serialize</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     T: Serialize,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut seq = serializer.serialize_seq(Some(self.len()))?;</span>
 <span class="doccomment">///         for element in self {</span>
@@ -3369,12 +3463,14 @@
 <span class="doccomment">/// # struct Tuple3&lt;A, B, C&gt;(A, B, C);</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # impl&lt;A, B, C&gt; Serialize for Tuple3&lt;A, B, C&gt;</span>
-<span class="doccomment">///     where A: Serialize,</span>
-<span class="doccomment">///           B: Serialize,</span>
-<span class="doccomment">///           C: Serialize</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     A: Serialize,</span>
+<span class="doccomment">///     B: Serialize,</span>
+<span class="doccomment">///     C: Serialize,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut tup = serializer.serialize_tuple(3)?;</span>
 <span class="doccomment">///         tup.serialize_element(&amp;self.0)?;</span>
@@ -3413,10 +3509,12 @@
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # impl&lt;T&gt; Serialize for Array&lt;T&gt;</span>
-<span class="doccomment">///     where T: Serialize</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     T: Serialize,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut seq = serializer.serialize_tuple(16)?;</span>
 <span class="doccomment">///         for element in self {</span>
@@ -3451,7 +3549,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl Serialize for Rgb {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut ts = serializer.serialize_tuple_struct(&quot;Rgb&quot;, 3)?;</span>
 <span class="doccomment">///         ts.serialize_field(&amp;self.0)?;</span>
@@ -3489,7 +3588,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl Serialize for E {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         match *self {</span>
 <span class="doccomment">///             E::T(ref a, ref b) =&gt; {</span>
@@ -3550,11 +3650,13 @@
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeMap};</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl&lt;K, V&gt; Serialize for HashMap&lt;K, V&gt;</span>
-<span class="doccomment">///     where K: Serialize,</span>
-<span class="doccomment">///           V: Serialize</span>
+<span class="doccomment">/// where</span>
+<span class="doccomment">///     K: Serialize,</span>
+<span class="doccomment">///     V: Serialize,</span>
 <span class="doccomment">/// {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut map = serializer.serialize_map(Some(self.len()))?;</span>
 <span class="doccomment">///         for (k, v) in self {</span>
@@ -3638,7 +3740,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl Serialize for Rgb {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         let mut rgb = serializer.serialize_struct(&quot;Rgb&quot;, 3)?;</span>
 <span class="doccomment">///         rgb.serialize_field(&quot;r&quot;, &amp;self.r)?;</span>
@@ -3686,7 +3789,8 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// impl Serialize for E {</span>
 <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
-<span class="doccomment">///         where S: Serializer</span>
+<span class="doccomment">///     where</span>
+<span class="doccomment">///         S: Serializer,</span>
 <span class="doccomment">///     {</span>
 <span class="doccomment">///         match *self {</span>
 <span class="doccomment">///             E::S { ref r, ref g, ref b } =&gt; {</span>

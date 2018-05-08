@@ -164,6 +164,11 @@
 <span id="164">164</span>
 <span id="165">165</span>
 <span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
@@ -252,6 +257,11 @@
     <span class="doccomment">/// Add a u64 field</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_i64</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">value</span>: <span class="ident">i64</span>) {
         <span class="self">self</span>.<span class="ident">add</span>(<span class="ident">FieldValue</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="ident">Value</span>::<span class="ident">I64</span>(<span class="ident">value</span>)));
+    }
+
+    <span class="doccomment">/// Add a bytes field</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_bytes</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">value</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) {
+        <span class="self">self</span>.<span class="ident">add</span>(<span class="ident">FieldValue</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="ident">Value</span>::<span class="ident">Bytes</span>(<span class="ident">value</span>)))
     }
 
     <span class="doccomment">/// Add a field value</span>

@@ -342,6 +342,23 @@
 <span id="342">342</span>
 <span id="343">343</span>
 <span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
@@ -355,7 +372,7 @@
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FacetReader</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="self">self</span>, <span class="ident">FastFieldNotAvailableError</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
+<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">BytesFastFieldReader</span>, <span class="ident">FastValue</span>, <span class="ident">MultiValueIntFastFieldReader</span>};
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
@@ -492,6 +509,23 @@
         } <span class="kw">else</span> {
             <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
         }
+    }
+
+    <span class="doccomment">/// Accessor to the `BytesFastFieldReader` associated to a given `Field`.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">bytes_fast_field_reader</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">fastfield</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">BytesFastFieldReader</span><span class="op">&gt;</span> {
+        <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">field</span>);
+        <span class="kw">match</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
+            <span class="kw-2">&amp;</span><span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {},
+            <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>)),
+        }
+        <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
+            .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>)
+            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))
+            .<span class="ident">map</span>(<span class="ident">FastFieldReader</span>::<span class="ident">open</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="ident">values</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fast_fields_composite</span>
+            .<span class="ident">open_read_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)
+            .<span class="ident">ok_or_else</span>(<span class="op">||</span> <span class="ident">FastFieldNotAvailableError</span>::<span class="ident">new</span>(<span class="ident">field_entry</span>))<span class="question-mark">?</span>;
+        <span class="prelude-val">Ok</span>(<span class="ident">BytesFastFieldReader</span>::<span class="ident">open</span>(<span class="ident">idx_reader</span>, <span class="ident">values</span>))
     }
 
     <span class="doccomment">/// Accessor to the `FacetReader` associated to a given `Field`.</span>

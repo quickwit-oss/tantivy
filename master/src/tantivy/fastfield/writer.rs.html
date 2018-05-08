@@ -216,9 +216,40 @@
 <span id="216">216</span>
 <span id="217">217</span>
 <span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">common</span>::{<span class="self">self</span>, <span class="ident">VInt</span>, <span class="ident">BinarySerializable</span>};
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
+<span class="kw">use</span> <span class="ident">common</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">common</span>::<span class="ident">VInt</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::{<span class="ident">BytesFastFieldWriter</span>, <span class="ident">FastFieldSerializer</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">FieldType</span>, <span class="ident">Cardinality</span>, <span class="ident">Document</span>, <span class="ident">Field</span>, <span class="ident">Schema</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
@@ -230,6 +261,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FastFieldsWriter</span> {
     <span class="ident">single_value_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">IntFastFieldWriter</span><span class="op">&gt;</span>,
     <span class="ident">multi_values_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">MultiValueIntFastFieldWriter</span><span class="op">&gt;</span>,
+    <span class="ident">bytes_value_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">BytesFastFieldWriter</span><span class="op">&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">FastFieldsWriter</span> {
@@ -237,6 +269,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_schema</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">Schema</span>) <span class="op">-&gt;</span> <span class="ident">FastFieldsWriter</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">single_value_writers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">multi_values_writers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes_value_writers</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
 
         <span class="kw">for</span> (<span class="ident">field_id</span>, <span class="ident">field_entry</span>) <span class="kw">in</span> <span class="ident">schema</span>.<span class="ident">fields</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
             <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>);
@@ -264,12 +297,17 @@
                     <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">MultiValueIntFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>, <span class="bool-val">true</span>);
                     <span class="ident">multi_values_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
                 }
+                <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {
+                    <span class="kw">let</span> <span class="ident">fast_field_writer</span> <span class="op">=</span> <span class="ident">BytesFastFieldWriter</span>::<span class="ident">new</span>(<span class="ident">field</span>);
+                    <span class="ident">bytes_value_writers</span>.<span class="ident">push</span>(<span class="ident">fast_field_writer</span>);
+                }
                 <span class="kw">_</span> <span class="op">=&gt;</span> {}
             }
         }
         <span class="ident">FastFieldsWriter</span> {
             <span class="ident">single_value_writers</span>,
             <span class="ident">multi_values_writers</span>,
+            <span class="ident">bytes_value_writers</span>,
         }
     }
 
@@ -295,12 +333,29 @@
             .<span class="ident">find</span>(<span class="op">|</span><span class="ident">multivalue_writer</span><span class="op">|</span> <span class="ident">multivalue_writer</span>.<span class="ident">field</span>() <span class="op">==</span> <span class="ident">field</span>)
     }
 
+    <span class="doccomment">/// Returns the bytes fast field writer for the given field.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Returns None if the field does not exist, or is not</span>
+    <span class="doccomment">/// configured as a bytes fastfield in the schema.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_bytes_writer</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BytesFastFieldWriter</span><span class="op">&gt;</span> {
+        <span class="comment">// TODO optimize</span>
+        <span class="self">self</span>.<span class="ident">bytes_value_writers</span>
+            .<span class="ident">iter_mut</span>()
+            .<span class="ident">find</span>(<span class="op">|</span><span class="ident">field_writer</span><span class="op">|</span> <span class="ident">field_writer</span>.<span class="ident">field</span>() <span class="op">==</span> <span class="ident">field</span>)
+    }
+
     <span class="doccomment">/// Indexes all of the fastfields of a new document.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">add_document</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="kw-2">&amp;</span><span class="ident">Document</span>) {
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">single_value_writers</span> {
             <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">multi_values_writers</span> {
+            <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
+        }
+        <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">bytes_value_writers</span> {
             <span class="ident">field_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
         }
     }
@@ -318,6 +373,9 @@
         <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">multi_values_writers</span> {
             <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">field_writer</span>.<span class="ident">field</span>();
             <span class="ident">field_writer</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>, <span class="ident">mapping</span>.<span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="ident">field</span>))<span class="question-mark">?</span>;
+        }
+        <span class="kw">for</span> <span class="ident">field_writer</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">bytes_value_writers</span> {
+            <span class="ident">field_writer</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }

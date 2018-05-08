@@ -204,6 +204,46 @@
 <span id="204">204</span>
 <span id="205">205</span>
 <span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Defines how the documents matching a search query should be processed.
@@ -302,6 +342,7 @@ Defines how the documents matching a search query should be processed.
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
     <span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
+    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">BytesFastFieldReader</span>;
 
     <span class="doccomment">/// Stores all of the doc ids.</span>
     <span class="doccomment">/// This collector is only used for tests.</span>
@@ -392,6 +433,45 @@ Defines how the documents matching a search query should be processed.
         }
     }
 
+    <span class="doccomment">/// Collects in order all of the fast field bytes for all of the</span>
+    <span class="doccomment">/// docs in the `DocSet`</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This collector is mainly useful for tests.</span>
+    <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BytesFastFieldTestCollector</span> {
+        <span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">ff_reader</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BytesFastFieldReader</span><span class="op">&gt;</span>,
+    }
+
+    <span class="kw">impl</span> <span class="ident">BytesFastFieldTestCollector</span> {
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">for_field</span>(<span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">BytesFastFieldTestCollector</span> {
+            <span class="ident">BytesFastFieldTestCollector</span> {
+                <span class="ident">vals</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
+                <span class="ident">field</span>,
+                <span class="ident">ff_reader</span>: <span class="prelude-val">None</span>,
+            }
+        }
+
+        <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">vals</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">vals</span>
+        }
+    }
+
+    <span class="kw">impl</span> <span class="ident">Collector</span> <span class="kw">for</span> <span class="ident">BytesFastFieldTestCollector</span> {
+        <span class="kw">fn</span> <span class="ident">set_segment</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_segment_local_id</span>: <span class="ident">u32</span>, <span class="ident">segment</span>: <span class="kw-2">&amp;</span><span class="ident">SegmentReader</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+            <span class="self">self</span>.<span class="ident">ff_reader</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">segment</span>.<span class="ident">bytes_fast_field_reader</span>(<span class="self">self</span>.<span class="ident">field</span>)<span class="question-mark">?</span>);
+            <span class="prelude-val">Ok</span>(())
+        }
+
+        <span class="kw">fn</span> <span class="ident">collect</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">u32</span>, <span class="ident">_score</span>: <span class="ident">f32</span>) {
+            <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">ff_reader</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="ident">get_val</span>(<span class="ident">doc</span>);
+            <span class="self">self</span>.<span class="ident">vals</span>.<span class="ident">extend</span>(<span class="ident">val</span>);
+        }
+
+        <span class="kw">fn</span> <span class="ident">requires_scoring</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+            <span class="bool-val">false</span>
+        }
+    }
 }
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">all</span>(<span class="ident">test</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>))]</span>
