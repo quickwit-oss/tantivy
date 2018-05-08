@@ -1,61 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="generator" content="rustdoc">
-    <meta name="description" content="API documentation for the Rust `FieldNormReader` struct in crate `tantivy`.">
-    <meta name="keywords" content="rust, rustlang, rust-lang, FieldNormReader">
-
-    <title>tantivy::fieldnorm::FieldNormReader - Rust</title>
-
-    <link rel="stylesheet" type="text/css" href="../../normalize.css">
-    <link rel="stylesheet" type="text/css" href="../../rustdoc.css"
-          id="mainThemeStyle">
-    
-    <link rel="stylesheet" type="text/css" href="../../dark.css">
-    <link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle">
-    <script src="../../storage.js"></script>
-    
-
-    
-    
-</head>
-<body class="rustdoc struct">
-    <!--[if lte IE 8]>
-    <div class="warning">
-        This old browser is unsupported and will most likely display funky
-        things.
-    </div>
-    <![endif]-->
-
-    
-
-    <nav class="sidebar">
-        <div class="sidebar-menu">&#9776;</div>
-        <a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a>
-        <p class='location'>Struct FieldNormReader</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.open">open</a><a href="#method.fieldnorm">fieldnorm</a><a href="#method.fieldnorm_id">fieldnorm_id</a><a href="#method.id_to_fieldnorm">id_to_fieldnorm</a><a href="#method.fieldnorm_to_id">fieldnorm_to_id</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fieldnorm</a></p><script>window.sidebarCurrent = {name: 'FieldNormReader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div>
-    </nav>
-
-    <div class="theme-picker">
-        <button id="theme-picker" aria-label="Pick another theme!">
-            <img src="../../brush.svg" width="18" alt="Pick another theme!">
-        </button>
-        <div id="theme-choices"></div>
-    </div>
-    <script src="../../theme.js"></script>
-    <nav class="sub">
-        <form class="search-form js-only">
-            <div class="search-container">
-                <input class="search-input" name="search"
-                       autocomplete="off"
-                       placeholder="Click or press ‘S’ to search, ‘?’ for more options…"
-                       type="search">
-            </div>
-        </form>
-    </nav>
-
-    <section id='main' class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fieldnorm</a>::<wbr><a class="struct" href=''>FieldNormReader</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#23-25' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct FieldNormReader { /* fields omitted */ }</pre></div><div class='docblock'><p>Reads the fieldnorm associated to a document.
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `FieldNormReader` struct in crate `tantivy`."><meta name="keywords" content="rust, rustlang, rust-lang, FieldNormReader"><title>tantivy::fieldnorm::FieldNormReader - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc struct"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a><p class='location'>Struct FieldNormReader</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#methods">Methods</a><div class="sidebar-links"><a href="#method.open">open</a><a href="#method.fieldnorm">fieldnorm</a><a href="#method.fieldnorm_id">fieldnorm_id</a><a href="#method.id_to_fieldnorm">id_to_fieldnorm</a><a href="#method.fieldnorm_to_id">fieldnorm_to_id</a></div><a class="sidebar-title" href="#synthetic-implementations">Auto Trait Implementations</a><div class="sidebar-links"><a href="#impl-Send">Send</a><a href="#impl-Sync">Sync</a></div></div><p class='location'><a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fieldnorm</a></p><script>window.sidebarCurrent = {name: 'FieldNormReader', ty: 'struct', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Struct <a href='../index.html'>tantivy</a>::<wbr><a href='index.html'>fieldnorm</a>::<wbr><a class="struct" href=''>FieldNormReader</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#22-24' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust struct'>pub struct FieldNormReader { /* fields omitted */ }</pre></div><div class='docblock'><p>Reads the fieldnorm associated to a document.
 The fieldnorm represents the length associated to
 a given Field of a given document.</p>
 <p>This metric is important to compute the score of a
@@ -73,85 +16,21 @@ in a very short array.</p>
                     <h2 id='methods' class='small-section-header'>
                       Methods<a href='#methods' class='anchor'></a>
                     </h2>
-                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#27-69' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.open' class='fnname'>open</a>(data: <a class="enum" href="../../tantivy/directory/enum.ReadOnlySource.html" title="enum tantivy::directory::ReadOnlySource">ReadOnlySource</a>) -&gt; Self</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#30-34' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Opens a field norm reader given its data source.</p>
-</div><h4 id='method.fieldnorm' class="method"><span id='fieldnorm.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm' class='fnname'>fieldnorm</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#45-48' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the <code>fieldnorm</code> associated to a doc id.
+                <h3 id='impl' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl' class='anchor'></a></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#26-65' title='goto source code'>[src]</a></span></td></tr></tbody></table></h3><div class='impl-items'><h4 id='method.open' class="method"><span id='open.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.open' class='fnname'>open</a>(data: <a class="enum" href="../../tantivy/directory/enum.ReadOnlySource.html" title="enum tantivy::directory::ReadOnlySource">ReadOnlySource</a>) -&gt; Self</code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#28-30' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Opens a field norm reader given its data source.</p>
+</div><h4 id='method.fieldnorm' class="method"><span id='fieldnorm.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm' class='fnname'>fieldnorm</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#41-44' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the <code>fieldnorm</code> associated to a doc id.
 The fieldnorm is a value approximating the number
 of tokens in a given field of the <code>doc_id</code>.</p>
 <p>It is imprecise, and always lower than the actual
 number of tokens.</p>
 <p>The fieldnorm is effectively decoded from the
 <code>fieldnorm_id</code> by doing a simple table lookup.</p>
-</div><h4 id='method.fieldnorm_id' class="method"><span id='fieldnorm_id.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm_id' class='fnname'>fieldnorm_id</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#52-55' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the <code>fieldnorm_id</code> associated to a document.</p>
-</div><h4 id='method.id_to_fieldnorm' class="method"><span id='id_to_fieldnorm.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.id_to_fieldnorm' class='fnname'>id_to_fieldnorm</a>(id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#59-61' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Converts a <code>fieldnorm_id</code> into a fieldnorm.</p>
-</div><h4 id='method.fieldnorm_to_id' class="method"><span id='fieldnorm_to_id.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm_to_id' class='fnname'>fieldnorm_to_id</a>(fieldnorm: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#66-68' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Converts a <code>fieldnorm</code> into a <code>fieldnorm_id</code>.
+</div><h4 id='method.fieldnorm_id' class="method"><span id='fieldnorm_id.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm_id' class='fnname'>fieldnorm_id</a>(&amp;self, doc_id: <a class="type" href="../../tantivy/type.DocId.html" title="type tantivy::DocId">DocId</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#48-51' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Returns the <code>fieldnorm_id</code> associated to a document.</p>
+</div><h4 id='method.id_to_fieldnorm' class="method"><span id='id_to_fieldnorm.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.id_to_fieldnorm' class='fnname'>id_to_fieldnorm</a>(id: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#55-57' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Converts a <code>fieldnorm_id</code> into a fieldnorm.</p>
+</div><h4 id='method.fieldnorm_to_id' class="method"><span id='fieldnorm_to_id.v' class='invisible'><table class='table-display'><tbody><tr><td><code>pub fn <a href='#method.fieldnorm_to_id' class='fnname'>fieldnorm_to_id</a>(fieldnorm: <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u32.html">u32</a>) -&gt; <a class="primitive" href="https://doc.rust-lang.org/nightly/std/primitive.u8.html">u8</a></code></span></td><td><span class='out-of-band'><div class='ghost'></div><a class='srclink' href='../../src/tantivy/fieldnorm/reader.rs.html#62-64' title='goto source code'>[src]</a></td></tr></tbody></table></span></h4><div class='docblock'><p>Converts a <code>fieldnorm</code> into a <code>fieldnorm_id</code>.
 (This function is not injective).</p>
 </div></div>
                 <h2 id='synthetic-implementations' class='small-section-header'>
                   Auto Trait Implementations<a href='#synthetic-implementations' class='anchor'></a>
                 </h2>
                 <div id='synthetic-implementations-list'>
-            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section>
-    <section id='search' class="content hidden"></section>
-
-    <section class="footer"></section>
-
-    <aside id="help" class="hidden">
-        <div>
-            <h1 class="hidden">Help</h1>
-
-            <div class="shortcuts">
-                <h2>Keyboard Shortcuts</h2>
-
-                <dl>
-                    <dt><kbd>?</kbd></dt>
-                    <dd>Show this help dialog</dd>
-                    <dt><kbd>S</kbd></dt>
-                    <dd>Focus the search field</dd>
-                    <dt><kbd>↑</kbd></dt>
-                    <dd>Move up in search results</dd>
-                    <dt><kbd>↓</kbd></dt>
-                    <dd>Move down in search results</dd>
-                    <dt><kbd>↹</kbd></dt>
-                    <dd>Switch tab</dd>
-                    <dt><kbd>&#9166;</kbd></dt>
-                    <dd>Go to active search result</dd>
-                    <dt><kbd>+</kbd></dt>
-                    <dd>Expand all sections</dd>
-                    <dt><kbd>-</kbd></dt>
-                    <dd>Collapse all sections</dd>
-                </dl>
-            </div>
-
-            <div class="infos">
-                <h2>Search Tricks</h2>
-
-                <p>
-                    Prefix searches with a type followed by a colon (e.g.
-                    <code>fn:</code>) to restrict the search to a given type.
-                </p>
-
-                <p>
-                    Accepted types are: <code>fn</code>, <code>mod</code>,
-                    <code>struct</code>, <code>enum</code>,
-                    <code>trait</code>, <code>type</code>, <code>macro</code>,
-                    and <code>const</code>.
-                </p>
-
-                <p>
-                    Search functions by type signature (e.g.
-                    <code>vec -> usize</code> or <code>* -> vec</code>)
-                </p>
-            </div>
-        </div>
-    </aside>
-
-    
-
-    <script>
-        window.rootPath = "../../";
-        window.currentCrate = "tantivy";
-    </script>
-    <script src="../../main.js"></script>
-    <script defer src="../../search-index.js"></script>
-</body>
-</html>
+            <h3 id='impl-Send' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Send.html" title="trait core::marker::Send">Send</a> for <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl-Send' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div><h3 id='impl-Sync' class='impl'><span class='in-band'><table class='table-display'><tbody><tr><td><code>impl <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sync.html" title="trait core::marker::Sync">Sync</a> for <a class="struct" href="../../tantivy/fieldnorm/struct.FieldNormReader.html" title="struct tantivy::fieldnorm::FieldNormReader">FieldNormReader</a></code><a href='#impl-Sync' class='anchor'></a></span></td><td><span class='out-of-band'></span></td></tr></tbody></table></h3><div class='impl-items'></div></div></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../";window.currentCrate = "tantivy";</script><script src="../../aliases.js"></script><script src="../../main.js"></script><script defer src="../../search-index.js"></script></body></html>
