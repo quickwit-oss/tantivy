@@ -22,9 +22,13 @@ pub struct BytesFastFieldReader {
 impl BytesFastFieldReader {
     pub(crate) fn open(
         idx_reader: FastFieldReader<u64>,
-        values: OwningRef<ReadOnlySource, [u8]>,
+        values_source: ReadOnlySource,
     ) -> BytesFastFieldReader {
-        BytesFastFieldReader { idx_reader, values }
+        let values = OwningRef::new(values_source).map(|source| &source[..]);
+        BytesFastFieldReader {
+            idx_reader,
+            values,
+        }
     }
 
     /// Returns the bytes associated to the given `doc`
