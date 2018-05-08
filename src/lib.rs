@@ -194,7 +194,7 @@ pub mod tokenizer;
 pub mod collector;
 pub mod directory;
 pub mod fastfield;
-pub(crate) mod fieldnorm;
+pub mod fieldnorm;
 pub mod postings;
 pub mod query;
 pub mod schema;
