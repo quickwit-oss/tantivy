@@ -291,21 +291,21 @@
 <span class="doccomment">/// Token</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Token</span> {
-        <span class="doccomment">/// Offset (byte index) of the first character of the token.</span>
-        <span class="doccomment">/// Offsets shall not be modified by token filters.</span>
-        <span class="kw">pub</span> <span class="ident">offset_from</span>: <span class="ident">usize</span>,
-        <span class="doccomment">/// Offset (byte index) of the last character of the token + 1.</span>
-        <span class="doccomment">/// The text that generated the token should be obtained by</span>
-        <span class="doccomment">/// &amp;text[token.offset_from..token.offset_to]</span>
-        <span class="kw">pub</span> <span class="ident">offset_to</span>: <span class="ident">usize</span>,
-        <span class="doccomment">/// Position, expressed in number of tokens.</span>
-        <span class="kw">pub</span> <span class="ident">position</span>: <span class="ident">usize</span>,
-        <span class="doccomment">/// Actual text content of the token.</span>
-        <span class="kw">pub</span> <span class="ident">text</span>: <span class="ident">String</span>,
+    <span class="doccomment">/// Offset (byte index) of the first character of the token.</span>
+    <span class="doccomment">/// Offsets shall not be modified by token filters.</span>
+    <span class="kw">pub</span> <span class="ident">offset_from</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// Offset (byte index) of the last character of the token + 1.</span>
+    <span class="doccomment">/// The text that generated the token should be obtained by</span>
+    <span class="doccomment">/// &amp;text[token.offset_from..token.offset_to]</span>
+    <span class="kw">pub</span> <span class="ident">offset_to</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// Position, expressed in number of tokens.</span>
+    <span class="kw">pub</span> <span class="ident">position</span>: <span class="ident">usize</span>,
+    <span class="doccomment">/// Actual text content of the token.</span>
+    <span class="kw">pub</span> <span class="ident">text</span>: <span class="ident">String</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> <span class="kw">for</span> <span class="ident">Token</span> {
-    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Token</span>           {
+    <span class="kw">fn</span> <span class="ident">default</span>() <span class="op">-&gt;</span> <span class="ident">Token</span> {
         <span class="ident">Token</span> {
             <span class="ident">offset_from</span>: <span class="number">0</span>,
             <span class="ident">offset_to</span>: <span class="number">0</span>,

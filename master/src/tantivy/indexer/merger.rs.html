@@ -1441,6 +1441,16 @@
 <span id="1441">1441</span>
 <span id="1442">1442</span>
 <span id="1443">1443</span>
+<span id="1444">1444</span>
+<span id="1445">1445</span>
+<span id="1446">1446</span>
+<span id="1447">1447</span>
+<span id="1448">1448</span>
+<span id="1449">1449</span>
+<span id="1450">1450</span>
+<span id="1451">1451</span>
+<span id="1452">1452</span>
+<span id="1453">1453</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -1450,6 +1460,7 @@
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">DeleteBitSet</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
 <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldSerializer</span>;
+<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">MultiValueIntFastFieldReader</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormReader</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsSerializer</span>;
 <span class="kw">use</span> <span class="ident">fieldnorm</span>::<span class="ident">FieldNormsWriter</span>;
@@ -1457,16 +1468,15 @@
 <span class="kw">use</span> <span class="ident">itertools</span>::<span class="ident">Itertools</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">InvertedIndexSerializer</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">Postings</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">Schema</span>};
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
+<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">store</span>::<span class="ident">StoreWriter</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermMerger</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">FieldType</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-<span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">MultiValueIntFastFieldReader</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
+<span class="kw">use</span> <span class="ident">DocId</span>;
 
 <span class="kw">fn</span> <span class="ident">compute_total_num_tokens</span>(<span class="ident">readers</span>: <span class="kw-2">&amp;</span>[<span class="ident">SegmentReader</span>], <span class="ident">field</span>: <span class="ident">Field</span>) <span class="op">-&gt;</span> <span class="ident">u64</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_tokens</span> <span class="op">=</span> <span class="number">0u64</span>;
@@ -1496,8 +1506,6 @@
             })
             .<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>()
 }
-
-
 
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">IndexMerger</span> {
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
@@ -1533,7 +1541,7 @@
 }
 
 <span class="kw">struct</span> <span class="ident">TermOrdinalMapping</span> {
-    <span class="ident">per_segment_new_term_ordinals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span>
+    <span class="ident">per_segment_new_term_ordinals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">TermOrdinalMapping</span> {
@@ -1542,14 +1550,11 @@
             <span class="ident">per_segment_new_term_ordinals</span>: <span class="ident">max_term_ords</span>
                 .<span class="ident">into_iter</span>()
                 .<span class="ident">map</span>(<span class="op">|</span><span class="ident">max_term_ord</span><span class="op">|</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">TermOrdinal</span>::<span class="ident">default</span>(); <span class="ident">max_term_ord</span> <span class="kw">as</span> <span class="ident">usize</span>])
-                .<span class="ident">collect</span>()
+                .<span class="ident">collect</span>(),
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">register_from_to</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
-                        <span class="ident">segment_ord</span>: <span class="ident">usize</span>,
-                        <span class="ident">from_ord</span>: <span class="ident">TermOrdinal</span>,
-                        <span class="ident">to_ord</span>: <span class="ident">TermOrdinal</span>) {
+    <span class="kw">fn</span> <span class="ident">register_from_to</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">segment_ord</span>: <span class="ident">usize</span>, <span class="ident">from_ord</span>: <span class="ident">TermOrdinal</span>, <span class="ident">to_ord</span>: <span class="ident">TermOrdinal</span>) {
         <span class="self">self</span>.<span class="ident">per_segment_new_term_ordinals</span>[<span class="ident">segment_ord</span>][<span class="ident">from_ord</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">=</span> <span class="ident">to_ord</span>;
     }
 
@@ -1560,9 +1565,7 @@
     <span class="kw">fn</span> <span class="ident">max_term_ord</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermOrdinal</span> {
         <span class="self">self</span>.<span class="ident">per_segment_new_term_ordinals</span>
             .<span class="ident">iter</span>()
-            .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">term_ordinals</span><span class="op">|</span> {
-                <span class="ident">term_ordinals</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">max</span>()
-            })
+            .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">term_ordinals</span><span class="op">|</span> <span class="ident">term_ordinals</span>.<span class="ident">iter</span>().<span class="ident">cloned</span>().<span class="ident">max</span>())
             .<span class="ident">max</span>()
             .<span class="ident">unwrap_or</span>(<span class="ident">TermOrdinal</span>::<span class="ident">default</span>())
     }
@@ -1629,9 +1632,11 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">write_fast_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                         <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
-                         <span class="kw-2">mut</span> <span class="ident">term_ord_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">TermOrdinalMapping</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_fast_fields</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
+        <span class="kw-2">mut</span> <span class="ident">term_ord_mappings</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">TermOrdinalMapping</span><span class="op">&gt;</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">for</span> (<span class="ident">field_id</span>, <span class="ident">field_entry</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">fields</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
             <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">field_id</span> <span class="kw">as</span> <span class="ident">u32</span>);
             <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>();
@@ -1642,17 +1647,15 @@
                         .<span class="ident">expect</span>(<span class="string">&quot;Logic Error in Tantivy (Please report). HierarchicalFact field should have required a\
                         `term_ordinal_mapping`.&quot;</span>);
                     <span class="self">self</span>.<span class="ident">write_hierarchical_facet_field</span>(
-                            <span class="ident">field</span>,
-                            <span class="ident">term_ordinal_mapping</span>,
-                            <span class="ident">fast_field_serializer</span>)<span class="question-mark">?</span>;
+                        <span class="ident">field</span>,
+                        <span class="ident">term_ordinal_mapping</span>,
+                        <span class="ident">fast_field_serializer</span>,
+                    )<span class="question-mark">?</span>;
                 }
                 <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw-2">ref</span> <span class="ident">options</span>) <span class="op">=&gt;</span> {
                     <span class="kw">match</span> <span class="ident">options</span>.<span class="ident">get_fastfield_cardinality</span>() {
                         <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">SingleValue</span>) <span class="op">=&gt;</span> {
-                            <span class="self">self</span>.<span class="ident">write_single_fast_field</span>(
-                                <span class="ident">field</span>,
-                                <span class="ident">fast_field_serializer</span>
-                            )<span class="question-mark">?</span>;
+                            <span class="self">self</span>.<span class="ident">write_single_fast_field</span>(<span class="ident">field</span>, <span class="ident">fast_field_serializer</span>)<span class="question-mark">?</span>;
                         }
                         <span class="prelude-val">Some</span>(<span class="ident">Cardinality</span>::<span class="ident">MultiValues</span>) <span class="op">=&gt;</span> {
                             <span class="self">self</span>.<span class="ident">write_multi_fast_field</span>(<span class="ident">field</span>, <span class="ident">fast_field_serializer</span>)<span class="question-mark">?</span>;
@@ -1673,34 +1676,25 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-
     <span class="comment">// used both to merge field norms, `u64/i64` single fast fields.</span>
     <span class="kw">fn</span> <span class="ident">write_single_fast_field</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
         <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">u64_readers</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">min_value</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">max_value</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">max_value</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">min_value</span>();
 
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
-
             <span class="kw">let</span> <span class="ident">u64_reader</span>: <span class="ident">FastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
-            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">seg_min_val</span>, <span class="ident">seg_max_val</span>)) <span class="op">=</span> <span class="ident">compute_min_max_val</span>(
-                <span class="kw-2">&amp;</span><span class="ident">u64_reader</span>,
-                <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
-                <span class="ident">reader</span>.<span class="ident">delete_bitset</span>(),
-            ) {
+            <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">seg_min_val</span>, <span class="ident">seg_max_val</span>)) <span class="op">=</span>
+                <span class="ident">compute_min_max_val</span>(<span class="kw-2">&amp;</span><span class="ident">u64_reader</span>, <span class="ident">reader</span>.<span class="ident">max_doc</span>(), <span class="ident">reader</span>.<span class="ident">delete_bitset</span>())
+            {
                 <span class="comment">// the segment has some non-deleted documents</span>
                 <span class="ident">min_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">min_value</span>, <span class="ident">seg_min_val</span>);
                 <span class="ident">max_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">max_value</span>, <span class="ident">seg_max_val</span>);
-                <span class="ident">u64_readers</span>.<span class="ident">push</span>((
-                    <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
-                    <span class="ident">u64_reader</span>,
-                     <span class="ident">reader</span>.<span class="ident">delete_bitset</span>(),
-                ));
+                <span class="ident">u64_readers</span>.<span class="ident">push</span>((<span class="ident">reader</span>.<span class="ident">max_doc</span>(), <span class="ident">u64_reader</span>, <span class="ident">reader</span>.<span class="ident">delete_bitset</span>()));
             } <span class="kw">else</span> {
                 <span class="comment">// all documents have been deleted.</span>
             }
@@ -1730,10 +1724,11 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-
-    <span class="kw">fn</span> <span class="ident">write_fast_field_idx</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                            <span class="ident">field</span>: <span class="ident">Field</span>,
-                            <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_fast_field_idx</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_num_vals</span> <span class="op">=</span> <span class="number">0u64</span>;
 
         <span class="comment">// In the first pass, we compute the total number of vals.</span>
@@ -1757,7 +1752,8 @@
 
         <span class="comment">// We can now create our `idx` serializer, and in a second pass,</span>
         <span class="comment">// can effectively push the different indexes.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_idx</span> <span class="op">=</span> <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>, <span class="ident">total_num_vals</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_idx</span> <span class="op">=</span>
+            <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="number">0</span>, <span class="ident">total_num_vals</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">idx</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">fast_field_reader_with_idx</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">field</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
@@ -1775,11 +1771,12 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-
-    <span class="kw">fn</span> <span class="ident">write_hierarchical_facet_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                                      <span class="ident">field</span>: <span class="ident">Field</span>,
-                                      <span class="ident">term_ordinal_mappings</span>: <span class="ident">TermOrdinalMapping</span>,
-                                      <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_hierarchical_facet_field</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">term_ordinal_mappings</span>: <span class="ident">TermOrdinalMapping</span>,
+        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="comment">// Multifastfield consists in 2 fastfields.</span>
         <span class="comment">// The first serves as an index into the second one and is stricly increasing.</span>
         <span class="comment">// The second contains the actual values.</span>
@@ -1791,11 +1788,14 @@
         <span class="comment">// In the case of hierarchical facets, they are actually term ordinals.</span>
         <span class="kw">let</span> <span class="ident">max_term_ord</span> <span class="op">=</span> <span class="ident">term_ordinal_mappings</span>.<span class="ident">max_term_ord</span>();
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_vals</span> <span class="op">=</span> <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="number">0u64</span>, <span class="ident">max_term_ord</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_vals</span> <span class="op">=</span>
+                <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="number">0u64</span>, <span class="ident">max_term_ord</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vals</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
             <span class="kw">for</span> (<span class="ident">segment_ord</span>, <span class="ident">segment_reader</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">readers</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
-                <span class="kw">let</span> <span class="ident">term_ordinal_mapping</span>: <span class="kw-2">&amp;</span>[<span class="ident">TermOrdinal</span>] <span class="op">=</span> <span class="ident">term_ordinal_mappings</span>.<span class="ident">get_segment</span>(<span class="ident">segment_ord</span>);
-                <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">segment_reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">term_ordinal_mapping</span>: <span class="kw-2">&amp;</span>[<span class="ident">TermOrdinal</span>] <span class="op">=</span>
+                    <span class="ident">term_ordinal_mappings</span>.<span class="ident">get_segment</span>(<span class="ident">segment_ord</span>);
+                <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
+                    <span class="ident">segment_reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
                 <span class="comment">// TODO optimize if no deletes</span>
                 <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">segment_reader</span>.<span class="ident">max_doc</span>() {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">segment_reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
@@ -1812,8 +1812,11 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">write_multi_fast_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-
+    <span class="kw">fn</span> <span class="ident">write_multi_fast_field</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="comment">// Multifastfield consists in 2 fastfields.</span>
         <span class="comment">// The first serves as an index into the second one and is stricly increasing.</span>
         <span class="comment">// The second contains the actual values.</span>
@@ -1826,7 +1829,6 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vals</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
 
-
         <span class="comment">// Our values are bitpacked and we need to know what should be</span>
         <span class="comment">// our bitwidth and our minimum value before serializing any values.</span>
         <span class="comment">//</span>
@@ -1834,7 +1836,8 @@
         <span class="comment">// We go through a complete first pass to compute the minimum and the</span>
         <span class="comment">// maximum value and initialize our Serializer.</span>
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
-            <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
+                <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
             <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0u32</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
                 <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
                     <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
@@ -1854,9 +1857,11 @@
 
         <span class="comment">// We can now initialize our serializer, and push it the different values</span>
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_vals</span> <span class="op">=</span> <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="ident">min_value</span>, <span class="ident">max_value</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_vals</span> <span class="op">=</span>
+                <span class="ident">fast_field_serializer</span>.<span class="ident">new_u64_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="ident">min_value</span>, <span class="ident">max_value</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
             <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
-                <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
+                    <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
                 <span class="comment">// TODO optimize if no deletes</span>
                 <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
                     <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
@@ -1872,9 +1877,11 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">write_bytes_fast_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                              <span class="ident">field</span>: <span class="ident">Field</span>,
-                              <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_bytes_fast_field</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">field</span>: <span class="ident">Field</span>,
+        <span class="ident">fast_field_serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FastFieldSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">write_fast_field_idx</span>(<span class="ident">field</span>, <span class="ident">fast_field_serializer</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialize_vals</span> <span class="op">=</span> <span class="ident">fast_field_serializer</span>.<span class="ident">new_bytes_fast_field_with_idx</span>(<span class="ident">field</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
@@ -1893,12 +1900,14 @@
         <span class="prelude-val">Ok</span>(())
     }
 
-    <span class="kw">fn</span> <span class="ident">write_postings_for_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>,
-                                <span class="ident">indexed_field</span>: <span class="ident">Field</span>,
-                                <span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>,
-                                <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TermOrdinalMapping</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_postings_for_field</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">indexed_field</span>: <span class="ident">Field</span>,
+        <span class="ident">field_type</span>: <span class="kw-2">&amp;</span><span class="ident">FieldType</span>,
+        <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TermOrdinalMapping</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions_buffer</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">1_000</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">delta_computer</span><span class="op">=</span> <span class="ident">DeltaComputer</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">delta_computer</span> <span class="op">=</span> <span class="ident">DeltaComputer</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="ident">field_readers</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">readers</span>
             .<span class="ident">iter</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">reader</span><span class="op">|</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">indexed_field</span>))
@@ -1913,20 +1922,17 @@
             <span class="ident">max_term_ords</span>.<span class="ident">push</span>(<span class="ident">terms</span>.<span class="ident">num_terms</span>() <span class="kw">as</span> <span class="ident">u64</span>);
         }
 
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_ord_mapping_opt</span> <span class="op">=</span>
-            <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">field_type</span> <span class="op">==</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> {
-                <span class="prelude-val">Some</span>(<span class="ident">TermOrdinalMapping</span>::<span class="ident">new</span>(<span class="ident">max_term_ords</span>))
-            } <span class="kw">else</span> {
-                <span class="prelude-val">None</span>
-            };
-
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_ord_mapping_opt</span> <span class="op">=</span> <span class="kw">if</span> <span class="kw-2">*</span><span class="ident">field_type</span> <span class="op">==</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> {
+            <span class="prelude-val">Some</span>(<span class="ident">TermOrdinalMapping</span>::<span class="ident">new</span>(<span class="ident">max_term_ords</span>))
+        } <span class="kw">else</span> {
+            <span class="prelude-val">None</span>
+        };
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">merged_terms</span> <span class="op">=</span> <span class="ident">TermMerger</span>::<span class="ident">new</span>(<span class="ident">field_term_streams</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">max_doc</span> <span class="op">=</span> <span class="number">0</span>;
 
         <span class="comment">// map from segment doc ids to the resulting merged segment doc id.</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">merged_doc_id_map</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> <span class="op">=</span>
-            <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="self">self</span>.<span class="ident">readers</span>.<span class="ident">len</span>());
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">merged_doc_id_map</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="self">self</span>.<span class="ident">readers</span>.<span class="ident">len</span>());
 
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">segment_local_map</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="ident">reader</span>.<span class="ident">max_doc</span>() <span class="kw">as</span> <span class="ident">usize</span>);
@@ -1961,11 +1967,10 @@
         <span class="kw">let</span> <span class="ident">field_entry</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">get_field_entry</span>(<span class="ident">indexed_field</span>);
 
         <span class="comment">// ... set segment postings option the new field.</span>
-        <span class="kw">let</span> <span class="ident">segment_postings_option</span> <span class="op">=</span>
-            <span class="ident">field_entry</span>.<span class="ident">field_type</span>().<span class="ident">get_index_record_option</span>().<span class="ident">expect</span>(
-                <span class="string">&quot;Encountered a field that is not supposed to be
+        <span class="kw">let</span> <span class="ident">segment_postings_option</span> <span class="op">=</span> <span class="ident">field_entry</span>.<span class="ident">field_type</span>().<span class="ident">get_index_record_option</span>().<span class="ident">expect</span>(
+            <span class="string">&quot;Encountered a field that is not supposed to be
                          indexed. Have you modified the schema?&quot;</span>,
-            );
+        );
 
         <span class="kw">while</span> <span class="ident">merged_terms</span>.<span class="ident">advance</span>() {
             <span class="kw">let</span> <span class="ident">term_bytes</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] <span class="op">=</span> <span class="ident">merged_terms</span>.<span class="ident">key</span>();
@@ -2003,7 +2008,7 @@
 
                 <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">term_ord_mapping</span>) <span class="op">=</span> <span class="ident">term_ord_mapping_opt</span> {
                     <span class="kw">for</span> (<span class="ident">segment_ord</span>, <span class="ident">from_term_ord</span>) <span class="kw">in</span> <span class="ident">merged_terms</span>.<span class="ident">matching_segments</span>() {
-                        <span class="ident">term_ord_mapping</span>.<span class="ident">register_from_to</span>(<span class="ident">segment_ord</span>,<span class="ident">from_term_ord</span>, <span class="ident">to_term_ord</span>);
+                        <span class="ident">term_ord_mapping</span>.<span class="ident">register_from_to</span>(<span class="ident">segment_ord</span>, <span class="ident">from_term_ord</span>, <span class="ident">to_term_ord</span>);
                     }
                 }
 
@@ -2029,8 +2034,7 @@
                             <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="ident">segment_postings</span>.<span class="ident">term_freq</span>();
                             <span class="ident">segment_postings</span>.<span class="ident">positions</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">positions_buffer</span>);
 
-                            <span class="kw">let</span> <span class="ident">delta_positions</span> <span class="op">=</span>
-                                <span class="ident">delta_computer</span>.<span class="ident">compute_delta</span>(<span class="kw-2">&amp;</span><span class="ident">positions_buffer</span>);
+                            <span class="kw">let</span> <span class="ident">delta_positions</span> <span class="op">=</span> <span class="ident">delta_computer</span>.<span class="ident">compute_delta</span>(<span class="kw-2">&amp;</span><span class="ident">positions_buffer</span>);
                             <span class="ident">field_serializer</span>.<span class="ident">write_doc</span>(
                                 <span class="ident">remapped_doc_id</span>,
                                 <span class="ident">term_freq</span>,
@@ -2051,12 +2055,19 @@
         <span class="prelude-val">Ok</span>(<span class="ident">term_ord_mapping_opt</span>)
     }
 
-    <span class="kw">fn</span> <span class="ident">write_postings</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">TermOrdinalMapping</span><span class="op">&gt;&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">write_postings</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>,
+    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">TermOrdinalMapping</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_ordinal_mappings</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="kw">for</span> (<span class="ident">field_ord</span>, <span class="ident">field_entry</span>) <span class="kw">in</span> <span class="self">self</span>.<span class="ident">schema</span>.<span class="ident">fields</span>().<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
             <span class="kw">if</span> <span class="ident">field_entry</span>.<span class="ident">is_indexed</span>() {
                 <span class="kw">let</span> <span class="ident">indexed_field</span> <span class="op">=</span> <span class="ident">Field</span>(<span class="ident">field_ord</span> <span class="kw">as</span> <span class="ident">u32</span>);
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">term_ordinal_mapping</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">write_postings_for_field</span>(<span class="ident">indexed_field</span>, <span class="ident">field_entry</span>.<span class="ident">field_type</span>(), <span class="ident">serializer</span>)<span class="question-mark">?</span> {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">term_ordinal_mapping</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">write_postings_for_field</span>(
+                    <span class="ident">indexed_field</span>,
+                    <span class="ident">field_entry</span>.<span class="ident">field_type</span>(),
+                    <span class="ident">serializer</span>,
+                )<span class="question-mark">?</span> {
                     <span class="ident">term_ordinal_mappings</span>.<span class="ident">insert</span>(<span class="ident">indexed_field</span>, <span class="ident">term_ordinal_mapping</span>);
                 }
             }
@@ -2095,27 +2106,27 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
+    <span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">BigEndian</span>, <span class="ident">ReadBytesExt</span>, <span class="ident">WriteBytesExt</span>};
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">chain</span>;
     <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::<span class="ident">TestCollector</span>;
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::{<span class="ident">BytesFastFieldTestCollector</span>, <span class="ident">FastFieldTestCollector</span>};
+    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">FacetCollector</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
+    <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Future</span>;
+    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">BooleanQuery</span>;
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">TermQuery</span>;
     <span class="kw">use</span> <span class="ident">schema</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Document</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IndexRecordOption</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IntOptions</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Term</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">TextFieldIndexing</span>;
-    <span class="kw">use</span> <span class="ident">DocAddress</span>;
-    <span class="kw">use</span> <span class="ident">Searcher</span>;
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">tests</span>::{<span class="ident">BytesFastFieldTestCollector</span>, <span class="ident">FastFieldTestCollector</span>};
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">chain</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Cardinality</span>;
-    <span class="kw">use</span> <span class="ident">futures</span>::<span class="ident">Future</span>;
-    <span class="kw">use</span> <span class="ident">IndexWriter</span>;
-    <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">AllQuery</span>;
-    <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">FacetCollector</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">IntOptions</span>;
-    <span class="kw">use</span> <span class="ident">byteorder</span>::{<span class="ident">ReadBytesExt</span>, <span class="ident">WriteBytesExt</span>, <span class="ident">BigEndian</span>};
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::<span class="ident">Cursor</span>;
+    <span class="kw">use</span> <span class="ident">DocAddress</span>;
+    <span class="kw">use</span> <span class="ident">IndexWriter</span>;
+    <span class="kw">use</span> <span class="ident">Searcher</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_index_merger_no_deletes</span>() {
@@ -2135,7 +2146,9 @@
 
         <span class="kw">let</span> <span class="ident">add_score_bytes</span> <span class="op">=</span> <span class="op">|</span><span class="ident">doc</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Document</span>, <span class="ident">score</span>: <span class="ident">u32</span><span class="op">|</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
-            <span class="ident">bytes</span>.<span class="ident">write_u32</span>::<span class="op">&lt;</span><span class="ident">BigEndian</span><span class="op">&gt;</span>(<span class="ident">score</span>).<span class="ident">expect</span>(<span class="string">&quot;failed to write u32 bytes to Vec...&quot;</span>);
+            <span class="ident">bytes</span>
+                .<span class="ident">write_u32</span>::<span class="op">&lt;</span><span class="ident">BigEndian</span><span class="op">&gt;</span>(<span class="ident">score</span>)
+                .<span class="ident">expect</span>(<span class="string">&quot;failed to write u32 bytes to Vec...&quot;</span>);
             <span class="ident">doc</span>.<span class="ident">add_bytes</span>(<span class="ident">bytes_score_field</span>, <span class="ident">bytes</span>);
         };
 
@@ -2254,7 +2267,9 @@
                 <span class="kw">let</span> <span class="ident">get_fast_vals_bytes</span> <span class="op">=</span> <span class="op">|</span><span class="ident">terms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Term</span><span class="op">&gt;</span><span class="op">|</span> {
                     <span class="kw">let</span> <span class="ident">query</span> <span class="op">=</span> <span class="ident">BooleanQuery</span>::<span class="ident">new_multiterms_query</span>(<span class="ident">terms</span>);
                     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">collector</span> <span class="op">=</span> <span class="ident">BytesFastFieldTestCollector</span>::<span class="ident">for_field</span>(<span class="ident">bytes_score_field</span>);
-                    <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>).<span class="ident">expect</span>(<span class="string">&quot;failed to search&quot;</span>);
+                    <span class="ident">searcher</span>
+                        .<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>)
+                        .<span class="ident">expect</span>(<span class="string">&quot;failed to search&quot;</span>);
                     <span class="ident">collector</span>.<span class="ident">vals</span>()
                 };
                 <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -2263,7 +2278,7 @@
                 );
                 <span class="macro">assert_eq</span><span class="macro">!</span>(
                     <span class="ident">get_fast_vals_bytes</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>)]),
-                    <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>,<span class="number">5</span>, <span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>,<span class="number">7</span>, <span class="number">0</span>,<span class="number">0</span>,<span class="number">0</span>,<span class="number">13</span>]
+                    <span class="macro">vec</span><span class="macro">!</span>[<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">5</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">7</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">13</span>]
                 );
             }
         }
@@ -2290,10 +2305,11 @@
             <span class="kw">let</span> <span class="ident">term_query</span> <span class="op">=</span> <span class="ident">TermQuery</span>::<span class="ident">new</span>(<span class="ident">term</span>, <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span>);
 
             {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">combined_collector</span> <span class="op">=</span> <span class="ident">chain</span>()
-                    .<span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>)
-                    .<span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bytes_collector</span>);
-                <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">term_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">combined_collector</span>).<span class="ident">unwrap</span>();
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">combined_collector</span> <span class="op">=</span>
+                    <span class="ident">chain</span>().<span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">collector</span>).<span class="ident">push</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">bytes_collector</span>);
+                <span class="ident">searcher</span>
+                    .<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">term_query</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">combined_collector</span>)
+                    .<span class="ident">unwrap</span>();
             }
 
             <span class="kw">let</span> <span class="ident">scores</span> <span class="op">=</span> <span class="ident">collector</span>.<span class="ident">vals</span>();
@@ -2592,7 +2608,6 @@
         }
     }
 
-
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_merge_facets</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">schema</span>::<span class="ident">SchemaBuilder</span>::<span class="ident">default</span>();
@@ -2632,15 +2647,17 @@
             <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_collector</span> <span class="op">=</span> <span class="ident">FacetCollector</span>::<span class="ident">for_field</span>(<span class="ident">facet_field</span>);
             <span class="ident">facet_collector</span>.<span class="ident">add_facet</span>(<span class="ident">Facet</span>::<span class="ident">from</span>(<span class="string">&quot;/top&quot;</span>));
-            <span class="kw">use</span> <span class="ident">collector</span>::{<span class="ident">MultiCollector</span>, <span class="ident">CountCollector</span>};
+            <span class="kw">use</span> <span class="ident">collector</span>::{<span class="ident">CountCollector</span>, <span class="ident">MultiCollector</span>};
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">count_collector</span> <span class="op">=</span> <span class="ident">CountCollector</span>::<span class="ident">default</span>();
             {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">multi_collectors</span> <span class="op">=</span> <span class="ident">MultiCollector</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">count_collector</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>]);
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">multi_collectors</span> <span class="op">=</span>
+                    <span class="ident">MultiCollector</span>::<span class="ident">from</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">count_collector</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">facet_collector</span>]);
                 <span class="ident">searcher</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">AllQuery</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">multi_collectors</span>).<span class="ident">unwrap</span>();
             }
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">count_collector</span>.<span class="ident">count</span>(), <span class="ident">expected_num_docs</span>);
             <span class="kw">let</span> <span class="ident">facet_counts</span> <span class="op">=</span> <span class="ident">facet_collector</span>.<span class="ident">harvest</span>();
-            <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet_counts</span>.<span class="ident">get</span>(<span class="string">&quot;/top&quot;</span>)
+            <span class="kw">let</span> <span class="ident">facets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet_counts</span>
+                .<span class="ident">get</span>(<span class="string">&quot;/top&quot;</span>)
                 .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">facet</span>, <span class="ident">count</span>)<span class="op">|</span> (<span class="ident">facet</span>.<span class="ident">to_string</span>(), <span class="ident">count</span>))
                 .<span class="ident">collect</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(
@@ -2651,14 +2668,17 @@
                     .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>()
             );
         };
-        <span class="ident">test_searcher</span>(<span class="number">11</span>, <span class="kw-2">&amp;</span>[
-            (<span class="string">&quot;/top/a&quot;</span>, <span class="number">5</span>),
-            (<span class="string">&quot;/top/b&quot;</span>, <span class="number">5</span>),
-            (<span class="string">&quot;/top/c&quot;</span>, <span class="number">2</span>),
-            (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
-            (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
-            (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>)
-        ]);
+        <span class="ident">test_searcher</span>(
+            <span class="number">11</span>,
+            <span class="kw-2">&amp;</span>[
+                (<span class="string">&quot;/top/a&quot;</span>, <span class="number">5</span>),
+                (<span class="string">&quot;/top/b&quot;</span>, <span class="number">5</span>),
+                (<span class="string">&quot;/top/c&quot;</span>, <span class="number">2</span>),
+                (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
+                (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
+                (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>),
+            ],
+        );
 
         <span class="comment">// Merging the segments</span>
         {
@@ -2673,14 +2693,17 @@
             <span class="ident">index_writer</span>.<span class="ident">wait_merging_threads</span>().<span class="ident">unwrap</span>();
 
             <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-            <span class="ident">test_searcher</span>(<span class="number">11</span>, <span class="kw-2">&amp;</span>[
-                (<span class="string">&quot;/top/a&quot;</span>, <span class="number">5</span>),
-                (<span class="string">&quot;/top/b&quot;</span>, <span class="number">5</span>),
-                (<span class="string">&quot;/top/c&quot;</span>, <span class="number">2</span>),
-                (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
-                (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
-                (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>)
-            ]);
+            <span class="ident">test_searcher</span>(
+                <span class="number">11</span>,
+                <span class="kw-2">&amp;</span>[
+                    (<span class="string">&quot;/top/a&quot;</span>, <span class="number">5</span>),
+                    (<span class="string">&quot;/top/b&quot;</span>, <span class="number">5</span>),
+                    (<span class="string">&quot;/top/c&quot;</span>, <span class="number">2</span>),
+                    (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
+                    (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
+                    (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>),
+                ],
+            );
         }
 
         <span class="comment">// Deleting one term</span>
@@ -2691,18 +2714,19 @@
             <span class="ident">index_writer</span>.<span class="ident">delete_term</span>(<span class="ident">facet_term</span>);
             <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
             <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
-            <span class="ident">test_searcher</span>(<span class="number">9</span>, <span class="kw-2">&amp;</span>[
-                (<span class="string">&quot;/top/a&quot;</span>, <span class="number">3</span>),
-                (<span class="string">&quot;/top/b&quot;</span>, <span class="number">3</span>),
-                (<span class="string">&quot;/top/c&quot;</span>, <span class="number">1</span>),
-                (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
-                (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
-                (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>)
-            ]);
+            <span class="ident">test_searcher</span>(
+                <span class="number">9</span>,
+                <span class="kw-2">&amp;</span>[
+                    (<span class="string">&quot;/top/a&quot;</span>, <span class="number">3</span>),
+                    (<span class="string">&quot;/top/b&quot;</span>, <span class="number">3</span>),
+                    (<span class="string">&quot;/top/c&quot;</span>, <span class="number">1</span>),
+                    (<span class="string">&quot;/top/d&quot;</span>, <span class="number">2</span>),
+                    (<span class="string">&quot;/top/e&quot;</span>, <span class="number">2</span>),
+                    (<span class="string">&quot;/top/f&quot;</span>, <span class="number">1</span>),
+                ],
+            );
         }
-
     }
-
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_merge_multivalued_int_fields_all_deleted</span>() {
@@ -2716,7 +2740,7 @@
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">Document</span>::<span class="ident">default</span>();
-            <span class="ident">doc</span>.<span class="ident">add_u64</span>(<span class="ident">int_field</span>,  <span class="number">1</span>);
+            <span class="ident">doc</span>.<span class="ident">add_u64</span>(<span class="ident">int_field</span>, <span class="number">1</span>);
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>.<span class="ident">clone</span>());
             <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">expect</span>(<span class="string">&quot;commit failed&quot;</span>);
             <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
@@ -2753,13 +2777,12 @@
         <span class="kw">let</span> <span class="ident">int_field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_u64_field</span>(<span class="string">&quot;intvals&quot;</span>, <span class="ident">int_options</span>);
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema_builder</span>.<span class="ident">build</span>());
 
-
         {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">40_000_000</span>).<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">index_doc</span> <span class="op">=</span> <span class="op">|</span><span class="ident">index_writer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">IndexWriter</span>, <span class="ident">int_vals</span>: <span class="kw-2">&amp;</span>[<span class="ident">u64</span>]<span class="op">|</span> {
                 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">Document</span>::<span class="ident">default</span>();
                 <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">val</span> <span class="kw">in</span> <span class="ident">int_vals</span> {
-                    <span class="ident">doc</span>.<span class="ident">add_u64</span>(<span class="ident">int_field</span>,  <span class="ident">val</span>);
+                    <span class="ident">doc</span>.<span class="ident">add_u64</span>(<span class="ident">int_field</span>, <span class="ident">val</span>);
                 }
                 <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="ident">doc</span>);
             };
@@ -2812,7 +2835,6 @@
             <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="number">6</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">vals</span>, <span class="kw-2">&amp;</span>[<span class="number">17</span>]);
         }
-
 
         {
             <span class="kw">let</span> <span class="ident">segment</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">1u32</span>);
@@ -2881,9 +2903,7 @@
             <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="number">9</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="ident">vals</span>, <span class="kw-2">&amp;</span>[<span class="number">1_000</span>]);
         }
-
     }
 }
-
 </pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>

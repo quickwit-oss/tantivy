@@ -625,10 +625,10 @@
 <span class="kw">mod</span> <span class="ident">bench</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
-    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
-    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">XorShiftRng</span>;
-    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">SeedableRng</span>;
     <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">Rng</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">SeedableRng</span>;
+    <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">XorShiftRng</span>;
+    <span class="kw">use</span> <span class="ident">test</span>::<span class="ident">Bencher</span>;
 
     <span class="kw">fn</span> <span class="ident">generate_array_with_seed</span>(<span class="ident">n</span>: <span class="ident">usize</span>, <span class="ident">ratio</span>: <span class="ident">f32</span>, <span class="ident">seed_val</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">seed</span>: <span class="kw-2">&amp;</span>[<span class="ident">u32</span>; <span class="number">4</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[<span class="number">1</span>, <span class="number">2</span>, <span class="number">3</span>, <span class="ident">seed_val</span>];

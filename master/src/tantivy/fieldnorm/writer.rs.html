@@ -61,7 +61,6 @@
 <span id="61">61</span>
 <span id="62">62</span>
 <span id="63">63</span>
-<span id="64">64</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">DocId</span>;
 
@@ -82,8 +81,7 @@
             .<span class="ident">fields</span>()
             .<span class="ident">iter</span>()
             .<span class="ident">enumerate</span>()
-            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="ident">field_entry</span>)<span class="op">|</span>
-                <span class="ident">field_entry</span>.<span class="ident">is_indexed</span>())
+            .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="ident">field_entry</span>)<span class="op">|</span> <span class="ident">field_entry</span>.<span class="ident">is_indexed</span>())
             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">field</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">Field</span>(<span class="ident">field</span> <span class="kw">as</span> <span class="ident">u32</span>))
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Field</span><span class="op">&gt;&gt;</span>()
     }

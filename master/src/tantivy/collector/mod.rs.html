@@ -337,12 +337,12 @@ Defines how the documents matching a search query should be processed.
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="kw-2">*</span>;
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
+    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">BytesFastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">FastFieldReader</span>;
     <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Field</span>;
     <span class="kw">use</span> <span class="ident">DocId</span>;
     <span class="kw">use</span> <span class="ident">Score</span>;
     <span class="kw">use</span> <span class="ident">SegmentLocalId</span>;
-    <span class="kw">use</span> <span class="ident">fastfield</span>::<span class="ident">BytesFastFieldReader</span>;
 
     <span class="doccomment">/// Stores all of the doc ids.</span>
     <span class="doccomment">/// This collector is only used for tests.</span>

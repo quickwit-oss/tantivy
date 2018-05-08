@@ -375,22 +375,20 @@
 <span id="375">375</span>
 <span id="376">376</span>
 <span id="377">377</span>
-<span id="378">378</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TermInfo</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">BinarySerializable</span>;
+<span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">CompositeWrite</span>, <span class="ident">CountingWriter</span>};
 <span class="kw">use</span> <span class="ident">compression</span>::<span class="ident">VIntEncoder</span>;
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">BlockEncoder</span>, <span class="ident">COMPRESSION_BLOCK_SIZE</span>};
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">WritePtr</span>;
-<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">FieldEntry</span>, <span class="ident">FieldType</span>};
 <span class="kw">use</span> <span class="ident">schema</span>::<span class="ident">Schema</span>;
+<span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">Field</span>, <span class="ident">FieldEntry</span>, <span class="ident">FieldType</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>::{<span class="self">self</span>, <span class="ident">Write</span>};
-<span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">CompositeWrite</span>, <span class="ident">CountingWriter</span>};
-<span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermOrdinal</span>, <span class="ident">TermDictionaryBuilder</span>};
-
+<span class="kw">use</span> <span class="ident">termdict</span>::{<span class="ident">TermDictionaryBuilder</span>, <span class="ident">TermOrdinal</span>};
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
 <span class="doccomment">/// `PostingsSerializer` is in charge of serializing</span>
 <span class="doccomment">/// postings on disk, in the</span>

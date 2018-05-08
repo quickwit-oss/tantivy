@@ -123,17 +123,14 @@
 <span id="123">123</span>
 <span id="124">124</span>
 <span id="125">125</span>
-<span id="126">126</span>
-<span id="127">127</span>
-<span id="128">128</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">DocId</span>;
-<span class="kw">use</span> <span class="prelude-ty">Result</span>;
-<span class="kw">use</span> <span class="ident">Score</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Searcher</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">DocSet</span>;
-<span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Weight</span>, <span class="ident">Scorer</span>};
+<span class="kw">use</span> <span class="ident">query</span>::{<span class="ident">Query</span>, <span class="ident">Scorer</span>, <span class="ident">Weight</span>};
+<span class="kw">use</span> <span class="ident">DocId</span>;
+<span class="kw">use</span> <span class="prelude-ty">Result</span>;
+<span class="kw">use</span> <span class="ident">Score</span>;
 
 <span class="doccomment">/// Query that matches all of the documents.</span>
 <span class="doccomment">///</span>
@@ -155,7 +152,7 @@
         <span class="prelude-val">Ok</span>(<span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">AllScorer</span> {
             <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">NotStarted</span>,
             <span class="ident">doc</span>: <span class="number">0u32</span>,
-            <span class="ident">max_doc</span>: <span class="ident">reader</span>.<span class="ident">max_doc</span>()
+            <span class="ident">max_doc</span>: <span class="ident">reader</span>.<span class="ident">max_doc</span>(),
         }))
     }
 }
@@ -163,14 +160,14 @@
 <span class="kw">enum</span> <span class="ident">State</span> {
     <span class="ident">NotStarted</span>,
     <span class="ident">Started</span>,
-    <span class="ident">Finished</span>
+    <span class="ident">Finished</span>,
 }
 
 <span class="doccomment">/// Scorer associated to the `AllQuery` query.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AllScorer</span> {
     <span class="ident">state</span>: <span class="ident">State</span>,
     <span class="ident">doc</span>: <span class="ident">DocId</span>,
-    <span class="ident">max_doc</span>: <span class="ident">DocId</span>
+    <span class="ident">max_doc</span>: <span class="ident">DocId</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">DocSet</span> <span class="kw">for</span> <span class="ident">AllScorer</span> {
@@ -210,14 +207,13 @@
     }
 }
 
-
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
 
     <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">AllQuery</span>;
-    <span class="kw">use</span> <span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">TEXT</span>, <span class="ident">SchemaBuilder</span>};
     <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Query</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">SchemaBuilder</span>, <span class="ident">TEXT</span>};
+    <span class="kw">use</span> <span class="ident">Index</span>;
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
     <span class="kw">fn</span> <span class="ident">test_all_query</span>() {
@@ -225,9 +221,7 @@
         <span class="kw">let</span> <span class="ident">field</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;text&quot;</span>, <span class="ident">TEXT</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
         <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">Index</span>::<span class="ident">create_in_ram</span>(<span class="ident">schema</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>
-            .<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">10_000_000</span>)
-            .<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_writer</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">writer_with_num_threads</span>(<span class="number">1</span>, <span class="number">10_000_000</span>).<span class="ident">unwrap</span>();
         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">field</span><span class="op">=&gt;</span><span class="string">&quot;aaa&quot;</span>));
         <span class="ident">index_writer</span>.<span class="ident">add_document</span>(<span class="macro">doc</span><span class="macro">!</span>(<span class="ident">field</span><span class="op">=&gt;</span><span class="string">&quot;bbb&quot;</span>));
         <span class="ident">index_writer</span>.<span class="ident">commit</span>().<span class="ident">unwrap</span>();
@@ -254,5 +248,6 @@
         }
     }
 
-}</pre>
+}
+</pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
