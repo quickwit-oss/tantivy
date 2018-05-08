@@ -61,6 +61,16 @@ impl FastFieldSerializer {
         FastSingleFieldSerializer::open(field_write, min_value, max_value)
     }
 
+    /// Start serializing a new [u8] fast field
+    pub fn new_bytes_fast_field_with_idx(
+        &mut self,
+        field: Field,
+        idx: usize
+    ) -> io::Result<FastBytesFieldSerializer<CountingWriter<WritePtr>>> {
+        let field_write = self.composite_write.for_field_with_idx(field, idx);
+        FastBytesFieldSerializer::open(field_write)
+    }
+
     /// Closes the serializer
     ///
     /// After this call the data must be persistently save on disk.
@@ -115,5 +125,23 @@ impl<'a, W: Write> FastSingleFieldSerializer<'a, W> {
 
     pub fn close_field(mut self) -> io::Result<()> {
         self.bit_packer.close(&mut self.write)
+    }
+}
+
+pub struct FastBytesFieldSerializer<'a, W: Write + 'a> {
+    write: &'a mut W,
+}
+
+impl<'a, W: Write> FastBytesFieldSerializer<'a, W> {
+    fn open(write: &'a mut W) -> io::Result<FastBytesFieldSerializer<'a, W>> {
+        Ok(FastBytesFieldSerializer { write })
+    }
+
+    pub fn write_all(&mut self, vals: &[u8]) -> io::Result<()> {
+        self.write.write_all(vals)
+    }
+
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.write.flush()
     }
 }

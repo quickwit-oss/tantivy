@@ -31,11 +31,13 @@ pub use self::multivalued::{MultiValueIntFastFieldReader, MultiValueIntFastField
 pub use self::reader::FastFieldReader;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
+pub use self::bytes::{BytesFastFieldReader, BytesFastFieldWriter};
 use common;
 use schema::Cardinality;
 use schema::FieldType;
 use schema::Value;
 
+mod bytes;
 mod delete;
 mod error;
 mod facet_reader;

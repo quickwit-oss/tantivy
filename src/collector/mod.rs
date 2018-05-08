@@ -95,6 +95,7 @@ pub mod tests {
     use DocId;
     use Score;
     use SegmentLocalId;
+    use fastfield::BytesFastFieldReader;
 
     /// Stores all of the doc ids.
     /// This collector is only used for tests.
@@ -185,6 +186,45 @@ pub mod tests {
         }
     }
 
+    /// Collects in order all of the fast field bytes for all of the
+    /// docs in the `DocSet`
+    ///
+    /// This collector is mainly useful for tests.
+    pub struct BytesFastFieldTestCollector {
+        vals: Vec<u8>,
+        field: Field,
+        ff_reader: Option<BytesFastFieldReader>,
+    }
+
+    impl BytesFastFieldTestCollector {
+        pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
+            BytesFastFieldTestCollector {
+                vals: Vec::new(),
+                field,
+                ff_reader: None,
+            }
+        }
+
+        pub fn vals(self) -> Vec<u8> {
+            self.vals
+        }
+    }
+
+    impl Collector for BytesFastFieldTestCollector {
+        fn set_segment(&mut self, _segment_local_id: u32, segment: &SegmentReader) -> Result<()> {
+            self.ff_reader = Some(segment.bytes_fast_field_reader(self.field)?);
+            Ok(())
+        }
+
+        fn collect(&mut self, doc: u32, _score: f32) {
+            let val = self.ff_reader.as_ref().unwrap().get_val(doc);
+            self.vals.extend(val);
+        }
+
+        fn requires_scoring(&self) -> bool {
+            false
+        }
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]

@@ -1,7 +1,6 @@
 use datastruct::stacker::{Heap, TermHashMap};
-use postings::Recorder;
 use postings::{FieldSerializer, InvertedIndexSerializer};
-use postings::{NothingRecorder, TFAndPositionRecorder, TermFrequencyRecorder};
+use postings::recorder::{Recorder, NothingRecorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use schema::{FieldEntry, FieldType, Term, Field, Schema};
 use std::collections::HashMap;
 use std::io;
@@ -35,6 +34,11 @@ fn posting_from_field_entry<'a>(
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)),
         FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+        }
+        FieldType::Bytes => {
+            // FieldType::Bytes cannot actually be indexed.
+            // TODO fix during the indexer refactoring described in #276
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
         }
     }
@@ -112,7 +116,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             let field_entry = self.schema.get_field_entry(field);
 
             match field_entry.field_type() {
-                FieldType::Str(_) | FieldType::HierarchicalFacet => {
+                &FieldType::Str(_) | &FieldType::HierarchicalFacet => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
                     let mut unordered_term_ids = term_offsets[start..stop]
@@ -124,7 +128,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
                         .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
-                FieldType::U64(_) | FieldType::I64(_) => {}
+                &FieldType::U64(_) | &FieldType::I64(_) => {}
+                &FieldType::Bytes => {}
             }
 
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];

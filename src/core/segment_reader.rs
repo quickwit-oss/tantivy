@@ -10,7 +10,7 @@ use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
 use fastfield::{self, FastFieldNotAvailableError};
-use fastfield::{FastValue, MultiValueIntFastFieldReader};
+use fastfield::{BytesFastFieldReader, FastValue, MultiValueIntFastFieldReader};
 use fieldnorm::FieldNormReader;
 use schema::Cardinality;
 use schema::Document;
@@ -147,6 +147,23 @@ impl SegmentReader {
         } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
+    }
+
+    /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
+    pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        match field_entry.field_type() {
+            &FieldType::Bytes => {},
+            _ => return Err(FastFieldNotAvailableError::new(field_entry)),
+        }
+        let idx_reader = self.fast_fields_composite
+            .open_read_with_idx(field, 0)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+            .map(FastFieldReader::open)?;
+        let values = self.fast_fields_composite
+            .open_read_with_idx(field, 1)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
+        Ok(BytesFastFieldReader::open(idx_reader, values))
     }
 
     /// Accessor to the `FacetReader` associated to a given `Field`.

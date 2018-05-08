@@ -221,6 +221,9 @@ impl IndexMerger {
                     // They can be implemented using what is done
                     // for facets in the future.
                 }
+                FieldType::Bytes => {
+                    self.write_bytes_fast_field(field, fast_field_serializer)?;
+                }
             }
         }
         Ok(())
@@ -284,9 +287,9 @@ impl IndexMerger {
     }
 
 
-    fn write_multi_fast_field_idx(&self,
-                                  field: Field,
-                                  fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
+    fn write_fast_field_idx(&self,
+                            field: Field,
+                            fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
         let mut total_num_vals = 0u64;
 
         // In the first pass, we compute the total number of vals.
@@ -294,15 +297,17 @@ impl IndexMerger {
         // This is required by the bitpacker, as it needs to know
         // what should be the bit length use for bitpacking.
         for reader in &self.readers {
-            let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
+            let idx_reader = reader.fast_field_reader_with_idx::<u64>(field, 0)?;
             if let Some(delete_bitset) = reader.delete_bitset() {
                 for doc in 0u32..reader.max_doc() {
                     if !delete_bitset.is_deleted(doc) {
-                        total_num_vals += multi_ff_reader.num_vals(doc) as u64;
+                        let start = idx_reader.get(doc);
+                        let end = idx_reader.get(doc + 1);
+                        total_num_vals += end - start;
                     }
                 }
             } else {
-                total_num_vals += multi_ff_reader.total_num_vals();
+                total_num_vals += idx_reader.max_value();
             }
         }
 
@@ -311,11 +316,13 @@ impl IndexMerger {
         let mut serialize_idx = fast_field_serializer.new_u64_fast_field_with_idx(field, 0, total_num_vals, 0)?;
         let mut idx = 0;
         for reader in &self.readers {
-            let multi_ff_reader = reader.multi_fast_field_reader::<u64>(field)?;
+            let idx_reader = reader.fast_field_reader_with_idx::<u64>(field, 0)?;
             for doc in 0u32..reader.max_doc() {
                 if !reader.is_deleted(doc) {
                     serialize_idx.add_val(idx)?;
-                    idx += multi_ff_reader.num_vals(doc) as u64;
+                    let start = idx_reader.get(doc);
+                    let end = idx_reader.get(doc + 1);
+                    idx += end - start;
                 }
             }
         }
@@ -334,7 +341,7 @@ impl IndexMerger {
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        self.write_multi_fast_field_idx(field, fast_field_serializer)?;
+        self.write_fast_field_idx(field, fast_field_serializer)?;
 
         // We can now write the actual fast field values.
         // In the case of hierarchical facets, they are actually term ordinals.
@@ -368,7 +375,7 @@ impl IndexMerger {
         // The second contains the actual values.
 
         // First we merge the idx fast field.
-        self.write_multi_fast_field_idx(field, fast_field_serializer)?;
+        self.write_fast_field_idx(field, fast_field_serializer)?;
 
         let mut min_value = u64::max_value();
         let mut max_value = u64::min_value();
@@ -418,6 +425,27 @@ impl IndexMerger {
             }
             serialize_vals.close_field()?;
         }
+        Ok(())
+    }
+
+    fn write_bytes_fast_field(&self,
+                              field: Field,
+                              fast_field_serializer: &mut FastFieldSerializer) -> Result<()> {
+        self.write_fast_field_idx(field, fast_field_serializer)?;
+
+        let mut serialize_vals = fast_field_serializer.new_bytes_fast_field_with_idx(field, 1)?;
+        for reader in &self.readers {
+            let bytes_reader = reader.bytes_fast_field_reader(field)?;
+            // TODO: optimize if no deletes
+            for doc in 0..reader.max_doc() {
+                if !reader.is_deleted(doc) {
+                    let val = bytes_reader.get_val(doc);
+                    serialize_vals.write_all(val)?;
+                }
+            }
+        }
+        serialize_vals.flush()?;
+
         Ok(())
     }
 
@@ -629,19 +657,21 @@ mod tests {
     use query::TermQuery;
     use schema;
     use schema::Document;
-    use schema::Field;
     use schema::IndexRecordOption;
     use schema::Term;
     use schema::TextFieldIndexing;
     use DocAddress;
     use Searcher;
-    use collector::tests::FastFieldTestCollector;
+    use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
+    use collector::chain;
     use schema::Cardinality;
     use futures::Future;
     use IndexWriter;
     use query::AllQuery;
     use collector::FacetCollector;
     use schema::IntOptions;
+    use byteorder::{ReadBytesExt, WriteBytesExt, BigEndian};
+    use std::io::Cursor;
 
     #[test]
     fn test_index_merger_no_deletes() {
@@ -656,7 +686,14 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
+
+        let add_score_bytes = |doc: &mut Document, score: u32| {
+            let mut bytes = Vec::new();
+            bytes.write_u32::<BigEndian>(score).expect("failed to write u32 bytes to Vec...");
+            doc.add_bytes(bytes_score_field, bytes);
+        };
 
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
@@ -666,18 +703,21 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u64(score_field, 3);
+                    add_score_bytes(&mut doc, 3);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c");
                     doc.add_u64(score_field, 5);
+                    add_score_bytes(&mut doc, 5);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c d");
                     doc.add_u64(score_field, 7);
+                    add_score_bytes(&mut doc, 7);
                     index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("committed");
@@ -689,12 +729,14 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u64(score_field, 11);
+                    add_score_bytes(&mut doc, 11);
                     index_writer.add_document(doc);
                 }
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "a b c g");
                     doc.add_u64(score_field, 13);
+                    add_score_bytes(&mut doc, 13);
                     index_writer.add_document(doc);
                 }
                 index_writer.commit().expect("Commit failed");
@@ -765,19 +807,22 @@ mod tests {
                     assert!(searcher.search(&query, &mut collector).is_ok());
                     collector.vals()
                 };
+                let get_fast_vals_bytes = |terms: Vec<Term>| {
+                    let query = BooleanQuery::new_multiterms_query(terms);
+                    let mut collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
+                    searcher.search(&query, &mut collector).expect("failed to search");
+                    collector.vals()
+                };
                 assert_eq!(
                     get_fast_vals(vec![Term::from_field_text(text_field, "a")]),
                     vec![5, 7, 13]
                 );
+                assert_eq!(
+                    get_fast_vals_bytes(vec![Term::from_field_text(text_field, "a")]),
+                    vec![0,0,0,5, 0,0,0,7, 0,0,0,13]
+                );
             }
         }
-    }
-
-    fn search_term(searcher: &Searcher, term: Term) -> Vec<u64> {
-        let mut collector = FastFieldTestCollector::for_field(Field(1));
-        let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-        searcher.search(&term_query, &mut collector).unwrap();
-        collector.vals()
     }
 
     #[test]
@@ -791,8 +836,31 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
+        let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+
+        let search_term = |searcher: &Searcher, term: Term| {
+            let mut collector = FastFieldTestCollector::for_field(score_field);
+            let mut bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
+            let term_query = TermQuery::new(term, IndexRecordOption::Basic);
+
+            {
+                let mut combined_collector = chain()
+                    .push(&mut collector)
+                    .push(&mut bytes_collector);
+                searcher.search(&term_query, &mut combined_collector).unwrap();
+            }
+
+            let scores = collector.vals();
+
+            let mut score_bytes = Cursor::new(bytes_collector.vals());
+            for &score in &scores {
+                assert_eq!(score as u32, score_bytes.read_u32::<BigEndian>().unwrap());
+            }
+
+            scores
+        };
 
         let empty_vec = Vec::<u64>::new();
 
@@ -800,16 +868,19 @@ mod tests {
             // a first commit
             index_writer.add_document(doc!(
                     text_field => "a b d",
-                    score_field => 1u64
+                    score_field => 1u64,
+                    bytes_score_field => vec![0u8, 0, 0, 1],
                 ));
             index_writer.add_document(doc!(
                     text_field => "b c",
-                    score_field => 2u64
+                    score_field => 2u64,
+                    bytes_score_field => vec![0u8, 0, 0, 2],
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(doc!(
                     text_field => "c d",
-                    score_field => 3u64
+                    score_field => 3u64,
+                    bytes_score_field => vec![0u8, 0, 0, 3],
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
@@ -838,21 +909,25 @@ mod tests {
             // a second commit
             index_writer.add_document(doc!(
                     text_field => "a d e",
-                    score_field => 4_000u64
+                    score_field => 4_000u64,
+                    bytes_score_field => vec![0u8, 0, 0, 4],
                 ));
             index_writer.add_document(doc!(
                     text_field => "e f",
-                    score_field => 5_000u64
+                    score_field => 5_000u64,
+                    bytes_score_field => vec![0u8, 0, 0, 5],
                 ));
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(doc!(
                     text_field => "f g",
-                    score_field => 6_000u64
+                    score_field => 6_000u64,
+                    bytes_score_field => vec![0u8, 0, 23, 112],
                 ));
             index_writer.add_document(doc!(
                     text_field => "g h",
-                    score_field => 7_000u64
+                    score_field => 7_000u64,
+                    bytes_score_field => vec![0u8, 0, 27, 88],
                 ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
