@@ -568,14 +568,6 @@
 <span id="568">568</span>
 <span id="569">569</span>
 <span id="570">570</span>
-<span id="571">571</span>
-<span id="572">572</span>
-<span id="573">573</span>
-<span id="574">574</span>
-<span id="575">575</span>
-<span id="576">576</span>
-<span id="577">577</span>
-<span id="578">578</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">compression</span>::{<span class="ident">BlockDecoder</span>, <span class="ident">CompressedIntStream</span>, <span class="ident">VIntDecoder</span>, <span class="ident">COMPRESSION_BLOCK_SIZE</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -858,19 +850,11 @@
 
     <span class="kw">fn</span> <span class="ident">positions_with_offset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">offset</span>: <span class="ident">u32</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u32</span><span class="op">&gt;</span>) {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">position_computer</span>.<span class="ident">is_some</span>() {
-            <span class="kw">let</span> <span class="ident">prev_capacity</span> <span class="op">=</span> <span class="ident">output</span>.<span class="ident">capacity</span>();
-            <span class="kw">let</span> <span class="ident">term_freq</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_freq</span>() <span class="kw">as</span> <span class="ident">usize</span>;
-            <span class="kw">if</span> <span class="ident">term_freq</span> <span class="op">&gt;</span> <span class="ident">prev_capacity</span> {
-                <span class="kw">let</span> <span class="ident">additional_len</span> <span class="op">=</span> <span class="ident">term_freq</span> <span class="op">-</span> <span class="ident">output</span>.<span class="ident">len</span>();
-                <span class="ident">output</span>.<span class="ident">reserve</span>(<span class="ident">additional_len</span>);
-            }
-            <span class="kw">unsafe</span> {
-                <span class="ident">output</span>.<span class="ident">set_len</span>(<span class="ident">term_freq</span>);
-                <span class="self">self</span>.<span class="ident">position_computer</span>
-                    .<span class="ident">as_mut</span>()
-                    .<span class="ident">unwrap</span>()
-                    .<span class="ident">positions_with_offset</span>(<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output</span>[..])
-            }
+            <span class="ident">output</span>.<span class="ident">resize</span>(<span class="self">self</span>.<span class="ident">term_freq</span>() <span class="kw">as</span> <span class="ident">usize</span>, <span class="number">0u32</span>);
+            <span class="self">self</span>.<span class="ident">position_computer</span>
+                .<span class="ident">as_mut</span>()
+                .<span class="ident">unwrap</span>()
+                .<span class="ident">positions_with_offset</span>(<span class="ident">offset</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">output</span>[..])
         } <span class="kw">else</span> {
             <span class="ident">output</span>.<span class="ident">clear</span>();
         }

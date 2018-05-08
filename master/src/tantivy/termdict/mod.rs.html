@@ -621,7 +621,7 @@ term `stream`.
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_string</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">new</span>();
         <span class="kw">while</span> <span class="ident">term_it</span>.<span class="ident">advance</span>() {
             <span class="comment">//let term = Term::from_bytes(term_it.key());</span>
-            <span class="ident">term_string</span>.<span class="ident">push_str</span>(<span class="kw">unsafe</span> { <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">term_it</span>.<span class="ident">key</span>()) });
+            <span class="ident">term_string</span>.<span class="ident">push_str</span>(<span class="kw">unsafe</span> { <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">term_it</span>.<span class="ident">key</span>()) }); <span class="comment">// ok test</span>
         }
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">term_string</span>, <span class="string">&quot;abcdef&quot;</span>);
     }

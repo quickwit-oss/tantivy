@@ -656,6 +656,8 @@
 <span id="656">656</span>
 <span id="657">657</span>
 <span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">collector</span>::<span class="ident">Collector</span>;
 <span class="kw">use</span> <span class="ident">docset</span>::<span class="ident">SkipResult</span>;
@@ -1038,8 +1040,10 @@
                 })
                 .<span class="ident">sum</span>();
             <span class="kw">if</span> <span class="ident">count</span> <span class="op">&gt;</span> <span class="number">0u64</span> {
-                <span class="kw">let</span> <span class="ident">bytes</span> <span class="op">=</span> <span class="ident">facet_merger</span>.<span class="ident">key</span>().<span class="ident">to_owned</span>();
-                <span class="ident">facet_counts</span>.<span class="ident">insert</span>(<span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">bytes</span>), <span class="ident">count</span>);
+                <span class="kw">let</span> <span class="ident">bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet_merger</span>.<span class="ident">key</span>().<span class="ident">to_owned</span>();
+                <span class="comment">// may create an corrupted facet if the term dicitonary is corrupted</span>
+                <span class="kw">let</span> <span class="ident">facet</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">bytes</span>) };
+                <span class="ident">facet_counts</span>.<span class="ident">insert</span>(<span class="ident">facet</span>, <span class="ident">count</span>);
             }
         }
         <span class="ident">FacetCounts</span> { <span class="ident">facet_counts</span> }
@@ -1111,9 +1115,9 @@
         <span class="kw">let</span> <span class="ident">right_bound</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">facet</span>.<span class="ident">is_root</span>() {
             <span class="ident">Bound</span>::<span class="ident">Unbounded</span>
         } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_after_bytes</span> <span class="op">=</span> <span class="ident">facet</span>.<span class="ident">encoded_bytes</span>().<span class="ident">to_owned</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">facet_after_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">facet</span>.<span class="ident">encoded_bytes</span>().<span class="ident">to_owned</span>();
             <span class="ident">facet_after_bytes</span>.<span class="ident">push</span>(<span class="number">1u8</span>);
-            <span class="kw">let</span> <span class="ident">facet_after</span> <span class="op">=</span> <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">facet_after_bytes</span>);
+            <span class="kw">let</span> <span class="ident">facet_after</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Facet</span>::<span class="ident">from_encoded</span>(<span class="ident">facet_after_bytes</span>) }; <span class="comment">// ok logic</span>
             <span class="ident">Bound</span>::<span class="ident">Excluded</span>(<span class="ident">facet_after</span>)
         };
         <span class="kw">let</span> <span class="ident">underlying</span>: <span class="ident">btree_map</span>::<span class="ident">Range</span><span class="op">&lt;</span><span class="kw">_</span>, <span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">facet_counts</span>.<span class="ident">range</span>((<span class="ident">left_bound</span>, <span class="ident">right_bound</span>));

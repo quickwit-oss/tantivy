@@ -260,7 +260,6 @@
 <span id="260">260</span>
 <span id="261">261</span>
 <span id="262">262</span>
-<span id="263">263</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::<span class="ident">AddOperation</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
@@ -402,8 +401,7 @@
                             }
                         })
                         .<span class="ident">collect</span>();
-                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Term</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>) };
-                    <span class="ident">term</span>.<span class="ident">set_field</span>(<span class="ident">field</span>);
+                    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">for_field</span>(<span class="ident">field</span>); <span class="comment">// we set the Term</span>
                     <span class="kw">for</span> <span class="ident">facet_bytes</span> <span class="kw">in</span> <span class="ident">facets</span> {
                         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">unordered_term_id_opt</span> <span class="op">=</span> <span class="prelude-val">None</span>;
                         <span class="kw">let</span> <span class="ident">fake_str</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">str</span>::<span class="ident">from_utf8_unchecked</span>(<span class="ident">facet_bytes</span>) };

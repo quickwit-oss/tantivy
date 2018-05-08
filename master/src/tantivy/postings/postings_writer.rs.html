@@ -274,7 +274,6 @@
 <span id="274">274</span>
 <span id="275">275</span>
 <span id="276">276</span>
-<span id="277">277</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">Heap</span>, <span class="ident">TermHashMap</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
@@ -472,8 +471,7 @@
         <span class="ident">token_stream</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>,
         <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
     ) <span class="op">-&gt;</span> <span class="ident">u32</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Term</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>) };
-        <span class="ident">term</span>.<span class="ident">set_field</span>(<span class="ident">field</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">for_field</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">num_tokens</span> <span class="op">=</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sink</span> <span class="op">=</span> <span class="op">|</span><span class="ident">token</span>: <span class="kw-2">&amp;</span><span class="ident">Token</span><span class="op">|</span> {
                 <span class="ident">term</span>.<span class="ident">set_text</span>(<span class="ident">token</span>.<span class="ident">text</span>.<span class="ident">as_str</span>());

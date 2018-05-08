@@ -299,7 +299,7 @@
     }
 
     <span class="doccomment">/// Creates a `Facet` from its binary representation.</span>
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">from_encoded</span>(<span class="ident">encoded_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Facet</span> {
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_encoded</span>(<span class="ident">encoded_bytes</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">Facet</span> {
         <span class="ident">Facet</span>(<span class="ident">encoded_bytes</span>)
     }
 

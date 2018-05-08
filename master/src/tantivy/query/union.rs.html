@@ -470,7 +470,7 @@
 <span class="kw">const</span> <span class="ident">HORIZON</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="number">64u32</span> <span class="op">*</span> <span class="ident">HORIZON_NUM_TINYBITSETS</span> <span class="kw">as</span> <span class="ident">u32</span>;
 
 <span class="comment">// `drain_filter` is not stable yet.</span>
-<span class="comment">// This function is similar except that it does is not unsafe, and</span>
+<span class="comment">// This function is similar except that it does is not unstable, and</span>
 <span class="comment">// it does not keep the original vector ordering.</span>
 <span class="comment">//</span>
 <span class="comment">// Also, it does not &quot;yield&quot; any elements.</span>

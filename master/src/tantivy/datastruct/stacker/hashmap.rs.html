@@ -353,7 +353,7 @@
 
         <span class="kw">let</span> <span class="ident">num_blocks</span> <span class="op">=</span> <span class="ident">len</span> <span class="op">&gt;&gt;</span> <span class="number">2</span>;
         <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_blocks</span> {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">k</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span><span class="ident">key_ptr</span> };
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">k</span>: <span class="ident">u32</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="kw-2">*</span><span class="ident">key_ptr</span> }; <span class="comment">// ok because of num_blocks definition</span>
             <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);
             <span class="ident">k</span> <span class="op">^=</span> <span class="ident">k</span> <span class="op">&gt;&gt;</span> <span class="number">24</span>;
             <span class="ident">k</span> <span class="op">=</span> <span class="ident">k</span>.<span class="ident">wrapping_mul</span>(<span class="ident">M</span>);

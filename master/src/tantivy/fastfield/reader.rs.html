@@ -138,6 +138,11 @@
 <span id="138">138</span>
 <span id="139">139</span>
 <span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">FastValue</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitUnpacker</span>;
@@ -208,6 +213,11 @@
     <span class="doccomment">/// associated with the `DocId` going from</span>
     <span class="doccomment">/// `start` to `start + output.len()`.</span>
     <span class="doccomment">///</span>
+    <span class="doccomment">/// Regardless of the type of `Item`, this method works</span>
+    <span class="doccomment">/// - transmuting the output array</span>
+    <span class="doccomment">/// - extracting the `Item`s as if they were `u64`</span>
+    <span class="doccomment">/// - possibly converting the `u64` value to the right type.</span>
+    <span class="doccomment">///</span>
     <span class="doccomment">/// # Panics</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// May panic if `start + output.len()` is greater than</span>
@@ -216,7 +226,7 @@
     <span class="comment">// TODO change start to `u64`.</span>
     <span class="comment">// For multifastfield, start is an index in a second fastfield, not a `DocId`</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_range</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">start</span>: <span class="ident">u32</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">Item</span>]) {
-        <span class="kw">let</span> <span class="ident">output_u64</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u64</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">output</span>) };
+        <span class="kw">let</span> <span class="ident">output_u64</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> [<span class="ident">u64</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>(<span class="ident">output</span>) }; <span class="comment">// ok: Item is either `u64` or `i64`</span>
         <span class="self">self</span>.<span class="ident">bit_unpacker</span>.<span class="ident">get_range</span>(<span class="ident">start</span>, <span class="ident">output_u64</span>);
         <span class="kw">for</span> <span class="ident">out</span> <span class="kw">in</span> <span class="ident">output_u64</span>.<span class="ident">iter_mut</span>() {
             <span class="kw-2">*</span><span class="ident">out</span> <span class="op">=</span> <span class="ident">Item</span>::<span class="ident">from_u64</span>(<span class="kw-2">*</span><span class="ident">out</span> <span class="op">+</span> <span class="self">self</span>.<span class="ident">min_value_u64</span>).<span class="ident">as_u64</span>();
