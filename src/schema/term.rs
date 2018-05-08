@@ -74,8 +74,10 @@ impl Term {
     /// It is declared unsafe, as the term content
     /// is not initialized, and a call to `.field()`
     /// would panic.
-    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
-        Term(Vec::with_capacity(num_bytes))
+    pub(crate) fn for_field(field: Field) -> Term {
+        let mut term = Term(Vec::with_capacity(100));
+        term.set_field(field);
+        term
     }
 
     /// Returns the field.

@@ -92,7 +92,9 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
+    assert!(data.len() >= addr_byte + 8);
     let val_unshifted_unmasked: u64 = unsafe {
+        //< ok : check len above
         let addr = data.as_ptr().offset(addr_byte as isize) as *const u64;
         ptr::read_unaligned(addr)
     };

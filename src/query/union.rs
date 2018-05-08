@@ -10,7 +10,7 @@ const HORIZON_NUM_TINYBITSETS: usize = 64;
 const HORIZON: u32 = 64u32 * HORIZON_NUM_TINYBITSETS as u32;
 
 // `drain_filter` is not stable yet.
-// This function is similar except that it does is not unsafe, and
+// This function is similar except that it does is not unstable, and
 // it does not keep the original vector ordering.
 //
 // Also, it does not "yield" any elements.

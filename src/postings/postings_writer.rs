@@ -194,8 +194,7 @@ pub trait PostingsWriter {
         token_stream: &mut TokenStream,
         heap: &Heap,
     ) -> u32 {
-        let mut term = unsafe { Term::with_capacity(100) };
-        term.set_field(field);
+        let mut term = Term::for_field(field);
         let num_tokens = {
             let mut sink = |token: &Token| {
                 term.set_text(token.text.as_str());
