@@ -202,11 +202,7 @@ impl TermDictionary {
     }
 
     pub fn search<'a, A: Automaton>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A> {
-        use fst::map;
-
-        // given an Automaton and a fst::Map (fst_index)
-        // how can I generate a streambuilder?
-        let sb = map::StreamBuilder(automaton);
+        let sb = self.fst_index.search(automaton);
         TermStreamerBuilder::<A>::new(self, sb)
     }
 }
