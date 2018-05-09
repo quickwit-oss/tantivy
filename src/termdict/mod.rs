@@ -366,6 +366,8 @@ mod tests {
 
     #[test]
     fn test_stream_range_boundaries() {
+        use fst::automaton::AlwaysMatch;
+
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
@@ -381,7 +383,7 @@ mod tests {
         let source = ReadOnlySource::from(buffer);
         let term_dictionary: TermDictionary = TermDictionary::from_source(source);
 
-        let value_list = |mut streamer: TermStreamer| {
+        let value_list = |mut streamer: TermStreamer<AlwaysMatch>| {
             let mut res: Vec<u32> = vec![];
             while let Some((_, ref v)) = streamer.next() {
                 res.push(v.doc_freq);
