@@ -72,6 +72,3 @@ required-features = ["mmap"]
 
 [[example]]
 name = "custom_tokenizer"
-
-[[example]]
-name = "fuzzy_search"
