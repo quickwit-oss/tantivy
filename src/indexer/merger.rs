@@ -299,13 +299,11 @@ impl IndexMerger {
         let mut idx = 0;
         for reader in &self.readers {
             let idx_reader = reader.fast_field_reader_with_idx::<u64>(field, 0)?;
-            for doc in 0u32..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    serialize_idx.add_val(idx)?;
-                    let start = idx_reader.get(doc);
-                    let end = idx_reader.get(doc + 1);
-                    idx += end - start;
-                }
+            for doc in reader.doc_ids_alive() {
+                serialize_idx.add_val(idx)?;
+                let start = idx_reader.get(doc);
+                let end = idx_reader.get(doc + 1);
+                idx += end - start;
             }
         }
         serialize_idx.add_val(idx)?;
@@ -339,13 +337,11 @@ impl IndexMerger {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     segment_reader.multi_fast_field_reader(field)?;
                 // TODO optimize if no deletes
-                for doc in 0..segment_reader.max_doc() {
-                    if !segment_reader.is_deleted(doc) {
-                        ff_reader.get_vals(doc, &mut vals);
-                        for &prev_term_ord in &vals {
-                            let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
-                            serialize_vals.add_val(new_term_ord)?;
-                        }
+                for doc in segment_reader.doc_ids_alive() {
+                    ff_reader.get_vals(doc, &mut vals);
+                    for &prev_term_ord in &vals {
+                        let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
+                        serialize_vals.add_val(new_term_ord)?;
                     }
                 }
             }
@@ -380,13 +376,11 @@ impl IndexMerger {
         for reader in &self.readers {
             let ff_reader: MultiValueIntFastFieldReader<u64> =
                 reader.multi_fast_field_reader(field)?;
-            for doc in 0u32..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    ff_reader.get_vals(doc, &mut vals);
-                    for &val in &vals {
-                        min_value = cmp::min(val, min_value);
-                        max_value = cmp::max(val, max_value);
-                    }
+            for doc in reader.doc_ids_alive() {
+                ff_reader.get_vals(doc, &mut vals);
+                for &val in &vals {
+                    min_value = cmp::min(val, min_value);
+                    max_value = cmp::max(val, max_value);
                 }
             }
             // TODO optimize when no deletes
@@ -405,12 +399,10 @@ impl IndexMerger {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     reader.multi_fast_field_reader(field)?;
                 // TODO optimize if no deletes
-                for doc in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc) {
-                        ff_reader.get_vals(doc, &mut vals);
-                        for &val in &vals {
-                            serialize_vals.add_val(val)?;
-                        }
+                for doc in reader.doc_ids_alive() {
+                    ff_reader.get_vals(doc, &mut vals);
+                    for &val in &vals {
+                        serialize_vals.add_val(val)?;
                     }
                 }
             }
@@ -430,11 +422,9 @@ impl IndexMerger {
         for reader in &self.readers {
             let bytes_reader = reader.bytes_fast_field_reader(field)?;
             // TODO: optimize if no deletes
-            for doc in 0..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    let val = bytes_reader.get_val(doc);
-                    serialize_vals.write_all(val)?;
-                }
+            for doc in reader.doc_ids_alive() {
+                let val = bytes_reader.get_val(doc);
+                serialize_vals.write_all(val)?;
             }
         }
         serialize_vals.flush()?;
