@@ -1435,22 +1435,6 @@
 <span id="1435">1435</span>
 <span id="1436">1436</span>
 <span id="1437">1437</span>
-<span id="1438">1438</span>
-<span id="1439">1439</span>
-<span id="1440">1440</span>
-<span id="1441">1441</span>
-<span id="1442">1442</span>
-<span id="1443">1443</span>
-<span id="1444">1444</span>
-<span id="1445">1445</span>
-<span id="1446">1446</span>
-<span id="1447">1447</span>
-<span id="1448">1448</span>
-<span id="1449">1449</span>
-<span id="1450">1450</span>
-<span id="1451">1451</span>
-<span id="1452">1452</span>
-<span id="1453">1453</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Segment</span>;
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">SegmentReader</span>;
@@ -1486,11 +1470,9 @@
             <span class="comment">// if there are deletes, then we use an approximation</span>
             <span class="comment">// using the fieldnorm</span>
             <span class="kw">let</span> <span class="ident">fieldnorms_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
-            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                    <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);
-                    <span class="ident">count</span>[<span class="ident">fieldnorm_id</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">+=</span> <span class="number">1</span>;
-                }
+            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc</span>);
+                <span class="ident">count</span>[<span class="ident">fieldnorm_id</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">+=</span> <span class="number">1</span>;
             }
         } <span class="kw">else</span> {
             <span class="ident">total_tokens</span> <span class="op">+=</span> <span class="ident">reader</span>.<span class="ident">inverted_index</span>(<span class="ident">field</span>).<span class="ident">total_num_tokens</span>();
@@ -1620,11 +1602,9 @@
             <span class="ident">fieldnorms_data</span>.<span class="ident">clear</span>();
             <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
                 <span class="kw">let</span> <span class="ident">fieldnorms_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_fieldnorms_reader</span>(<span class="ident">field</span>);
-                <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
-                        <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>);
-                        <span class="ident">fieldnorms_data</span>.<span class="ident">push</span>(<span class="ident">fieldnorm_id</span>);
-                    }
+                <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                    <span class="kw">let</span> <span class="ident">fieldnorm_id</span> <span class="op">=</span> <span class="ident">fieldnorms_reader</span>.<span class="ident">fieldnorm_id</span>(<span class="ident">doc_id</span>);
+                    <span class="ident">fieldnorms_data</span>.<span class="ident">push</span>(<span class="ident">fieldnorm_id</span>);
                 }
             }
             <span class="ident">fieldnorms_serializer</span>.<span class="ident">serialize_field</span>(<span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">fieldnorms_data</span>[..])<span class="question-mark">?</span>;
@@ -1757,13 +1737,11 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">idx</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="ident">idx_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">fast_field_reader_with_idx</span>::<span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span>(<span class="ident">field</span>, <span class="number">0</span>)<span class="question-mark">?</span>;
-            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0u32</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                    <span class="ident">serialize_idx</span>.<span class="ident">add_val</span>(<span class="ident">idx</span>)<span class="question-mark">?</span>;
-                    <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>);
-                    <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="number">1</span>);
-                    <span class="ident">idx</span> <span class="op">+=</span> <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>;
-                }
+            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                <span class="ident">serialize_idx</span>.<span class="ident">add_val</span>(<span class="ident">idx</span>)<span class="question-mark">?</span>;
+                <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span>);
+                <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">idx_reader</span>.<span class="ident">get</span>(<span class="ident">doc</span> <span class="op">+</span> <span class="number">1</span>);
+                <span class="ident">idx</span> <span class="op">+=</span> <span class="ident">end</span> <span class="op">-</span> <span class="ident">start</span>;
             }
         }
         <span class="ident">serialize_idx</span>.<span class="ident">add_val</span>(<span class="ident">idx</span>)<span class="question-mark">?</span>;
@@ -1797,13 +1775,11 @@
                 <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
                     <span class="ident">segment_reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
                 <span class="comment">// TODO optimize if no deletes</span>
-                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">segment_reader</span>.<span class="ident">max_doc</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">segment_reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                        <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
-                        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">prev_term_ord</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
-                            <span class="kw">let</span> <span class="ident">new_term_ord</span> <span class="op">=</span> <span class="ident">term_ordinal_mapping</span>[<span class="ident">prev_term_ord</span> <span class="kw">as</span> <span class="ident">usize</span>];
-                            <span class="ident">serialize_vals</span>.<span class="ident">add_val</span>(<span class="ident">new_term_ord</span>)<span class="question-mark">?</span>;
-                        }
+                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">segment_reader</span>.<span class="ident">doc_ids_alive</span>() {
+                    <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
+                    <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">prev_term_ord</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
+                        <span class="kw">let</span> <span class="ident">new_term_ord</span> <span class="op">=</span> <span class="ident">term_ordinal_mapping</span>[<span class="ident">prev_term_ord</span> <span class="kw">as</span> <span class="ident">usize</span>];
+                        <span class="ident">serialize_vals</span>.<span class="ident">add_val</span>(<span class="ident">new_term_ord</span>)<span class="question-mark">?</span>;
                     }
                 }
             }
@@ -1838,13 +1814,11 @@
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
                 <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
-            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0u32</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                    <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
-                    <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">val</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
-                        <span class="ident">min_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">val</span>, <span class="ident">min_value</span>);
-                        <span class="ident">max_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">val</span>, <span class="ident">max_value</span>);
-                    }
+            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
+                <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">val</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
+                    <span class="ident">min_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">min</span>(<span class="ident">val</span>, <span class="ident">min_value</span>);
+                    <span class="ident">max_value</span> <span class="op">=</span> <span class="ident">cmp</span>::<span class="ident">max</span>(<span class="ident">val</span>, <span class="ident">max_value</span>);
                 }
             }
             <span class="comment">// TODO optimize when no deletes</span>
@@ -1863,12 +1837,10 @@
                 <span class="kw">let</span> <span class="ident">ff_reader</span>: <span class="ident">MultiValueIntFastFieldReader</span><span class="op">&lt;</span><span class="ident">u64</span><span class="op">&gt;</span> <span class="op">=</span>
                     <span class="ident">reader</span>.<span class="ident">multi_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
                 <span class="comment">// TODO optimize if no deletes</span>
-                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                        <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
-                        <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">val</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
-                            <span class="ident">serialize_vals</span>.<span class="ident">add_val</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
-                        }
+                <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                    <span class="ident">ff_reader</span>.<span class="ident">get_vals</span>(<span class="ident">doc</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">vals</span>);
+                    <span class="kw">for</span> <span class="kw-2">&amp;</span><span class="ident">val</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">vals</span> {
+                        <span class="ident">serialize_vals</span>.<span class="ident">add_val</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
                     }
                 }
             }
@@ -1888,11 +1860,9 @@
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="ident">bytes_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">bytes_fast_field_reader</span>(<span class="ident">field</span>)<span class="question-mark">?</span>;
             <span class="comment">// TODO: optimize if no deletes</span>
-            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc</span>) {
-                    <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">bytes_reader</span>.<span class="ident">get_val</span>(<span class="ident">doc</span>);
-                    <span class="ident">serialize_vals</span>.<span class="ident">write_all</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
-                }
+            <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> <span class="ident">bytes_reader</span>.<span class="ident">get_val</span>(<span class="ident">doc</span>);
+                <span class="ident">serialize_vals</span>.<span class="ident">write_all</span>(<span class="ident">val</span>)<span class="question-mark">?</span>;
             }
         }
         <span class="ident">serialize_vals</span>.<span class="ident">flush</span>()<span class="question-mark">?</span>;
@@ -2079,11 +2049,9 @@
         <span class="kw">for</span> <span class="ident">reader</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">readers</span> {
             <span class="kw">let</span> <span class="ident">store_reader</span> <span class="op">=</span> <span class="ident">reader</span>.<span class="ident">get_store_reader</span>();
             <span class="kw">if</span> <span class="ident">reader</span>.<span class="ident">num_deleted_docs</span>() <span class="op">&gt;</span> <span class="number">0</span> {
-                <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">reader</span>.<span class="ident">max_doc</span>() {
-                    <span class="kw">if</span> <span class="op">!</span><span class="ident">reader</span>.<span class="ident">is_deleted</span>(<span class="ident">doc_id</span>) {
-                        <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">store_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>)<span class="question-mark">?</span>;
-                        <span class="ident">store_writer</span>.<span class="ident">store</span>(<span class="kw-2">&amp;</span><span class="ident">doc</span>)<span class="question-mark">?</span>;
-                    }
+                <span class="kw">for</span> <span class="ident">doc_id</span> <span class="kw">in</span> <span class="ident">reader</span>.<span class="ident">doc_ids_alive</span>() {
+                    <span class="kw">let</span> <span class="ident">doc</span> <span class="op">=</span> <span class="ident">store_reader</span>.<span class="ident">get</span>(<span class="ident">doc_id</span>)<span class="question-mark">?</span>;
+                    <span class="ident">store_writer</span>.<span class="ident">store</span>(<span class="kw-2">&amp;</span><span class="ident">doc</span>)<span class="question-mark">?</span>;
                 }
             } <span class="kw">else</span> {
                 <span class="ident">store_writer</span>.<span class="ident">stack</span>(<span class="ident">store_reader</span>)<span class="question-mark">?</span>;

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.50/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.51/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2875,6 +2875,35 @@
 <span id="2875">2875</span>
 <span id="2876">2876</span>
 <span id="2877">2877</span>
+<span id="2878">2878</span>
+<span id="2879">2879</span>
+<span id="2880">2880</span>
+<span id="2881">2881</span>
+<span id="2882">2882</span>
+<span id="2883">2883</span>
+<span id="2884">2884</span>
+<span id="2885">2885</span>
+<span id="2886">2886</span>
+<span id="2887">2887</span>
+<span id="2888">2888</span>
+<span id="2889">2889</span>
+<span id="2890">2890</span>
+<span id="2891">2891</span>
+<span id="2892">2892</span>
+<span id="2893">2893</span>
+<span id="2894">2894</span>
+<span id="2895">2895</span>
+<span id="2896">2896</span>
+<span id="2897">2897</span>
+<span id="2898">2898</span>
+<span id="2899">2899</span>
+<span id="2900">2900</span>
+<span id="2901">2901</span>
+<span id="2902">2902</span>
+<span id="2903">2903</span>
+<span id="2904">2904</span>
+<span id="2905">2905</span>
+<span id="2906">2906</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2960,10 +2989,26 @@
 }
 
 <span class="kw">fn</span> <span class="ident">precondition</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>) {
+    <span class="ident">precondition_sized</span>(<span class="ident">cx</span>, <span class="ident">cont</span>);
+    <span class="ident">precondition_no_de_lifetime</span>(<span class="ident">cx</span>, <span class="ident">cont</span>);
+}
+
+<span class="kw">fn</span> <span class="ident">precondition_sized</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>) {
     <span class="kw">if</span> <span class="kw">let</span> <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">data</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">last</span>) <span class="op">=</span> <span class="ident">fields</span>.<span class="ident">last</span>() {
             <span class="kw">if</span> <span class="kw">let</span> <span class="ident">syn</span>::<span class="ident">Type</span>::<span class="ident">Slice</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">last</span>.<span class="ident">ty</span> {
                 <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;cannot deserialize a dynamically sized struct&quot;</span>);
+            }
+        }
+    }
+}
+
+<span class="kw">fn</span> <span class="ident">precondition_no_de_lifetime</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>) {
+    <span class="kw">if</span> <span class="kw">let</span> <span class="ident">BorrowedLifetimes</span>::<span class="ident">Borrowed</span>(<span class="kw">_</span>) <span class="op">=</span> <span class="ident">borrowed_lifetimes</span>(<span class="ident">cont</span>) {
+        <span class="kw">for</span> <span class="ident">param</span> <span class="kw">in</span> <span class="ident">cont</span>.<span class="ident">generics</span>.<span class="ident">lifetimes</span>() {
+            <span class="kw">if</span> <span class="ident">param</span>.<span class="ident">lifetime</span>.<span class="ident">to_string</span>() <span class="op">==</span> <span class="string">&quot;&#39;de&quot;</span> {
+                <span class="ident">cx</span>.<span class="ident">error</span>(<span class="string">&quot;cannot deserialize when there is a lifetime parameter called &#39;de&quot;</span>);
+                <span class="kw">return</span>;
             }
         }
     }
@@ -3053,13 +3098,17 @@
     }
 }
 
-<span class="comment">// Fields with a `skip_deserializing` or `deserialize_with` attribute are not</span>
-<span class="comment">// deserialized by us so we do not generate a bound. Fields with a `bound`</span>
-<span class="comment">// attribute specify their own bound so we do not generate one. All other fields</span>
-<span class="comment">// may need a `T: Deserialize` bound where T is the type of the field.</span>
+<span class="comment">// Fields with a `skip_deserializing` or `deserialize_with` attribute, or which</span>
+<span class="comment">// belong to a variant with a `skip_deserializing` or `deserialize_with`</span>
+<span class="comment">// attribute, are not deserialized by us so we do not generate a bound. Fields</span>
+<span class="comment">// with a `bound` attribute specify their own bound so we do not generate one.</span>
+<span class="comment">// All other fields may need a `T: Deserialize` bound where T is the type of the</span>
+<span class="comment">// field.</span>
 <span class="kw">fn</span> <span class="ident">needs_deserialize_bound</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>, <span class="ident">variant</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="op">!</span><span class="ident">field</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">de_bound</span>().<span class="ident">is_none</span>()
-        <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">variant</span><span class="op">|</span> <span class="ident">variant</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_none</span>())
+        <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
+            <span class="op">!</span><span class="ident">variant</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_none</span>()
+        })
 }
 
 <span class="comment">// Fields with a `default` attribute (not `default=...`), and fields with a</span>
@@ -4271,6 +4320,21 @@
         }
     };
 
+    <span class="kw">let</span> <span class="ident">finish_content_then_tag</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">variant_arms</span>.<span class="ident">is_empty</span>() {
+        <span class="macro">quote</span><span class="macro">!</span> {
+            <span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span>::<span class="ident">next_value</span>::<span class="op">&lt;</span><span class="ident">__Field</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__map</span>)) {}
+        }
+    } <span class="kw">else</span> {
+        <span class="macro">quote</span><span class="macro">!</span> {
+            <span class="kw">let</span> <span class="ident">__ret</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span>::<span class="ident">next_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__map</span>)) {
+                <span class="comment">// Deserialize the buffered content now that we know the variant.</span>
+                #(#<span class="ident">variant_arms</span>)<span class="op">*</span>
+            });
+            <span class="comment">// Visit remaining keys, looking for duplicates.</span>
+            #<span class="ident">visit_remaining_keys</span>
+        }
+    };
+
     <span class="macro">quote_block</span><span class="macro">!</span> {
         #<span class="ident">variant_visitor</span>
 
@@ -4347,13 +4411,7 @@
                             <span class="comment">// Second key is the tag.</span>
                             <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Some</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">TagOrContentField</span>::<span class="ident">Tag</span>) <span class="op">=&gt;</span> {
                                 <span class="kw">let</span> <span class="ident">__deserializer</span> <span class="op">=</span> <span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">ContentDeserializer</span>::<span class="op">&lt;</span><span class="ident">__A</span>::<span class="ident">Error</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">__content</span>);
-                                <span class="comment">// Parse the tag.</span>
-                                <span class="kw">let</span> <span class="ident">__ret</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="kw">match</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">de</span>::<span class="ident">MapAccess</span>::<span class="ident">next_value</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">__map</span>)) {
-                                    <span class="comment">// Deserialize the buffered content now that we know the variant.</span>
-                                    #(#<span class="ident">variant_arms</span>)<span class="op">*</span>
-                                });
-                                <span class="comment">// Visit remaining keys, looking for duplicates.</span>
-                                #<span class="ident">visit_remaining_keys</span>
+                                #<span class="ident">finish_content_then_tag</span>
                             }
                             <span class="comment">// Second key is a duplicate of the content.</span>
                             <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">Some</span>(<span class="ident">_serde</span>::<span class="ident">private</span>::<span class="ident">de</span>::<span class="ident">TagOrContentField</span>::<span class="ident">Content</span>) <span class="op">=&gt;</span> {
