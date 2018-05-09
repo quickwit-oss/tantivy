@@ -4,6 +4,7 @@ use common::BinarySerializable;
 use common::CountingWriter;
 use directory::ReadOnlySource;
 use fst;
+use fst::automaton::AlwaysMatch;
 use fst::raw::Fst;
 use fst::Automaton;
 use postings::TermInfo;
@@ -192,12 +193,12 @@ impl TermDictionary {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range<'a>(&'a self) -> TermStreamerBuilder<'a> {
+    pub fn range<'a>(&'a self) -> TermStreamerBuilder<'a, AlwaysMatch> {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream<'a>(&'a self) -> TermStreamer<'a> {
+    pub fn stream<'a>(&'a self) -> TermStreamer<'a, AlwaysMatch> {
         self.range().into_stream()
     }
 

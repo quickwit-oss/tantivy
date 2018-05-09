@@ -2,6 +2,7 @@ use common::BitSet;
 use core::Searcher;
 use core::SegmentReader;
 use error::ErrorKind;
+use fst::automaton::AlwaysMatch;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Query, Scorer, Weight};
@@ -215,7 +216,7 @@ pub struct RangeWeight {
 }
 
 impl RangeWeight {
-    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> TermStreamer<'a> {
+    fn term_range<'a>(&self, term_dict: &'a TermDictionary) -> TermStreamer<'a, AlwaysMatch> {
         use std::collections::Bound::*;
         let mut term_stream_builder = term_dict.range();
         term_stream_builder = match self.left_bound {
