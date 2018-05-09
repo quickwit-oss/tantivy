@@ -352,10 +352,108 @@ impl SegmentReader {
             .map(|delete_set| delete_set.is_deleted(doc))
             .unwrap_or(false)
     }
+
+    /// Returns an iterator that will iterate over the alive document ids
+    pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator {
+        SegmentReaderAliveDocsIterator::new(&self)
+    }
 }
 
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
+    }
+}
+
+/// Implements the iterator trait to allow easy iteration
+/// over non-deleted ("alive") DocIds in a SegmentReader
+pub struct SegmentReaderAliveDocsIterator<'a> {
+    reader: &'a SegmentReader,
+    max_doc: DocId,
+    current: DocId,
+}
+
+impl<'a> SegmentReaderAliveDocsIterator<'a> {
+    pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
+        SegmentReaderAliveDocsIterator {
+            reader: reader,
+            max_doc: reader.max_doc(),
+            current: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
+    type Item = DocId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: Use TinySet (like in BitSetDocSet) to speed this process up
+        if self.current >= self.max_doc {
+            return None;
+        }
+
+        // find the next alive doc id
+        while self.reader.is_deleted(self.current) {
+            self.current += 1;
+
+            if self.current >= self.max_doc {
+                return None;
+            }
+        }
+
+        // capture the current alive DocId
+        let result = Some(self.current);
+
+        // move down the chain
+        self.current += 1;
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use core::Index;
+    use schema::*;
+
+    #[test]
+    fn test_iterator() {
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("name", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let name = schema.get_field("name").unwrap();
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => "tantivy"));
+            index_writer.add_document(doc!(name => "horse"));
+            index_writer.add_document(doc!(name => "jockey"));
+            index_writer.add_document(doc!(name => "cap"));
+
+            // we should now have one segment with two docs
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            index_writer2.delete_term(Term::from_field_text(name, "horse"));
+            index_writer2.delete_term(Term::from_field_text(name, "cap"));
+
+            // ok, now we should have a deleted doc
+            index_writer2.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+
+        let mut doc_count = 0;
+        for sr in searcher.segment_readers() {
+            for _alive in sr.doc_ids_alive() {
+                doc_count += 1;
+            }
+        }
+
+        assert_eq!(doc_count, 2)
     }
 }
