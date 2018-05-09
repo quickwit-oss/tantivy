@@ -423,6 +423,9 @@ mod tests {
 
     #[test]
     fn test_automaton_search() {
+        use fst::IntoStreamer;
+        use fst_levenshtein::Levenshtein;
+
         const COUNTRIES: [&'static str; 7] = [
             "San Marino",
             "Serbia",
@@ -433,22 +436,28 @@ mod tests {
             "Switzerland",
         ];
 
-        let mut schema_builder = SchemaBuilder::new();
-        schema_builder.add_text_field("country", TEXT | STORED);
-        let schema = schema_builder.build();
-        let index = Index::create_in_ram(schema);
-        let country = schema.get_field("country");
-
+        let mut directory = RAMDirectory::create();
+        let path = PathBuf::from("TermDictionary");
         {
-            let writer = index.writer_with_num_threads(1, 3_000).unwrap();
-            for country in COUNTRIES {
-                writer.add_document(doc!(country => country));
+            let write = directory.open_write(&path).unwrap();
+            let field_type = FieldType::Str(TEXT);
+            let mut term_dictionary_builder =
+                TermDictionaryBuilder::new(write, field_type).unwrap();
+            for term in COUNTRIES.iter() {
+                term_dictionary_builder
+                    .insert(term.as_bytes(), &make_term_info(0u64))
+                    .unwrap();
             }
-
-            writer.commit().unwrap();
+            term_dictionary_builder.finish().unwrap();
         }
+        let source = directory.open_read(&path).unwrap();
+        let term_dict: TermDictionary = TermDictionary::from_source(source);
 
-        // how can I get to the term dictionary?
-        // so that i can test my automaton
+        let automaton = Levenshtein::new("Spaen", 1).unwrap();
+
+        // WHY WON'T YOU COMPILE
+        let range = term_dict.search(automaton).into_stream();
+        assert!(range.advance());
+        //assert_eq!(value_list(range), vec!["Spain"]);
     }
 }
