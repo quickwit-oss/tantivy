@@ -451,12 +451,6 @@
 <span id="451">451</span>
 <span id="452">452</span>
 <span id="453">453</span>
-<span id="454">454</span>
-<span id="455">455</span>
-<span id="456">456</span>
-<span id="457">457</span>
-<span id="458">458</span>
-<span id="459">459</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">CompositeFile</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">HasLen</span>;
@@ -874,10 +868,11 @@
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">test</span> {
     <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">Index</span>;
-    <span class="kw">use</span> <span class="ident">schema</span>::<span class="kw-2">*</span>;
+    <span class="kw">use</span> <span class="ident">DocId</span>;
+    <span class="kw">use</span> <span class="ident">schema</span>::{<span class="ident">TEXT</span>, <span class="ident">STORED</span>, <span class="ident">Term</span>, <span class="ident">SchemaBuilder</span>};
 
     <span class="attribute">#[<span class="ident">test</span>]</span>
-    <span class="kw">fn</span> <span class="ident">test_iterator</span>() {
+    <span class="kw">fn</span> <span class="ident">test_alive_docs_iterator</span>() {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">schema_builder</span> <span class="op">=</span> <span class="ident">SchemaBuilder</span>::<span class="ident">new</span>();
         <span class="ident">schema_builder</span>.<span class="ident">add_text_field</span>(<span class="string">&quot;name&quot;</span>, <span class="ident">TEXT</span> <span class="op">|</span> <span class="ident">STORED</span>);
         <span class="kw">let</span> <span class="ident">schema</span> <span class="op">=</span> <span class="ident">schema_builder</span>.<span class="ident">build</span>();
@@ -906,15 +901,8 @@
 
         <span class="ident">index</span>.<span class="ident">load_searchers</span>().<span class="ident">unwrap</span>();
         <span class="kw">let</span> <span class="ident">searcher</span> <span class="op">=</span> <span class="ident">index</span>.<span class="ident">searcher</span>();
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc_count</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">for</span> <span class="ident">sr</span> <span class="kw">in</span> <span class="ident">searcher</span>.<span class="ident">segment_readers</span>() {
-            <span class="kw">for</span> <span class="ident">_alive</span> <span class="kw">in</span> <span class="ident">sr</span>.<span class="ident">doc_ids_alive</span>() {
-                <span class="ident">doc_count</span> <span class="op">+=</span> <span class="number">1</span>;
-            }
-        }
-
-        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">doc_count</span>, <span class="number">2</span>)
+        <span class="kw">let</span> <span class="ident">docs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">DocId</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">searcher</span>.<span class="ident">segment_reader</span>(<span class="number">0</span>).<span class="ident">doc_ids_alive</span>().<span class="ident">collect</span>();
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0u32</span>, <span class="number">2u32</span>],  <span class="ident">docs</span>);
     }
 }
 </pre>
