@@ -1,18 +1,26 @@
 use super::TermDictionary;
+use fst::automaton::AlwaysMatch;
 use fst::map::{Stream, StreamBuilder};
+use fst::Automaton;
 use fst::{IntoStreamer, Streamer};
 use postings::TermInfo;
 use termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
-pub struct TermStreamerBuilder<'a> {
+pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
+where
+    A: Automaton,
+{
     fst_map: &'a TermDictionary,
-    stream_builder: StreamBuilder<'a>,
+    stream_builder: StreamBuilder<'a, A>,
 }
 
-impl<'a> TermStreamerBuilder<'a> {
-    pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a>) -> Self {
+impl<'a, A> TermStreamerBuilder<'a, A>
+where
+    A: Automaton,
+{
+    pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
             fst_map,
             stream_builder,

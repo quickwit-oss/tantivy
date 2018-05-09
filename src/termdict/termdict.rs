@@ -5,6 +5,7 @@ use common::CountingWriter;
 use directory::ReadOnlySource;
 use fst;
 use fst::raw::Fst;
+use fst::Automaton;
 use postings::TermInfo;
 use schema::FieldType;
 use std::io::{self, Write};
@@ -198,5 +199,14 @@ impl TermDictionary {
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     pub fn stream<'a>(&'a self) -> TermStreamer<'a> {
         self.range().into_stream()
+    }
+
+    pub fn search<'a, A: Automaton>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A> {
+        use fst::map;
+
+        // given an Automaton and a fst::Map (fst_index)
+        // how can I generate a streambuilder?
+        let sb = map::StreamBuilder(automaton);
+        TermStreamerBuilder::<A>::new(self, sb)
     }
 }

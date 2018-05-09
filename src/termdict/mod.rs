@@ -419,4 +419,34 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_automaton_search() {
+        const COUNTRIES: [&'static str; 7] = [
+            "San Marino",
+            "Serbia",
+            "Slovakia",
+            "Slovenia",
+            "Spain",
+            "Sweden",
+            "Switzerland",
+        ];
+
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("country", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let country = schema.get_field("country");
+
+        {
+            let writer = index.writer_with_num_threads(1, 3_000).unwrap();
+            for country in COUNTRIES {
+                writer.add_document(doc!(country => country));
+            }
+
+            writer.commit().unwrap();
+        }
+
+        // how can I get to the term dictionary?
+        // so that i can test my automaton
+    }
 }
