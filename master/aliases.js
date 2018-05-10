@@ -19,6 +19,7 @@ ALIASES['downcast'] = {};
 ALIASES['dtoa'] = {};
 ALIASES['either'] = {};
 ALIASES['error_chain'] = {};
+ALIASES['fnv'] = {};
 ALIASES['fs2'] = {};
 ALIASES['fst'] = {};
 ALIASES['futures'] = {};

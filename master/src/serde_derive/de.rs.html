@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.51/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.52/src/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2904,6 +2904,22 @@
 <span id="2904">2904</span>
 <span id="2905">2905</span>
 <span id="2906">2906</span>
+<span id="2907">2907</span>
+<span id="2908">2908</span>
+<span id="2909">2909</span>
+<span id="2910">2910</span>
+<span id="2911">2911</span>
+<span id="2912">2912</span>
+<span id="2913">2913</span>
+<span id="2914">2914</span>
+<span id="2915">2915</span>
+<span id="2916">2916</span>
+<span id="2917">2917</span>
+<span id="2918">2918</span>
+<span id="2919">2919</span>
+<span id="2920">2920</span>
+<span id="2921">2921</span>
+<span id="2922">2922</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -3070,6 +3086,9 @@
 
     <span class="kw">let</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">bound</span>::<span class="ident">with_where_predicates_from_fields</span>(<span class="ident">cont</span>, <span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">attr</span>::<span class="ident">Field</span>::<span class="ident">de_bound</span>);
 
+    <span class="kw">let</span> <span class="ident">generics</span> <span class="op">=</span>
+        <span class="ident">bound</span>::<span class="ident">with_where_predicates_from_variants</span>(<span class="ident">cont</span>, <span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">attr</span>::<span class="ident">Variant</span>::<span class="ident">de_bound</span>);
+
     <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">de_bound</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">predicates</span>) <span class="op">=&gt;</span> <span class="ident">bound</span>::<span class="ident">with_where_predicates</span>(<span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">predicates</span>),
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> {
@@ -3108,6 +3127,7 @@
     <span class="op">!</span><span class="ident">field</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">de_bound</span>().<span class="ident">is_none</span>()
         <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
             <span class="op">!</span><span class="ident">variant</span>.<span class="ident">skip_deserializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">deserialize_with</span>().<span class="ident">is_none</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">de_bound</span>().<span class="ident">is_none</span>()
         })
 }
 
@@ -3330,7 +3350,9 @@
         <span class="prelude-val">None</span>
     };
 
-    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq</span>(<span class="kw-2">&amp;</span><span class="ident">type_path</span>, <span class="ident">params</span>, <span class="ident">fields</span>, <span class="bool-val">false</span>, <span class="ident">cattrs</span>));
+    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq</span>(
+        <span class="kw-2">&amp;</span><span class="ident">type_path</span>, <span class="ident">params</span>, <span class="ident">fields</span>, <span class="bool-val">false</span>, <span class="ident">cattrs</span>, <span class="kw-2">&amp;</span><span class="ident">expecting</span>,
+    ));
 
     <span class="kw">let</span> <span class="ident">visitor_expr</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
         <span class="ident">__Visitor</span> {
@@ -3414,7 +3436,7 @@
         <span class="prelude-val">None</span>
     };
 
-    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq_in_place</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>));
+    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq_in_place</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>, <span class="kw-2">&amp;</span><span class="ident">expecting</span>));
 
     <span class="kw">let</span> <span class="ident">visitor_expr</span> <span class="op">=</span> <span class="macro">quote</span><span class="macro">!</span> {
         <span class="ident">__Visitor</span> {
@@ -3480,6 +3502,7 @@
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">is_struct</span>: <span class="ident">bool</span>,
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
+    <span class="ident">expecting</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
     <span class="kw">let</span> <span class="ident">vars</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">fields</span>.<span class="ident">len</span>()).<span class="ident">map</span>(<span class="ident">field_i</span> <span class="kw">as</span> <span class="kw">fn</span>(<span class="kw">_</span>) <span class="op">-&gt;</span> <span class="kw">_</span>);
 
@@ -3489,7 +3512,11 @@
         .<span class="ident">iter</span>()
         .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>())
         .<span class="ident">count</span>();
-    <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;tuple of {} elements&quot;</span>, <span class="ident">deserialized_count</span>);
+    <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">deserialized_count</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} with 1 element&quot;</span>, <span class="ident">expecting</span>)
+    } <span class="kw">else</span> {
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} with {} elements&quot;</span>, <span class="ident">expecting</span>, <span class="ident">deserialized_count</span>)
+    };
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_in_seq</span> <span class="op">=</span> <span class="number">0_usize</span>;
     <span class="kw">let</span> <span class="ident">let_values</span> <span class="op">=</span> <span class="ident">vars</span>.<span class="ident">clone</span>().<span class="ident">zip</span>(<span class="ident">fields</span>).<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">var</span>, <span class="ident">field</span>)<span class="op">|</span> {
@@ -3574,6 +3601,7 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">fields</span>: <span class="kw-2">&amp;</span>[<span class="ident">Field</span>],
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
+    <span class="ident">expecting</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
 ) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
     <span class="kw">let</span> <span class="ident">vars</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">fields</span>.<span class="ident">len</span>()).<span class="ident">map</span>(<span class="ident">field_i</span> <span class="kw">as</span> <span class="kw">fn</span>(<span class="kw">_</span>) <span class="op">-&gt;</span> <span class="kw">_</span>);
 
@@ -3583,7 +3611,11 @@
         .<span class="ident">iter</span>()
         .<span class="ident">filter</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_deserializing</span>())
         .<span class="ident">count</span>();
-    <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;tuple of {} elements&quot;</span>, <span class="ident">deserialized_count</span>);
+    <span class="kw">let</span> <span class="ident">expecting</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">deserialized_count</span> <span class="op">==</span> <span class="number">1</span> {
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} with 1 element&quot;</span>, <span class="ident">expecting</span>)
+    } <span class="kw">else</span> {
+        <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;{} with {} elements&quot;</span>, <span class="ident">expecting</span>, <span class="ident">deserialized_count</span>)
+    };
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index_in_seq</span> <span class="op">=</span> <span class="number">0usize</span>;
     <span class="kw">let</span> <span class="ident">write_values</span> <span class="op">=</span> <span class="ident">vars</span>.<span class="ident">clone</span>()
@@ -3755,7 +3787,7 @@
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;struct {}&quot;</span>, <span class="ident">params</span>.<span class="ident">type_name</span>()),
     };
 
-    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq</span>(<span class="kw-2">&amp;</span><span class="ident">type_path</span>, <span class="ident">params</span>, <span class="ident">fields</span>, <span class="bool-val">true</span>, <span class="ident">cattrs</span>));
+    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq</span>(<span class="kw-2">&amp;</span><span class="ident">type_path</span>, <span class="ident">params</span>, <span class="ident">fields</span>, <span class="bool-val">true</span>, <span class="ident">cattrs</span>, <span class="kw-2">&amp;</span><span class="ident">expecting</span>));
 
     <span class="kw">let</span> (<span class="ident">field_visitor</span>, <span class="ident">fields_stmt</span>, <span class="ident">visit_map</span>) <span class="op">=</span> <span class="kw">if</span> <span class="ident">cattrs</span>.<span class="ident">has_flatten</span>() {
         <span class="ident">deserialize_struct_as_map_visitor</span>(<span class="kw-2">&amp;</span><span class="ident">type_path</span>, <span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>)
@@ -3894,7 +3926,7 @@
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;struct {}&quot;</span>, <span class="ident">params</span>.<span class="ident">type_name</span>()),
     };
 
-    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq_in_place</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>));
+    <span class="kw">let</span> <span class="ident">visit_seq</span> <span class="op">=</span> <span class="ident">Stmts</span>(<span class="ident">deserialize_seq_in_place</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>, <span class="kw-2">&amp;</span><span class="ident">expecting</span>));
 
     <span class="kw">let</span> (<span class="ident">field_visitor</span>, <span class="ident">fields_stmt</span>, <span class="ident">visit_map</span>) <span class="op">=</span>
         <span class="ident">deserialize_struct_as_struct_in_place_visitor</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="ident">cattrs</span>);

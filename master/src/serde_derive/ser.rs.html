@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.51/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.52/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1232,6 +1232,43 @@
 <span id="1232">1232</span>
 <span id="1233">1233</span>
 <span id="1234">1234</span>
+<span id="1235">1235</span>
+<span id="1236">1236</span>
+<span id="1237">1237</span>
+<span id="1238">1238</span>
+<span id="1239">1239</span>
+<span id="1240">1240</span>
+<span id="1241">1241</span>
+<span id="1242">1242</span>
+<span id="1243">1243</span>
+<span id="1244">1244</span>
+<span id="1245">1245</span>
+<span id="1246">1246</span>
+<span id="1247">1247</span>
+<span id="1248">1248</span>
+<span id="1249">1249</span>
+<span id="1250">1250</span>
+<span id="1251">1251</span>
+<span id="1252">1252</span>
+<span id="1253">1253</span>
+<span id="1254">1254</span>
+<span id="1255">1255</span>
+<span id="1256">1256</span>
+<span id="1257">1257</span>
+<span id="1258">1258</span>
+<span id="1259">1259</span>
+<span id="1260">1260</span>
+<span id="1261">1261</span>
+<span id="1262">1262</span>
+<span id="1263">1263</span>
+<span id="1264">1264</span>
+<span id="1265">1265</span>
+<span id="1266">1266</span>
+<span id="1267">1267</span>
+<span id="1268">1268</span>
+<span id="1269">1269</span>
+<span id="1270">1270</span>
+<span id="1271">1271</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1373,6 +1410,9 @@
     <span class="kw">let</span> <span class="ident">generics</span> <span class="op">=</span>
         <span class="ident">bound</span>::<span class="ident">with_where_predicates_from_fields</span>(<span class="ident">cont</span>, <span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">attr</span>::<span class="ident">Field</span>::<span class="ident">ser_bound</span>);
 
+    <span class="kw">let</span> <span class="ident">generics</span> <span class="op">=</span>
+        <span class="ident">bound</span>::<span class="ident">with_where_predicates_from_variants</span>(<span class="ident">cont</span>, <span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">attr</span>::<span class="ident">Variant</span>::<span class="ident">ser_bound</span>);
+
     <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">ser_bound</span>() {
         <span class="prelude-val">Some</span>(<span class="ident">predicates</span>) <span class="op">=&gt;</span> <span class="ident">bound</span>::<span class="ident">with_where_predicates</span>(<span class="kw-2">&amp;</span><span class="ident">generics</span>, <span class="ident">predicates</span>),
         <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">bound</span>::<span class="ident">with_bound</span>(
@@ -1393,6 +1433,7 @@
     <span class="op">!</span><span class="ident">field</span>.<span class="ident">skip_serializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">serialize_with</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">ser_bound</span>().<span class="ident">is_none</span>()
         <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
             <span class="op">!</span><span class="ident">variant</span>.<span class="ident">skip_serializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">serialize_with</span>().<span class="ident">is_none</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">ser_bound</span>().<span class="ident">is_none</span>()
         })
 }
 
@@ -1474,8 +1515,25 @@
         <span class="ident">serialize_tuple_struct_visitor</span>(<span class="ident">fields</span>, <span class="ident">params</span>, <span class="bool-val">false</span>, <span class="kw-2">&amp;</span><span class="ident">TupleTrait</span>::<span class="ident">SerializeTupleStruct</span>);
 
     <span class="kw">let</span> <span class="ident">type_name</span> <span class="op">=</span> <span class="ident">cattrs</span>.<span class="ident">name</span>().<span class="ident">serialize_name</span>();
-    <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">serialize_stmts</span>.<span class="ident">len</span>();
-    <span class="kw">let</span> <span class="ident">let_mut</span> <span class="op">=</span> <span class="ident">mut_if</span>(<span class="ident">len</span> <span class="op">&gt;</span> <span class="number">0</span>);
+
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialized_fields</span> <span class="op">=</span> <span class="ident">fields</span>
+        .<span class="ident">iter</span>()
+        .<span class="ident">enumerate</span>()
+        .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">field</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>())
+        .<span class="ident">peekable</span>();
+
+    <span class="kw">let</span> <span class="ident">let_mut</span> <span class="op">=</span> <span class="ident">mut_if</span>(<span class="ident">serialized_fields</span>.<span class="ident">peek</span>().<span class="ident">is_some</span>());
+
+    <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">serialized_fields</span>
+        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">field</span>)<span class="op">|</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing_if</span>() {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="number">1</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">index</span> <span class="op">=</span> <span class="ident">syn</span>::<span class="ident">Index</span> { <span class="ident">index</span>: <span class="ident">i</span> <span class="kw">as</span> <span class="ident">u32</span>, <span class="ident">span</span>: <span class="ident">Span</span>::<span class="ident">call_site</span>() };
+                <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">Member</span>::<span class="ident">Unnamed</span>(<span class="ident">index</span>));
+                <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">field_expr</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> })
+            }
+        })
+        .<span class="ident">fold</span>(<span class="macro">quote</span><span class="macro">!</span>(<span class="number">0</span>), <span class="op">|</span><span class="ident">sum</span>, <span class="ident">expr</span><span class="op">|</span> <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">sum</span> <span class="op">+</span> #<span class="ident">expr</span>));
 
     <span class="macro">quote_block</span><span class="macro">!</span> {
         <span class="kw">let</span> #<span class="ident">let_mut</span> <span class="ident">__serde_state</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">Serializer</span>::<span class="ident">serialize_tuple_struct</span>(<span class="ident">__serializer</span>, #<span class="ident">type_name</span>, #<span class="ident">len</span>));
@@ -1974,8 +2032,23 @@
 
     <span class="kw">let</span> <span class="ident">serialize_stmts</span> <span class="op">=</span> <span class="ident">serialize_tuple_struct_visitor</span>(<span class="ident">fields</span>, <span class="ident">params</span>, <span class="bool-val">true</span>, <span class="kw-2">&amp;</span><span class="ident">tuple_trait</span>);
 
-    <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">serialize_stmts</span>.<span class="ident">len</span>();
-    <span class="kw">let</span> <span class="ident">let_mut</span> <span class="op">=</span> <span class="ident">mut_if</span>(<span class="ident">len</span> <span class="op">&gt;</span> <span class="number">0</span>);
+    <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">serialized_fields</span> <span class="op">=</span> <span class="ident">fields</span>
+        .<span class="ident">iter</span>()
+        .<span class="ident">enumerate</span>()
+        .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">field</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>())
+        .<span class="ident">peekable</span>();
+
+    <span class="kw">let</span> <span class="ident">let_mut</span> <span class="op">=</span> <span class="ident">mut_if</span>(<span class="ident">serialized_fields</span>.<span class="ident">peek</span>().<span class="ident">is_some</span>());
+
+    <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">serialized_fields</span>
+        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">field</span>)<span class="op">|</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing_if</span>() {
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="number">1</span>),
+            <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
+                <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">i</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>());
+                <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">field_expr</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> })
+            }
+        })
+        .<span class="ident">fold</span>(<span class="macro">quote</span><span class="macro">!</span>(<span class="number">0</span>), <span class="op">|</span><span class="ident">sum</span>, <span class="ident">expr</span><span class="op">|</span> <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">sum</span> <span class="op">+</span> #<span class="ident">expr</span>));
 
     <span class="kw">match</span> <span class="ident">context</span> {
         <span class="ident">TupleVariant</span>::<span class="ident">ExternallyTagged</span> {
@@ -2197,6 +2270,7 @@
     <span class="ident">fields</span>
         .<span class="ident">iter</span>()
         .<span class="ident">enumerate</span>()
+        .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">field</span>)<span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>())
         .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">field</span>)<span class="op">|</span> {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_enum</span> {
                 <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">i</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>());

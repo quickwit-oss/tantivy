@@ -337,6 +337,8 @@
 <span id="337">337</span>
 <span id="338">338</span>
 <span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
 </pre><pre class="rust ">
 <span class="doccomment">//! Tokenizer are in charge of chopping text into a stream of tokens</span>
 <span class="doccomment">//! ready for indexing.</span>
@@ -477,6 +479,7 @@
 <span class="kw">mod</span> <span class="ident">remove_long</span>;
 <span class="kw">mod</span> <span class="ident">simple_tokenizer</span>;
 <span class="kw">mod</span> <span class="ident">stemmer</span>;
+<span class="kw">mod</span> <span class="ident">stop_word_filter</span>;
 <span class="kw">mod</span> <span class="ident">token_stream_chain</span>;
 <span class="kw">mod</span> <span class="ident">tokenizer</span>;
 <span class="kw">mod</span> <span class="ident">tokenizer_manager</span>;
@@ -490,6 +493,7 @@
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">remove_long</span>::<span class="ident">RemoveLongFilter</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">simple_tokenizer</span>::<span class="ident">SimpleTokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stemmer</span>::<span class="ident">Stemmer</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">stop_word_filter</span>::<span class="ident">StopWordFilter</span>;
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">use</span> <span class="self">self</span>::<span class="ident">token_stream_chain</span>::<span class="ident">TokenStreamChain</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::<span class="ident">BoxedTokenizer</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="self">self</span>::<span class="ident">tokenizer</span>::{<span class="ident">Token</span>, <span class="ident">TokenFilter</span>, <span class="ident">TokenStream</span>, <span class="ident">Tokenizer</span>};

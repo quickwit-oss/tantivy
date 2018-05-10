@@ -60,7 +60,55 @@
 <span id="60">60</span>
 <span id="61">61</span>
 <span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
 </pre><pre class="rust ">
+<span class="doccomment">//! # Example</span>
+<span class="doccomment">//! ```</span>
+<span class="doccomment">//! extern crate tantivy;</span>
+<span class="doccomment">//! use tantivy::tokenizer::*;</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! # fn main() {</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let tokenizer = RawTokenizer</span>
+<span class="doccomment">//!   .filter(AlphaNumOnlyFilter);</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let mut stream = tokenizer.token_stream(&quot;hello there&quot;);</span>
+<span class="doccomment">//! // is none because the raw filter emits one token that</span>
+<span class="doccomment">//! // contains a space</span>
+<span class="doccomment">//! assert!(stream.next().is_none());</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let tokenizer = SimpleTokenizer</span>
+<span class="doccomment">//!   .filter(AlphaNumOnlyFilter);</span>
+<span class="doccomment">//!</span>
+<span class="doccomment">//! let mut stream = tokenizer.token_stream(&quot;hello there 💣&quot;);</span>
+<span class="doccomment">//! assert!(stream.next().is_some());</span>
+<span class="doccomment">//! assert!(stream.next().is_some());</span>
+<span class="doccomment">//! // the &quot;emoji&quot; is dropped because its not an alphanum</span>
+<span class="doccomment">//! assert!(stream.next().is_none());</span>
+<span class="doccomment">//! # }</span>
+<span class="doccomment">//! ```</span>
 <span class="kw">use</span> <span class="kw">super</span>::{<span class="ident">Token</span>, <span class="ident">TokenFilter</span>, <span class="ident">TokenStream</span>};
 
 <span class="doccomment">/// `TokenFilter` that removes all tokens that contain non</span>
@@ -112,15 +160,13 @@
     }
 
     <span class="kw">fn</span> <span class="ident">advance</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="kw">loop</span> {
-            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">tail</span>.<span class="ident">advance</span>() {
-                <span class="kw">if</span> <span class="self">self</span>.<span class="ident">predicate</span>(<span class="self">self</span>.<span class="ident">tail</span>.<span class="ident">token</span>()) {
-                    <span class="kw">return</span> <span class="bool-val">true</span>;
-                }
-            } <span class="kw">else</span> {
-                <span class="kw">return</span> <span class="bool-val">false</span>;
+        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">tail</span>.<span class="ident">advance</span>() {
+            <span class="kw">if</span> <span class="self">self</span>.<span class="ident">predicate</span>(<span class="self">self</span>.<span class="ident">tail</span>.<span class="ident">token</span>()) {
+                <span class="kw">return</span> <span class="bool-val">true</span>;
             }
         }
+
+        <span class="bool-val">false</span>
     }
 }
 </pre>
