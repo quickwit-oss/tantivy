@@ -136,7 +136,6 @@ extern crate combine;
 extern crate crossbeam;
 extern crate fnv;
 extern crate fst;
-extern crate fst_levenshtein;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate itertools;
