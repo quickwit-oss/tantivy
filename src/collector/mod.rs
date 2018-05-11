@@ -13,6 +13,9 @@ use Searcher;
 mod count_collector;
 pub use self::count_collector::CountCollector;
 
+mod multi_collector;
+pub use self::multi_collector::MultiCollector;
+
 mod top_collector;
 pub use self::top_collector::TopCollector;
 
