@@ -1,4 +1,3 @@
-use fst::automaton::AlwaysMatch;
 use schema::Term;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
@@ -6,7 +5,7 @@ use termdict::TermOrdinal;
 use termdict::TermStreamer;
 
 pub struct HeapItem<'a> {
-    pub streamer: TermStreamer<'a, AlwaysMatch>,
+    pub streamer: TermStreamer<'a>,
     pub segment_ord: usize,
 }
 
@@ -45,7 +44,7 @@ pub struct TermMerger<'a> {
 impl<'a> TermMerger<'a> {
     /// Stream of merged term dictionary
     ///
-    pub fn new(streams: Vec<TermStreamer<'a, AlwaysMatch>>) -> TermMerger<'a> {
+    pub fn new(streams: Vec<TermStreamer<'a>>) -> TermMerger<'a> {
         TermMerger {
             heap: BinaryHeap::new(),
             current_streamers: streams

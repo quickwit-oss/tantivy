@@ -1,4 +1,5 @@
 use super::TermDictionary;
+use fst::automaton::AlwaysMatch;
 use fst::map::{Stream, StreamBuilder};
 use fst::Automaton;
 use fst::{IntoStreamer, Streamer};
@@ -7,7 +8,7 @@ use termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
-pub struct TermStreamerBuilder<'a, A>
+pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
 where
     A: Automaton,
 {
@@ -65,7 +66,7 @@ where
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub struct TermStreamer<'a, A>
+pub struct TermStreamer<'a, A = AlwaysMatch>
 where
     A: Automaton,
 {
