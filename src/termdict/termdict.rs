@@ -202,6 +202,8 @@ impl TermDictionary {
         self.range().into_stream()
     }
 
+    /// Returns a search builder, to stream all of the terms
+    /// within the Automaton
     pub fn search<'a, A: Automaton>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A> {
         let sb = self.fst_index.search(automaton);
         TermStreamerBuilder::<A>::new(self, sb)
