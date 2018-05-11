@@ -17,7 +17,7 @@ byteorder = "1.0"
 lazy_static = "0.2.1"
 tinysegmenter = "0.1.0"
 regex = "0.2"
-fst = {version="0.2", default-features=false}
+fst = {version="0.3", default-features=false}
 atomicwrites = {version="0.1", optional=true}
 tempfile = "2.1"
 log = "0.3.6"
@@ -28,6 +28,7 @@ serde_derive = "1.0"
 serde_json = "1.0"
 num_cpus = "1.2"
 itertools = "0.5.9"
+levenshtein_automata = {version="0.1", features=["fst_automaton"]}
 lz4 = "1.20"
 bit-set = "0.4.0"
 uuid = { version = "0.6", features = ["v4", "serde"] }

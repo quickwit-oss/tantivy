@@ -1,7 +1,7 @@
 /*!
-The term dictionary is one of the key datastructure of
+The term dictionary is one of the key data structures of
 tantivy. It associates sorted `terms` to a `TermInfo` struct
-that serves as an address in their respective posting list.
+that serves as an address to their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
@@ -9,12 +9,12 @@ a range of keys in a sorted manner.
 
 # Implementations
 
-There is currently two implementations of the term dictionary.
+There are currently two implementations of the term dictionary.
 
 ## Default implementation : `fstdict`
 
 The default one relies heavily on the `fst` crate.
-It associate each terms `&[u8]` representation to a `u64`
+It associate each term's `&[u8]` representation to a `u64`
 that is in fact an address in a buffer. The value is then accessible
 via deserializing the value at this address.
 
@@ -419,4 +419,46 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_automaton_search() {
+        use levenshtein_automata::LevenshteinAutomatonBuilder;
+
+        const COUNTRIES: [&'static str; 7] = [
+            "San Marino",
+            "Serbia",
+            "Slovakia",
+            "Slovenia",
+            "Spain",
+            "Sweden",
+            "Switzerland",
+        ];
+
+        let mut directory = RAMDirectory::create();
+        let path = PathBuf::from("TermDictionary");
+        {
+            let write = directory.open_write(&path).unwrap();
+            let field_type = FieldType::Str(TEXT);
+            let mut term_dictionary_builder =
+                TermDictionaryBuilder::new(write, field_type).unwrap();
+            for term in COUNTRIES.iter() {
+                term_dictionary_builder
+                    .insert(term.as_bytes(), &make_term_info(0u64))
+                    .unwrap();
+            }
+            term_dictionary_builder.finish().unwrap();
+        }
+        let source = directory.open_read(&path).unwrap();
+        let term_dict: TermDictionary = TermDictionary::from_source(source);
+
+        // We can now build an entire dfa.
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
+        let automaton = lev_automaton_builder.build_dfa("Spaen");
+
+        let mut range = term_dict.search(automaton).into_stream();
+
+        // get the first finding
+        assert!(range.advance());
+        assert_eq!("Spain".as_bytes(), range.key());
+        assert!(!range.advance());
+    }
 }
