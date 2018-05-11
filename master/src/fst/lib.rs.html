@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.2.3/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.0/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -453,15 +453,15 @@ use fst_levenshtein::Levenshtein;
 fn example() -&gt; Result&lt;(), Box&lt;Error&gt;&gt; {
     // A convenient way to create sets in memory.
     let keys = vec![&quot;fa&quot;, &quot;fo&quot;, &quot;fob&quot;, &quot;focus&quot;, &quot;foo&quot;, &quot;food&quot;, &quot;foul&quot;];
-    let set = try!(Set::from_iter(keys));
+    let set = Set::from_iter(keys)?;
 
     // Build our fuzzy query.
-    let lev = try!(Levenshtein::new(&quot;foo&quot;, 1));
+    let lev = Levenshtein::new(&quot;foo&quot;, 1)?;
 
     // Apply our fuzzy query to the set we built.
     let mut stream = set.search(lev).into_stream();
 
-    let keys = try!(stream.into_strs());
+    let keys = stream.into_strs()?;
     assert_eq!(keys, vec![&quot;fo&quot;, &quot;fob&quot;, &quot;foo&quot;, &quot;food&quot;]);
     Ok(())
 }
@@ -481,26 +481,26 @@ use std::io;
 use fst::{IntoStreamer, Streamer, Map, MapBuilder};
 
 // This is where we&#39;ll write our map to.
-let mut wtr = io::BufWriter::new(try!(File::create(&quot;map.fst&quot;)));
+let mut wtr = io::BufWriter::new(File::create(&quot;map.fst&quot;)?);
 
 // Create a builder that can be used to insert new key-value pairs.
-let mut build = try!(MapBuilder::new(wtr));
+let mut build = MapBuilder::new(wtr)?;
 build.insert(&quot;bruce&quot;, 1).unwrap();
 build.insert(&quot;clarence&quot;, 2).unwrap();
 build.insert(&quot;stevie&quot;, 3).unwrap();
 
 // Finish construction of the map and flush its contents to disk.
-try!(build.finish());
+build.finish()?;
 
 // At this point, the map has been constructed. Now we&#39;d like to search it.
 // This creates a memory map, which enables searching the map without loading
 // all of it into memory.
-let map = try!(Map::from_path(&quot;map.fst&quot;));
+let map = unsafe { Map::from_path(&quot;map.fst&quot;) }?;
 
 // Query for keys that are greater than or equal to clarence.
 let mut stream = map.range().ge(&quot;clarence&quot;).into_stream();
 
-let kvs = try!(stream.into_str_vec());
+let kvs = stream.into_str_vec()?;
 assert_eq!(kvs, vec![
     (&quot;clarence&quot;.to_owned(), 2),
     (&quot;stevie&quot;.to_owned(), 3),
@@ -527,12 +527,12 @@ use fst_regex::Regex;
 
 # fn main() { example().unwrap(); }
 fn example() -&gt; Result&lt;(), Box&lt;Error&gt;&gt; {
-    let set = try!(Set::from_iter(&amp;[&quot;FoO&quot;, &quot;Foo&quot;, &quot;fOO&quot;, &quot;foo&quot;]));
+    let set = Set::from_iter(&amp;[&quot;FoO&quot;, &quot;Foo&quot;, &quot;fOO&quot;, &quot;foo&quot;])?;
 
-    let re = try!(Regex::new(&quot;(?i)foo&quot;));
+    let re = Regex::new(&quot;(?i)foo&quot;)?;
     let mut stream = set.search(&amp;re).into_stream();
 
-    let keys = try!(stream.into_strs());
+    let keys = stream.into_strs()?;
     assert_eq!(keys, vec![&quot;FoO&quot;, &quot;Foo&quot;, &quot;fOO&quot;, &quot;foo&quot;]);
     Ok(())
 }
@@ -563,14 +563,14 @@ use fst_regex::Regex;
 
 # fn main() { example().unwrap(); }
 fn example() -&gt; Result&lt;(), Box&lt;Error&gt;&gt; {
-    let set1 = try!(Set::from_iter(&amp;[&quot;AC/DC&quot;, &quot;Aerosmith&quot;]));
-    let set2 = try!(Set::from_iter(&amp;[&quot;Bob Seger&quot;, &quot;Bruce Springsteen&quot;]));
-    let set3 = try!(Set::from_iter(&amp;[&quot;George Thorogood&quot;, &quot;Golden Earring&quot;]));
-    let set4 = try!(Set::from_iter(&amp;[&quot;Kansas&quot;]));
-    let set5 = try!(Set::from_iter(&amp;[&quot;Metallica&quot;]));
+    let set1 = Set::from_iter(&amp;[&quot;AC/DC&quot;, &quot;Aerosmith&quot;])?;
+    let set2 = Set::from_iter(&amp;[&quot;Bob Seger&quot;, &quot;Bruce Springsteen&quot;])?;
+    let set3 = Set::from_iter(&amp;[&quot;George Thorogood&quot;, &quot;Golden Earring&quot;])?;
+    let set4 = Set::from_iter(&amp;[&quot;Kansas&quot;])?;
+    let set5 = Set::from_iter(&amp;[&quot;Metallica&quot;])?;
 
     // Create the regular expression. We can reuse it to search all of the sets.
-    let re = try!(Regex::new(r&quot;.+\p{Lu}.*&quot;));
+    let re = Regex::new(r&quot;.+\p{Lu}.*&quot;)?;
 
     // Build a set operation. All we need to do is add a search result stream for
     // each set and ask for the union. (Other operations, like intersection and

@@ -1,1 +1,1 @@
-initSidebarItems({"enum":[["Protection","Memory map protection."]],"struct":[["Mmap","A memory-mapped buffer."],["MmapOptions",""],["MmapView","A view of a memory map."],["MmapViewSync","A thread-safe view of a memory map."]]});
+initSidebarItems({"struct":[["Mmap","An immutable memory mapped buffer."],["MmapMut","A mutable memory mapped buffer."],["MmapOptions","A memory map builder, providing advanced options and flags for specifying memory map behavior."]]});

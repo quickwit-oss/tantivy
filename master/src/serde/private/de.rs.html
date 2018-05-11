@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.52/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.53/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2843,6 +2843,44 @@
 <span id="2843">2843</span>
 <span id="2844">2844</span>
 <span id="2845">2845</span>
+<span id="2846">2846</span>
+<span id="2847">2847</span>
+<span id="2848">2848</span>
+<span id="2849">2849</span>
+<span id="2850">2850</span>
+<span id="2851">2851</span>
+<span id="2852">2852</span>
+<span id="2853">2853</span>
+<span id="2854">2854</span>
+<span id="2855">2855</span>
+<span id="2856">2856</span>
+<span id="2857">2857</span>
+<span id="2858">2858</span>
+<span id="2859">2859</span>
+<span id="2860">2860</span>
+<span id="2861">2861</span>
+<span id="2862">2862</span>
+<span id="2863">2863</span>
+<span id="2864">2864</span>
+<span id="2865">2865</span>
+<span id="2866">2866</span>
+<span id="2867">2867</span>
+<span id="2868">2868</span>
+<span id="2869">2869</span>
+<span id="2870">2870</span>
+<span id="2871">2871</span>
+<span id="2872">2872</span>
+<span id="2873">2873</span>
+<span id="2874">2874</span>
+<span id="2875">2875</span>
+<span id="2876">2876</span>
+<span id="2877">2877</span>
+<span id="2878">2878</span>
+<span id="2879">2879</span>
+<span id="2880">2880</span>
+<span id="2881">2881</span>
+<span id="2882">2882</span>
+<span id="2883">2883</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -5487,17 +5525,48 @@
 );
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">FlatMapDeserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">E</span>: <span class="ident">Error</span>,
+{
+    <span class="kw">fn</span> <span class="ident">deserialize_other</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw">_</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;can only flatten structs and maps&quot;</span>))
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
+<span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">forward_to_deserialize_other</span> {
+    ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>:<span class="ident">ident</span> ( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>:<span class="ident">ty</span>),<span class="op">*</span> ))<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
+        $(
+            <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, $(<span class="kw">_</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span> <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">where</span>
+                <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+            {
+                <span class="self">self</span>.<span class="ident">deserialize_other</span>(<span class="ident">visitor</span>)
+            }
+        )<span class="op">*</span>
+    }
+}
+
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">any</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>, <span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;alloc&quot;</span>))]</span>
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">FlatMapDeserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;de</span>, <span class="ident">E</span><span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">E</span>: <span class="ident">Error</span>,
 {
     <span class="kw">type</span> <span class="ident">Error</span> <span class="op">=</span> <span class="ident">E</span>;
 
-    <span class="kw">fn</span> <span class="ident">deserialize_any</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw">_</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">fn</span> <span class="ident">deserialize_any</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
     {
-        <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;can only flatten structs and maps&quot;</span>))
+        <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">FlatInternallyTaggedAccess</span> {
+            <span class="ident">iter</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter_mut</span>(),
+            <span class="ident">pending</span>: <span class="prelude-val">None</span>,
+            <span class="ident">_marker</span>: <span class="ident">PhantomData</span>,
+        })
     }
 
     <span class="kw">fn</span> <span class="ident">deserialize_enum</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(
@@ -5556,24 +5625,31 @@
         <span class="ident">visitor</span>.<span class="ident">visit_newtype_struct</span>(<span class="self">self</span>)
     }
 
-    <span class="macro">forward_to_deserialize_any</span><span class="macro">!</span> {
-        <span class="ident">bool</span> <span class="ident">i8</span> <span class="ident">i16</span> <span class="ident">i32</span> <span class="ident">i64</span> <span class="ident">u8</span> <span class="ident">u16</span> <span class="ident">u32</span> <span class="ident">u64</span> <span class="ident">f32</span> <span class="ident">f64</span> <span class="ident">char</span> <span class="ident">str</span> <span class="ident">string</span> <span class="ident">bytes</span>
-        <span class="ident">byte_buf</span> <span class="ident">option</span> <span class="ident">unit</span> <span class="ident">unit_struct</span> <span class="ident">seq</span> <span class="ident">tuple</span> <span class="ident">tuple_struct</span> <span class="ident">identifier</span>
-        <span class="ident">ignored_any</span>
-    }
-
-    <span class="kw">fn</span> <span class="ident">private_deserialize_internally_tagged_enum</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(
-        <span class="self">self</span>,
-        <span class="ident">visitor</span>: <span class="ident">V</span>,
-    ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
-        <span class="ident">visitor</span>.<span class="ident">visit_map</span>(<span class="ident">FlatInternallyTaggedAccess</span> {
-            <span class="ident">iter</span>: <span class="self">self</span>.<span class="number">0</span>.<span class="ident">iter_mut</span>(),
-            <span class="ident">pending</span>: <span class="prelude-val">None</span>,
-            <span class="ident">_marker</span>: <span class="ident">PhantomData</span>,
-        })
+    <span class="macro">forward_to_deserialize_other</span><span class="macro">!</span> {
+        <span class="ident">deserialize_bool</span>()
+        <span class="ident">deserialize_i8</span>()
+        <span class="ident">deserialize_i16</span>()
+        <span class="ident">deserialize_i32</span>()
+        <span class="ident">deserialize_i64</span>()
+        <span class="ident">deserialize_u8</span>()
+        <span class="ident">deserialize_u16</span>()
+        <span class="ident">deserialize_u32</span>()
+        <span class="ident">deserialize_u64</span>()
+        <span class="ident">deserialize_f32</span>()
+        <span class="ident">deserialize_f64</span>()
+        <span class="ident">deserialize_char</span>()
+        <span class="ident">deserialize_str</span>()
+        <span class="ident">deserialize_string</span>()
+        <span class="ident">deserialize_bytes</span>()
+        <span class="ident">deserialize_byte_buf</span>()
+        <span class="ident">deserialize_option</span>()
+        <span class="ident">deserialize_unit</span>()
+        <span class="ident">deserialize_unit_struct</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
+        <span class="ident">deserialize_seq</span>()
+        <span class="ident">deserialize_tuple</span>(<span class="ident">usize</span>)
+        <span class="ident">deserialize_tuple_struct</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>, <span class="ident">usize</span>)
+        <span class="ident">deserialize_identifier</span>()
+        <span class="ident">deserialize_ignored_any</span>()
     }
 }
 

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.2.3/src/raw/node.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>node.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.0/src/raw/node.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>node.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -886,6 +886,107 @@
 <span id="886">886</span>
 <span id="887">887</span>
 <span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
+<span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
+<span id="970">970</span>
+<span id="971">971</span>
+<span id="972">972</span>
+<span id="973">973</span>
+<span id="974">974</span>
+<span id="975">975</span>
+<span id="976">976</span>
+<span id="977">977</span>
+<span id="978">978</span>
+<span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
@@ -899,12 +1000,18 @@
 <span class="kw">use</span> <span class="ident">raw</span>::<span class="ident">common_inputs</span>::{<span class="ident">COMMON_INPUTS</span>, <span class="ident">COMMON_INPUTS_INV</span>};
 <span class="kw">use</span> <span class="ident">raw</span>::<span class="ident">pack</span>::{<span class="ident">pack_size</span>, <span class="ident">pack_uint</span>, <span class="ident">pack_uint_in</span>, <span class="ident">unpack_uint</span>};
 
+<span class="doccomment">/// The threshold (in number of transitions) at which an index is created for</span>
+<span class="doccomment">/// a node&#39;s transitions. This speeds up lookup time at the expense of FST</span>
+<span class="doccomment">/// size.</span>
+<span class="kw">const</span> <span class="ident">TRANS_INDEX_THRESHOLD</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span>;
+
 <span class="doccomment">/// Node represents a single state in a finite state transducer.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Nodes are very cheap to construct. Notably, they satisfy the `Copy` trait.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Node</span><span class="op">&lt;</span><span class="lifetime">&#39;f</span><span class="op">&gt;</span> {
     <span class="ident">data</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;f</span> [<span class="ident">u8</span>],
+    <span class="ident">version</span>: <span class="ident">u64</span>,
     <span class="ident">state</span>: <span class="ident">State</span>,
     <span class="ident">start</span>: <span class="ident">CompiledAddr</span>,
     <span class="ident">end</span>: <span class="ident">usize</span>,
@@ -916,16 +1023,16 @@
 
 <span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;f</span><span class="op">&gt;</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Node</span><span class="op">&lt;</span><span class="lifetime">&#39;f</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;NODE@{}&quot;</span>, <span class="self">self</span>.<span class="ident">start</span>));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  end_addr: {}&quot;</span>, <span class="self">self</span>.<span class="ident">end</span>));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  size: {} bytes&quot;</span>, <span class="self">self</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>()));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  state: {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">state</span>));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  is_final: {}&quot;</span>, <span class="self">self</span>.<span class="ident">is_final</span>()));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  final_output: {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">final_output</span>()));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  # transitions: {}&quot;</span>, <span class="self">self</span>.<span class="ident">len</span>()));
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  transitions:&quot;</span>));
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;NODE@{}&quot;</span>, <span class="self">self</span>.<span class="ident">start</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  end_addr: {}&quot;</span>, <span class="self">self</span>.<span class="ident">end</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  size: {} bytes&quot;</span>, <span class="self">self</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>())<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  state: {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">state</span>)<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  is_final: {}&quot;</span>, <span class="self">self</span>.<span class="ident">is_final</span>())<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  final_output: {:?}&quot;</span>, <span class="self">self</span>.<span class="ident">final_output</span>())<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  # transitions: {}&quot;</span>, <span class="self">self</span>.<span class="ident">len</span>())<span class="question-mark">?</span>;
+        <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;  transitions:&quot;</span>)<span class="question-mark">?</span>;
         <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">transitions</span>() {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;    {:?}&quot;</span>, <span class="ident">t</span>));
+            <span class="macro">writeln</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;    {:?}&quot;</span>, <span class="ident">t</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
     }
@@ -937,13 +1044,15 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is a free function so that we can export it to parent modules, but</span>
 <span class="doccomment">/// not to consumers of this crate.</span>
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">node_new</span>(<span class="ident">addr</span>: <span class="ident">CompiledAddr</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Node</span> {
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">node_new</span>(<span class="ident">version</span>: <span class="ident">u64</span>, <span class="ident">addr</span>: <span class="ident">CompiledAddr</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">Node</span> {
     <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
     <span class="kw">let</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">State</span>::<span class="ident">new</span>(<span class="ident">data</span>, <span class="ident">addr</span>);
     <span class="kw">match</span> <span class="ident">state</span> {
         <span class="ident">EmptyFinal</span> <span class="op">=&gt;</span> {
             <span class="ident">Node</span> {
                 <span class="ident">data</span>: <span class="kw-2">&amp;</span>[],
+                <span class="ident">version</span>: <span class="ident">version</span>,
                 <span class="ident">state</span>: <span class="ident">State</span>::<span class="ident">EmptyFinal</span>,
                 <span class="ident">start</span>: <span class="ident">EMPTY_ADDRESS</span>,
                 <span class="ident">end</span>: <span class="ident">EMPTY_ADDRESS</span>,
@@ -957,6 +1066,7 @@
             <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data</span>[..<span class="ident">addr</span> <span class="op">+</span> <span class="number">1</span>];
             <span class="ident">Node</span> {
                 <span class="ident">data</span>: <span class="ident">data</span>,
+                <span class="ident">version</span>: <span class="ident">version</span>,
                 <span class="ident">state</span>: <span class="ident">state</span>,
                 <span class="ident">start</span>: <span class="ident">addr</span>,
                 <span class="ident">end</span>: <span class="ident">s</span>.<span class="ident">end_addr</span>(<span class="ident">data</span>),
@@ -971,6 +1081,7 @@
             <span class="kw">let</span> <span class="ident">sizes</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">sizes</span>(<span class="ident">data</span>);
             <span class="ident">Node</span> {
                 <span class="ident">data</span>: <span class="ident">data</span>,
+                <span class="ident">version</span>: <span class="ident">version</span>,
                 <span class="ident">state</span>: <span class="ident">state</span>,
                 <span class="ident">start</span>: <span class="ident">addr</span>,
                 <span class="ident">end</span>: <span class="ident">s</span>.<span class="ident">end_addr</span>(<span class="ident">data</span>, <span class="ident">sizes</span>),
@@ -986,13 +1097,14 @@
             <span class="kw">let</span> <span class="ident">ntrans</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">ntrans</span>(<span class="ident">data</span>);
             <span class="ident">Node</span> {
                 <span class="ident">data</span>: <span class="ident">data</span>,
+                <span class="ident">version</span>: <span class="ident">version</span>,
                 <span class="ident">state</span>: <span class="ident">state</span>,
                 <span class="ident">start</span>: <span class="ident">addr</span>,
-                <span class="ident">end</span>: <span class="ident">s</span>.<span class="ident">end_addr</span>(<span class="ident">data</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>),
+                <span class="ident">end</span>: <span class="ident">s</span>.<span class="ident">end_addr</span>(<span class="ident">version</span>, <span class="ident">data</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>),
                 <span class="ident">is_final</span>: <span class="ident">s</span>.<span class="ident">is_final_state</span>(),
                 <span class="ident">ntrans</span>: <span class="ident">ntrans</span>,
                 <span class="ident">sizes</span>: <span class="ident">sizes</span>,
-                <span class="ident">final_output</span>: <span class="ident">s</span>.<span class="ident">final_output</span>(<span class="ident">data</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>),
+                <span class="ident">final_output</span>: <span class="ident">s</span>.<span class="ident">final_output</span>(<span class="ident">version</span>, <span class="ident">data</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>),
             }
         }
     }
@@ -1006,6 +1118,7 @@
     }
 
     <span class="doccomment">/// Returns the transition at index `i`.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transition</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Transition</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
@@ -1037,6 +1150,7 @@
     }
 
     <span class="doccomment">/// Returns the transition address of the `i`th transition.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transition_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
@@ -1056,6 +1170,7 @@
     <span class="doccomment">/// Finds the `i`th transition corresponding to the given input byte.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If no transition for this byte exists, then `None` is returned.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">find_input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">b</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
@@ -1070,12 +1185,14 @@
 
     <span class="doccomment">/// If this node is final and has a terminal output value, then it is</span>
     <span class="doccomment">/// returned. Otherwise, a zero output is returned.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">final_output</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Output</span> {
         <span class="self">self</span>.<span class="ident">final_output</span>
     }
 
     <span class="doccomment">/// Returns true if and only if this node corresponds to a final or &quot;match&quot;</span>
     <span class="doccomment">/// state in the finite state transducer.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_final</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">is_final</span>
     }
@@ -1083,26 +1200,31 @@
     <span class="doccomment">/// Returns the number of transitions in this node.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The maximum number of transitions is 256.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">ntrans</span>
     }
 
     <span class="doccomment">/// Returns true if and only if this node has zero transitions.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_empty</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">ntrans</span> <span class="op">==</span> <span class="number">0</span>
     }
 
     <span class="doccomment">/// Return the address of this node.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
         <span class="self">self</span>.<span class="ident">start</span>
     }
 
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_slice</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>[<span class="self">self</span>.<span class="ident">end</span>..]
     }
 
     <span class="attribute">#[<span class="ident">doc</span>(<span class="ident">hidden</span>)]</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">match</span> <span class="self">self</span>.<span class="ident">state</span> {
@@ -1165,6 +1287,7 @@
 <span class="kw">struct</span> <span class="ident">StateAnyTrans</span>(<span class="ident">u8</span>);
 
 <span class="kw">impl</span> <span class="ident">State</span> {
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">addr</span>: <span class="ident">CompiledAddr</span>) <span class="op">-&gt;</span> <span class="ident">State</span> {
         <span class="kw">use</span> <span class="self">self</span>::<span class="ident">State</span>::<span class="kw-2">*</span>;
         <span class="kw">if</span> <span class="ident">addr</span> <span class="op">==</span> <span class="ident">EMPTY_ADDRESS</span> {
@@ -1186,11 +1309,12 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">StateOneTransNext</span>::<span class="ident">new</span>();
         <span class="ident">state</span>.<span class="ident">set_common_input</span>(<span class="ident">input</span>);
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">common_input</span>().<span class="ident">is_none</span>() {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">input</span>));
+            <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">input</span>)<span class="question-mark">?</span>;
         }
         <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">state</span>.<span class="number">0</span>).<span class="ident">map_err</span>(<span class="ident">From</span>::<span class="ident">from</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">StateOneTransNext</span>(<span class="number">0b11_000000</span>)
     }
@@ -1199,18 +1323,22 @@
         <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b11_000000</span>) <span class="op">|</span> <span class="ident">common_idx</span>(<span class="ident">input</span>, <span class="number">0b111111</span>);
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">common_input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="ident">common_input</span>(<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b00_111111</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">input_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">common_input</span>().<span class="ident">is_none</span>() { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">end_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">input_len</span>()
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">inp</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">common_input</span>() {
             <span class="ident">inp</span>
@@ -1219,6 +1347,7 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">trans_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
         <span class="ident">node</span>.<span class="ident">end</span> <span class="kw">as</span> <span class="ident">CompiledAddr</span> <span class="op">-</span> <span class="number">1</span>
     }
@@ -1232,19 +1361,19 @@
         <span class="kw">let</span> <span class="ident">output_pack_size</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">out</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="number">0</span>
         } <span class="kw">else</span> {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_uint</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">out</span>))
+            <span class="ident">pack_uint</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">out</span>)<span class="question-mark">?</span>
         };
-        <span class="kw">let</span> <span class="ident">trans_pack_size</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_delta</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">addr</span>, <span class="ident">trans</span>.<span class="ident">addr</span>));
+        <span class="kw">let</span> <span class="ident">trans_pack_size</span> <span class="op">=</span> <span class="ident">pack_delta</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">addr</span>, <span class="ident">trans</span>.<span class="ident">addr</span>)<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">pack_sizes</span> <span class="op">=</span> <span class="ident">PackSizes</span>::<span class="ident">new</span>();
         <span class="ident">pack_sizes</span>.<span class="ident">set_output_pack_size</span>(<span class="ident">output_pack_size</span>);
         <span class="ident">pack_sizes</span>.<span class="ident">set_transition_pack_size</span>(<span class="ident">trans_pack_size</span>);
-        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">pack_sizes</span>.<span class="ident">encode</span>()));
+        <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">pack_sizes</span>.<span class="ident">encode</span>())<span class="question-mark">?</span>;
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="ident">StateOneTrans</span>::<span class="ident">new</span>();
         <span class="ident">state</span>.<span class="ident">set_common_input</span>(<span class="ident">trans</span>.<span class="ident">inp</span>);
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">common_input</span>().<span class="ident">is_none</span>() {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">trans</span>.<span class="ident">inp</span>));
+            <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">trans</span>.<span class="ident">inp</span>)<span class="question-mark">?</span>;
         }
         <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">state</span>.<span class="number">0</span>).<span class="ident">map_err</span>(<span class="ident">From</span>::<span class="ident">from</span>)
     }
@@ -1257,14 +1386,17 @@
         <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b10_000000</span>) <span class="op">|</span> <span class="ident">common_idx</span>(<span class="ident">input</span>, <span class="number">0b111111</span>);
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">common_input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="ident">common_input</span>(<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b00_111111</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">input_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">common_input</span>().<span class="ident">is_none</span>() { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">sizes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">PackSizes</span> {
         <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">input_len</span>()
@@ -1272,6 +1404,7 @@
         <span class="ident">PackSizes</span>::<span class="ident">decode</span>(<span class="ident">data</span>[<span class="ident">i</span>])
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">end_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sizes</span>: <span class="ident">PackSizes</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
         <span class="op">-</span> <span class="self">self</span>.<span class="ident">input_len</span>()
@@ -1280,6 +1413,7 @@
         <span class="op">-</span> <span class="ident">sizes</span>.<span class="ident">output_pack_size</span>()
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">inp</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">common_input</span>() {
             <span class="ident">inp</span>
@@ -1288,6 +1422,7 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">output</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>) <span class="op">-&gt;</span> <span class="ident">Output</span> {
         <span class="kw">let</span> <span class="ident">osize</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">sizes</span>.<span class="ident">output_pack_size</span>();
         <span class="kw">if</span> <span class="ident">osize</span> <span class="op">==</span> <span class="number">0</span> {
@@ -1298,9 +1433,10 @@
                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">input_len</span>()
                 <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
                 <span class="op">-</span> <span class="ident">tsize</span> <span class="op">-</span> <span class="ident">osize</span>;
-        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">i</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">unwrap</span>())
+        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">i</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>))
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">trans_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
         <span class="kw">let</span> <span class="ident">tsize</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>();
         <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
@@ -1340,32 +1476,45 @@
 
         <span class="kw">if</span> <span class="ident">any_outs</span> {
             <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">is_final</span> {
-                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_uint_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">node</span>.<span class="ident">final_output</span>.<span class="ident">value</span>(), <span class="ident">osize</span>));
+                <span class="ident">pack_uint_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">node</span>.<span class="ident">final_output</span>.<span class="ident">value</span>(), <span class="ident">osize</span>)<span class="question-mark">?</span>;
             }
             <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">iter</span>().<span class="ident">rev</span>() {
-                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_uint_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">t</span>.<span class="ident">out</span>.<span class="ident">value</span>(), <span class="ident">osize</span>));
+                <span class="ident">pack_uint_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">t</span>.<span class="ident">out</span>.<span class="ident">value</span>(), <span class="ident">osize</span>)<span class="question-mark">?</span>;
             }
         }
         <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">iter</span>().<span class="ident">rev</span>() {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_delta_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">addr</span>, <span class="ident">t</span>.<span class="ident">addr</span>, <span class="ident">tsize</span>));
+            <span class="ident">pack_delta_in</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">wtr</span>, <span class="ident">addr</span>, <span class="ident">t</span>.<span class="ident">addr</span>, <span class="ident">tsize</span>)<span class="question-mark">?</span>;
         }
         <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">iter</span>().<span class="ident">rev</span>() {
-            <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">t</span>.<span class="ident">inp</span>));
+            <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">t</span>.<span class="ident">inp</span>)<span class="question-mark">?</span>;
         }
-        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">pack_sizes</span>.<span class="ident">encode</span>()));
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">len</span>() <span class="op">&gt;</span> <span class="ident">TRANS_INDEX_THRESHOLD</span> {
+            <span class="comment">// A value of 255 indicates that no transition exists for the byte</span>
+            <span class="comment">// at that index. (Except when there are 256 transitions.) Namely,</span>
+            <span class="comment">// any value greater than or equal to the number of transitions in</span>
+            <span class="comment">// this node indicates an absent transition.</span>
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">index</span> <span class="op">=</span> [<span class="number">255u8</span>; <span class="number">256</span>];
+            <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">t</span>) <span class="kw">in</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>() {
+                <span class="ident">index</span>[<span class="ident">t</span>.<span class="ident">inp</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="op">=</span> <span class="ident">i</span> <span class="kw">as</span> <span class="ident">u8</span>;
+            }
+            <span class="ident">wtr</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>)<span class="question-mark">?</span>;
+        }
+
+        <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">pack_sizes</span>.<span class="ident">encode</span>())<span class="question-mark">?</span>;
         <span class="kw">if</span> <span class="ident">state</span>.<span class="ident">state_ntrans</span>().<span class="ident">is_none</span>() {
             <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">256</span> {
                 <span class="comment">// 256 can&#39;t be represented in a u8, so we abuse the fact that</span>
                 <span class="comment">// the # of transitions can never be 1 here, since 1 is always</span>
                 <span class="comment">// encoded in the state byte.</span>
-                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="number">1</span>));
+                <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="number">1</span>)<span class="question-mark">?</span>;
             } <span class="kw">else</span> {
-                <span class="macro">try</span><span class="macro">!</span>(<span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u8</span>));
+                <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">node</span>.<span class="ident">trans</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u8</span>)<span class="question-mark">?</span>;
             }
         }
         <span class="ident">wtr</span>.<span class="ident">write_u8</span>(<span class="ident">state</span>.<span class="number">0</span>).<span class="ident">map_err</span>(<span class="ident">From</span>::<span class="ident">from</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">StateAnyTrans</span>(<span class="number">0b00_000000</span>)
     }
@@ -1376,6 +1525,7 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">is_final_state</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b01_000000</span> <span class="op">==</span> <span class="number">0b01_000000</span>
     }
@@ -1386,6 +1536,7 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">state_ntrans</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="ident">n</span> <span class="op">=</span> <span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b00_111111</span>;
         <span class="kw">if</span> <span class="ident">n</span> <span class="op">==</span> <span class="number">0</span> {
@@ -1395,6 +1546,7 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">sizes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">PackSizes</span> {
         <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
@@ -1402,10 +1554,32 @@
         <span class="ident">PackSizes</span>::<span class="ident">decode</span>(<span class="ident">data</span>[<span class="ident">i</span>])
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">total_trans_size</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">version</span>: <span class="ident">u64</span>,
+        <span class="ident">sizes</span>: <span class="ident">PackSizes</span>,
+        <span class="ident">ntrans</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">let</span> <span class="ident">index_size</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">trans_index_size</span>(<span class="ident">version</span>, <span class="ident">ntrans</span>);
+        <span class="ident">ntrans</span> <span class="op">+</span> (<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>()) <span class="op">+</span> <span class="ident">index_size</span>
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">trans_index_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">version</span>: <span class="ident">u64</span>, <span class="ident">ntrans</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="kw">if</span> <span class="ident">version</span> <span class="op">&gt;=</span> <span class="number">2</span> <span class="op">&amp;&amp;</span> <span class="ident">ntrans</span> <span class="op">&gt;</span> <span class="ident">TRANS_INDEX_THRESHOLD</span> {
+            <span class="number">256</span>
+        } <span class="kw">else</span> {
+            <span class="number">0</span>
+        }
+    }
+
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">ntrans_len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">state_ntrans</span>().<span class="ident">is_none</span>() { <span class="number">1</span> } <span class="kw">else</span> { <span class="number">0</span> }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">ntrans</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>]) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">n</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">state_ntrans</span>() {
             <span class="ident">n</span> <span class="kw">as</span> <span class="ident">usize</span>
@@ -1421,8 +1595,10 @@
         }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">final_output</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">version</span>: <span class="ident">u64</span>,
         <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
         <span class="ident">sizes</span>: <span class="ident">PackSizes</span>,
         <span class="ident">ntrans</span>: <span class="ident">usize</span>,
@@ -1431,83 +1607,99 @@
         <span class="kw">if</span> <span class="ident">osize</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_final_state</span>() {
             <span class="kw">return</span> <span class="ident">Output</span>::<span class="ident">zero</span>();
         }
-        <span class="kw">let</span> <span class="ident">tsize</span> <span class="op">=</span> <span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>();
         <span class="kw">let</span> <span class="ident">at</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
                  <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
                  <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
-                 <span class="op">-</span> <span class="ident">ntrans</span> <span class="comment">// inputs</span>
-                 <span class="op">-</span> (<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">tsize</span>) <span class="comment">// transition addresses</span>
+                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">total_trans_size</span>(<span class="ident">version</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>)
                  <span class="op">-</span> (<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">osize</span>) <span class="comment">// output values</span>
                  <span class="op">-</span> <span class="ident">osize</span>; <span class="comment">// the desired output value</span>
-        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">at</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">unwrap</span>())
+        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">data</span>[<span class="ident">at</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>))
     }
 
-    <span class="kw">fn</span> <span class="ident">end_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">sizes</span>: <span class="ident">PackSizes</span>, <span class="ident">ntrans</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">end_addr</span>(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        <span class="ident">version</span>: <span class="ident">u64</span>,
+        <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
+        <span class="ident">sizes</span>: <span class="ident">PackSizes</span>,
+        <span class="ident">ntrans</span>: <span class="ident">usize</span>,
+    ) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="kw">let</span> <span class="ident">osize</span> <span class="op">=</span> <span class="ident">sizes</span>.<span class="ident">output_pack_size</span>();
         <span class="kw">let</span> <span class="ident">final_osize</span> <span class="op">=</span> <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">is_final_state</span>() {
             <span class="number">0</span>
         } <span class="kw">else</span> {
             <span class="ident">osize</span>
         };
-        <span class="kw">let</span> <span class="ident">tsize</span> <span class="op">=</span> <span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>();
         <span class="ident">data</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
         <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
         <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
-        <span class="op">-</span> <span class="ident">ntrans</span> <span class="comment">// inputs</span>
-        <span class="op">-</span> (<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">tsize</span>) <span class="comment">// transition addresses</span>
+        <span class="op">-</span> <span class="self">self</span>.<span class="ident">total_trans_size</span>(<span class="ident">version</span>, <span class="ident">sizes</span>, <span class="ident">ntrans</span>)
         <span class="op">-</span> (<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">osize</span>) <span class="comment">// output values</span>
         <span class="op">-</span> <span class="ident">final_osize</span> <span class="comment">// final output</span>
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">trans_addr</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">i</span> <span class="op">&lt;</span> <span class="ident">node</span>.<span class="ident">ntrans</span>);
         <span class="kw">let</span> <span class="ident">tsize</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>();
         <span class="kw">let</span> <span class="ident">at</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
                  <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
                  <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
+                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">trans_index_size</span>(<span class="ident">node</span>.<span class="ident">version</span>, <span class="ident">node</span>.<span class="ident">ntrans</span>)
                  <span class="op">-</span> <span class="ident">node</span>.<span class="ident">ntrans</span> <span class="comment">// inputs</span>
                  <span class="op">-</span> (<span class="ident">i</span> <span class="op">*</span> <span class="ident">tsize</span>) <span class="comment">// the previous transition addresses</span>
                  <span class="op">-</span> <span class="ident">tsize</span>; <span class="comment">// the desired transition address</span>
         <span class="ident">unpack_delta</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">at</span>..], <span class="ident">tsize</span>, <span class="ident">node</span>.<span class="ident">end</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="kw">let</span> <span class="ident">at</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
                  <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
                  <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
+                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">trans_index_size</span>(<span class="ident">node</span>.<span class="ident">version</span>, <span class="ident">node</span>.<span class="ident">ntrans</span>)
                  <span class="op">-</span> <span class="ident">i</span>
                  <span class="op">-</span> <span class="number">1</span>; <span class="comment">// the input byte</span>
         <span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">at</span>]
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">find_input</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>, <span class="ident">b</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
-                    <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
-                    <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
-                    <span class="op">-</span> <span class="ident">node</span>.<span class="ident">ntrans</span>; <span class="comment">// inputs</span>
-        <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">node</span>.<span class="ident">ntrans</span>;
-        <span class="kw">let</span> <span class="ident">inputs</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">start</span>..<span class="ident">end</span>];
-        <span class="comment">// Unbelievably, this is actually faster than memchr in</span>
-        <span class="comment">// microbenchmarks. I&#39;m not sure why. Perhaps memchr has some overhead</span>
-        <span class="comment">// associated with it that doesn&#39;t work well with very very short</span>
-        <span class="comment">// searches.</span>
-        <span class="ident">inputs</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b2</span><span class="op">|</span> <span class="ident">b</span> <span class="op">==</span> <span class="ident">b2</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">node</span>.<span class="ident">ntrans</span> <span class="op">-</span> <span class="ident">i</span> <span class="op">-</span> <span class="number">1</span>)
+        <span class="kw">if</span> <span class="ident">node</span>.<span class="ident">version</span> <span class="op">&gt;=</span> <span class="number">2</span> <span class="op">&amp;&amp;</span> <span class="ident">node</span>.<span class="ident">ntrans</span> <span class="op">&gt;</span> <span class="ident">TRANS_INDEX_THRESHOLD</span> {
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
+                        <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
+                        <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
+                        <span class="op">-</span> <span class="self">self</span>.<span class="ident">trans_index_size</span>(<span class="ident">node</span>.<span class="ident">version</span>, <span class="ident">node</span>.<span class="ident">ntrans</span>);
+            <span class="kw">let</span> <span class="ident">i</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">start</span> <span class="op">+</span> <span class="ident">b</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="kw">as</span> <span class="ident">usize</span>;
+            <span class="kw">if</span> <span class="ident">i</span> <span class="op">&gt;=</span> <span class="ident">node</span>.<span class="ident">ntrans</span> {
+                <span class="prelude-val">None</span>
+            } <span class="kw">else</span> {
+                <span class="prelude-val">Some</span>(<span class="ident">i</span>)
+            }
+        } <span class="kw">else</span> {
+            <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
+                        <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
+                        <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
+                        <span class="op">-</span> <span class="ident">node</span>.<span class="ident">ntrans</span>; <span class="comment">// inputs</span>
+            <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">node</span>.<span class="ident">ntrans</span>;
+            <span class="kw">let</span> <span class="ident">inputs</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">start</span>..<span class="ident">end</span>];
+            <span class="ident">inputs</span>.<span class="ident">iter</span>().<span class="ident">position</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">b2</span><span class="op">|</span> <span class="ident">b</span> <span class="op">==</span> <span class="ident">b2</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">node</span>.<span class="ident">ntrans</span> <span class="op">-</span> <span class="ident">i</span> <span class="op">-</span> <span class="number">1</span>)
+        }
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">output</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">node</span>: <span class="kw-2">&amp;</span><span class="ident">Node</span>, <span class="ident">i</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">Output</span> {
         <span class="kw">let</span> <span class="ident">osize</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">sizes</span>.<span class="ident">output_pack_size</span>();
         <span class="kw">if</span> <span class="ident">osize</span> <span class="op">==</span> <span class="number">0</span> {
             <span class="kw">return</span> <span class="ident">Output</span>::<span class="ident">zero</span>();
         }
-        <span class="kw">let</span> <span class="ident">tsize</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">sizes</span>.<span class="ident">transition_pack_size</span>();
         <span class="kw">let</span> <span class="ident">at</span> <span class="op">=</span> <span class="ident">node</span>.<span class="ident">start</span>
                  <span class="op">-</span> <span class="self">self</span>.<span class="ident">ntrans_len</span>()
                  <span class="op">-</span> <span class="number">1</span> <span class="comment">// pack size</span>
-                 <span class="op">-</span> <span class="ident">node</span>.<span class="ident">ntrans</span> <span class="comment">// inputs</span>
-                 <span class="op">-</span> (<span class="ident">node</span>.<span class="ident">ntrans</span> <span class="op">*</span> <span class="ident">tsize</span>) <span class="comment">// transition addresses</span>
+                 <span class="op">-</span> <span class="self">self</span>.<span class="ident">total_trans_size</span>(<span class="ident">node</span>.<span class="ident">version</span>, <span class="ident">node</span>.<span class="ident">sizes</span>, <span class="ident">node</span>.<span class="ident">ntrans</span>)
                  <span class="op">-</span> (<span class="ident">i</span> <span class="op">*</span> <span class="ident">osize</span>) <span class="comment">// the previous outputs</span>
                  <span class="op">-</span> <span class="ident">osize</span>; <span class="comment">// the desired output value</span>
-        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">at</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">unwrap</span>())
+        <span class="ident">Output</span>::<span class="ident">new</span>(<span class="ident">unpack_uint</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>.<span class="ident">data</span>[<span class="ident">at</span>..], <span class="ident">osize</span> <span class="kw">as</span> <span class="ident">u8</span>))
     }
 }
 
@@ -1519,32 +1711,39 @@
 <span class="kw">struct</span> <span class="ident">PackSizes</span>(<span class="ident">u8</span>);
 
 <span class="kw">impl</span> <span class="ident">PackSizes</span> {
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">PackSizes</span>(<span class="number">0</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">decode</span>(<span class="ident">v</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">PackSizes</span>(<span class="ident">v</span>)
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">encode</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
         <span class="self">self</span>.<span class="number">0</span>
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">set_transition_pack_size</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">size</span>: <span class="ident">u8</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">size</span> <span class="op">&lt;=</span> <span class="number">8</span>);
         <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b0000_1111</span>) <span class="op">|</span> (<span class="ident">size</span> <span class="op">&lt;&lt;</span> <span class="number">4</span>);
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">transition_pack_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         ((<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b1111_0000</span>) <span class="op">&gt;&gt;</span> <span class="number">4</span>) <span class="kw">as</span> <span class="ident">usize</span>
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">set_output_pack_size</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">size</span>: <span class="ident">u8</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">size</span> <span class="op">&lt;=</span> <span class="number">8</span>);
         <span class="self">self</span>.<span class="number">0</span> <span class="op">=</span> (<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b1111_0000</span>) <span class="op">|</span> <span class="ident">size</span>;
     }
 
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">fn</span> <span class="ident">output_pack_size</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         (<span class="self">self</span>.<span class="number">0</span> <span class="op">&amp;</span> <span class="number">0b0000_1111</span>) <span class="kw">as</span> <span class="ident">usize</span>
     }
@@ -1577,6 +1776,7 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// Nevertheless, the *caller* may have a priori knowledge that could be</span>
 <span class="doccomment">/// supplied to the builder manually, which could then be embedded in the FST.</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="kw">fn</span> <span class="ident">common_idx</span>(<span class="ident">input</span>: <span class="ident">u8</span>, <span class="ident">max</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="ident">u8</span> {
     <span class="kw">let</span> <span class="ident">val</span> <span class="op">=</span> ((<span class="ident">COMMON_INPUTS</span>[<span class="ident">input</span> <span class="kw">as</span> <span class="ident">usize</span>] <span class="kw">as</span> <span class="ident">u32</span> <span class="op">+</span> <span class="number">1</span>) <span class="op">%</span> <span class="number">256</span>) <span class="kw">as</span> <span class="ident">u8</span>;
     <span class="kw">if</span> <span class="ident">val</span> <span class="op">&gt;</span> <span class="ident">max</span> {
@@ -1588,6 +1788,7 @@
 
 <span class="doccomment">/// common_input translates a common input index stored in a serialized FST</span>
 <span class="doccomment">/// to the corresponding byte.</span>
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
 <span class="kw">fn</span> <span class="ident">common_input</span>(<span class="ident">idx</span>: <span class="ident">u8</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="ident">idx</span> <span class="op">==</span> <span class="number">0</span> {
         <span class="prelude-val">None</span>
@@ -1602,7 +1803,7 @@
     <span class="ident">trans_addr</span>: <span class="ident">CompiledAddr</span>,
 ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">nbytes</span> <span class="op">=</span> <span class="ident">pack_delta_size</span>(<span class="ident">node_addr</span>, <span class="ident">trans_addr</span>);
-    <span class="macro">try</span><span class="macro">!</span>(<span class="ident">pack_delta_in</span>(<span class="ident">wtr</span>, <span class="ident">node_addr</span>, <span class="ident">trans_addr</span>, <span class="ident">nbytes</span>));
+    <span class="ident">pack_delta_in</span>(<span class="ident">wtr</span>, <span class="ident">node_addr</span>, <span class="ident">trans_addr</span>, <span class="ident">nbytes</span>)<span class="question-mark">?</span>;
     <span class="prelude-val">Ok</span>(<span class="ident">nbytes</span>)
 }
 
@@ -1629,12 +1830,13 @@
     <span class="ident">pack_size</span>(<span class="ident">delta_addr</span> <span class="kw">as</span> <span class="ident">u64</span>)
 }
 
-<span class="kw">fn</span> <span class="ident">unpack_delta</span><span class="op">&lt;</span><span class="ident">R</span>: <span class="ident">io</span>::<span class="ident">Read</span><span class="op">&gt;</span>(
-    <span class="ident">rdr</span>: <span class="ident">R</span>,
+<span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
+<span class="kw">fn</span> <span class="ident">unpack_delta</span>(
+    <span class="ident">slice</span>: <span class="kw-2">&amp;</span>[<span class="ident">u8</span>],
     <span class="ident">trans_pack_size</span>: <span class="ident">usize</span>,
     <span class="ident">node_addr</span>: <span class="ident">usize</span>,
 ) <span class="op">-&gt;</span> <span class="ident">CompiledAddr</span> {
-    <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="ident">unpack_uint</span>(<span class="ident">rdr</span>, <span class="ident">trans_pack_size</span> <span class="kw">as</span> <span class="ident">u8</span>).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">delta</span> <span class="op">=</span> <span class="ident">unpack_uint</span>(<span class="ident">slice</span>, <span class="ident">trans_pack_size</span> <span class="kw">as</span> <span class="ident">u8</span>);
     <span class="kw">let</span> <span class="ident">delta_addr</span> <span class="op">=</span> <span class="ident">u64_to_usize</span>(<span class="ident">delta</span>);
     <span class="kw">if</span> <span class="ident">delta_addr</span> <span class="op">==</span> <span class="ident">EMPTY_ADDRESS</span> {
         <span class="ident">EMPTY_ADDRESS</span>
@@ -1647,7 +1849,7 @@
 <span class="kw">mod</span> <span class="ident">tests</span> {
     <span class="kw">use</span> <span class="ident">quickcheck</span>::{<span class="ident">TestResult</span>, <span class="ident">quickcheck</span>};
 
-    <span class="kw">use</span> <span class="ident">raw</span>::{<span class="ident">Builder</span>, <span class="ident">Transition</span>, <span class="ident">CompiledAddr</span>, <span class="ident">Fst</span>, <span class="ident">Output</span>};
+    <span class="kw">use</span> <span class="ident">raw</span>::{<span class="ident">VERSION</span>, <span class="ident">Builder</span>, <span class="ident">Transition</span>, <span class="ident">CompiledAddr</span>, <span class="ident">Fst</span>, <span class="ident">Output</span>};
     <span class="kw">use</span> <span class="ident">raw</span>::<span class="ident">build</span>::<span class="ident">BuilderNode</span>;
     <span class="kw">use</span> <span class="ident">raw</span>::<span class="ident">node</span>::{<span class="ident">Node</span>, <span class="ident">node_new</span>};
     <span class="kw">use</span> <span class="ident">stream</span>::<span class="ident">Streamer</span>;
@@ -1697,7 +1899,7 @@
 
     <span class="kw">fn</span> <span class="ident">roundtrip</span>(<span class="ident">bnode</span>: <span class="kw-2">&amp;</span><span class="ident">BuilderNode</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">bytes</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">bytes</span>);
         <span class="ident">nodes_equal</span>(<span class="kw-2">&amp;</span><span class="ident">node</span>, <span class="kw-2">&amp;</span><span class="ident">bnode</span>)
     }
 
@@ -1713,7 +1915,7 @@
             <span class="ident">trans</span>: <span class="macro">vec</span><span class="macro">!</span>[],
         };
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>(), <span class="number">3</span>);
         <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
     }
@@ -1726,7 +1928,7 @@
             <span class="ident">trans</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">trans</span>(<span class="number">20</span>, <span class="string">b&#39;a&#39;</span>)],
         };
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>(), <span class="number">3</span>);
         <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
     }
@@ -1739,7 +1941,7 @@
             <span class="ident">trans</span>: <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">trans</span>(<span class="number">2</span>, <span class="string">b&#39;\xff&#39;</span>)],
         };
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>(), <span class="number">4</span>);
         <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
     }
@@ -1756,7 +1958,7 @@
             ],
         };
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>(), <span class="number">14</span>);
         <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
     }
@@ -1769,7 +1971,7 @@
             <span class="ident">trans</span>: (<span class="number">0</span>..<span class="number">256</span>).<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">trans</span>(<span class="number">0</span>, <span class="ident">i</span> <span class="kw">as</span> <span class="ident">u8</span>)).<span class="ident">collect</span>(),
         };
         <span class="kw">let</span> (<span class="ident">addr</span>, <span class="ident">buf</span>) <span class="op">=</span> <span class="ident">compile</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);
-        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
+        <span class="kw">let</span> <span class="ident">node</span> <span class="op">=</span> <span class="ident">node_new</span>(<span class="ident">VERSION</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="ident">buf</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">transitions</span>().<span class="ident">count</span>(), <span class="number">256</span>);
         <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">node</span>.<span class="ident">len</span>(), <span class="ident">node</span>.<span class="ident">transitions</span>().<span class="ident">count</span>());
         <span class="ident">roundtrip</span>(<span class="kw-2">&amp;</span><span class="ident">bnode</span>);

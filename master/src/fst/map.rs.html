@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.2.3/src/map.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>map.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.0/src/map.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>map.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1014,6 +1014,11 @@
 <span id="1014">1014</span>
 <span id="1015">1015</span>
 <span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>::<span class="ident">FromIterator</span>;
@@ -1080,8 +1085,13 @@
     <span class="doccomment">/// transducer builder (`MapBuilder` qualifies). If the format is invalid</span>
     <span class="doccomment">/// or if there is a mismatch between the API version of this library</span>
     <span class="doccomment">/// and the map, then an error is returned.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is unsafe because Rust programs cannot guarantee that memory</span>
+    <span class="doccomment">/// backed by a memory mapped file won&#39;t be mutably aliased. It is up to</span>
+    <span class="doccomment">/// the caller to enforce that the memory map is not modified while it is</span>
+    <span class="doccomment">/// opened.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
         <span class="ident">raw</span>::<span class="ident">Fst</span>::<span class="ident">from_path</span>(<span class="ident">path</span>).<span class="ident">map</span>(<span class="ident">Map</span>)
     }
 
@@ -1109,8 +1119,8 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_iter</span><span class="op">&lt;</span><span class="ident">K</span>, <span class="ident">I</span><span class="op">&gt;</span>(<span class="ident">iter</span>: <span class="ident">I</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span>
             <span class="kw">where</span> <span class="ident">K</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;</span>, <span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span><span class="op">=</span>(<span class="ident">K</span>, <span class="ident">u64</span>)<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">builder</span> <span class="op">=</span> <span class="ident">MapBuilder</span>::<span class="ident">memory</span>();
-        <span class="macro">try</span><span class="macro">!</span>(<span class="ident">builder</span>.<span class="ident">extend_iter</span>(<span class="ident">iter</span>));
-        <span class="ident">Map</span>::<span class="ident">from_bytes</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">builder</span>.<span class="ident">into_inner</span>()))
+        <span class="ident">builder</span>.<span class="ident">extend_iter</span>(<span class="ident">iter</span>)<span class="question-mark">?</span>;
+        <span class="ident">Map</span>::<span class="ident">from_bytes</span>(<span class="ident">builder</span>.<span class="ident">into_inner</span>()<span class="question-mark">?</span>)
     }
 
     <span class="doccomment">/// Tests the membership of a single key.</span>
@@ -1375,15 +1385,15 @@
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Map</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Map([&quot;</span>));
+        <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;Map([&quot;</span>)<span class="question-mark">?</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stream</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">true</span>;
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="ident">v</span>)) <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">next</span>() {
             <span class="kw">if</span> <span class="op">!</span><span class="ident">first</span> {
-                <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;, &quot;</span>));
+                <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;, &quot;</span>)<span class="question-mark">?</span>;
             }
             <span class="ident">first</span> <span class="op">=</span> <span class="bool-val">false</span>;
-            <span class="macro">try</span><span class="macro">!</span>(<span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;({}, {})&quot;</span>, <span class="ident">String</span>::<span class="ident">from_utf8_lossy</span>(<span class="ident">k</span>), <span class="ident">v</span>));
+            <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;({}, {})&quot;</span>, <span class="ident">String</span>::<span class="ident">from_utf8_lossy</span>(<span class="ident">k</span>), <span class="ident">v</span>)<span class="question-mark">?</span>;
         }
         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;])&quot;</span>)
     }
@@ -1493,7 +1503,7 @@
 <span class="doccomment">/// build.finish().unwrap();</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// // At this point, the map has been constructed, but here&#39;s how to read it.</span>
-<span class="doccomment">/// let map = Map::from_path(&quot;map.fst&quot;).unwrap();</span>
+<span class="doccomment">/// let map = unsafe { Map::from_path(&quot;map.fst&quot;).unwrap() };</span>
 <span class="doccomment">/// let mut stream = map.into_stream();</span>
 <span class="doccomment">/// let mut kvs = vec![];</span>
 <span class="doccomment">/// while let Some((k, v)) = stream.next() {</span>

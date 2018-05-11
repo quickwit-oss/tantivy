@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.2.3/src/raw/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/fst-0.3.0/src/raw/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1035,6 +1035,15 @@
 <span id="1035">1035</span>
 <span id="1036">1036</span>
 <span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 Operations on raw finite state transducers.
@@ -1102,7 +1111,7 @@ Most of the rest of the types are streams from set operations.
 <span class="doccomment">/// regenerating the finite state transducer or switching to a version of this</span>
 <span class="doccomment">/// crate that is compatible with the serialized transducer. This particular</span>
 <span class="doccomment">/// behavior may be relaxed in future versions.</span>
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VERSION</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">1</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VERSION</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="number">2</span>;
 
 <span class="doccomment">/// A sentinel value used to indicate an empty final state.</span>
 <span class="kw">const</span> <span class="ident">EMPTY_ADDRESS</span>: <span class="ident">CompiledAddr</span> <span class="op">=</span> <span class="number">0</span>;
@@ -1314,6 +1323,7 @@ Most of the rest of the types are streams from set operations.
 <span class="doccomment">/// * [Comparison of Construction Algorithms for Minimal, Acyclic, Deterministic, Finite-State Automata from Sets of Strings](http://www.cs.mun.ca/~harold/Courses/Old/CS4750/Diary/q3p2qx4lv71m5vew.pdf)</span>
 <span class="doccomment">///   (excellent for surface level overview)</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Fst</span> {
+    <span class="ident">version</span>: <span class="ident">u64</span>,
     <span class="ident">data</span>: <span class="ident">FstData</span>,
     <span class="ident">root_addr</span>: <span class="ident">CompiledAddr</span>,
     <span class="ident">ty</span>: <span class="ident">FstType</span>,
@@ -1327,9 +1337,14 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// transducer builder (`Builder` qualifies). If the format is invalid or</span>
     <span class="doccomment">/// if there is a mismatch between the API version of this library and the</span>
     <span class="doccomment">/// fst, then an error is returned.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// This is unsafe because Rust programs cannot guarantee that memory</span>
+    <span class="doccomment">/// backed by a memory mapped file won&#39;t be mutably aliased. It is up to</span>
+    <span class="doccomment">/// the caller to enforce that the memory map is not modified while it is</span>
+    <span class="doccomment">/// opened.</span>
     <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
-        <span class="ident">Fst</span>::<span class="ident">from_mmap</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">MmapReadOnly</span>::<span class="ident">open_path</span>(<span class="ident">path</span>)))
+    <span class="kw">pub</span> <span class="kw">unsafe</span> <span class="kw">fn</span> <span class="ident">from_path</span><span class="op">&lt;</span><span class="ident">P</span>: <span class="ident">AsRef</span><span class="op">&lt;</span><span class="ident">Path</span><span class="op">&gt;&gt;</span>(<span class="ident">path</span>: <span class="ident">P</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span><span class="op">&gt;</span> {
+        <span class="ident">Fst</span>::<span class="ident">from_mmap</span>(<span class="ident">MmapReadOnly</span>::<span class="ident">open_path</span>(<span class="ident">path</span>)<span class="question-mark">?</span>)
     }
 
     <span class="doccomment">/// Opens a transducer from a `MmapReadOnly`.</span>
@@ -1385,7 +1400,7 @@ Most of the rest of the types are streams from set operations.
         <span class="comment">// IO errors possible) and we&#39;ve confirmed the byte slice is at least</span>
         <span class="comment">// N bytes (no unexpected EOF).</span>
         <span class="kw">let</span> <span class="ident">version</span> <span class="op">=</span> (<span class="kw-2">&amp;</span><span class="kw-2">*</span><span class="ident">data</span>).<span class="ident">read_u64</span>::<span class="op">&lt;</span><span class="ident">LittleEndian</span><span class="op">&gt;</span>().<span class="ident">unwrap</span>();
-        <span class="kw">if</span> <span class="ident">version</span> <span class="op">!=</span> <span class="ident">VERSION</span> {
+        <span class="kw">if</span> <span class="ident">version</span> <span class="op">==</span> <span class="number">0</span> <span class="op">||</span> <span class="ident">version</span> <span class="op">&gt;</span> <span class="ident">VERSION</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">Version</span> {
                 <span class="ident">expected</span>: <span class="ident">VERSION</span>,
                 <span class="ident">got</span>: <span class="ident">version</span>,
@@ -1425,6 +1440,7 @@ Most of the rest of the types are streams from set operations.
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">Format</span>.<span class="ident">into</span>());
         }
         <span class="prelude-val">Ok</span>(<span class="ident">Fst</span> {
+            <span class="ident">version</span>: <span class="ident">version</span>,
             <span class="ident">data</span>: <span class="ident">data</span>,
             <span class="ident">root_addr</span>: <span class="ident">root_addr</span>,
             <span class="ident">ty</span>: <span class="ident">ty</span>,
@@ -1435,6 +1451,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">/// Retrieves the value associated with a key.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the key does not exist, then `None` is returned.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">never</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get</span><span class="op">&lt;</span><span class="ident">B</span>: <span class="ident">AsRef</span><span class="op">&lt;</span>[<span class="ident">u8</span>]<span class="op">&gt;&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">key</span>: <span class="ident">B</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Output</span><span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">node</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">root</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">out</span> <span class="op">=</span> <span class="ident">Output</span>::<span class="ident">zero</span>();
@@ -1566,6 +1583,7 @@ Most of the rest of the types are streams from set operations.
     }
 
     <span class="doccomment">/// Returns the root node of this fst.</span>
+    <span class="attribute">#[<span class="ident">inline</span>(<span class="ident">always</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">root</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Node</span> {
         <span class="self">self</span>.<span class="ident">node</span>(<span class="self">self</span>.<span class="ident">root_addr</span>)
     }
@@ -1574,7 +1592,7 @@ Most of the rest of the types are streams from set operations.
     <span class="doccomment">///</span>
     <span class="doccomment">/// Node addresses can be obtained by reading transitions on `Node` values.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">addr</span>: <span class="ident">CompiledAddr</span>) <span class="op">-&gt;</span> <span class="ident">Node</span> {
-        <span class="ident">node_new</span>(<span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>)
+        <span class="ident">node_new</span>(<span class="self">self</span>.<span class="ident">version</span>, <span class="ident">addr</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">data</span>)
     }
 
     <span class="doccomment">/// Returns a copy of the binary contents of this FST.</span>
@@ -1843,7 +1861,7 @@ Most of the rest of the types are streams from set operations.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_str_vec</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">String</span>, <span class="ident">u64</span>)<span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="ident">v</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
-            <span class="kw">let</span> <span class="ident">k</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>()).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">from</span>));
+            <span class="kw">let</span> <span class="ident">k</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>()).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">from</span>)<span class="question-mark">?</span>;
             <span class="ident">vs</span>.<span class="ident">push</span>((<span class="ident">k</span>, <span class="ident">v</span>.<span class="ident">value</span>()));
         }
         <span class="prelude-val">Ok</span>(<span class="ident">vs</span>)
@@ -1869,7 +1887,7 @@ Most of the rest of the types are streams from set operations.
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_str_keys</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">vs</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>((<span class="ident">k</span>, <span class="kw">_</span>)) <span class="op">=</span> <span class="self">self</span>.<span class="ident">next</span>() {
-            <span class="kw">let</span> <span class="ident">k</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>()).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">from</span>));
+            <span class="kw">let</span> <span class="ident">k</span> <span class="op">=</span> <span class="ident">String</span>::<span class="ident">from_utf8</span>(<span class="ident">k</span>.<span class="ident">to_vec</span>()).<span class="ident">map_err</span>(<span class="ident">Error</span>::<span class="ident">from</span>)<span class="question-mark">?</span>;
             <span class="ident">vs</span>.<span class="ident">push</span>(<span class="ident">k</span>);
         }
         <span class="prelude-val">Ok</span>(<span class="ident">vs</span>)
@@ -2018,7 +2036,7 @@ Most of the rest of the types are streams from set operations.
                 <span class="kw-2">&amp;</span><span class="ident">vec</span>[<span class="ident">offset</span>..<span class="ident">offset</span> <span class="op">+</span> <span class="ident">len</span>]
             }
             <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;mmap&quot;</span>)]</span>
-            <span class="ident">FstData</span>::<span class="ident">Mmap</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="kw">unsafe</span> { <span class="ident">v</span>.<span class="ident">as_slice</span>() },
+            <span class="ident">FstData</span>::<span class="ident">Mmap</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">v</span>.<span class="ident">as_slice</span>(),
         }
     }
 }

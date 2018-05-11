@@ -126,22 +126,44 @@
 <span id="126">126</span>
 <span id="127">127</span>
 <span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">TermDictionary</span>;
+<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">automaton</span>::<span class="ident">AlwaysMatch</span>;
 <span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">map</span>::{<span class="ident">Stream</span>, <span class="ident">StreamBuilder</span>};
+<span class="kw">use</span> <span class="ident">fst</span>::<span class="ident">Automaton</span>;
 <span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">TermInfo</span>;
 <span class="kw">use</span> <span class="ident">termdict</span>::<span class="ident">TermOrdinal</span>;
 
-<span class="doccomment">/// `TermStreamerBuilder` is an helper object used to define</span>
+<span class="doccomment">/// `TermStreamerBuilder` is a helper object used to define</span>
 <span class="doccomment">/// a range of terms that should be streamed.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span> <span class="op">=</span> <span class="ident">AlwaysMatch</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Automaton</span>,
+{
     <span class="ident">fst_map</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">TermDictionary</span>,
-    <span class="ident">stream_builder</span>: <span class="ident">StreamBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+    <span class="ident">stream_builder</span>: <span class="ident">StreamBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">fst_map</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">TermDictionary</span>, <span class="ident">stream_builder</span>: <span class="ident">StreamBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span> <span class="ident">TermStreamerBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Automaton</span>,
+{
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">fst_map</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">TermDictionary</span>, <span class="ident">stream_builder</span>: <span class="ident">StreamBuilder</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">TermStreamerBuilder</span> {
             <span class="ident">fst_map</span>,
             <span class="ident">stream_builder</span>,
@@ -174,7 +196,7 @@
 
     <span class="doccomment">/// Creates the stream corresponding to the range</span>
     <span class="doccomment">/// of terms defined using the `TermStreamerBuilder`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_stream</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">into_stream</span>(<span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span> {
         <span class="ident">TermStreamer</span> {
             <span class="ident">fst_map</span>: <span class="self">self</span>.<span class="ident">fst_map</span>,
             <span class="ident">stream</span>: <span class="self">self</span>.<span class="ident">stream_builder</span>.<span class="ident">into_stream</span>(),
@@ -187,15 +209,21 @@
 
 <span class="doccomment">/// `TermStreamer` acts as a cursor over a range of terms of a segment.</span>
 <span class="doccomment">/// Terms are guaranteed to be sorted.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span> <span class="op">=</span> <span class="ident">AlwaysMatch</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Automaton</span>,
+{
     <span class="ident">fst_map</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">TermDictionary</span>,
-    <span class="ident">stream</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
+    <span class="ident">stream</span>: <span class="ident">Stream</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span>,
     <span class="ident">term_ord</span>: <span class="ident">TermOrdinal</span>,
     <span class="ident">current_key</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">u8</span><span class="op">&gt;</span>,
     <span class="ident">current_value</span>: <span class="ident">TermInfo</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span> <span class="ident">TermStreamer</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">A</span><span class="op">&gt;</span>
+<span class="kw">where</span>
+    <span class="ident">A</span>: <span class="ident">Automaton</span>,
+{
     <span class="doccomment">/// Advance position the stream on the next item.</span>
     <span class="doccomment">/// Before the first call to `.advance()`, the stream</span>
     <span class="doccomment">/// is an unitialized state.</span>

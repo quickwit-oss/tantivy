@@ -55,15 +55,15 @@ case, a character is a Unicode codepoint.)</p>
 <span class="kw">fn</span> <span class="ident">example</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
     <span class="comment">// A convenient way to create sets in memory.</span>
     <span class="kw">let</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;fa&quot;</span>, <span class="string">&quot;fo&quot;</span>, <span class="string">&quot;fob&quot;</span>, <span class="string">&quot;focus&quot;</span>, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;food&quot;</span>, <span class="string">&quot;foul&quot;</span>];
-    <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="ident">keys</span>));
+    <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="ident">keys</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Build our fuzzy query.</span>
-    <span class="kw">let</span> <span class="ident">lev</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Levenshtein</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>, <span class="number">1</span>));
+    <span class="kw">let</span> <span class="ident">lev</span> <span class="op">=</span> <span class="ident">Levenshtein</span>::<span class="ident">new</span>(<span class="string">&quot;foo&quot;</span>, <span class="number">1</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Apply our fuzzy query to the set we built.</span>
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">set</span>.<span class="ident">search</span>(<span class="ident">lev</span>).<span class="ident">into_stream</span>();
 
-    <span class="kw">let</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">stream</span>.<span class="ident">into_strs</span>());
+    <span class="kw">let</span> <span class="ident">keys</span> <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">into_strs</span>()<span class="question-mark">?</span>;
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;fo&quot;</span>, <span class="string">&quot;fob&quot;</span>, <span class="string">&quot;foo&quot;</span>, <span class="string">&quot;food&quot;</span>]);
     <span class="prelude-val">Ok</span>(())
 }</pre>
@@ -79,26 +79,26 @@ Instead, only constant memory is required.</p>
 <span class="kw">use</span> <span class="ident">fst</span>::{<span class="ident">IntoStreamer</span>, <span class="ident">Streamer</span>, <span class="ident">Map</span>, <span class="ident">MapBuilder</span>};
 
 <span class="comment">// This is where we&#39;ll write our map to.</span>
-<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">wtr</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufWriter</span>::<span class="ident">new</span>(<span class="macro">try</span><span class="macro">!</span>(<span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;map.fst&quot;</span>)));
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">wtr</span> <span class="op">=</span> <span class="ident">io</span>::<span class="ident">BufWriter</span>::<span class="ident">new</span>(<span class="ident">File</span>::<span class="ident">create</span>(<span class="string">&quot;map.fst&quot;</span>)<span class="question-mark">?</span>);
 
 <span class="comment">// Create a builder that can be used to insert new key-value pairs.</span>
-<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">build</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">MapBuilder</span>::<span class="ident">new</span>(<span class="ident">wtr</span>));
+<span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">build</span> <span class="op">=</span> <span class="ident">MapBuilder</span>::<span class="ident">new</span>(<span class="ident">wtr</span>)<span class="question-mark">?</span>;
 <span class="ident">build</span>.<span class="ident">insert</span>(<span class="string">&quot;bruce&quot;</span>, <span class="number">1</span>).<span class="ident">unwrap</span>();
 <span class="ident">build</span>.<span class="ident">insert</span>(<span class="string">&quot;clarence&quot;</span>, <span class="number">2</span>).<span class="ident">unwrap</span>();
 <span class="ident">build</span>.<span class="ident">insert</span>(<span class="string">&quot;stevie&quot;</span>, <span class="number">3</span>).<span class="ident">unwrap</span>();
 
 <span class="comment">// Finish construction of the map and flush its contents to disk.</span>
-<span class="macro">try</span><span class="macro">!</span>(<span class="ident">build</span>.<span class="ident">finish</span>());
+<span class="ident">build</span>.<span class="ident">finish</span>()<span class="question-mark">?</span>;
 
 <span class="comment">// At this point, the map has been constructed. Now we&#39;d like to search it.</span>
 <span class="comment">// This creates a memory map, which enables searching the map without loading</span>
 <span class="comment">// all of it into memory.</span>
-<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Map</span>::<span class="ident">from_path</span>(<span class="string">&quot;map.fst&quot;</span>));
+<span class="kw">let</span> <span class="ident">map</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">Map</span>::<span class="ident">from_path</span>(<span class="string">&quot;map.fst&quot;</span>) }<span class="question-mark">?</span>;
 
 <span class="comment">// Query for keys that are greater than or equal to clarence.</span>
 <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">map</span>.<span class="ident">range</span>().<span class="ident">ge</span>(<span class="string">&quot;clarence&quot;</span>).<span class="ident">into_stream</span>();
 
-<span class="kw">let</span> <span class="ident">kvs</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">stream</span>.<span class="ident">into_str_vec</span>());
+<span class="kw">let</span> <span class="ident">kvs</span> <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">into_str_vec</span>()<span class="question-mark">?</span>;
 <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">kvs</span>, <span class="macro">vec</span><span class="macro">!</span>[
     (<span class="string">&quot;clarence&quot;</span>.<span class="ident">to_owned</span>(), <span class="number">2</span>),
     (<span class="string">&quot;stevie&quot;</span>.<span class="ident">to_owned</span>(), <span class="number">3</span>),
@@ -118,12 +118,12 @@ will only match valid UTF-8 encoded byte strings.</p>
 <span class="kw">use</span> <span class="ident">fst_regex</span>::<span class="ident">Regex</span>;
 
 <span class="kw">fn</span> <span class="ident">example</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
-    <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;FoO&quot;</span>, <span class="string">&quot;Foo&quot;</span>, <span class="string">&quot;fOO&quot;</span>, <span class="string">&quot;foo&quot;</span>]));
+    <span class="kw">let</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;FoO&quot;</span>, <span class="string">&quot;Foo&quot;</span>, <span class="string">&quot;fOO&quot;</span>, <span class="string">&quot;foo&quot;</span>])<span class="question-mark">?</span>;
 
-    <span class="kw">let</span> <span class="ident">re</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">&quot;(?i)foo&quot;</span>));
+    <span class="kw">let</span> <span class="ident">re</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">&quot;(?i)foo&quot;</span>)<span class="question-mark">?</span>;
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="ident">set</span>.<span class="ident">search</span>(<span class="kw-2">&amp;</span><span class="ident">re</span>).<span class="ident">into_stream</span>();
 
-    <span class="kw">let</span> <span class="ident">keys</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">stream</span>.<span class="ident">into_strs</span>());
+    <span class="kw">let</span> <span class="ident">keys</span> <span class="op">=</span> <span class="ident">stream</span>.<span class="ident">into_strs</span>()<span class="question-mark">?</span>;
     <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="ident">keys</span>, <span class="macro">vec</span><span class="macro">!</span>[<span class="string">&quot;FoO&quot;</span>, <span class="string">&quot;Foo&quot;</span>, <span class="string">&quot;fOO&quot;</span>, <span class="string">&quot;foo&quot;</span>]);
     <span class="prelude-val">Ok</span>(())
 }</pre>
@@ -148,14 +148,14 @@ sets, but the same operations are available on maps too.</p>
 <span class="kw">use</span> <span class="ident">fst_regex</span>::<span class="ident">Regex</span>;
 
 <span class="kw">fn</span> <span class="ident">example</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>(), <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Error</span><span class="op">&gt;&gt;</span> {
-    <span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;AC/DC&quot;</span>, <span class="string">&quot;Aerosmith&quot;</span>]));
-    <span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Bob Seger&quot;</span>, <span class="string">&quot;Bruce Springsteen&quot;</span>]));
-    <span class="kw">let</span> <span class="ident">set3</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;George Thorogood&quot;</span>, <span class="string">&quot;Golden Earring&quot;</span>]));
-    <span class="kw">let</span> <span class="ident">set4</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Kansas&quot;</span>]));
-    <span class="kw">let</span> <span class="ident">set5</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Metallica&quot;</span>]));
+    <span class="kw">let</span> <span class="ident">set1</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;AC/DC&quot;</span>, <span class="string">&quot;Aerosmith&quot;</span>])<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">set2</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Bob Seger&quot;</span>, <span class="string">&quot;Bruce Springsteen&quot;</span>])<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">set3</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;George Thorogood&quot;</span>, <span class="string">&quot;Golden Earring&quot;</span>])<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">set4</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Kansas&quot;</span>])<span class="question-mark">?</span>;
+    <span class="kw">let</span> <span class="ident">set5</span> <span class="op">=</span> <span class="ident">Set</span>::<span class="ident">from_iter</span>(<span class="kw-2">&amp;</span>[<span class="string">&quot;Metallica&quot;</span>])<span class="question-mark">?</span>;
 
     <span class="comment">// Create the regular expression. We can reuse it to search all of the sets.</span>
-    <span class="kw">let</span> <span class="ident">re</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r&quot;.+\p{Lu}.*&quot;</span>));
+    <span class="kw">let</span> <span class="ident">re</span> <span class="op">=</span> <span class="ident">Regex</span>::<span class="ident">new</span>(<span class="string">r&quot;.+\p{Lu}.*&quot;</span>)<span class="question-mark">?</span>;
 
     <span class="comment">// Build a set operation. All we need to do is add a search result stream for</span>
     <span class="comment">// each set and ask for the union. (Other operations, like intersection and</span>

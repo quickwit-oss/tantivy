@@ -420,11 +420,53 @@
 <span id="420">420</span>
 <span id="421">421</span>
 <span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
-The term dictionary is one of the key datastructure of
+The term dictionary is one of the key data structures of
 tantivy. It associates sorted `terms` to a `TermInfo` struct
-that serves as an address in their respective posting list.
+that serves as an address to their respective posting list.
 
 The term dictionary API makes it possible to iterate through
 a range of keys in a sorted manner.
@@ -432,12 +474,12 @@ a range of keys in a sorted manner.
 
 # Implementations
 
-There is currently two implementations of the term dictionary.
+There are currently two implementations of the term dictionary.
 
 ## Default implementation : `fstdict`
 
 The default one relies heavily on the `fst` crate.
-It associate each terms `&amp;[u8]` representation to a `u64`
+It associate each term&#39;s `&amp;[u8]` representation to a `u64`
 that is in fact an address in a buffer. The value is then accessible
 via deserializing the value at this address.
 
@@ -842,6 +884,48 @@ term `stream`.
         }
     }
 
+    <span class="attribute">#[<span class="ident">test</span>]</span>
+    <span class="kw">fn</span> <span class="ident">test_automaton_search</span>() {
+        <span class="kw">use</span> <span class="ident">levenshtein_automata</span>::<span class="ident">LevenshteinAutomatonBuilder</span>;
+
+        <span class="kw">const</span> <span class="ident">COUNTRIES</span>: [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>; <span class="number">7</span>] <span class="op">=</span> [
+            <span class="string">&quot;San Marino&quot;</span>,
+            <span class="string">&quot;Serbia&quot;</span>,
+            <span class="string">&quot;Slovakia&quot;</span>,
+            <span class="string">&quot;Slovenia&quot;</span>,
+            <span class="string">&quot;Spain&quot;</span>,
+            <span class="string">&quot;Sweden&quot;</span>,
+            <span class="string">&quot;Switzerland&quot;</span>,
+        ];
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">directory</span> <span class="op">=</span> <span class="ident">RAMDirectory</span>::<span class="ident">create</span>();
+        <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="ident">PathBuf</span>::<span class="ident">from</span>(<span class="string">&quot;TermDictionary&quot;</span>);
+        {
+            <span class="kw">let</span> <span class="ident">write</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_write</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
+            <span class="kw">let</span> <span class="ident">field_type</span> <span class="op">=</span> <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="ident">TEXT</span>);
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_dictionary_builder</span> <span class="op">=</span>
+                <span class="ident">TermDictionaryBuilder</span>::<span class="ident">new</span>(<span class="ident">write</span>, <span class="ident">field_type</span>).<span class="ident">unwrap</span>();
+            <span class="kw">for</span> <span class="ident">term</span> <span class="kw">in</span> <span class="ident">COUNTRIES</span>.<span class="ident">iter</span>() {
+                <span class="ident">term_dictionary_builder</span>
+                    .<span class="ident">insert</span>(<span class="ident">term</span>.<span class="ident">as_bytes</span>(), <span class="kw-2">&amp;</span><span class="ident">make_term_info</span>(<span class="number">0u64</span>))
+                    .<span class="ident">unwrap</span>();
+            }
+            <span class="ident">term_dictionary_builder</span>.<span class="ident">finish</span>().<span class="ident">unwrap</span>();
+        }
+        <span class="kw">let</span> <span class="ident">source</span> <span class="op">=</span> <span class="ident">directory</span>.<span class="ident">open_read</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>).<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">term_dict</span>: <span class="ident">TermDictionary</span> <span class="op">=</span> <span class="ident">TermDictionary</span>::<span class="ident">from_source</span>(<span class="ident">source</span>);
+
+        <span class="comment">// We can now build an entire dfa.</span>
+        <span class="kw">let</span> <span class="ident">lev_automaton_builder</span> <span class="op">=</span> <span class="ident">LevenshteinAutomatonBuilder</span>::<span class="ident">new</span>(<span class="number">2</span>, <span class="bool-val">true</span>);
+        <span class="kw">let</span> <span class="ident">automaton</span> <span class="op">=</span> <span class="ident">lev_automaton_builder</span>.<span class="ident">build_dfa</span>(<span class="string">&quot;Spaen&quot;</span>);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">range</span> <span class="op">=</span> <span class="ident">term_dict</span>.<span class="ident">search</span>(<span class="ident">automaton</span>).<span class="ident">into_stream</span>();
+
+        <span class="comment">// get the first finding</span>
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">range</span>.<span class="ident">advance</span>());
+        <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="string">&quot;Spain&quot;</span>.<span class="ident">as_bytes</span>(), <span class="ident">range</span>.<span class="ident">key</span>());
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="ident">range</span>.<span class="ident">advance</span>());
+    }
 }
 </pre>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "tantivy";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
