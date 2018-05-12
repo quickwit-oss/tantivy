@@ -9,6 +9,7 @@ use SegmentLocalId;
 use SegmentReader;
 use query::Query;
 use Searcher;
+use downcast;
 
 mod count_collector;
 pub use self::count_collector::CountCollector;
@@ -55,7 +56,7 @@ pub use self::chained_collector::chain;
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
-    type Child : SegmentCollector;
+    type Child : SegmentCollector + 'static;
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
     fn for_segment(
@@ -96,16 +97,21 @@ pub trait Collector {
     }
 }
 
-pub trait SegmentCollector {
+pub trait SegmentCollector: downcast::Any + 'static {
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
+}
+
+#[allow(missing_docs)]
+mod downcast_impl {
+    downcast!(super::SegmentCollector);
 }
 
 impl<'a, C: Collector> Collector for &'a mut C {
     type Child = C::Child;
 
     fn for_segment(
-        &mut self,
+        &mut self, // TODO Ask Jason : why &mut self here!?
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
     ) -> Result<C::Child> {
@@ -121,11 +127,6 @@ impl<'a, C: Collector> Collector for &'a mut C {
     }
 }
 
-impl<'a, S: SegmentCollector> SegmentCollector for &'a mut S {
-    fn collect(&mut self, doc: u32, score: f32) {
-        (*self).collect(doc, score);
-    }
-}
 
 #[cfg(test)]
 pub mod tests {
