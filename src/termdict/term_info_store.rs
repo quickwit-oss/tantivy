@@ -6,8 +6,8 @@ use common::{BinarySerializable, FixedSize};
 use directory::ReadOnlySource;
 use postings::TermInfo;
 use std::cmp;
-use std::ptr;
 use std::io::{self, Read, Write};
+use std::ptr;
 use termdict::TermOrdinal;
 
 const BLOCK_LEN: usize = 256;

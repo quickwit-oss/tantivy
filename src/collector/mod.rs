@@ -133,6 +133,7 @@ pub mod tests {
 
     use super::*;
     use core::SegmentReader;
+    use fastfield::BytesFastFieldReader;
     use fastfield::FastFieldReader;
     use schema::Field;
     use DocId;
@@ -268,6 +269,61 @@ pub mod tests {
         fn collect(&mut self, doc: DocId, _score: Score) {
             let val = self.reader.get(doc);
             self.vals.push(val);
+        }
+    }
+
+    /// Collects in order all of the fast field bytes for all of the
+    /// docs in the `DocSet`
+    ///
+    /// This collector is mainly useful for tests.
+    pub struct BytesFastFieldTestCollector {
+        vals: Vec<u8>,
+        field: Field,
+    }
+
+    pub struct BytesFastFieldSegmentCollector {
+        vals: Vec<u8>,
+        reader: BytesFastFieldReader,
+    }
+
+    impl BytesFastFieldTestCollector {
+        pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
+            BytesFastFieldTestCollector {
+                vals: Vec::new(),
+                field,
+            }
+        }
+
+        pub fn vals(self) -> Vec<u8> {
+            self.vals
+        }
+    }
+
+    impl Collector for BytesFastFieldTestCollector {
+        type Child = BytesFastFieldSegmentCollector;
+
+        fn for_segment(&mut self, _segment_local_id: u32, segment: &SegmentReader) -> Result<BytesFastFieldSegmentCollector> {
+            Ok(BytesFastFieldSegmentCollector {
+                vals: Vec::new(),
+                reader: segment.bytes_fast_field_reader(self.field)?,
+            })
+        }
+
+        fn requires_scoring(&self) -> bool {
+            false
+        }
+
+        fn merge_children(&mut self, children: Vec<<Self as Collector>::Child>) {
+            for child in children.into_iter() {
+                self.vals.extend(child.vals);
+            }
+        }
+    }
+
+    impl SegmentCollector for BytesFastFieldSegmentCollector {
+        fn collect(&mut self, doc: u32, _score: f32) {
+            let val = self.reader.get_val(doc);
+            self.vals.extend(val);
         }
     }
 }

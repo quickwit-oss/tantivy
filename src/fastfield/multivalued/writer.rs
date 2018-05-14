@@ -6,6 +6,7 @@ use postings::UnorderedTermId;
 use schema::{Document, Field};
 use std::collections::HashMap;
 use std::io;
+use termdict::TermOrdinal;
 use DocId;
 
 /// Writer for multi-valued (as in, more than one value per document)
@@ -101,7 +102,7 @@ impl MultiValueIntFastFieldWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping_opt: Option<&HashMap<UnorderedTermId, usize>>,
+        mapping_opt: Option<&HashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         {
             // writing the offset index
@@ -125,13 +126,13 @@ impl MultiValueIntFastFieldWriter {
                         1,
                     )?;
                     for val in &self.vals {
-                        let remapped_val = *mapping.get(val).expect("Missing term ordinal") as u64;
+                        let remapped_val = *mapping.get(val).expect("Missing term ordinal");
                         value_serializer.add_val(remapped_val)?;
                     }
                 }
                 None => {
                     let val_min_max = self.vals.iter().cloned().minmax();
-                    let (val_min, val_max) = val_min_max.into_option().unwrap_or((0u64, 0));
+                    let (val_min, val_max) = val_min_max.into_option().unwrap_or((0u64, 0u64));
                     value_serializer =
                         serializer.new_u64_fast_field_with_idx(self.field, val_min, val_max, 1)?;
                     for &val in &self.vals {

@@ -4,7 +4,6 @@ use std::iter;
 use std::mem;
 use std::slice;
 
-
 mod murmurhash2 {
 
     const SEED: u32 = 3_242_157_231u32;
@@ -12,7 +11,6 @@ mod murmurhash2 {
 
     #[inline(always)]
     pub fn murmurhash2(key: &[u8]) -> u32 {
-
         let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
         let len = key.len() as u32;
         let mut h: u32 = SEED ^ len;
@@ -53,7 +51,6 @@ mod murmurhash2 {
         h ^ (h >> 15)
     }
 }
-
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -217,14 +214,14 @@ impl<'a> TermHashMap<'a> {
     }
 }
 
-#[cfg(all(test, feature="unstable"))]
+#[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::murmurhash2::murmurhash2;
     use test::Bencher;
 
     #[bench]
     fn bench_murmurhash2(b: &mut Bencher) {
-        let keys: [&'static str; 3]= ["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
+        let keys: [&'static str; 3] = ["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
         b.iter(|| {
             let mut s = 0;
             for &key in &keys {
@@ -323,7 +320,6 @@ mod tests {
         assert_eq!(murmurhash2("abcde".as_bytes()), 2988696942);
         assert_eq!(murmurhash2("abcdefghijklmnop".as_bytes()), 2350868870);
     }
-
 
     #[test]
     fn test_murmur_collisions() {

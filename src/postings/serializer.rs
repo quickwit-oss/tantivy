@@ -1,17 +1,14 @@
 use super::TermInfo;
 use common::BinarySerializable;
-use common::CompositeWrite;
-use common::CountingWriter;
+use common::{CompositeWrite, CountingWriter};
 use compression::VIntEncoder;
 use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
 use core::Segment;
 use directory::WritePtr;
-use schema::Field;
-use schema::FieldEntry;
-use schema::FieldType;
 use schema::Schema;
+use schema::{Field, FieldEntry, FieldType};
 use std::io::{self, Write};
-use termdict::TermDictionaryBuilder;
+use termdict::{TermDictionaryBuilder, TermOrdinal};
 use DocId;
 use Result;
 
@@ -119,6 +116,7 @@ pub struct FieldSerializer<'a> {
     positions_serializer_opt: Option<PositionSerializer<&'a mut CountingWriter<WritePtr>>>,
     current_term_info: TermInfo,
     term_open: bool,
+    num_terms: TermOrdinal,
 }
 
 impl<'a> FieldSerializer<'a> {
@@ -157,6 +155,7 @@ impl<'a> FieldSerializer<'a> {
             positions_serializer_opt,
             current_term_info: TermInfo::default(),
             term_open: false,
+            num_terms: TermOrdinal::default(),
         })
     }
 
@@ -177,7 +176,7 @@ impl<'a> FieldSerializer<'a> {
     /// * term - the term. It needs to come after the previous term according
     ///   to the lexicographical order.
     /// * doc_freq - return the number of document containing the term.
-    pub fn new_term(&mut self, term: &[u8]) -> io::Result<()> {
+    pub fn new_term(&mut self, term: &[u8]) -> io::Result<TermOrdinal> {
         assert!(
             !self.term_open,
             "Called new_term, while the previous term was not closed."
@@ -185,7 +184,10 @@ impl<'a> FieldSerializer<'a> {
         self.term_open = true;
         self.postings_serializer.clear();
         self.current_term_info = self.current_term_info();
-        self.term_dictionary_builder.insert_key(term)
+        self.term_dictionary_builder.insert_key(term)?;
+        let term_ordinal = self.num_terms;
+        self.num_terms += 1;
+        Ok(term_ordinal)
     }
 
     /// Serialize the information that a document contains the current term,

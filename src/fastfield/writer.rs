@@ -2,17 +2,18 @@ use super::multivalued::MultiValueIntFastFieldWriter;
 use common;
 use common::BinarySerializable;
 use common::VInt;
-use fastfield::FastFieldSerializer;
+use fastfield::{BytesFastFieldWriter, FastFieldSerializer};
 use postings::UnorderedTermId;
-use schema::FieldType;
-use schema::{Cardinality, Document, Field, Schema};
+use schema::{Cardinality, Document, Field, FieldType, Schema};
 use std::collections::HashMap;
 use std::io;
+use termdict::TermOrdinal;
 
 /// The fastfieldswriter regroup all of the fast field writers.
 pub struct FastFieldsWriter {
     single_value_writers: Vec<IntFastFieldWriter>,
     multi_values_writers: Vec<MultiValueIntFastFieldWriter>,
+    bytes_value_writers: Vec<BytesFastFieldWriter>,
 }
 
 impl FastFieldsWriter {
@@ -20,6 +21,7 @@ impl FastFieldsWriter {
     pub fn from_schema(schema: &Schema) -> FastFieldsWriter {
         let mut single_value_writers = Vec::new();
         let mut multi_values_writers = Vec::new();
+        let mut bytes_value_writers = Vec::new();
 
         for (field_id, field_entry) in schema.fields().iter().enumerate() {
             let field = Field(field_id as u32);
@@ -47,12 +49,17 @@ impl FastFieldsWriter {
                     let fast_field_writer = MultiValueIntFastFieldWriter::new(field, true);
                     multi_values_writers.push(fast_field_writer);
                 }
+                FieldType::Bytes => {
+                    let fast_field_writer = BytesFastFieldWriter::new(field);
+                    bytes_value_writers.push(fast_field_writer);
+                }
                 _ => {}
             }
         }
         FastFieldsWriter {
             single_value_writers,
             multi_values_writers,
+            bytes_value_writers,
         }
     }
 
@@ -78,12 +85,26 @@ impl FastFieldsWriter {
             .find(|multivalue_writer| multivalue_writer.field() == field)
     }
 
+    /// Returns the bytes fast field writer for the given field.
+    ///
+    /// Returns None if the field does not exist, or is not
+    /// configured as a bytes fastfield in the schema.
+    pub fn get_bytes_writer(&mut self, field: Field) -> Option<&mut BytesFastFieldWriter> {
+        // TODO optimize
+        self.bytes_value_writers
+            .iter_mut()
+            .find(|field_writer| field_writer.field() == field)
+    }
+
     /// Indexes all of the fastfields of a new document.
     pub fn add_document(&mut self, doc: &Document) {
         for field_writer in &mut self.single_value_writers {
             field_writer.add_document(doc);
         }
         for field_writer in &mut self.multi_values_writers {
+            field_writer.add_document(doc);
+        }
+        for field_writer in &mut self.bytes_value_writers {
             field_writer.add_document(doc);
         }
     }
@@ -93,7 +114,7 @@ impl FastFieldsWriter {
     pub fn serialize(
         &self,
         serializer: &mut FastFieldSerializer,
-        mapping: &HashMap<Field, HashMap<UnorderedTermId, usize>>,
+        mapping: &HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>,
     ) -> io::Result<()> {
         for field_writer in &self.single_value_writers {
             field_writer.serialize(serializer)?;
@@ -101,6 +122,9 @@ impl FastFieldsWriter {
         for field_writer in &self.multi_values_writers {
             let field = field_writer.field();
             field_writer.serialize(serializer, mapping.get(&field))?;
+        }
+        for field_writer in &self.bytes_value_writers {
+            field_writer.serialize(serializer)?;
         }
         Ok(())
     }

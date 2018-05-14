@@ -3,6 +3,7 @@ use std::fmt;
 use super::Field;
 use byteorder::{BigEndian, ByteOrder};
 use common;
+use schema::Facet;
 use std::str;
 
 /// Size (in bytes) of the buffer of a int field.
@@ -27,6 +28,16 @@ impl Term {
     pub fn from_field_i64(field: Field, val: i64) -> Term {
         let val_u64: u64 = common::i64_to_u64(val);
         Term::from_field_u64(field, val_u64)
+    }
+
+    /// Creates a `Term` given a facet.
+    pub fn from_facet(field: Field, facet: &Facet) -> Term {
+        let bytes = facet.encoded_bytes();
+        let buffer = Vec::with_capacity(4 + bytes.len());
+        let mut term = Term(buffer);
+        term.set_field(field);
+        term.set_bytes(bytes);
+        term
     }
 
     /// Builds a term given a field, and a string value
@@ -91,10 +102,14 @@ impl Term {
         self.set_u64(common::i64_to_u64(val));
     }
 
+    fn set_bytes(&mut self, bytes: &[u8]) {
+        self.0.resize(4, 0u8);
+        self.0.extend(bytes);
+    }
+
     /// Set the texts only, keeping the field untouched.
     pub fn set_text(&mut self, text: &str) {
-        self.0.resize(4, 0u8);
-        self.0.extend(text.as_bytes());
+        self.set_bytes(text.as_bytes());
     }
 }
 
