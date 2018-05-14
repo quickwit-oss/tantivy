@@ -1196,8 +1196,9 @@ mod tests {
             use collector::{CountCollector, MultiCollector};
             let mut count_collector = CountCollector::default();
             {
-                let mut multi_collectors =
-                    MultiCollector::from(vec![&mut count_collector, &mut facet_collector]);
+                let mut multi_collectors = MultiCollector::new();
+                multi_collectors.add_collector(&mut count_collector);
+                multi_collectors.add_collector(&mut facet_collector);
                 searcher.search(&AllQuery, &mut multi_collectors).unwrap();
             }
             assert_eq!(count_collector.count(), expected_num_docs);
