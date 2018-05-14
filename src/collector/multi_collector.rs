@@ -10,6 +10,28 @@ use downcast::Downcast;
 
 pub struct CollectorWrapper<'a, TCollector: 'a + Collector>(&'a mut TCollector);
 
+impl<'a, T: 'a + Collector> CollectorWrapper<'a, T> {
+    pub fn new(collector: &'a mut T) -> CollectorWrapper<'a, T> {
+        CollectorWrapper(collector)
+    }
+}
+
+impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
+    type Child = T::Child;
+
+    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
+        self.0.for_segment(segment_local_id, segment)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring()
+    }
+
+    fn merge_children(&mut self, children: Vec<T::Child>) {
+        self.0.merge_children(children)
+    }
+}
+
 trait UntypedCollector {
     fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>>;
 
@@ -43,13 +65,13 @@ pub struct MultiCollector<'a> {
 }
 
 impl<'a> MultiCollector<'a> {
-    fn new() -> MultiCollector<'a> {
+    pub fn new() -> MultiCollector<'a> {
         MultiCollector {
             collector_wrappers: Vec::new()
         }
     }
 
-    fn add_collector<TCollector: 'a + Collector>(&mut self, collector: &'a mut TCollector) {
+    pub fn add_collector<TCollector: 'a + Collector>(&mut self, collector: &'a mut TCollector) {
         let collector_wrapper = CollectorWrapper(collector);
         self.collector_wrappers.push(Box::new(collector_wrapper));
     }
