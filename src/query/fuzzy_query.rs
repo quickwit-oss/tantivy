@@ -1,6 +1,5 @@
 use common::BitSet;
 use core::SegmentReader;
-use fst::automaton::AlwaysMatch;
 use fst::Automaton;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
 use query::BitSetDocSet;
@@ -8,8 +7,24 @@ use query::ConstScorer;
 use query::{Query, Scorer, Weight};
 use schema::{Field, IndexRecordOption, Term};
 use termdict::{TermDictionary, TermStreamer};
+use std::collections::HashMap;
 use Result;
 use Searcher;
+
+
+lazy_static! {
+    static ref LEV_BUILDER: HashMap<(u8, bool), LevenshteinAutomatonBuilder> = {
+        let mut lev_builder_cache = HashMap::new();
+        // TODO make population lazy on a `(distance, val)` basis
+        for distance in 0..3 {
+            for &transposition in [false, true].iter() {
+                let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
+                lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
+            }
+        }
+        lev_builder_cache
+    };
+}
 
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is with in
@@ -18,6 +33,7 @@ use Searcher;
 pub struct FuzzyQuery {
     term: Term,
     distance: u8,
+    // TODO handle transposition optionally
 }
 
 impl FuzzyQuery {
@@ -26,54 +42,38 @@ impl FuzzyQuery {
         FuzzyQuery { term, distance }
     }
 
-    pub fn specialized_weight(&self) -> AutomatonWeight<DFA> {
-        AutomatonWeight {
+    pub fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
+        let automaton = LEV_BUILDER.get(&(self.distance, false))
+            .unwrap() // TODO return an error
+            .build_dfa(self.term.text());
+        Ok(AutomatonWeight {
             term: self.term.clone(),
             field: self.term.field(),
-            builder: self,
-        }
+            automaton,
+        })
     }
 }
 
 impl Query for FuzzyQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
-        Ok(Box::new(self.specialized_weight()))
+        Ok(Box::new(self.specialized_weight()?))
     }
-}
-
-impl AutomatonBuilder<DFA> for FuzzyQuery {
-    fn build_automaton(&self) -> Box<DFA> {
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(self.distance, true);
-        let automaton = lev_automaton_builder.build_dfa(self.term.text());
-        Box::new(automaton)
-    }
-}
-
-trait AutomatonBuilder<A>
-where
-    A: Automaton,
-{
-    fn build_automaton(&self) -> Box<A>;
 }
 
 pub struct AutomatonWeight<A>
-where
-    A: Automaton,
+where A: Automaton
 {
     term: Term,
     field: Field,
-    builder: AutomatonBuilder<A>,
+    automaton: A,
 }
 
 impl<A> AutomatonWeight<A>
 where
     A: Automaton,
 {
-    fn automaton_stream<'a>(&self, term_dict: &'a TermDictionary) -> TermStreamer<'a, A> {
-        let automaton = self.builder.build_automaton();
-
-        let term_stream_builder = term_dict.search::<A>(*automaton);
-
+    fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
+        let term_stream_builder = term_dict.search(&self.automaton);
         term_stream_builder.into_stream()
     }
 }
@@ -107,6 +107,12 @@ where
 #[cfg(test)]
 mod test {
     use super::FuzzyQuery;
+    use schema::SchemaBuilder;
+    use Index;
+    use collector::TopCollector;
+    use schema::TEXT;
+    use Term;
+    use tests::assert_nearly_equals;
 
     #[test]
     pub fn test_automaton_weight() {
@@ -128,7 +134,7 @@ mod test {
         let searcher = index.searcher();
         {
             let mut collector = TopCollector::with_limit(2);
-            let term = Term::from_field_text(left_field, "Japon");
+            let term = Term::from_field_text(country_field, "Japon");
             let fuzzy_query = FuzzyQuery::new(term, 2);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
