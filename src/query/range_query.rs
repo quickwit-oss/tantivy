@@ -80,7 +80,7 @@ fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
 /// #   run().unwrap()
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct RangeQuery {
     field: Field,
     value_type: Type,

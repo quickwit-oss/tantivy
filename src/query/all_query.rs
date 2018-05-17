@@ -9,7 +9,7 @@ use Score;
 /// Query that matches all of the documents.
 ///
 /// All of the document get the score 1f32.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct AllQuery;
 
 impl Query for AllQuery {
