@@ -27,6 +27,12 @@ impl IntoIterator for TinySet {
     }
 }
 
+impl From<u64> for TinySet {
+    fn from(value: u64) -> Self {
+        TinySet(value)
+    }
+}
+
 impl TinySet {
     /// Returns an empty `TinySet`.
     pub fn empty() -> TinySet {
@@ -34,7 +40,7 @@ impl TinySet {
     }
 
     /// Returns the complement of the set in `[0, 64[`.
-    fn complement(&self) -> TinySet {
+    pub fn complement(&self) -> TinySet {
         TinySet(!self.0)
     }
 

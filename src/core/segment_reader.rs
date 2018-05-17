@@ -1,5 +1,6 @@
 use common::CompositeFile;
 use common::HasLen;
+use common::TinySet;
 use core::InvertedIndexReader;
 use core::Segment;
 use core::SegmentComponent;
@@ -369,17 +370,50 @@ impl fmt::Debug for SegmentReader {
 /// over non-deleted ("alive") DocIds in a SegmentReader
 pub struct SegmentReaderAliveDocsIterator<'a> {
     reader: &'a SegmentReader,
+    cursor_bucket: u32,
+    cursor_tinybitset: TinySet,
     max_doc: DocId,
     current: DocId,
 }
 
 impl<'a> SegmentReaderAliveDocsIterator<'a> {
     pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
+        let init_tinyset = reader.delete_bitset_opt.as_ref()
+            .map(|bitset| bitset.tinyset(0))
+            .unwrap_or(TinySet::empty());
         SegmentReaderAliveDocsIterator {
             reader: reader,
+            cursor_bucket: 0,
+            cursor_tinybitset: init_tinyset,
             max_doc: reader.max_doc(),
             current: 0,
         }
+    }
+
+    fn delete_bitset(&self) -> &'a DeleteBitSet {
+        self.reader.delete_bitset_opt.as_ref().unwrap()
+    }
+
+    fn go_to_bucket(&mut self, bucket_addr: u32) {
+        self.cursor_bucket = bucket_addr;
+        self.cursor_tinybitset = self.delete_bitset().tinyset(bucket_addr);
+    }
+
+    fn next_possible_doc(&mut self) -> Option<DocId> {
+        if self.reader.delete_bitset_opt.is_none() {
+            let doc_id = self.current;
+            self.current += 1;
+            return Some(doc_id);
+        }
+        if let Some(lower) = self.cursor_tinybitset.pop_lowest() {
+            return Some((self.cursor_bucket * 64u32) | lower);
+        }
+        if let Some(cursor_bucket) = self.delete_bitset().first_non_empty_bucket(self.cursor_bucket + 1) {
+            self.go_to_bucket(cursor_bucket);
+            let lower = self.cursor_tinybitset.pop_lowest().unwrap();
+            return Some((self.cursor_bucket * 64u32) | lower);
+        }
+        return None
     }
 }
 
@@ -387,27 +421,13 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
     type Item = DocId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        // TODO: Use TinySet (like in BitSetDocSet) to speed this process up
-        if self.current >= self.max_doc {
-            return None;
-        }
-
-        // find the next alive doc id
-        while self.reader.is_deleted(self.current) {
-            self.current += 1;
-
-            if self.current >= self.max_doc {
-                return None;
+        self.next_possible_doc().and_then(|doc_id| {
+            if doc_id >= self.max_doc {
+                None
+            } else {
+                Some(doc_id)
             }
-        }
-
-        // capture the current alive DocId
-        let result = Some(self.current);
-
-        // move down the chain
-        self.current += 1;
-
-        result
+        })
     }
 }
 
