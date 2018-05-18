@@ -1,50 +1,20 @@
 /*!
-The term dictionary is one of the key data structures of
-tantivy. It associates sorted `terms` to a `TermInfo` struct
-that serves as an address to their respective posting list.
+The term dictionary main role is to associate the sorted [`Term`s](../struct.Term.html) to
+a [`TermInfo`](../postings/struct.TermInfo.html) struct that contains some meta-information
+about the term.
 
-The term dictionary API makes it possible to iterate through
-a range of keys in a sorted manner.
+Internally, the term dictionary relies on the `fst` crate to store
+a sorted mapping that associate each term to its rank in the lexicographical order.
+For instance, in a dictionary containing the sorted terms "abba", "bjork", "blur" and "donovan",
+the `TermOrdinal` are respectively `0`, `1`, `2`, and `3`.
 
+For `u64`-terms, tantivy explicitely uses a `BigEndian` representation to ensure that the
+lexicographical order matches the natural order of integers.
 
-# Implementations
+`i64`-terms are transformed to `u64` using a continuous mapping `val ⟶ val - i64::min_value()`
+and then treated as a `u64`.
 
-There are currently two implementations of the term dictionary.
-
-## Default implementation : `fstdict`
-
-The default one relies heavily on the `fst` crate.
-It associate each term's `&[u8]` representation to a `u64`
-that is in fact an address in a buffer. The value is then accessible
-via deserializing the value at this address.
-
-
-## Stream implementation : `streamdict`
-
-The `fstdict` is a tiny bit slow when streaming all of
-the terms.
-For some use case (analytics engine), it is preferrable
-to use the `streamdict`, that offers better streaming
-performance, to the detriment of `lookup` performance.
-
-`streamdict` can be enabled by adding the `streamdict`
-feature when compiling `tantivy`.
-
-`streamdict` encodes each term relatively to the precedent
-as follows.
-
-- number of bytes that needs to be popped.
-- number of bytes that needs to be added.
-- sequence of bytes that is to be added
-- value.
-
-Because such a structure does not allow for lookups,
-it comes with a `fst` that indexes 1 out of `1024`
-terms in this structure.
-
-A `lookup` therefore consists in a lookup in the `fst`
-followed by a streaming through at most `1024` elements in the
-term `stream`.
+A second datastructure makes it possible to access a [`TermInfo`](../postings/struct.TermInfo.html).
 */
 
 /// Position of the term in the sorted list of terms.
