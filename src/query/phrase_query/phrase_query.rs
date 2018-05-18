@@ -48,10 +48,12 @@ impl PhraseQuery {
         }
     }
 
+    /// The `Field` this `PhraseQuery` is targeting.
     pub fn field(&self) -> Field {
         self.field
     }
 
+    /// The `Term`s in the phrase making up this `PhraseQuery`.
     pub fn phrase_terms(&self) -> &[Term] {
         &self.phrase_terms[..]
     }

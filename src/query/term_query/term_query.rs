@@ -31,6 +31,7 @@ impl TermQuery {
         }
     }
 
+    /// The `Term` this query is built out of.
     pub fn term(&self) -> &Term {
         &self.term
     }
