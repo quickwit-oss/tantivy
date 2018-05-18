@@ -66,6 +66,7 @@ impl BooleanQuery {
         BooleanQuery::from(occur_term_queries)
     }
 
+    /// Deconstructed view of the clauses making up this query.
     pub fn clauses(&self) -> &[(Occur, Box<Query>)] {
         &self.subqueries[..]
     }
