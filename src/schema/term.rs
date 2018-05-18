@@ -109,6 +109,12 @@ impl Term {
         self.0.extend(bytes);
     }
 
+    pub(crate) fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
+        let mut term = Term::for_field(field);
+        term.set_bytes(bytes);
+        term
+    }
+
     /// Set the texts only, keeping the field untouched.
     pub fn set_text(&mut self, text: &str) {
         self.set_bytes(text.as_bytes());
