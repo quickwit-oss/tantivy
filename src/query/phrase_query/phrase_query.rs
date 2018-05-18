@@ -21,7 +21,7 @@ use Result;
 /// Using a `PhraseQuery` on a field requires positions
 /// to be indexed for this field.
 ///
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PhraseQuery {
     field: Field,
     phrase_terms: Vec<Term>,
@@ -46,6 +46,14 @@ impl PhraseQuery {
             field,
             phrase_terms: terms,
         }
+    }
+
+    pub fn field(&self) -> Field {
+        self.field
+    }
+
+    pub fn phrase_terms(&self) -> &[Term] {
+        &self.phrase_terms[..]
     }
 }
 

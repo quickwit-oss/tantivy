@@ -23,6 +23,16 @@ pub struct BooleanQuery {
     subqueries: Vec<(Occur, Box<Query>)>,
 }
 
+impl Clone for BooleanQuery {
+    fn clone(&self) -> Self {
+        self.subqueries
+            .iter()
+            .map(|(x, y)| (x.clone(), y.box_clone()))
+            .collect::<Vec<_>>()
+            .into()
+    }
+}
+
 impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
     fn from(subqueries: Vec<(Occur, Box<Query>)>) -> BooleanQuery {
         BooleanQuery { subqueries }
@@ -54,5 +64,9 @@ impl BooleanQuery {
             })
             .collect();
         BooleanQuery::from(occur_term_queries)
+    }
+
+    pub fn clauses(&self) -> &[(Occur, Box<Query>)] {
+        &self.subqueries[..]
     }
 }
