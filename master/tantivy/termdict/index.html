@@ -1,37 +1,15 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `termdict` mod in crate `tantivy`."><meta name="keywords" content="rust, rustlang, rust-lang, termdict"><title>tantivy::termdict - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a><p class='location'>Module termdict</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'termdict', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>tantivy</a>::<wbr><a class="mod" href=''>termdict</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#1-464' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>The term dictionary is one of the key data structures of
-tantivy. It associates sorted <code>terms</code> to a <code>TermInfo</code> struct
-that serves as an address to their respective posting list.</p>
-<p>The term dictionary API makes it possible to iterate through
-a range of keys in a sorted manner.</p>
-<h1 id="implementations-1" class="section-header"><a href="#implementations-1">Implementations</a></h1>
-<p>There are currently two implementations of the term dictionary.</p>
-<h2 id="default-implementation--fstdict" class="section-header"><a href="#default-implementation--fstdict">Default implementation : <code>fstdict</code></a></h2>
-<p>The default one relies heavily on the <code>fst</code> crate.
-It associate each term's <code>&amp;[u8]</code> representation to a <code>u64</code>
-that is in fact an address in a buffer. The value is then accessible
-via deserializing the value at this address.</p>
-<h2 id="stream-implementation--streamdict" class="section-header"><a href="#stream-implementation--streamdict">Stream implementation : <code>streamdict</code></a></h2>
-<p>The <code>fstdict</code> is a tiny bit slow when streaming all of
-the terms.
-For some use case (analytics engine), it is preferrable
-to use the <code>streamdict</code>, that offers better streaming
-performance, to the detriment of <code>lookup</code> performance.</p>
-<p><code>streamdict</code> can be enabled by adding the <code>streamdict</code>
-feature when compiling <code>tantivy</code>.</p>
-<p><code>streamdict</code> encodes each term relatively to the precedent
-as follows.</p>
-<ul>
-<li>number of bytes that needs to be popped.</li>
-<li>number of bytes that needs to be added.</li>
-<li>sequence of bytes that is to be added</li>
-<li>value.</li>
-</ul>
-<p>Because such a structure does not allow for lookups,
-it comes with a <code>fst</code> that indexes 1 out of <code>1024</code>
-terms in this structure.</p>
-<p>A <code>lookup</code> therefore consists in a lookup in the <code>fst</code>
-followed by a streaming through at most <code>1024</code> elements in the
-term <code>stream</code>.</p>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `termdict` mod in crate `tantivy`."><meta name="keywords" content="rust, rustlang, rust-lang, termdict"><title>tantivy::termdict - Rust</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../tantivy/index.html'><img src='http://fulmicoton.com/tantivy-logo/tantivy-logo.png' alt='logo' width='100'></a><p class='location'>Module termdict</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#structs">Structs</a></li><li><a href="#types">Type Definitions</a></li></ul></div><p class='location'><a href='../index.html'>tantivy</a></p><script>window.sidebarCurrent = {name: 'termdict', ty: 'mod', relpath: '../'};</script><script defer src="../sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Module <a href='../index.html'>tantivy</a>::<wbr><a class="mod" href=''>termdict</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../src/tantivy/termdict/mod.rs.html#1-434' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>The term dictionary main role is to associate the sorted <a href="../struct.Term.html"><code>Term</code>s</a> to
+a <a href="../postings/struct.TermInfo.html"><code>TermInfo</code></a> struct that contains some meta-information
+about the term.</p>
+<p>Internally, the term dictionary relies on the <code>fst</code> crate to store
+a sorted mapping that associate each term to its rank in the lexicographical order.
+For instance, in a dictionary containing the sorted terms &quot;abba&quot;, &quot;bjork&quot;, &quot;blur&quot; and &quot;donovan&quot;,
+the <code>TermOrdinal</code> are respectively <code>0</code>, <code>1</code>, <code>2</code>, and <code>3</code>.</p>
+<p>For <code>u64</code>-terms, tantivy explicitely uses a <code>BigEndian</code> representation to ensure that the
+lexicographical order matches the natural order of integers.</p>
+<p><code>i64</code>-terms are transformed to <code>u64</code> using a continuous mapping <code>val ⟶ val - i64::min_value()</code>
+and then treated as a <code>u64</code>.</p>
+<p>A second datastructure makes it possible to access a <a href="../postings/struct.TermInfo.html"><code>TermInfo</code></a>.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
                        <tr class=' module-item'>

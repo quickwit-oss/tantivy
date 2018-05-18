@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.53/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.55/src/private/de.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>de.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2881,6 +2881,18 @@
 <span id="2881">2881</span>
 <span id="2882">2882</span>
 <span id="2883">2883</span>
+<span id="2884">2884</span>
+<span id="2885">2885</span>
+<span id="2886">2886</span>
+<span id="2887">2887</span>
+<span id="2888">2888</span>
+<span id="2889">2889</span>
+<span id="2890">2890</span>
+<span id="2891">2891</span>
+<span id="2892">2892</span>
+<span id="2893">2893</span>
+<span id="2894">2894</span>
+<span id="2895">2895</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -3160,6 +3172,8 @@
             <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
                 <span class="ident">Content</span>::<span class="ident">Str</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">x</span>),
                 <span class="ident">Content</span>::<span class="ident">String</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>(<span class="ident">x</span>),
+                <span class="ident">Content</span>::<span class="ident">Bytes</span>(<span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="ident">x</span>).<span class="ident">ok</span>(),
+                <span class="ident">Content</span>::<span class="ident">ByteBuf</span>(<span class="kw-2">ref</span> <span class="ident">x</span>) <span class="op">=&gt;</span> <span class="ident">str</span>::<span class="ident">from_utf8</span>(<span class="ident">x</span>).<span class="ident">ok</span>(),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             }
         }
@@ -4307,6 +4321,8 @@
             <span class="kw">match</span> <span class="self">self</span>.<span class="ident">content</span> {
                 <span class="ident">Content</span>::<span class="ident">String</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_string</span>(<span class="ident">v</span>),
                 <span class="ident">Content</span>::<span class="ident">Str</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">v</span>),
+                <span class="ident">Content</span>::<span class="ident">ByteBuf</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_byte_buf</span>(<span class="ident">v</span>),
+                <span class="ident">Content</span>::<span class="ident">Bytes</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_bytes</span>(<span class="ident">v</span>),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
             }
         }
@@ -5007,6 +5023,8 @@
             <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">content</span> {
                 <span class="ident">Content</span>::<span class="ident">String</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_str</span>(<span class="ident">v</span>),
                 <span class="ident">Content</span>::<span class="ident">Str</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_str</span>(<span class="ident">v</span>),
+                <span class="ident">Content</span>::<span class="ident">ByteBuf</span>(<span class="kw-2">ref</span> <span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_bytes</span>(<span class="ident">v</span>),
+                <span class="ident">Content</span>::<span class="ident">Bytes</span>(<span class="ident">v</span>) <span class="op">=&gt;</span> <span class="ident">visitor</span>.<span class="ident">visit_borrowed_bytes</span>(<span class="ident">v</span>),
                 <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="self">self</span>.<span class="ident">invalid_type</span>(<span class="kw-2">&amp;</span><span class="ident">visitor</span>)),
             }
         }
@@ -5529,10 +5547,7 @@
 <span class="kw">where</span>
     <span class="ident">E</span>: <span class="ident">Error</span>,
 {
-    <span class="kw">fn</span> <span class="ident">deserialize_other</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="kw">_</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
-    {
+    <span class="kw">fn</span> <span class="ident">deserialize_other</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>() <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>, <span class="ident">E</span><span class="op">&gt;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;can only flatten structs and maps&quot;</span>))
     }
 }
@@ -5541,11 +5556,11 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">forward_to_deserialize_other</span> {
     ($(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span>:<span class="ident">ident</span> ( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>:<span class="ident">ty</span>),<span class="op">*</span> ))<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         $(
-            <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, $(<span class="kw">_</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span> <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+            <span class="kw">fn</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">func</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, $(<span class="kw">_</span>: <span class="macro-nonterminal">$</span><span class="macro-nonterminal">arg</span>,)<span class="op">*</span> <span class="ident">_visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
             <span class="kw">where</span>
                 <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
             {
-                <span class="self">self</span>.<span class="ident">deserialize_other</span>(<span class="ident">visitor</span>)
+                <span class="self">Self</span>::<span class="ident">deserialize_other</span>()
             }
         )<span class="op">*</span>
     }
@@ -5625,6 +5640,16 @@
         <span class="ident">visitor</span>.<span class="ident">visit_newtype_struct</span>(<span class="self">self</span>)
     }
 
+    <span class="kw">fn</span> <span class="ident">deserialize_option</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+    <span class="kw">where</span>
+        <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>,
+    {
+        <span class="kw">match</span> <span class="ident">visitor</span>.<span class="ident">__private_visit_untagged_option</span>(<span class="self">self</span>) {
+            <span class="prelude-val">Ok</span>(<span class="ident">value</span>) <span class="op">=&gt;</span> <span class="prelude-val">Ok</span>(<span class="ident">value</span>),
+            <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="self">Self</span>::<span class="ident">deserialize_other</span>(),
+        }
+    }
+
     <span class="macro">forward_to_deserialize_other</span><span class="macro">!</span> {
         <span class="ident">deserialize_bool</span>()
         <span class="ident">deserialize_i8</span>()
@@ -5642,7 +5667,6 @@
         <span class="ident">deserialize_string</span>()
         <span class="ident">deserialize_bytes</span>()
         <span class="ident">deserialize_byte_buf</span>()
-        <span class="ident">deserialize_option</span>()
         <span class="ident">deserialize_unit</span>()
         <span class="ident">deserialize_unit_struct</span>(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>)
         <span class="ident">deserialize_seq</span>()

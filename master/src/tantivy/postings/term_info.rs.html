@@ -56,47 +56,29 @@
 <span id="56">56</span>
 <span id="57">57</span>
 <span id="58">58</span>
-<span id="59">59</span>
-<span id="60">60</span>
-<span id="61">61</span>
-<span id="62">62</span>
-<span id="63">63</span>
-<span id="64">64</span>
-<span id="65">65</span>
-<span id="66">66</span>
-<span id="67">67</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::{<span class="ident">BinarySerializable</span>, <span class="ident">FixedSize</span>};
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
 
-<span class="doccomment">/// `TermInfo` contains all of the information</span>
-<span class="doccomment">/// associated to terms in the `.term` file.</span>
-<span class="doccomment">///</span>
-<span class="doccomment">/// It consists of</span>
-<span class="doccomment">/// * `doc_freq` : the number of document in the segment</span>
-<span class="doccomment">/// containing this term. It is also the length of the</span>
-<span class="doccomment">/// posting list associated to this term</span>
-<span class="doccomment">/// * `postings_offset` : an offset in the `.idx` file</span>
-<span class="doccomment">/// addressing the start of the posting list associated</span>
-<span class="doccomment">/// to this term.</span>
+<span class="doccomment">/// `TermInfo` wraps the metadata associated to a Term.</span>
+<span class="doccomment">/// It is segment-local.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>, <span class="ident">Default</span>, <span class="ident">Ord</span>, <span class="ident">PartialOrd</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>, <span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermInfo</span> {
     <span class="doccomment">/// Number of documents in the segment containing the term</span>
     <span class="kw">pub</span> <span class="ident">doc_freq</span>: <span class="ident">u32</span>,
-    <span class="doccomment">/// Offset within the postings (`.idx`) file.</span>
+    <span class="doccomment">/// Start offset within the postings (`.idx`) file.</span>
     <span class="kw">pub</span> <span class="ident">postings_offset</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// Offset within the position (`.pos`) file.</span>
+    <span class="doccomment">/// Start offset of the first block within the position (`.pos`) file.</span>
     <span class="kw">pub</span> <span class="ident">positions_offset</span>: <span class="ident">u64</span>,
-    <span class="doccomment">/// Offset within the position block.</span>
+    <span class="doccomment">/// Start offset within this position block.</span>
     <span class="kw">pub</span> <span class="ident">positions_inner_offset</span>: <span class="ident">u8</span>,
 }
 
 <span class="kw">impl</span> <span class="ident">FixedSize</span> <span class="kw">for</span> <span class="ident">TermInfo</span> {
-    <span class="doccomment">/// Size required for the binary serialization of `TermInfo`.</span>
-    <span class="doccomment">/// This is large, but in practise, all `TermInfo` but the first one</span>
-    <span class="doccomment">/// of the block are bitpacked.</span>
-    <span class="doccomment">///</span>
-    <span class="doccomment">/// See `TermInfoStore`.</span>
+    <span class="doccomment">/// Size required for the binary serialization of a `TermInfo` object.</span>
+    <span class="doccomment">/// This is large, but in practise, `TermInfo` are encoded in blocks and</span>
+    <span class="doccomment">/// only the first `TermInfo` of a block is serialized uncompressed.</span>
+    <span class="doccomment">/// The subsequent `TermInfo` are delta encoded and bitpacked.</span>
     <span class="kw">const</span> <span class="ident">SIZE_IN_BYTES</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">SIZE_IN_BYTES</span> <span class="op">+</span> <span class="number">2</span> <span class="op">*</span> <span class="ident">u64</span>::<span class="ident">SIZE_IN_BYTES</span> <span class="op">+</span> <span class="ident">u8</span>::<span class="ident">SIZE_IN_BYTES</span>;
 }
 
