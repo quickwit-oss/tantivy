@@ -414,8 +414,8 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
 #[cfg(test)]
 mod test {
     use core::Index;
+    use schema::{SchemaBuilder, Term, STORED, TEXT};
     use DocId;
-    use schema::{TEXT, STORED, Term, SchemaBuilder};
 
     #[test]
     fn test_alive_docs_iterator() {
@@ -448,6 +448,6 @@ mod test {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
-        assert_eq!(vec![0u32, 2u32],  docs);
+        assert_eq!(vec![0u32, 2u32], docs);
     }
 }

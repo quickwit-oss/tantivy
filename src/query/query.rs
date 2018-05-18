@@ -84,7 +84,8 @@ pub trait QueryClone {
 }
 
 impl<T> QueryClone for T
-where T: 'static + Query + Clone
+where
+    T: 'static + Query + Clone,
 {
     fn box_clone(&self) -> Box<Query> {
         Box::new(self.clone())
