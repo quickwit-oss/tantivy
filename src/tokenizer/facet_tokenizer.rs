@@ -95,7 +95,7 @@ mod tests {
         let mut tokens = vec![];
         {
             let mut add_token = |token: &Token| {
-                let facet = Facet::from_encoded(token.text.as_bytes().to_owned());
+                let facet = unsafe { Facet::from_encoded(token.text.as_bytes().to_owned()) }; // ok test
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
@@ -115,11 +115,11 @@ mod tests {
         let mut tokens = vec![];
         {
             let mut add_token = |token: &Token| {
-                let facet = Facet::from_encoded(token.text.as_bytes().to_owned());
+                let facet = unsafe { Facet::from_encoded(token.text.as_bytes().to_owned()) }; // ok test
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
+                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) }) // ok test
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);

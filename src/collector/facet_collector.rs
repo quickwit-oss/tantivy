@@ -317,8 +317,10 @@ impl FacetCollector {
                 })
                 .sum();
             if count > 0u64 {
-                let bytes = facet_merger.key().to_owned();
-                facet_counts.insert(Facet::from_encoded(bytes), count);
+                let bytes: Vec<u8> = facet_merger.key().to_owned();
+                // may create an corrupted facet if the term dicitonary is corrupted
+                let facet = unsafe { Facet::from_encoded(bytes) };
+                facet_counts.insert(facet, count);
             }
         }
         FacetCounts { facet_counts }
@@ -452,9 +454,9 @@ impl FacetCounts {
         let right_bound = if facet.is_root() {
             Bound::Unbounded
         } else {
-            let mut facet_after_bytes = facet.encoded_bytes().to_owned();
+            let mut facet_after_bytes: Vec<u8> = facet.encoded_bytes().to_owned();
             facet_after_bytes.push(1u8);
-            let facet_after = Facet::from_encoded(facet_after_bytes);
+            let facet_after = unsafe { Facet::from_encoded(facet_after_bytes) }; // ok logic
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));

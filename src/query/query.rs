@@ -1,5 +1,6 @@
 use super::Weight;
 use core::searcher::Searcher;
+use downcast;
 use std::fmt;
 use Result;
 
@@ -36,7 +37,7 @@ use Result;
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, `Weight` and `Scorer`.
-pub trait Query: fmt::Debug {
+pub trait Query: QueryClone + downcast::Any + fmt::Debug {
     /// Create the weight associated to a query.
     ///
     /// If scoring is not required, setting `scoring_enabled` to `false`
@@ -54,4 +55,22 @@ pub trait Query: fmt::Debug {
         }
         Ok(result)
     }
+}
+
+pub trait QueryClone {
+    fn box_clone(&self) -> Box<Query>;
+}
+
+impl<T> QueryClone for T
+where
+    T: 'static + Query + Clone,
+{
+    fn box_clone(&self) -> Box<Query> {
+        Box::new(self.clone())
+    }
+}
+
+#[allow(missing_docs)]
+mod downcast_impl {
+    downcast!(super::Query);
 }

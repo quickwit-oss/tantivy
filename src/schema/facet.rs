@@ -54,7 +54,7 @@ impl Facet {
     }
 
     /// Creates a `Facet` from its binary representation.
-    pub(crate) fn from_encoded(encoded_bytes: Vec<u8>) -> Facet {
+    pub(crate) unsafe fn from_encoded(encoded_bytes: Vec<u8>) -> Facet {
         Facet(encoded_bytes)
     }
 

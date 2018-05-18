@@ -5,6 +5,7 @@ use common::CountingWriter;
 use directory::ReadOnlySource;
 use fst;
 use fst::raw::Fst;
+use fst::Automaton;
 use postings::TermInfo;
 use schema::FieldType;
 use std::io::{self, Write};
@@ -101,7 +102,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
 /// The term dictionary contains all of the terms in
 /// `tantivy index` in a sorted manner.
 ///
-/// The `Fst` crate is used to assoicated terms to their
+/// The `Fst` crate is used to associate terms to their
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
 pub struct TermDictionary {
@@ -198,5 +199,12 @@ impl TermDictionary {
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
     pub fn stream<'a>(&'a self) -> TermStreamer<'a> {
         self.range().into_stream()
+    }
+
+    /// Returns a search builder, to stream all of the terms
+    /// within the Automaton
+    pub fn search<'a, A: Automaton>(&'a self, automaton: A) -> TermStreamerBuilder<'a, A> {
+        let stream_builder = self.fst_index.search(automaton);
+        TermStreamerBuilder::<A>::new(self, stream_builder)
     }
 }

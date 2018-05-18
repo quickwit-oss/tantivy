@@ -32,11 +32,9 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             // if there are deletes, then we use an approximation
             // using the fieldnorm
             let fieldnorms_reader = reader.get_fieldnorms_reader(field);
-            for doc in 0..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
-                    count[fieldnorm_id as usize] += 1;
-                }
+            for doc in reader.doc_ids_alive() {
+                let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc);
+                count[fieldnorm_id as usize] += 1;
             }
         } else {
             total_tokens += reader.inverted_index(field).total_num_tokens();
@@ -166,11 +164,9 @@ impl IndexMerger {
             fieldnorms_data.clear();
             for reader in &self.readers {
                 let fieldnorms_reader = reader.get_fieldnorms_reader(field);
-                for doc_id in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc_id) {
-                        let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
-                        fieldnorms_data.push(fieldnorm_id);
-                    }
+                for doc_id in reader.doc_ids_alive() {
+                    let fieldnorm_id = fieldnorms_reader.fieldnorm_id(doc_id);
+                    fieldnorms_data.push(fieldnorm_id);
                 }
             }
             fieldnorms_serializer.serialize_field(field, &fieldnorms_data[..])?;
@@ -303,13 +299,11 @@ impl IndexMerger {
         let mut idx = 0;
         for reader in &self.readers {
             let idx_reader = reader.fast_field_reader_with_idx::<u64>(field, 0)?;
-            for doc in 0u32..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    serialize_idx.add_val(idx)?;
-                    let start = idx_reader.get(doc);
-                    let end = idx_reader.get(doc + 1);
-                    idx += end - start;
-                }
+            for doc in reader.doc_ids_alive() {
+                serialize_idx.add_val(idx)?;
+                let start = idx_reader.get(doc);
+                let end = idx_reader.get(doc + 1);
+                idx += end - start;
             }
         }
         serialize_idx.add_val(idx)?;
@@ -343,13 +337,11 @@ impl IndexMerger {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     segment_reader.multi_fast_field_reader(field)?;
                 // TODO optimize if no deletes
-                for doc in 0..segment_reader.max_doc() {
-                    if !segment_reader.is_deleted(doc) {
-                        ff_reader.get_vals(doc, &mut vals);
-                        for &prev_term_ord in &vals {
-                            let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
-                            serialize_vals.add_val(new_term_ord)?;
-                        }
+                for doc in segment_reader.doc_ids_alive() {
+                    ff_reader.get_vals(doc, &mut vals);
+                    for &prev_term_ord in &vals {
+                        let new_term_ord = term_ordinal_mapping[prev_term_ord as usize];
+                        serialize_vals.add_val(new_term_ord)?;
                     }
                 }
             }
@@ -384,13 +376,11 @@ impl IndexMerger {
         for reader in &self.readers {
             let ff_reader: MultiValueIntFastFieldReader<u64> =
                 reader.multi_fast_field_reader(field)?;
-            for doc in 0u32..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    ff_reader.get_vals(doc, &mut vals);
-                    for &val in &vals {
-                        min_value = cmp::min(val, min_value);
-                        max_value = cmp::max(val, max_value);
-                    }
+            for doc in reader.doc_ids_alive() {
+                ff_reader.get_vals(doc, &mut vals);
+                for &val in &vals {
+                    min_value = cmp::min(val, min_value);
+                    max_value = cmp::max(val, max_value);
                 }
             }
             // TODO optimize when no deletes
@@ -409,12 +399,10 @@ impl IndexMerger {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     reader.multi_fast_field_reader(field)?;
                 // TODO optimize if no deletes
-                for doc in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc) {
-                        ff_reader.get_vals(doc, &mut vals);
-                        for &val in &vals {
-                            serialize_vals.add_val(val)?;
-                        }
+                for doc in reader.doc_ids_alive() {
+                    ff_reader.get_vals(doc, &mut vals);
+                    for &val in &vals {
+                        serialize_vals.add_val(val)?;
                     }
                 }
             }
@@ -434,11 +422,9 @@ impl IndexMerger {
         for reader in &self.readers {
             let bytes_reader = reader.bytes_fast_field_reader(field)?;
             // TODO: optimize if no deletes
-            for doc in 0..reader.max_doc() {
-                if !reader.is_deleted(doc) {
-                    let val = bytes_reader.get_val(doc);
-                    serialize_vals.write_all(val)?;
-                }
+            for doc in reader.doc_ids_alive() {
+                let val = bytes_reader.get_val(doc);
+                serialize_vals.write_all(val)?;
             }
         }
         serialize_vals.flush()?;
@@ -625,11 +611,9 @@ impl IndexMerger {
         for reader in &self.readers {
             let store_reader = reader.get_store_reader();
             if reader.num_deleted_docs() > 0 {
-                for doc_id in 0..reader.max_doc() {
-                    if !reader.is_deleted(doc_id) {
-                        let doc = store_reader.get(doc_id)?;
-                        store_writer.store(&doc)?;
-                    }
+                for doc_id in reader.doc_ids_alive() {
+                    let doc = store_reader.get(doc_id)?;
+                    store_writer.store(&doc)?;
                 }
             } else {
                 store_writer.stack(store_reader)?;

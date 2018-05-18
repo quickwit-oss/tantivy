@@ -17,7 +17,7 @@ mod murmurhash2 {
 
         let num_blocks = len >> 2;
         for _ in 0..num_blocks {
-            let mut k: u32 = unsafe { *key_ptr };
+            let mut k: u32 = unsafe { *key_ptr }; // ok because of num_blocks definition
             k = k.wrapping_mul(M);
             k ^= k >> 24;
             k = k.wrapping_mul(M);

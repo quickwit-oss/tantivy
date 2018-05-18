@@ -138,8 +138,7 @@ impl<'a> SegmentWriter<'a> {
                             }
                         })
                         .collect();
-                    let mut term = unsafe { Term::with_capacity(100) };
-                    term.set_field(field);
+                    let mut term = Term::for_field(field); // we set the Term
                     for facet_bytes in facets {
                         let mut unordered_term_id_opt = None;
                         let fake_str = unsafe { str::from_utf8_unchecked(facet_bytes) };

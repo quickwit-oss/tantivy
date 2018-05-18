@@ -68,7 +68,7 @@ impl NgramTokenizer {
 }
 pub struct NgramTokenStream<'a> {
     text: &'a str,
-    location: usize,
+    position: usize,
     text_length: usize,
     token: Token,
     min_gram: usize,
@@ -83,7 +83,7 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         NgramTokenStream {
             text,
-            location: 0,
+            position: 0,
             text_length: text.len(),
             token: Token::default(),
             min_gram: self.min_gram,
@@ -110,11 +110,11 @@ impl<'a> NgramTokenStream<'a> {
             self.gram_size = self.min_gram;
 
             // and move down the chain of letters
-            self.location += 1;
+            self.position += 1;
         }
 
-        let result = if (self.location + self.gram_size) <= self.text_length {
-            Some((self.location, self.gram_size))
+        let result = if (self.position + self.gram_size) <= self.text_length {
+            Some((self.position, self.gram_size))
         } else {
             None
         };

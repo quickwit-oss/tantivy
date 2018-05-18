@@ -1,34 +1,25 @@
 use common::{BinarySerializable, FixedSize};
 use std::io;
 
-/// `TermInfo` contains all of the information
-/// associated to terms in the `.term` file.
-///
-/// It consists of
-/// * `doc_freq` : the number of document in the segment
-/// containing this term. It is also the length of the
-/// posting list associated to this term
-/// * `postings_offset` : an offset in the `.idx` file
-/// addressing the start of the posting list associated
-/// to this term.
+/// `TermInfo` wraps the metadata associated to a Term.
+/// It is segment-local.
 #[derive(Debug, Default, Ord, PartialOrd, Eq, PartialEq, Clone)]
 pub struct TermInfo {
     /// Number of documents in the segment containing the term
     pub doc_freq: u32,
-    /// Offset within the postings (`.idx`) file.
+    /// Start offset within the postings (`.idx`) file.
     pub postings_offset: u64,
-    /// Offset within the position (`.pos`) file.
+    /// Start offset of the first block within the position (`.pos`) file.
     pub positions_offset: u64,
-    /// Offset within the position block.
+    /// Start offset within this position block.
     pub positions_inner_offset: u8,
 }
 
 impl FixedSize for TermInfo {
-    /// Size required for the binary serialization of `TermInfo`.
-    /// This is large, but in practise, all `TermInfo` but the first one
-    /// of the block are bitpacked.
-    ///
-    /// See `TermInfoStore`.
+    /// Size required for the binary serialization of a `TermInfo` object.
+    /// This is large, but in practise, `TermInfo` are encoded in blocks and
+    /// only the first `TermInfo` of a block is serialized uncompressed.
+    /// The subsequent `TermInfo` are delta encoded and bitpacked.
     const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES + u8::SIZE_IN_BYTES;
 }
 
