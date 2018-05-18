@@ -60,6 +60,7 @@ ALIASES['tantivy'] = {};
 ALIASES['tantivy'] = {};
 ALIASES['tantivy'] = {};
 ALIASES['tantivy'] = {};
+ALIASES['tantivy'] = {};
 ALIASES['tempdir'] = {};
 ALIASES['tempfile'] = {};
 ALIASES['thread_local'] = {};

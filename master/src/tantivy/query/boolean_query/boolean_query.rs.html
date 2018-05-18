@@ -70,6 +70,7 @@
 <span id="70">70</span>
 <span id="71">71</span>
 <span id="72">72</span>
+<span id="73">73</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">boolean_weight</span>::<span class="ident">BooleanWeight</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">Occur</span>;
@@ -139,6 +140,7 @@
         <span class="ident">BooleanQuery</span>::<span class="ident">from</span>(<span class="ident">occur_term_queries</span>)
     }
 
+    <span class="doccomment">/// Deconstructed view of the clauses making up this query.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">clauses</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[(<span class="ident">Occur</span>, <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">Query</span><span class="op">&gt;</span>)] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">subqueries</span>[..]
     }
