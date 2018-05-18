@@ -53,6 +53,10 @@
 <span id="53">53</span>
 <span id="54">54</span>
 <span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">term_weight</span>::<span class="ident">TermWeight</span>;
 <span class="kw">use</span> <span class="ident">query</span>::<span class="ident">bm25</span>::<span class="ident">BM25Weight</span>;
@@ -72,7 +76,7 @@
 <span class="doccomment">/// * `idf`        - inverse document frequency.</span>
 <span class="doccomment">/// * `term_freq`  - number of occurrences of the term in the field</span>
 <span class="doccomment">/// * `field norm` - number of tokens in the field.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermQuery</span> {
     <span class="ident">term</span>: <span class="ident">Term</span>,
     <span class="ident">index_record_option</span>: <span class="ident">IndexRecordOption</span>,
@@ -85,6 +89,10 @@
             <span class="ident">term</span>,
             <span class="ident">index_record_option</span>: <span class="ident">segment_postings_options</span>,
         }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">term</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Term</span> {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term</span>
     }
 
     <span class="doccomment">/// Returns a weight object.</span>

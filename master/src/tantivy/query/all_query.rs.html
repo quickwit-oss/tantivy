@@ -135,7 +135,7 @@
 <span class="doccomment">/// Query that matches all of the documents.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// All of the document get the score 1f32.</span>
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">AllQuery</span>;
 
 <span class="kw">impl</span> <span class="ident">Query</span> <span class="kw">for</span> <span class="ident">AllQuery</span> {
