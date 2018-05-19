@@ -12,14 +12,14 @@ use std::ops::Range;
 use termdict::{TermDictionary, TermStreamer};
 use Result;
 
-fn map_bound<TFrom, Transform: Fn(TFrom) -> Vec<u8>>(
-    bound: Bound<TFrom>,
+fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
+    bound: &Bound<TFrom>,
     transform: &Transform,
-) -> Bound<Vec<u8>> {
+) -> Bound<TTo> {
     use self::Bound::*;
     match bound {
-        Excluded(from_val) => Excluded(transform(from_val)),
-        Included(from_val) => Included(transform(from_val)),
+        Excluded(ref from_val) => Excluded(transform(from_val)),
+        Included(ref from_val) => Included(transform(from_val)),
         Unbounded => Unbounded,
     }
 }
@@ -113,12 +113,12 @@ impl RangeQuery {
         left_bound: Bound<i64>,
         right_bound: Bound<i64>,
     ) -> RangeQuery {
-        let make_term_val = |val: i64| Term::from_field_i64(field, val).value_bytes().to_owned();
+        let make_term_val = |val: &i64| Term::from_field_i64(field, *val).value_bytes().to_owned();
         RangeQuery {
             field,
             value_type: Type::I64,
-            left_bound: map_bound(left_bound, &make_term_val),
-            right_bound: map_bound(right_bound, &make_term_val),
+            left_bound: map_bound(&left_bound, &make_term_val),
+            right_bound: map_bound(&right_bound, &make_term_val),
         }
     }
 
@@ -134,12 +134,12 @@ impl RangeQuery {
         left_bound: Bound<u64>,
         right_bound: Bound<u64>,
     ) -> RangeQuery {
-        let make_term_val = |val: u64| Term::from_field_u64(field, val).value_bytes().to_owned();
+        let make_term_val = |val: &u64| Term::from_field_u64(field, *val).value_bytes().to_owned();
         RangeQuery {
             field,
             value_type: Type::U64,
-            left_bound: map_bound(left_bound, &make_term_val),
-            right_bound: map_bound(right_bound, &make_term_val),
+            left_bound: map_bound(&left_bound, &make_term_val),
+            right_bound: map_bound(&right_bound, &make_term_val),
         }
     }
 
@@ -167,12 +167,12 @@ impl RangeQuery {
         left: Bound<&'b str>,
         right: Bound<&'b str>,
     ) -> RangeQuery {
-        let make_term_val = |val: &str| val.as_bytes().to_vec();
+        let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,
             value_type: Type::Str,
-            left_bound: map_bound(left, &make_term_val),
-            right_bound: map_bound(right, &make_term_val),
+            left_bound: map_bound(&left, &make_term_val),
+            right_bound: map_bound(&right, &make_term_val),
         }
     }
 
@@ -186,6 +186,21 @@ impl RangeQuery {
             Bound::Included(range.start),
             Bound::Excluded(range.end),
         )
+    }
+
+    /// Field to search over
+    pub fn field(&self) -> Field {
+        self.field
+    }
+
+    /// Lower bound of range
+    pub fn left_bound(&self) -> Bound<Term> {
+        map_bound(&self.left_bound, &|bytes| Term::from_field_bytes(self.field, bytes))
+    }
+
+    /// Upper bound of range
+    pub fn right_bound(&self) -> Bound<Term> {
+        map_bound(&self.right_bound, &|bytes| Term::from_field_bytes(self.field, bytes))
     }
 }
 
