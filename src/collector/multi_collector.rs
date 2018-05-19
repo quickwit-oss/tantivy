@@ -7,59 +7,6 @@ use SegmentLocalId;
 use SegmentReader;
 use downcast::Downcast;
 
-
-pub struct CollectorWrapper<'a, TCollector: 'a + Collector>(&'a mut TCollector);
-
-impl<'a, T: 'a + Collector> CollectorWrapper<'a, T> {
-    pub fn new(collector: &'a mut T) -> CollectorWrapper<'a, T> {
-        CollectorWrapper(collector)
-    }
-}
-
-impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
-    type Child = T::Child;
-
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
-        self.0.for_segment(segment_local_id, segment)
-    }
-
-    fn requires_scoring(&self) -> bool {
-        self.0.requires_scoring()
-    }
-
-    fn merge_children(&mut self, children: Vec<T::Child>) {
-        self.0.merge_children(children)
-    }
-}
-
-trait UntypedCollector {
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>>;
-
-    fn requires_scoring(&self) -> bool;
-
-    fn merge_children_anys(&mut self, childrens: Vec<Box<SegmentCollector>>);
-}
-
-
-impl<'a, TCollector:'a + Collector> UntypedCollector for CollectorWrapper<'a, TCollector> {
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>> {
-        let segment_collector = self.0.for_segment(segment_local_id, segment)?;
-        Ok(Box::new(segment_collector))
-    }
-
-    fn requires_scoring(&self) -> bool {
-        self.0.requires_scoring()
-    }
-
-    fn merge_children_anys(&mut self, childrens: Vec<Box<SegmentCollector>>) {
-        let typed_children: Vec<TCollector::Child> = childrens.into_iter()
-            .map(|untyped_child_collector| {
-                *Downcast::<TCollector::Child>::downcast(untyped_child_collector).unwrap()
-            }).collect();
-        self.0.merge_children(typed_children);
-    }
-}
-
 pub struct MultiCollector<'a> {
     collector_wrappers: Vec<Box<UntypedCollector + 'a>>
 }
@@ -114,10 +61,6 @@ impl<'a> Collector for MultiCollector<'a> {
         }
     }
 
-}
-
-trait UntypedSegmentCollector {
-    fn collect();
 }
 
 pub struct MultiCollectorChild {

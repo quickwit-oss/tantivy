@@ -402,15 +402,11 @@ impl Collector for FacetCollector {
     fn requires_scoring(&self) -> bool {
         false
     }
-
-    fn merge_children(&mut self, children: Vec<FacetSegmentCollector>) {
-        for child in children.into_iter() {
-            self.segment_counters.push(child.into_segment_facet_counter());
-        }
-    }
 }
 
 impl SegmentCollector for FacetSegmentCollector {
+    type CollectionResult = Vec<SegmentFacetCounter>;
+
     fn collect(&mut self, doc: DocId, _: Score) {
         self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
@@ -423,6 +419,10 @@ impl SegmentCollector for FacetSegmentCollector {
             };
             previous_collapsed_ord = collapsed_ord;
         }
+    }
+
+    fn finalize(self) -> Vec<SegmentFacetCounter> {
+        vec![self.into_segment_facet_counter()]
     }
 }
 

@@ -8,6 +8,7 @@ use Score;
 use SegmentLocalId;
 use SegmentReader;
 use collector::SegmentCollector;
+use collector::Combinable;
 
 // Rust heap is a max-heap and we need a min heap.
 #[derive(Clone, Copy)]
@@ -113,19 +114,21 @@ impl Collector for TopCollector {
     fn requires_scoring(&self) -> bool {
         true
     }
+}
 
-    fn merge_children(&mut self, children: Vec<TopCollector>) {
-        // TODO: Could this be much better?
-        for mut child in children.into_iter() {
-            self.segment_id = child.segment_id;
-            while let Some(doc) = child.heap.pop() {
-                self.collect(doc.doc_address.doc(), doc.score)
-            }
+impl Combinable for TopCollector {
+    // TODO: I think this could be a bit better
+    fn combine_into(&mut self, other: Self) {
+        self.segment_id = other.segment_id;
+        while let Some(doc) = other.heap.pop() {
+            self.collect(doc.doc_address.doc(), doc.score);
         }
     }
 }
 
 impl SegmentCollector for TopCollector {
+    type CollectionResult = TopCollector;
+
     fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
@@ -146,6 +149,10 @@ impl SegmentCollector for TopCollector {
             };
             self.heap.push(wrapped_doc);
         }
+    }
+
+    fn finalize(self) -> TopCollector {
+        self
     }
 }
 

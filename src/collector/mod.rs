@@ -14,8 +14,8 @@ use downcast;
 mod count_collector;
 pub use self::count_collector::CountCollector;
 
-mod multi_collector;
-pub use self::multi_collector::MultiCollector;
+//mod multi_collector;
+//pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
 pub use self::top_collector::TopCollector;
@@ -68,8 +68,6 @@ pub trait Collector {
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
-    fn merge_children(&mut self, children: Vec<Self::Child>);
-
     /// Search works as follows :
     ///
     /// First the weight object associated to the query is created.
@@ -78,33 +76,59 @@ pub trait Collector {
     /// - setup the collector and informs it that the segment being processed has changed.
     /// - creates a SegmentCollector for collecting documents associated to the segment
     /// - creates a `Scorer` object associated for this segment
-    /// - iterate throw the matched documents and push them to the segment collector.
+    /// - iterate through the matched documents and push them to the segment collector.
+    /// - turn the segment collector into a Combinable segment result
     ///
-    /// Finally, the Collector merges each of the child collectors into itself for result usability
-    /// by the caller.
-    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<()> {
+    /// Combining all of the segment results gives a single Child::CollectionResult, which is returned.
+    ///
+    /// The result will be Ok(None) in case of having no segments.
+    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<Option<<Self::Child as SegmentCollector>::CollectionResult>> {
         let scoring_enabled = self.requires_scoring();
         let weight = query.weight(searcher, scoring_enabled)?;
-        let mut children = Vec::new();
+        let mut results = Vec::new();
         for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
             let mut child: Self::Child = self.for_segment(segment_ord as SegmentLocalId, segment_reader)?;
             let mut scorer = weight.scorer(segment_reader)?;
             scorer.collect(&mut child, segment_reader.delete_bitset());
-            children.push(child);
+            results.push(child.finalize());
         }
-        self.merge_children(children);
-        Ok(())
+        Ok(results.into_iter().fold1(|x,y| {
+            x.combine_into(y);
+            x
+        }))
+    }
+}
+
+pub trait Combinable {
+    fn combine_into(&mut self, other: Self);
+}
+
+impl Combinable for () {
+    fn combine_into(&mut self, other: Self) {
+        ()
+    }
+}
+
+impl<T> Combinable for Vec<T> {
+    fn combine_into(&mut self, other: Self) {
+        self.extend(other.into_iter());
+    }
+}
+
+impl<L: Combinable, R: Combinable> Combinable for (L, R) {
+    fn combine_into(&mut self, other: Self) {
+        self.0.combine_into(other.0);
+        self.1.combine_into(other.1);
     }
 }
 
 pub trait SegmentCollector: downcast::Any + 'static {
+    type CollectionResult: Combinable + downcast::Any + 'static;
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
-}
 
-#[allow(missing_docs)]
-mod downcast_impl {
-    downcast!(super::SegmentCollector);
+    /// Turn into the final result
+    fn finalize(self) -> Self::CollectionResult;
 }
 
 impl<'a, C: Collector> Collector for &'a mut C {
@@ -121,9 +145,59 @@ impl<'a, C: Collector> Collector for &'a mut C {
     fn requires_scoring(&self) -> bool {
         C::requires_scoring(self)
     }
+}
 
-    fn merge_children(&mut self, children: Vec<C::Child>) {
-        (*self).merge_children(children);
+pub struct CollectorWrapper<'a, TCollector: 'a + Collector>(&'a mut TCollector);
+
+impl<'a, T: 'a + Collector> CollectorWrapper<'a, T> {
+    pub fn new(collector: &'a mut T) -> CollectorWrapper<'a, T> {
+        CollectorWrapper(collector)
+    }
+}
+
+impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
+    type Child = T::Child;
+
+    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
+        self.0.for_segment(segment_local_id, segment)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring()
+    }
+}
+
+trait UntypedCollector {
+    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<UntypedSegmentCollector>>;
+}
+
+
+impl<'a, TCollector:'a + Collector> UntypedCollector for CollectorWrapper<'a, TCollector> {
+    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<UntypedSegmentCollector>> {
+        let segment_collector = self.0.for_segment(segment_local_id, segment)?;
+        Ok(Box::new(segment_collector))
+    }
+}
+
+trait UntypedSegmentCollector {
+    fn finalize(self) -> Box<UntypedCombinable>;
+}
+
+trait UntypedCombinable {
+    fn combine_into(&mut self, other: Box<UntypedCombinable>);
+}
+
+pub struct CombinableWrapper<'a, T: 'a + Combinable>(&'a mut T);
+
+impl<'a, T: 'a + Combinable> CombinableWrapper<'a, T> {
+    pub fn new(combinable: &'a mut T) -> CombinableWrapper<'a, T> {
+        CombinableWrapper(combinable)
+    }
+}
+
+impl<'a, T: 'a + Combinable> Combinable for CombinableWrapper<'a, T> {
+    fn combine_into(&mut self, other: Self) {
+        self.0.combine_into(*::downcast::Downcast::<T>::downcast(other).unwrap())
     }
 }
 
@@ -193,20 +267,18 @@ pub mod tests {
         fn requires_scoring(&self) -> bool {
             true
         }
-
-        fn merge_children(&mut self, mut children: Vec<TestSegmentCollector>) {
-            children.sort_by_key(|x| x.offset);
-            for child in children.into_iter() {
-                self.docs.extend(child.docs);
-                self.scores.extend(child.scores);
-            }
-        }
     }
 
     impl SegmentCollector for TestSegmentCollector {
+        type CollectionResult = Vec<TestSegmentCollector>;
+
         fn collect(&mut self, doc: DocId, score: Score) {
             self.docs.push(doc + self.offset);
             self.scores.push(score);
+        }
+
+        fn finalize(self) -> Vec<TestSegmentCollector> {
+            vec![self]
         }
     }
 
@@ -216,13 +288,17 @@ pub mod tests {
     /// This collector is mainly useful for tests.
     pub struct FastFieldTestCollector {
         next_counter: usize,
-        vals: Vec<u64>,
         field: Field,
     }
 
-    pub struct FastFieldSegmentCollector {
+    #[derive(Default)]
+    pub struct FastFieldSegmentCollectorState {
         counter: usize,
         vals: Vec<u64>,
+    }
+
+    pub struct FastFieldSegmentCollector {
+        state: FastFieldSegmentCollectorState,
         reader: FastFieldReader<u64>,
     }
 
@@ -230,7 +306,6 @@ pub mod tests {
         pub fn for_field(field: Field) -> FastFieldTestCollector {
             FastFieldTestCollector {
                 next_counter: 0,
-                vals: Vec::new(),
                 field,
             }
         }
@@ -247,8 +322,7 @@ pub mod tests {
             let counter = self.next_counter;
             self.next_counter += 1;
             Ok(FastFieldSegmentCollector {
-                counter,
-                vals: Vec::new(),
+                state: FastFieldSegmentCollectorState::default(),
                 reader: reader.fast_field_reader(self.field)?,
             })
         }
@@ -256,19 +330,18 @@ pub mod tests {
         fn requires_scoring(&self) -> bool {
             false
         }
-
-        fn merge_children(&mut self, mut children: Vec<FastFieldSegmentCollector>) {
-            children.sort_by_key(|x| x.counter);
-            for child in children.into_iter() {
-                self.vals.extend(child.vals);
-            }
-        }
     }
 
     impl SegmentCollector for FastFieldSegmentCollector {
+        type CollectionResult = Vec<FastFieldSegmentCollectorState>;
+
         fn collect(&mut self, doc: DocId, _score: Score) {
             let val = self.reader.get(doc);
             self.vals.push(val);
+        }
+
+        fn finalize(self) -> Vec<FastFieldSegmentCollectorState> {
+            vec![self.state]
         }
     }
 
@@ -312,18 +385,18 @@ pub mod tests {
         fn requires_scoring(&self) -> bool {
             false
         }
-
-        fn merge_children(&mut self, children: Vec<<Self as Collector>::Child>) {
-            for child in children.into_iter() {
-                self.vals.extend(child.vals);
-            }
-        }
     }
 
     impl SegmentCollector for BytesFastFieldSegmentCollector {
+        type CollectionResult = Vec<Vec<u8>>;
+
         fn collect(&mut self, doc: u32, _score: f32) {
             let val = self.reader.get_val(doc);
             self.vals.extend(val);
+        }
+
+        fn finalize(self) -> Vec<Vec<u8>> {
+            vec![self.vals]
         }
     }
 }

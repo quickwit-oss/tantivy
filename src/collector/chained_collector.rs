@@ -5,7 +5,7 @@ use Score;
 use SegmentLocalId;
 use SegmentReader;
 use collector::SegmentCollector;
-use collector::multi_collector::CollectorWrapper;
+use collector::CollectorWrapper;
 
 /// Collector that does nothing.
 /// This is used in the chain Collector and will hopefully
@@ -21,13 +21,17 @@ impl Collector for DoNothingCollector {
     fn requires_scoring(&self) -> bool {
         false
     }
-    #[inline]
-    fn merge_children(&mut self, _children: Vec<DoNothingCollector>) {}
 }
 
 impl SegmentCollector for DoNothingCollector {
+    type CollectionResult = ();
+
     #[inline]
     fn collect(&mut self, _doc: DocId, _score: Score) {}
+
+    fn finalize(self) -> () {
+        ()
+    }
 }
 
 /// Zero-cost abstraction used to collect on multiple collectors.
@@ -69,25 +73,18 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
     fn requires_scoring(&self) -> bool {
         self.left.requires_scoring() || self.right.requires_scoring()
     }
-
-    fn merge_children(&mut self, children: Vec<Self::Child>) {
-        let mut lefts = Vec::new();
-        let mut rights = Vec::new();
-
-        for child in children.into_iter() {
-            lefts.push(child.left);
-            rights.push(child.right);
-        }
-
-        self.left.merge_children(lefts);
-        self.right.merge_children(rights);
-    }
 }
 
 impl<Left: SegmentCollector, Right: SegmentCollector> SegmentCollector for ChainedSegmentCollector<Left, Right> {
+    type CollectionResult = (Left::CollectionResult, Right::CollectionResult);
+
     fn collect(&mut self, doc: DocId, score: Score) {
         self.left.collect(doc, score);
         self.right.collect(doc, score);
+    }
+
+    fn finalize(self) -> Self::CollectionResult {
+        (self.left.finalize(), self.right.finalize())
     }
 }
 
