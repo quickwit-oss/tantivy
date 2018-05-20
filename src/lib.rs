@@ -140,7 +140,7 @@ extern crate futures;
 extern crate futures_cpupool;
 extern crate itertools;
 extern crate levenshtein_automata;
-extern crate lz4;
+extern crate snap;
 extern crate num_cpus;
 extern crate owning_ref;
 extern crate regex;
