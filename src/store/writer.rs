@@ -3,7 +3,7 @@ use common::CountingWriter;
 use common::{BinarySerializable, VInt};
 use datastruct::SkipListBuilder;
 use directory::WritePtr;
-use snap;
+use super::compress;
 use schema::Document;
 use std::io::{self, Write};
 use DocId;
@@ -87,11 +87,7 @@ impl StoreWriter {
 
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        {           
-            let mut encoder = snap::Writer::new(&mut self.intermediary_buffer);
-            encoder.write_all(&self.current_block)?;
-            encoder.flush()?;
-        }
+        compress(&self.current_block[..], &mut self.intermediary_buffer)?;
         (self.intermediary_buffer.len() as u32).serialize(&mut self.writer)?;
         self.writer.write_all(&self.intermediary_buffer)?;
         self.offset_index_writer
