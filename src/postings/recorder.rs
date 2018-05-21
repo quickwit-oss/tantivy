@@ -1,4 +1,4 @@
-use datastruct::stacker::{ExpUnrolledLinkedList, Heap, HeapAllocable};
+use datastruct::stacker::{Addr, ExpUnrolledLinkedList, Heap, HeapAllocable};
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;
@@ -29,7 +29,7 @@ pub trait Recorder: HeapAllocable {
     /// Pushes the postings information to the serializer.
     fn serialize(
         &self,
-        self_addr: u32,
+        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()>;
@@ -42,7 +42,7 @@ pub struct NothingRecorder {
 }
 
 impl HeapAllocable for NothingRecorder {
-    fn with_addr(addr: u32) -> NothingRecorder {
+    fn with_addr(addr: Addr) -> NothingRecorder {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
@@ -66,7 +66,7 @@ impl Recorder for NothingRecorder {
 
     fn serialize(
         &self,
-        self_addr: u32,
+        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
@@ -85,7 +85,7 @@ pub struct TermFrequencyRecorder {
 }
 
 impl HeapAllocable for TermFrequencyRecorder {
-    fn with_addr(addr: u32) -> TermFrequencyRecorder {
+    fn with_addr(addr: Addr) -> TermFrequencyRecorder {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
@@ -116,7 +116,7 @@ impl Recorder for TermFrequencyRecorder {
 
     fn serialize(
         &self,
-        self_addr: u32,
+        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
@@ -143,7 +143,7 @@ pub struct TFAndPositionRecorder {
 }
 
 impl HeapAllocable for TFAndPositionRecorder {
-    fn with_addr(addr: u32) -> TFAndPositionRecorder {
+    fn with_addr(addr: Addr) -> TFAndPositionRecorder {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::with_addr(addr),
             current_doc: u32::max_value(),
@@ -171,7 +171,7 @@ impl Recorder for TFAndPositionRecorder {
 
     fn serialize(
         &self,
-        self_addr: u32,
+        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {

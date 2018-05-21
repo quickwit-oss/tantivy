@@ -1,8 +1,11 @@
-use super::heap::{BytesRef, Heap, HeapAllocable};
+use super::heap::{Heap, HeapAllocable};
 use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
+use std::ptr;
 use std::slice;
+use datastruct::stacker::Addr;
+use byteorder::{ByteOrder, NativeEndian};
 
 mod murmurhash2 {
 
@@ -82,7 +85,7 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
 /// and can be simplified in the future
 #[derive(Copy, Clone, Default)]
 struct KeyValue {
-    key_value_addr: BytesRef,
+    key_value_addr: Addr,
     hash: u32,
 }
 
@@ -132,12 +135,12 @@ pub struct Iter<'a: 'b, 'b> {
 }
 
 impl<'a, 'b> Iterator for Iter<'a, 'b> {
-    type Item = (&'b [u8], u32, UnorderedTermId);
+    type Item = (&'b [u8], Addr, UnorderedTermId);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
-            let (key, offset): (&'b [u8], u32) = self.hashmap.get_key_value(kv.key_value_addr);
+            let (key, offset): (&'b [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
             (key, offset, bucket as UnorderedTermId)
         })
     }
@@ -159,18 +162,22 @@ impl<'a> TermHashMap<'a> {
         QuadraticProbing::compute(hash as usize, self.mask)
     }
 
+    pub fn mem_usage(&self) -> usize {
+        self.table.len() * mem::size_of::<KeyValue>()
+    }
+
     pub fn is_saturated(&self) -> bool {
         self.table.len() < self.occupied.len() * 3
     }
 
     #[inline(never)]
-    fn get_key_value(&self, bytes_ref: BytesRef) -> (&[u8], u32) {
-        let key_bytes: &[u8] = self.heap.get_slice(bytes_ref);
-        let expull_addr: u32 = bytes_ref.addr() + 2 + key_bytes.len() as u32;
+    fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
+        let key_bytes: &[u8] = self.heap.get_slice(addr);
+        let expull_addr: Addr = Addr(addr.0 + 2u32 + key_bytes.len() as u32);
         (key_bytes, expull_addr)
     }
 
-    pub fn set_bucket(&mut self, hash: u32, key_value_addr: BytesRef, bucket: usize) {
+    pub fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) {
         self.occupied.push(bucket);
         self.table[bucket] = KeyValue {
             key_value_addr,
@@ -196,13 +203,22 @@ impl<'a> TermHashMap<'a> {
             let bucket = probe.next_probe();
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
-                let key_bytes_ref = self.heap.allocate_and_set(key_bytes);
-                let (addr, val): (u32, &mut V) = self.heap.allocate_object();
-                assert_eq!(addr, key_bytes_ref.addr() + 2 + key_bytes.len() as u32);
-                self.set_bucket(hash, key_bytes_ref, bucket);
-                return (bucket as UnorderedTermId, val);
+                let key_bytes_len = key_bytes.len();
+                let len = key_bytes_len + 2 + mem::size_of::<V>();
+                let (key_addr, dest_bytes) = self.heap.allocate(len);
+                NativeEndian::write_u16(&mut dest_bytes[0..2], key_bytes_len as u16);
+                dest_bytes[2..key_bytes_len+2].clone_from_slice(key_bytes);
+                let val_addr = Addr(key_addr.0 + 2u32 + key_bytes_len as u32);
+                let v = V::with_addr(val_addr);
+                let v_mut_ref = unsafe {
+                    let v_mut_ptr = dest_bytes.as_mut_ptr().offset((2 + key_bytes_len) as isize) as *mut V;
+                    ptr::write_unaligned(v_mut_ptr, v);
+                    self.set_bucket(hash, key_addr, bucket);
+                    &mut *v_mut_ptr
+                };
+                return (bucket as UnorderedTermId, v_mut_ref);
             } else if kv.hash == hash {
-                let (stored_key, expull_addr): (&[u8], u32) = self.get_key_value(kv.key_value_addr);
+                let (stored_key, expull_addr): (&[u8], Addr) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
                     return (
                         bucket as UnorderedTermId,
@@ -240,14 +256,15 @@ mod tests {
     use super::split_memory;
     use super::*;
     use std::collections::HashSet;
+    use datastruct::stacker::heap::Addr;
 
     struct TestValue {
         val: u32,
-        _addr: u32,
+        _addr: Addr,
     }
 
     impl HeapAllocable for TestValue {
-        fn with_addr(addr: u32) -> TestValue {
+        fn with_addr(addr: Addr) -> TestValue {
             TestValue {
                 val: 0u32,
                 _addr: addr,

@@ -1,5 +1,6 @@
 use super::heap::{Heap, HeapAllocable};
 use std::mem;
+use datastruct::stacker::heap::Addr;
 
 #[inline]
 pub fn is_power_of_2(val: u32) -> bool {
@@ -14,18 +15,18 @@ pub fn jump_needed(val: u32) -> bool {
 #[derive(Debug, Clone)]
 pub struct ExpUnrolledLinkedList {
     len: u32,
-    end: u32,
+    end: Addr,
     val0: u32,
     val1: u32,
     val2: u32,
-    next: u32, // inline  of the first block
+    next: Addr, // inline  of the first block
 }
 
 impl ExpUnrolledLinkedList {
-    pub fn iter<'a>(&self, addr: u32, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
+    pub fn iter<'a>(&self, addr: Addr, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
         ExpUnrolledLinkedListIterator {
             heap,
-            addr: addr + 2u32 * (mem::size_of::<u32>() as u32),
+            addr: Addr(addr.0 + 2u32 * (mem::size_of::<u32>() as u32)),
             len: self.len,
             consumed: 0,
         }
@@ -40,38 +41,40 @@ impl ExpUnrolledLinkedList {
             // and we need to add 1u32 to store the pointer
             // to the next element.
             let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>();
-            let new_block_addr: u32 = heap.allocate_space(new_block_size);
-            heap.set(self.end, &new_block_addr);
+            let new_block_addr: Addr = heap.allocate_space(new_block_size);
+            unsafe { heap.set(self.end, &new_block_addr) };
             self.end = new_block_addr;
         }
-        heap.set(self.end, &val);
-        self.end += mem::size_of::<u32>() as u32;
+        unsafe {
+            heap.set(self.end, &val);
+            self.end.0 += mem::size_of::<u32>() as u32;
+        }
     }
 }
 
 impl HeapAllocable for u32 {
-    fn with_addr(_addr: u32) -> u32 {
+    fn with_addr(_addr: Addr) -> u32 {
         0u32
     }
 }
 
 impl HeapAllocable for ExpUnrolledLinkedList {
-    fn with_addr(addr: u32) -> ExpUnrolledLinkedList {
-        let last_addr = addr + mem::size_of::<u32>() as u32 * 2u32;
+    fn with_addr(addr: Addr) -> ExpUnrolledLinkedList {
+        let last_addr = Addr(addr.0 + mem::size_of::<u32>() as u32 * 2u32);
         ExpUnrolledLinkedList {
             len: 0u32,
             end: last_addr,
             val0: 0u32,
             val1: 0u32,
             val2: 0u32,
-            next: 0u32,
+            next: Addr(0),
         }
     }
 }
 
 pub struct ExpUnrolledLinkedListIterator<'a> {
     heap: &'a Heap,
-    addr: u32,
+    addr: Addr,
     len: u32,
     consumed: u32,
 }
@@ -83,14 +86,14 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
         if self.consumed == self.len {
             None
         } else {
-            let addr: u32;
+            let addr: Addr;
             self.consumed += 1;
             if jump_needed(self.consumed) {
                 addr = *self.heap.get_mut_ref(self.addr);
             } else {
                 addr = self.addr;
             }
-            self.addr = addr + mem::size_of::<u32>() as u32;
+            self.addr = Addr(addr.0 + mem::size_of::<u32>() as u32);
             Some(*self.heap.get_mut_ref(addr))
         }
     }
@@ -104,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_stack() {
-        let heap = Heap::with_capacity(1_000_000);
+        let heap = Heap::new();
         let (addr, stack) = heap.allocate_object::<ExpUnrolledLinkedList>();
         stack.push(1u32, &heap);
         stack.push(2u32, &heap);

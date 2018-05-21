@@ -34,10 +34,10 @@ use std::thread::JoinHandle;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
-pub const MARGIN_IN_BYTES: u32 = 1_000_000u32;
+pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
 // We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
+pub const HEAP_SIZE_LIMIT: u32 = (MARGIN_IN_BYTES as u32)* 3u32;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
@@ -238,40 +238,28 @@ pub fn advance_deletes(
     Ok(file_protect)
 }
 
-fn index_documents(
-    heap: &mut Heap,
-    table_size: usize,
-    segment: &Segment,
-    generation: usize,
-    document_iterator: &mut Iterator<Item = AddOperation>,
-    segment_updater: &mut SegmentUpdater,
-    mut delete_cursor: DeleteCursor,
+    fn index_documents(
+        memory_budget: usize,
+        table_size: usize,
+        segment: &Segment,
+        generation: usize,
+        document_iterator: &mut Iterator<Item = AddOperation>,
+        segment_updater: &mut SegmentUpdater,
+        mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
-    heap.clear();
+    let heap = Heap::new();
     let schema = segment.schema();
     let segment_id = segment.id();
     let mut segment_writer =
-        SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
+        SegmentWriter::for_segment(&heap, table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
-        // There is two possible conditions to close the segment.
-        // One is the memory arena dedicated to the segment is
-        // getting full.
-        if segment_writer.is_buffer_full() {
+
+        let mem_usage = segment_writer.mem_usage();
+
+        if mem_usage >= memory_budget - MARGIN_IN_BYTES {
             info!(
                 "Buffer limit reached, flushing segment with maxdoc={}.",
-                segment_writer.max_doc()
-            );
-            break;
-        }
-        // The second is the term dictionary hash table
-        // is reaching saturation.
-        //
-        // Tantivy does not resize its hashtable. When it reaches
-        // capacity, we just stop indexing new document.
-        if segment_writer.is_term_saturated() {
-            info!(
-                "Term dic saturated, flushing segment with maxdoc={}.",
                 segment_writer.max_doc()
             );
             break;
@@ -367,14 +355,15 @@ impl IndexWriter {
     fn add_indexing_worker(&mut self) -> Result<()> {
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
-        let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
-        info!("heap size {}, table_size {}", heap_size, table_size);
-        let mut heap = Heap::with_capacity(heap_size);
+        let (_, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
+        info!("initial table_size {}", table_size);
+        let mut heap = Heap::new();
 
         let generation = self.generation;
 
         let mut delete_cursor = self.delete_queue.cursor();
 
+        let mem_budget = self.heap_size_in_bytes_per_thread;
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
             .name(format!(
                 "indexing thread {} for gen {}",
@@ -402,7 +391,7 @@ impl IndexWriter {
                     }
                     let segment = segment_updater.new_segment();
                     index_documents(
-                        &mut heap,
+                        mem_budget,
                         table_size,
                         &segment,
                         generation,

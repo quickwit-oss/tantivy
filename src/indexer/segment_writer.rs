@@ -1,4 +1,4 @@
-use super::operation::AddOperation;
+    use super::operation::AddOperation;
 use core::Segment;
 use core::SerializableSegment;
 use datastruct::stacker::Heap;
@@ -94,22 +94,8 @@ impl<'a> SegmentWriter<'a> {
         Ok(self.doc_opstamps)
     }
 
-    /// Returns true iff the segment writer's buffer has reached capacity.
-    ///
-    /// The limit is defined as `the user defined heap size - an arbitrary margin of 10MB`
-    /// The `Segment` is `finalize`d when the buffer gets full.
-    ///
-    /// Because, we cannot cut through a document, the margin is there to ensure that we rarely
-    /// exceeds the heap size.
-    pub fn is_buffer_full(&self) -> bool {
-        self.heap.num_free_bytes() <= MARGIN_IN_BYTES
-    }
-
-    /// Return true if the term dictionary hashmap is reaching capacity.
-    /// It is one of the condition that triggers a `SegmentWriter` to
-    /// be finalized.
-    pub(crate) fn is_term_saturated(&self) -> bool {
-        self.multifield_postings.is_term_saturated()
+    pub fn mem_usage(&self) -> usize {
+        self.heap.mem_usage() + self.multifield_postings.term_index().mem_usage()
     }
 
     /// Indexes a new document

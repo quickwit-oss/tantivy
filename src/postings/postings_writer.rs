@@ -13,6 +13,7 @@ use tokenizer::Token;
 use tokenizer::TokenStream;
 use DocId;
 use Result;
+use datastruct::stacker::Addr;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -51,6 +52,7 @@ pub struct MultiFieldPostingsWriter<'a> {
     per_field_postings_writers: Vec<Box<PostingsWriter + 'a>>,
 }
 
+
 impl<'a> MultiFieldPostingsWriter<'a> {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
@@ -87,7 +89,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], u32, UnorderedTermId)> = self.term_index.iter().collect();
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self.term_index.iter().collect();
         term_offsets.sort_by_key(|&(k, _, _)| k);
 
         let mut offsets: Vec<(Field, usize)> = vec![];
@@ -150,8 +152,8 @@ impl<'a> MultiFieldPostingsWriter<'a> {
     }
 
     /// Return true iff the term dictionary is saturated.
-    pub fn is_term_saturated(&self) -> bool {
-        self.term_index.is_saturated()
+    pub fn term_index(&self) -> &TermHashMap<'a> {
+        &self.term_index
     }
 }
 
@@ -180,7 +182,7 @@ pub trait PostingsWriter {
     /// The actual serialization format is handled by the `PostingsSerializer`.
     fn serialize(
         &self,
-        term_addrs: &[(&[u8], u32, UnorderedTermId)],
+        term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()>;
@@ -257,7 +259,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
 
     fn serialize(
         &self,
-        term_addrs: &[(&[u8], u32, UnorderedTermId)],
+        term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
