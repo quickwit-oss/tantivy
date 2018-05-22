@@ -357,7 +357,6 @@ impl IndexWriter {
         let mut segment_updater = self.segment_updater.clone();
         let (_, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
         info!("initial table_size {}", table_size);
-        let mut heap = Heap::new();
 
         let generation = self.generation;
 

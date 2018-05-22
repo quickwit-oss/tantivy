@@ -36,6 +36,8 @@ pub trait Recorder: HeapAllocable {
 }
 
 /// Only records the doc ids
+#[derive(Clone, Copy)]
+#[repr(packed)]
 pub struct NothingRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
@@ -78,6 +80,8 @@ impl Recorder for NothingRecorder {
 }
 
 /// Recorder encoding document ids, and term frequencies
+#[derive(Clone, Copy)]
+#[repr(packed)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
@@ -137,6 +141,8 @@ impl Recorder for TermFrequencyRecorder {
 }
 
 /// Recorder encoding term frequencies as well as positions.
+#[derive(Clone, Copy)]
+#[repr(packed)]
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,

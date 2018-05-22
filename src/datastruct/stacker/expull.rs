@@ -7,12 +7,32 @@ pub fn is_power_of_2(val: u32) -> bool {
     val & (val - 1) == 0
 }
 
+
+const MAX_BLOCK_LEN: u32 = 1u32 << 15;
+
 #[inline]
-pub fn jump_needed(val: u32) -> bool {
-    val > 3 && is_power_of_2(val)
+pub fn jump_needed(len: u32) -> Option<usize> {
+    match len {
+        0...3 => None,
+        val @ 4...MAX_BLOCK_LEN => {
+            if is_power_of_2(val) {
+                Some(val as usize)
+            } else {
+                None
+            }
+        }
+        n => {
+            if n % MAX_BLOCK_LEN == 0 {
+                Some(MAX_BLOCK_LEN as usize)
+            } else {
+                None
+            }
+        }
+    }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
+#[repr(packed)]
 pub struct ExpUnrolledLinkedList {
     len: u32,
     end: Addr,
@@ -34,13 +54,11 @@ impl ExpUnrolledLinkedList {
 
     pub fn push(&mut self, val: u32, heap: &Heap) {
         self.len += 1;
-        if jump_needed(self.len) {
-            // we need to allocate another block.
-            // ... As we want to grow block exponentially
-            // the next block as a size of (length so far),
-            // and we need to add 1u32 to store the pointer
-            // to the next element.
-            let new_block_size: usize = (self.len as usize + 1) * mem::size_of::<u32>();
+        if let Some(new_block_len) = jump_needed(self.len) {
+            // We need to allocate another block.
+            // We also allocate an extra `u32` to store the pointer
+            // to the future next block.
+            let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
             unsafe { heap.set(self.end, &new_block_addr) };
             self.end = new_block_addr;
@@ -88,13 +106,13 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
         } else {
             let addr: Addr;
             self.consumed += 1;
-            if jump_needed(self.consumed) {
-                addr = *self.heap.get_mut_ref(self.addr);
+            if jump_needed(self.consumed).is_some() {
+                addr = self.heap.read(self.addr);
             } else {
                 addr = self.addr;
             }
             self.addr = Addr(addr.0 + mem::size_of::<u32>() as u32);
-            Some(*self.heap.get_mut_ref(addr))
+            Some(self.heap.read(addr))
         }
     }
 }
@@ -102,6 +120,7 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 #[cfg(test)]
 mod tests {
 
+    use super::jump_needed;
     use super::super::heap::Heap;
     use super::*;
 
@@ -123,16 +142,33 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_jump_if_needed() {
+        let mut block_len = 4u32;
+        let mut i = 0;
+        while i < 10_000_000 {
+            println!("i {}", i);
+            assert!(jump_needed(i + block_len - 1).is_none());
+            assert!(jump_needed(i + block_len + 1).is_none());
+            assert!(jump_needed(i + block_len).is_some());
+            let new_block_len = jump_needed(i + block_len).unwrap();
+            i += block_len;
+            block_len = new_block_len as u32;
+        }
+    }
 }
+
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::ExpUnrolledLinkedList;
     use super::Heap;
     use test::Bencher;
-
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
+
+
+
 
     #[bench]
     fn bench_push_vec(bench: &mut Bencher) {
@@ -152,7 +188,7 @@ mod bench {
 
     #[bench]
     fn bench_push_stack(bench: &mut Bencher) {
-        let heap = Heap::with_capacity(64_000_000);
+        let heap = Heap::new();
         bench.iter(|| {
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {

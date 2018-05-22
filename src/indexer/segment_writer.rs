@@ -4,7 +4,6 @@ use core::SerializableSegment;
 use datastruct::stacker::Heap;
 use fastfield::FastFieldsWriter;
 use fieldnorm::FieldNormsWriter;
-use indexer::index_writer::MARGIN_IN_BYTES;
 use indexer::segment_serializer::SegmentSerializer;
 use postings::MultiFieldPostingsWriter;
 use schema::FieldType;

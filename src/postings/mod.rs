@@ -160,7 +160,7 @@ pub mod tests {
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
 
-        let heap = Heap::with_capacity(10_000_000);
+        let heap = Heap::new();
         {
             let mut segment_writer =
                 SegmentWriter::for_segment(&heap, 18, segment.clone(), &schema).unwrap();

@@ -9,9 +9,8 @@ pub use self::heap::{Heap, HeapAllocable, Addr};
 #[test]
 fn test_unrolled_linked_list() {
     use std::collections;
-    let heap = Heap::with_capacity(30_000_000);
+    let heap = Heap::new();
     {
-        heap.clear();
         let mut ks: Vec<usize> = (1..5).map(|k| k * 100).collect();
         ks.push(2);
         ks.push(3);

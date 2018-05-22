@@ -166,7 +166,7 @@ impl<'a> TermHashMap<'a> {
         self.table.len() * mem::size_of::<KeyValue>()
     }
 
-    pub fn is_saturated(&self) -> bool {
+    fn is_saturated(&self) -> bool {
         self.table.len() < self.occupied.len() * 3
     }
 
@@ -192,10 +192,33 @@ impl<'a> TermHashMap<'a> {
         }
     }
 
+    fn resize(&mut self) {
+        let new_len = self.table.len() * 2;
+        let mask = new_len - 1;
+        self.mask = mask;
+        let new_table = vec![KeyValue::default(); new_len].into_boxed_slice();
+        let old_table = mem::replace(&mut self.table, new_table);
+        for old_pos in self.occupied.iter_mut() {
+            let key_value: KeyValue = old_table[*old_pos];
+            let mut probe = QuadraticProbing::compute(key_value.hash as usize, mask);
+            loop {
+                let bucket = probe.next_probe();
+                if self.table[bucket].is_empty() {
+                    *old_pos = bucket;
+                    self.table[bucket] = key_value;
+                    break;
+                }
+            }
+        }
+    }
+
     pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(
         &mut self,
         key: S,
     ) -> (UnorderedTermId, &mut V) {
+        if self.is_saturated() {
+            self.resize();
+        }
         let key_bytes: &[u8] = key.as_ref();
         let hash = murmurhash2::murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
@@ -258,6 +281,8 @@ mod tests {
     use std::collections::HashSet;
     use datastruct::stacker::heap::Addr;
 
+    #[repr(packed)]
+    #[derive(Copy, Clone)]
     struct TestValue {
         val: u32,
         _addr: Addr,
@@ -281,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_hash_map() {
-        let heap = Heap::with_capacity(2_000_000);
+        let heap = Heap::new();
         let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
         {
             let v: &mut TestValue = hash_map.get_or_create("abc").1;

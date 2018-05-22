@@ -3,33 +3,12 @@ use std::cell::UnsafeCell;
 use std::mem;
 use std::ptr;
 
-
-/// `BytesRef` refers to a slice in tantivy's custom `Heap`.
-///
-/// The slice will encode the length of the `&[u8]` slice
-/// on 16-bits, and then the data is encoded.
-#[derive(Copy, Clone)]
-pub struct BytesRef(u32);
-
-impl BytesRef {
-    pub fn is_null(&self) -> bool {
-        self.0 == u32::max_value()
-    }
-
-    pub fn addr(&self) -> u32 {
-        self.0
-    }
-}
-
-impl Default for BytesRef {
-    fn default() -> BytesRef {
-        BytesRef(u32::max_value())
-    }
-}
+const NUM_BITS_PAGE_ADDR: usize = 20;
+const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 
 
 /// Object that can be allocated in tantivy's custom `Heap`.
-pub trait HeapAllocable {
+pub trait HeapAllocable: Copy {
     fn with_addr(addr: Addr) -> Self;
 }
 
@@ -41,9 +20,6 @@ pub struct  Heap {
 #[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
 impl Heap {
 
-    pub fn with_capacity(cap: usize) -> Heap {
-        Heap::new()
-    }
     /// Creates a new heap with a given capacity
     pub fn new() -> Heap {
         Heap {
@@ -57,19 +33,6 @@ impl Heap {
 
     pub fn mem_usage(&self) -> usize {
         self.inner().mem_usage()
-    }
-
-    /// Clears the heap. All the underlying data is lost.
-    ///
-    /// This heap does not support deallocation.
-    /// This method is the only way to free memory.
-    pub fn clear(&self) {
-        self.inner().clear();
-    }
-
-    /// Return amount of free space, in bytes.
-    pub fn num_free_bytes(&self) -> u32 {
-        panic!("num free bytes");
     }
 
     /// Allocate a given amount of space and returns an address
@@ -115,154 +78,36 @@ impl Heap {
 
     /// Returns a mutable reference for an object at a given Item.
     pub fn get_mut_ref<Item>(&self, addr: Addr) -> &mut Item {
+        debug_assert_eq!(mem::align_of::<Item>(), 1);
         unsafe {
             let item_ptr = self.inner().get_mut_ptr(addr) as *mut Item;
             &mut *item_ptr
         }
     }
 
+    pub fn read<Item: Copy>(&self, addr: Addr) -> Item {
+        unsafe {
+            let ptr = self.inner().get_ptr(addr);
+            ptr::read_unaligned(ptr as *const Item)
+        }
+    }
+
     /// Returns a mutable reference to an `Item` at a given `addr`.
     #[cfg(test)]
-    pub fn get_ref<Item>(&self, addr: Addr) -> &mut Item {
+    pub fn get_ref<Item>(&self, addr: Addr) -> & Item {
         self.get_mut_ref(addr)
     }
 }
 
-/*
-struct InnerHeap {
-    buffer: Vec<u8>,
-    buffer_len: u32,
-    used: u32,
-    next_heap: Option<Box<InnerHeap>>,
-}
 
-impl InnerHeap {
-    pub fn with_capacity(num_bytes: usize) -> InnerHeap {
-        let buffer: Vec<u8> = vec![0u8; num_bytes];
-        InnerHeap {
-            buffer,
-            buffer_len: num_bytes as u32,
-            next_heap: None,
-            used: 0u32,
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.used = 0u32;
-        self.next_heap = None;
-    }
-
-    // Returns the number of free bytes. If the buffer
-    // has reached it's capacity and overflowed to another buffer, return 0.
-    pub fn num_free_bytes(&self) -> u32 {
-        if self.next_heap.is_some() {
-            0u32
-        } else {
-            self.buffer_len - self.used
-        }
-    }
-
-    pub fn allocate_space(&mut self, num_bytes: usize) -> u32 {
-        let addr = self.used;
-        self.used += num_bytes as u32;
-        if self.used <= self.buffer_len {
-            addr
-        } else {
-            if self.next_heap.is_none() {
-                info!(
-                    r#"Exceeded heap size. The segment will be committed right
-                         after indexing this document."#,
-                );
-                self.next_heap = Some(Box::new(InnerHeap::with_capacity(self.buffer_len as usize)));
-            }
-            self.next_heap.as_mut().unwrap().allocate_space(num_bytes) + self.buffer_len
-        }
-    }
-
-    fn get_slice(&self, bytes_ref: BytesRef) -> &[u8] {
-        let start = bytes_ref.0;
-        if start >= self.buffer_len {
-            self.next_heap
-                .as_ref()
-                .unwrap()
-                .get_slice(BytesRef(start - self.buffer_len))
-        } else {
-            let start = start as usize;
-            let len = NativeEndian::read_u16(&self.buffer[start..start + 2]) as usize;
-            &self.buffer[start + 2..start + 2 + len]
-        }
-    }
-
-    fn get_mut_slice(&mut self, start: u32, stop: u32) -> &mut [u8] {
-        if start >= self.buffer_len {
-            self.next_heap
-                .as_mut()
-                .unwrap()
-                .get_mut_slice(start - self.buffer_len, stop - self.buffer_len)
-        } else {
-            &mut self.buffer[start as usize..stop as usize]
-        }
-    }
-
-    fn allocate_and_set(&mut self, data: &[u8]) -> BytesRef {
-        assert!(data.len() < u16::max_value() as usize);
-        let total_len = 2 + data.len();
-        let start = self.allocate_space(total_len);
-        let total_buff = self.get_mut_slice(start, start + total_len as u32);
-        NativeEndian::write_u16(&mut total_buff[0..2], data.len() as u16);
-        total_buff[2..].clone_from_slice(data);
-        BytesRef(start)
-    }
-
-    fn get_mut(&mut self, addr: u32) -> *mut u8 {
-        if addr >= self.buffer_len {
-            self.next_heap
-                .as_mut()
-                .unwrap()
-                .get_mut(addr - self.buffer_len)
-        } else {
-            let addr_isize = addr as isize;
-            unsafe { self.buffer.as_mut_ptr().offset(addr_isize) }
-        }
-    }
-
-    fn get_mut_ref<Item>(&mut self, addr: u32) -> &mut Item {
-        if addr >= self.buffer_len {
-            self.next_heap
-                .as_mut()
-                .unwrap()
-                .get_mut_ref(addr - self.buffer_len)
-        } else {
-            let v_ptr_u8 = self.get_mut(addr) as *mut u8;
-            let v_ptr = v_ptr_u8 as *mut Item;
-            unsafe { &mut *v_ptr }
-        }
-    }
-
-    pub fn set<Item>(&mut self, addr: u32, val: &Item) {
-        if addr >= self.buffer_len {
-            self.next_heap
-                .as_mut()
-                .unwrap()
-                .set(addr - self.buffer_len, val);
-        } else {
-            let v_ptr: *const Item = val as *const Item;
-            let v_ptr_u8: *const u8 = v_ptr as *const u8;
-            debug_assert!(addr + mem::size_of::<Item>() as u32 <= self.used);
-            unsafe {
-                let dest_ptr: *mut u8 = self.get_mut(addr);
-                ptr::copy(v_ptr_u8, dest_ptr, mem::size_of::<Item>());
-            }
-        }
-    }
-}
-*/
-
-const NUM_BITS_PAGE_ADDR: usize = 20;
-const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
-
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct Addr(pub u32);
+
+impl Default for Addr {
+    fn default() -> Self {
+        Addr(u32::max_value())
+    }
+}
 
 impl Addr {
     #[inline(always)]
@@ -311,6 +156,7 @@ impl Page {
 
     #[inline(always)]
     fn allocate(&mut self, len: usize) -> Option<(Addr, &mut [u8])> {
+        assert!(len <= PAGE_SIZE, "You may not allocate more than a page={} bytes", PAGE_SIZE);
         if self.is_available(len) {
             let local_addr = self.len;
             self.len += len;
@@ -360,15 +206,16 @@ pub struct InnerHeap {
 impl InnerHeap {
 
     pub fn new() -> InnerHeap {
-        let mut first_page = Page::new(0);
+        let first_page = Page::new(0);
         InnerHeap {
-            pages: vec![]
+            pages: vec![first_page]
         }
     }
-
-    fn clear(&mut self) {
-        self.pages.clear();
-    }
+//
+//    fn clear(&mut self) {
+//        self.pages.clear();
+//        self.add_page();
+//    }
 
     fn add_page(&mut self) -> &mut Page {
         let new_page_id = self.pages.len();
@@ -393,7 +240,6 @@ impl InnerHeap {
     }
 
     pub fn allocate_space(&mut self, len: usize) -> Addr {
-        assert!(len < PAGE_SIZE, "Can't allocate anything over {}", PAGE_SIZE);
         let page_id = self.pages.len() - 1;
         if let Some(addr) = self.pages[page_id].allocate_space(len) {
             return addr;
@@ -401,8 +247,7 @@ impl InnerHeap {
         self.add_page().allocate_space(len).unwrap()
     }
 
-    pub fn  allocate(&mut self, len: usize) -> (Addr, &mut [u8]) {
-        assert!(len < PAGE_SIZE, "Can't allocate anything over {}", PAGE_SIZE);
+    pub fn allocate(&mut self, len: usize) -> (Addr, &mut [u8]) {
         let page_id = self.pages.len() - 1;
         if self.pages[page_id].is_available(len) {
             return self.pages[page_id].allocate(len).unwrap();
