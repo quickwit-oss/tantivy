@@ -108,7 +108,7 @@ where
 mod test {
     use super::FuzzyQuery;
     use collector::TopCollector;
-    use schema::{Document, Field, SchemaBuilder, TEXT};
+    use schema::{Document, Field, SchemaBuilder, STORED, STRING, TEXT};
     use tests::assert_nearly_equals;
     use Index;
     use Term;
@@ -134,7 +134,8 @@ mod test {
         {
             let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(country_field, "Japon");
-            let fuzzy_query = FuzzyQuery::new(term, 2);
+            // TODO: currently I have to set this to 2 to pass. Which seems incorrect
+            let fuzzy_query = FuzzyQuery::new(term, 1);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
