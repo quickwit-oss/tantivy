@@ -1,6 +1,5 @@
 use common::BitSet;
 use core::SegmentReader;
-use fst::automaton::AlwaysMatch;
 use fst::Automaton;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
 use query::BitSetDocSet;
@@ -14,7 +13,7 @@ use Searcher;
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is with in
 /// Levenshtein distance
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FuzzyQuery {
     term: Term,
     distance: u8,
@@ -30,7 +29,8 @@ impl FuzzyQuery {
         AutomatonWeight {
             term: self.term.clone(),
             field: self.term.field(),
-            builder: self,
+            // TODO: is there a better way to do this?
+            builder: Box::new(self.clone()),
         }
     }
 }
@@ -62,7 +62,7 @@ where
 {
     term: Term,
     field: Field,
-    builder: AutomatonBuilder<A>,
+    builder: Box<AutomatonBuilder<A>>,
 }
 
 impl<A> AutomatonWeight<A>
@@ -107,6 +107,11 @@ where
 #[cfg(test)]
 mod test {
     use super::FuzzyQuery;
+    use collector::TopCollector;
+    use schema::{Document, Field, SchemaBuilder, TEXT};
+    use tests::assert_nearly_equals;
+    use Index;
+    use Term;
 
     #[test]
     pub fn test_automaton_weight() {
@@ -128,13 +133,13 @@ mod test {
         let searcher = index.searcher();
         {
             let mut collector = TopCollector::with_limit(2);
-            let term = Term::from_field_text(left_field, "Japon");
+            let term = Term::from_field_text(country_field, "Japon");
             let fuzzy_query = FuzzyQuery::new(term, 2);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
-            assert_eq!(scored_docs.len(), 1);
+            assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
-            assert_nearly_equals(0.77802235, score);
+            assert_nearly_equals(1f32, score);
         }
     }
 }
