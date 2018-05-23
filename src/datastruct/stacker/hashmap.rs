@@ -329,12 +329,12 @@ mod tests {
         let mut iter_values = hash_map.iter();
         {
             let (_, addr, _) = iter_values.next().unwrap();
-            let val: &TestValue = heap.get_ref(addr);
+            let val: TestValue = heap.read(addr);
             assert_eq!(val.val, 3u32);
         }
         {
             let (_, addr, _) = iter_values.next().unwrap();
-            let val: &TestValue = heap.get_ref(addr);
+            let val: TestValue = heap.read(addr);
             assert_eq!(val.val, 4u32);
         }
         assert!(iter_values.next().is_none());

@@ -30,7 +30,7 @@ fn test_unrolled_linked_list() {
             for i in 0..500 {
                 let key: String = i.to_string();
                 let addr: Addr = *map_addr.get(key.as_bytes()).unwrap();
-                let exp_pull: &ExpUnrolledLinkedList = heap.get_ref(addr);
+                let exp_pull: ExpUnrolledLinkedList = heap.read(addr);
                 let mut it = exp_pull.iter(addr, &heap);
                 for j in 0..k {
                     assert_eq!(it.next().unwrap(), i * j);

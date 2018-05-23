@@ -55,11 +55,6 @@ impl Heap {
     }
 
     /// Stores a `&[u8]` in the heap and returns the destination BytesRef.
-//    pub fn allocate_and_set(&self, data: &[u8]) -> BytesRef {
-//        self.inner().allocate_and_set(data)
-//    }
-
-    /// Stores a `&[u8]` in the heap and returns the destination BytesRef.
     pub fn allocate(&self, len: usize) -> (Addr, &mut [u8]) {
         self.inner().allocate(len)
     }
@@ -92,11 +87,6 @@ impl Heap {
         }
     }
 
-    /// Returns a mutable reference to an `Item` at a given `addr`.
-    #[cfg(test)]
-    pub fn get_ref<Item>(&self, addr: Addr) -> & Item {
-        self.get_mut_ref(addr)
-    }
 }
 
 
@@ -211,11 +201,6 @@ impl InnerHeap {
             pages: vec![first_page]
         }
     }
-//
-//    fn clear(&mut self) {
-//        self.pages.clear();
-//        self.add_page();
-//    }
 
     fn add_page(&mut self) -> &mut Page {
         let new_page_id = self.pages.len();
