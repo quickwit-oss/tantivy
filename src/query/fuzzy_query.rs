@@ -27,7 +27,6 @@ impl FuzzyQuery {
 
     pub fn specialized_weight(&self) -> AutomatonWeight<DFA> {
         AutomatonWeight {
-            term: self.term.clone(),
             field: self.term.field(),
             // TODO: is there a better way to do this?
             builder: Box::new(self.clone()),
@@ -60,7 +59,6 @@ pub struct AutomatonWeight<A>
 where
     A: Automaton,
 {
-    term: Term,
     field: Field,
     builder: Box<AutomatonBuilder<A>>,
 }
@@ -108,7 +106,7 @@ where
 mod test {
     use super::FuzzyQuery;
     use collector::TopCollector;
-    use schema::{Document, Field, SchemaBuilder, STORED, STRING, TEXT};
+    use schema::{SchemaBuilder, TEXT};
     use tests::assert_nearly_equals;
     use Index;
     use Term;
@@ -122,10 +120,10 @@ mod test {
         {
             let mut index_writer = index.writer_with_num_threads(1, 10_000_000).unwrap();
             index_writer.add_document(doc!(
-                country_field => "Japan",
+                country_field => "japan",
             ));
             index_writer.add_document(doc!(
-                country_field => "Korea",
+                country_field => "korea",
             ));
             index_writer.commit().unwrap();
         }
@@ -133,8 +131,8 @@ mod test {
         let searcher = index.searcher();
         {
             let mut collector = TopCollector::with_limit(2);
-            let term = Term::from_field_text(country_field, "Japon");
-            // TODO: currently I have to set this to 2 to pass. Which seems incorrect
+            let term = Term::from_field_text(country_field, "japon");
+
             let fuzzy_query = FuzzyQuery::new(term, 1);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
