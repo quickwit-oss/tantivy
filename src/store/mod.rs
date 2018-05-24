@@ -38,11 +38,6 @@ mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-trait Compression {
-    fn compress(uncompressed: &[u8], compress: &mut Vec<u8>);
-    fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>);
-}
-
 #[cfg(feature="lz4")]
 mod compression_lz4;
 #[cfg(feature="lz4")]
