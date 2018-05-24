@@ -14,6 +14,7 @@ use tokenizer::TokenStream;
 use DocId;
 use Result;
 use datastruct::stacker::Addr;
+use datastruct::stacker::ExpUnrolledLinkedList;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,
@@ -244,17 +245,22 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         heap: &Heap,
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
-        let (term_ord, recorder): (UnorderedTermId, &mut Rec) = term_index.get_or_create(term);
-        let current_doc = recorder.current_doc();
-        if current_doc != doc {
-            if current_doc != u32::max_value() {
-                recorder.close_doc(heap);
-            }
-            recorder.new_doc(doc, heap);
-        }
         self.total_num_tokens += 1;
-        recorder.record_position(position, heap);
-        term_ord
+        term_index.get_or_create(term,
+         |recorder: &mut Rec| {
+             let current_doc = recorder.current_doc();
+             if current_doc != doc {
+                 recorder.close_doc(heap);
+                 recorder.new_doc(doc, heap);
+             }
+             recorder.record_position(position, heap);
+         },
+         || {
+             let mut recorder = Rec::new(heap);
+             recorder.new_doc(doc, heap);
+             recorder.record_position(position, heap);
+             recorder
+         })
     }
 
     fn serialize(
@@ -264,9 +270,9 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         heap: &Heap,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
-            let recorder: &mut Rec = self.heap.get_mut_ref(addr);
+            let recorder: Rec = self.heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
-            recorder.serialize(addr, serializer, heap)?;
+            recorder.serialize(serializer, heap)?;
             serializer.close_term()?;
         }
         Ok(())

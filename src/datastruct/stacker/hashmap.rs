@@ -1,4 +1,4 @@
-use super::heap::{Heap, HeapAllocable};
+use super::heap::Heap;
 use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
@@ -212,10 +212,17 @@ impl<'a> TermHashMap<'a> {
         }
     }
 
-    pub fn get_or_create<S: AsRef<[u8]>, V: HeapAllocable>(
+    pub fn get_or_create<S, V, Mutate, Create>(
         &mut self,
         key: S,
-    ) -> (UnorderedTermId, &mut V) {
+        mutate: Mutate,
+        create: Create) -> UnorderedTermId
+    where
+        S: AsRef<[u8]>,
+        V: Copy,
+        Mutate: Fn(&mut V),
+        Create: Fn() -> V
+    {
         if self.is_saturated() {
             self.resize();
         }
@@ -232,21 +239,23 @@ impl<'a> TermHashMap<'a> {
                 NativeEndian::write_u16(&mut dest_bytes[0..2], key_bytes_len as u16);
                 dest_bytes[2..key_bytes_len+2].clone_from_slice(key_bytes);
                 let val_addr = Addr(key_addr.0 + 2u32 + key_bytes_len as u32);
-                let v = V::with_addr(val_addr);
-                let v_mut_ref = unsafe {
+                self.set_bucket(hash, key_addr, bucket);
+                let v = create();
+                unsafe {
                     let v_mut_ptr = dest_bytes.as_mut_ptr().offset((2 + key_bytes_len) as isize) as *mut V;
                     ptr::write_unaligned(v_mut_ptr, v);
-                    self.set_bucket(hash, key_addr, bucket);
-                    &mut *v_mut_ptr
                 };
-                return (bucket as UnorderedTermId, v_mut_ref);
+                return bucket as UnorderedTermId;
             } else if kv.hash == hash {
                 let (stored_key, expull_addr): (&[u8], Addr) = self.get_key_value(kv.key_value_addr);
                 if stored_key == key_bytes {
-                    return (
-                        bucket as UnorderedTermId,
-                        self.heap.get_mut_ref(expull_addr),
-                    );
+                    unsafe {
+                        let v_ptr = self.heap.get_mut_ptr(expull_addr) as *mut V;
+                        let mut v: V = ptr::read_unaligned(v_ptr);
+                        mutate(&mut v);
+                        ptr::write_unaligned(v_ptr, v);
+                    };
+                    return bucket as UnorderedTermId;
                 }
             }
         }
@@ -274,27 +283,15 @@ mod bench {
 #[cfg(test)]
 mod tests {
 
-    use super::super::heap::{Heap, HeapAllocable};
     use super::murmurhash2::murmurhash2;
     use super::split_memory;
-    use super::*;
     use std::collections::HashSet;
-    use datastruct::stacker::heap::Addr;
+    use datastruct::stacker::Heap;
+    use datastruct::stacker::TermHashMap;
 
-    #[repr(packed)]
-    #[derive(Copy, Clone)]
+    #[derive(Copy, Default, Clone)]
     struct TestValue {
-        val: u32,
-        _addr: Addr,
-    }
-
-    impl HeapAllocable for TestValue {
-        fn with_addr(addr: Addr) -> TestValue {
-            TestValue {
-                val: 0u32,
-                _addr: addr,
-            }
-        }
+        val: u32
     }
 
     #[test]
@@ -304,12 +301,16 @@ mod tests {
         assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
+
+    /*
     #[test]
     fn test_hash_map() {
         let heap = Heap::new();
         let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc").1;
+            hash_map.get_or_create("abc", |_| {}, TestValue::default);
+            let mut it = hash_map.iter();
+            it.next()
             assert_eq!(v.val, 0u32);
             v.val = 3u32;
         }
@@ -339,7 +340,8 @@ mod tests {
         }
         assert!(iter_values.next().is_none());
     }
-
+    */
+    
     #[test]
     fn test_murmur() {
         let s1 = "abcdef";

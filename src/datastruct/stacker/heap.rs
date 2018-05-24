@@ -1,16 +1,10 @@
 use byteorder::{ByteOrder, NativeEndian};
 use std::cell::UnsafeCell;
-use std::mem;
 use std::ptr;
 
 const NUM_BITS_PAGE_ADDR: usize = 20;
 const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 
-
-/// Object that can be allocated in tantivy's custom `Heap`.
-pub trait HeapAllocable: Copy {
-    fn with_addr(addr: Addr) -> Self;
-}
 
 /// Tantivy's custom `Heap`.
 pub struct  Heap {
@@ -42,16 +36,8 @@ impl Heap {
         addr
     }
 
-    /// Allocate an object in the heap
-    pub fn allocate_object<V: HeapAllocable>(&self) -> (Addr, &mut V) {
-        let addr = self.inner().allocate_space(mem::size_of::<V>());
-        let v: V = V::with_addr(addr);
-        unsafe {
-            let v_mut_ptr = self.inner().get_mut_ptr(addr) as *mut V;
-            ptr::write_unaligned(v_mut_ptr, v);
-            (addr, &mut *v_mut_ptr)
-        }
-
+    pub unsafe fn get_mut_ptr(&self, addr: Addr) -> *mut u8 {
+        self.inner().get_mut_ptr(addr)
     }
 
     /// Stores a `&[u8]` in the heap and returns the destination BytesRef.
@@ -69,15 +55,6 @@ impl Heap {
     pub unsafe fn set<Item: Copy>(&self, addr: Addr, val: &Item) {
         let dst_ptr: *mut Item = (*self.inner.get()).get_mut_ptr(addr) as *mut Item;
         ptr::write_unaligned(dst_ptr, *val);
-    }
-
-    /// Returns a mutable reference for an object at a given Item.
-    pub fn get_mut_ref<Item>(&self, addr: Addr) -> &mut Item {
-        debug_assert_eq!(mem::align_of::<Item>(), 1);
-        unsafe {
-            let item_ptr = self.inner().get_mut_ptr(addr) as *mut Item;
-            &mut *item_ptr
-        }
     }
 
     pub fn read<Item: Copy>(&self, addr: Addr) -> Item {

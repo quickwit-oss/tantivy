@@ -1,4 +1,4 @@
-use datastruct::stacker::{Addr, ExpUnrolledLinkedList, Heap, HeapAllocable};
+use datastruct::stacker::{Addr, ExpUnrolledLinkedList, Heap};
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;
@@ -15,7 +15,9 @@ const POSITION_END: u32 = std::u32::MAX;
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub trait Recorder: HeapAllocable {
+pub trait Recorder: Copy {
+    ///
+    fn new(heap: &Heap) -> Self;
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
@@ -29,7 +31,6 @@ pub trait Recorder: HeapAllocable {
     /// Pushes the postings information to the serializer.
     fn serialize(
         &self,
-        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()>;
@@ -43,16 +44,14 @@ pub struct NothingRecorder {
     current_doc: DocId,
 }
 
-impl HeapAllocable for NothingRecorder {
-    fn with_addr(addr: Addr) -> NothingRecorder {
+impl Recorder for NothingRecorder {
+    fn new(heap: &Heap) -> Self {
         NothingRecorder {
-            stack: ExpUnrolledLinkedList::with_addr(addr),
-            current_doc: u32::max_value(),
+            stack: ExpUnrolledLinkedList::new(heap),
+            current_doc: u32::max_value()
         }
     }
-}
 
-impl Recorder for NothingRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -68,11 +67,10 @@ impl Recorder for NothingRecorder {
 
     fn serialize(
         &self,
-        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
-        for doc in self.stack.iter(self_addr, heap) {
+        for doc in self.stack.iter(heap) {
             serializer.write_doc(doc, 0u32, &EMPTY_ARRAY)?;
         }
         Ok(())
@@ -81,24 +79,22 @@ impl Recorder for NothingRecorder {
 
 /// Recorder encoding document ids, and term frequencies
 #[derive(Clone, Copy)]
-#[repr(packed)]
 pub struct TermFrequencyRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
     current_tf: u32,
 }
 
-impl HeapAllocable for TermFrequencyRecorder {
-    fn with_addr(addr: Addr) -> TermFrequencyRecorder {
+impl Recorder for TermFrequencyRecorder {
+
+    fn new(heap: &Heap) -> Self {
         TermFrequencyRecorder {
-            stack: ExpUnrolledLinkedList::with_addr(addr),
+            stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
             current_tf: 0u32,
         }
     }
-}
 
-impl Recorder for TermFrequencyRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -120,14 +116,13 @@ impl Recorder for TermFrequencyRecorder {
 
     fn serialize(
         &self,
-        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
         // the last document has not been closed...
         // its term freq is self.current_tf.
         let mut doc_iter = self.stack
-            .iter(self_addr, heap)
+            .iter(heap)
             .chain(Some(self.current_tf).into_iter());
 
         while let Some(doc) = doc_iter.next() {
@@ -142,22 +137,20 @@ impl Recorder for TermFrequencyRecorder {
 
 /// Recorder encoding term frequencies as well as positions.
 #[derive(Clone, Copy)]
-#[repr(packed)]
 pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
 }
 
-impl HeapAllocable for TFAndPositionRecorder {
-    fn with_addr(addr: Addr) -> TFAndPositionRecorder {
+impl Recorder for TFAndPositionRecorder {
+
+    fn new(heap: &Heap) -> Self {
         TFAndPositionRecorder {
-            stack: ExpUnrolledLinkedList::with_addr(addr),
+            stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
         }
     }
-}
 
-impl Recorder for TFAndPositionRecorder {
     fn current_doc(&self) -> DocId {
         self.current_doc
     }
@@ -177,12 +170,11 @@ impl Recorder for TFAndPositionRecorder {
 
     fn serialize(
         &self,
-        self_addr: Addr,
         serializer: &mut FieldSerializer,
         heap: &Heap,
     ) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
-        let mut positions_iter = self.stack.iter(self_addr, heap);
+        let mut positions_iter = self.stack.iter(heap);
         while let Some(doc) = positions_iter.next() {
             let mut prev_position = 0;
             doc_positions.clear();
