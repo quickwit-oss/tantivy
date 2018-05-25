@@ -1,4 +1,4 @@
-use datastruct::stacker::{Addr, ExpUnrolledLinkedList, Heap};
+use datastruct::stacker::{ExpUnrolledLinkedList, Heap};
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;
@@ -38,7 +38,6 @@ pub trait Recorder: Copy {
 
 /// Only records the doc ids
 #[derive(Clone, Copy)]
-#[repr(packed)]
 pub struct NothingRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,

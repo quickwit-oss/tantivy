@@ -14,7 +14,6 @@ use tokenizer::TokenStream;
 use DocId;
 use Result;
 use datastruct::stacker::Addr;
-use datastruct::stacker::ExpUnrolledLinkedList;
 
 fn posting_from_field_entry<'a>(
     field_entry: &FieldEntry,

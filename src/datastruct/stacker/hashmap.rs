@@ -235,15 +235,18 @@ impl<'a> TermHashMap<'a> {
             if kv.is_empty() {
                 let key_bytes_len = key_bytes.len();
                 let len = key_bytes_len + 2 + mem::size_of::<V>();
-                let (key_addr, dest_bytes) = self.heap.allocate(len);
+                let key_addr = self.heap.allocate_space(len);
+                let dest_bytes = unsafe {
+                    let dest_ptr = self.heap.get_mut_ptr(key_addr);
+                    slice::from_raw_parts_mut(dest_ptr, len)
+                };
                 NativeEndian::write_u16(&mut dest_bytes[0..2], key_bytes_len as u16);
                 dest_bytes[2..key_bytes_len+2].clone_from_slice(key_bytes);
-                let val_addr = Addr(key_addr.0 + 2u32 + key_bytes_len as u32);
                 self.set_bucket(hash, key_addr, bucket);
-                let v = create();
+                let val = create();
                 unsafe {
-                    let v_mut_ptr = dest_bytes.as_mut_ptr().offset((2 + key_bytes_len) as isize) as *mut V;
-                    ptr::write_unaligned(v_mut_ptr, v);
+                    let val_mut_ptr = dest_bytes.as_mut_ptr().offset((2 + key_bytes_len) as isize) as *mut V;
+                    ptr::write_unaligned(val_mut_ptr, val);
                 };
                 return bucket as UnorderedTermId;
             } else if kv.hash == hash {
@@ -288,6 +291,7 @@ mod tests {
     use std::collections::HashSet;
     use datastruct::stacker::Heap;
     use datastruct::stacker::TermHashMap;
+    use std::collections::HashMap;
 
     #[derive(Copy, Default, Clone)]
     struct TestValue {
@@ -301,46 +305,55 @@ mod tests {
         assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
-
-    /*
     #[test]
     fn test_hash_map() {
         let heap = Heap::new();
         let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
         {
-            hash_map.get_or_create("abc", |_| {}, TestValue::default);
-            let mut it = hash_map.iter();
-            it.next()
-            assert_eq!(v.val, 0u32);
-            v.val = 3u32;
+            hash_map.get_or_create(
+                "abc",
+         |_| { panic!(""); },
+                || {
+                    let mut test_value = TestValue::default();
+                    test_value.val = 3u32;
+                    test_value
+                });
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
-            assert_eq!(v.val, 0u32);
-            v.val = 4u32;
+            hash_map.get_or_create(
+                "abcd",
+                |_| { panic!(""); },
+                || {
+                    let mut test_value = TestValue::default();
+                    test_value.val = 4u32;
+                    test_value
+                });
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abc").1;
-            assert_eq!(v.val, 3u32);
+            hash_map.get_or_create(
+                "abc",
+                |test_value: &mut TestValue| {
+                    assert_eq!(test_value.val, 3u32);
+                },
+                || {panic!("")});
         }
         {
-            let v: &mut TestValue = hash_map.get_or_create("abcd").1;
-            assert_eq!(v.val, 4u32);
+            hash_map.get_or_create(
+                "abcd",
+                |test_value: &mut TestValue| {
+                    assert_eq!(test_value.val, 4u32);
+                },
+                TestValue::default);
         }
+
+        let mut vanilla_hash_map = HashMap::new();
         let mut iter_values = hash_map.iter();
-        {
-            let (_, addr, _) = iter_values.next().unwrap();
+        while let Some((key, addr, _)) = iter_values.next() {
             let val: TestValue = heap.read(addr);
-            assert_eq!(val.val, 3u32);
+            vanilla_hash_map.insert(key.to_owned(), val);
         }
-        {
-            let (_, addr, _) = iter_values.next().unwrap();
-            let val: TestValue = heap.read(addr);
-            assert_eq!(val.val, 4u32);
-        }
-        assert!(iter_values.next().is_none());
+        assert_eq!(vanilla_hash_map.len(), 2);
     }
-    */
     
     #[test]
     fn test_murmur() {

@@ -32,17 +32,11 @@ impl Heap {
     /// Allocate a given amount of space and returns an address
     /// in the Heap.
     pub fn allocate_space(&self, num_bytes: usize) -> Addr {
-        let (addr, _) = self.inner().allocate(num_bytes);
-        addr
+        self.inner().allocate_space(num_bytes)
     }
 
     pub unsafe fn get_mut_ptr(&self, addr: Addr) -> *mut u8 {
         self.inner().get_mut_ptr(addr)
-    }
-
-    /// Stores a `&[u8]` in the heap and returns the destination BytesRef.
-    pub fn allocate(&self, len: usize) -> (Addr, &mut [u8]) {
-        self.inner().allocate(len)
     }
 
     /// Fetches the `&[u8]` stored on the slice defined by the `BytesRef`
@@ -121,20 +115,6 @@ impl Page {
         len + self.len <= PAGE_SIZE
     }
 
-    #[inline(always)]
-    fn allocate(&mut self, len: usize) -> Option<(Addr, &mut [u8])> {
-        assert!(len <= PAGE_SIZE, "You may not allocate more than a page={} bytes", PAGE_SIZE);
-        if self.is_available(len) {
-            let local_addr = self.len;
-            self.len += len;
-            let addr = Addr::new(self.page_id, local_addr);
-            Some((addr, &mut (*self.data)[local_addr..][..len]))
-        } else {
-            None
-        }
-    }
-
-
     fn get_slice(&self, local_addr: usize) -> &[u8] {
         let len = NativeEndian::read_u16(&self.data[local_addr..local_addr + 2]) as usize;
         &self.data[local_addr + 2..][..len]
@@ -148,10 +128,6 @@ impl Page {
         } else {
             None
         }
-    }
-
-    fn get_mut_slice(&mut self, addr: usize, len: usize) -> &mut [u8] {
-        &mut (*self.data)[addr..addr+len]
     }
 
     #[inline(always)]
@@ -209,49 +185,46 @@ impl InnerHeap {
         self.add_page().allocate_space(len).unwrap()
     }
 
-    pub fn allocate(&mut self, len: usize) -> (Addr, &mut [u8]) {
-        let page_id = self.pages.len() - 1;
-        if self.pages[page_id].is_available(len) {
-            return self.pages[page_id].allocate(len).unwrap();
-        } else {
-            return self.add_page().allocate(len).unwrap();
-        }
-    }
-
-    pub fn get_mut_slice(&mut self, addr: Addr, len: usize) -> &mut [u8] {
-        self.pages[addr.page_id()].get_mut_slice(addr.page_local_addr(), len)
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
 
-    use super::InnerHeap;
+    use super::Heap;
+    use std::slice;
+    use std::ptr;
 
     #[test]
     fn test_arena_allocate() {
-        let mut arena = InnerHeap::new();
+        let arena = Heap::new();
         let a = b"hello";
         let b = b"happy tax payer";
 
-        let addr_a = {
-            let (addr_a, data) = arena.allocate(a.len());
-            data.copy_from_slice(a);
-            addr_a
-        };
-        let addr_b = {
-            let (addr_b, data) = arena.allocate(b.len());
-            data.copy_from_slice(b);
-            addr_b
-        };
-        {
-            let a_retrieve = arena.get_mut_slice(addr_a, a.len());
-            assert_eq!(a_retrieve, a);
-        }
-        {
-            let b_retrieve = arena.get_mut_slice(addr_b, b.len());
-            assert_eq!(b_retrieve, b);
+        unsafe {
+            let addr_a = {
+                let addr_a = arena.allocate_space(a.len());
+                ptr::copy_nonoverlapping(a.as_ptr(), arena.get_mut_ptr(addr_a), a.len());
+                addr_a
+            };
+
+            let addr_b = {
+                let addr_b = arena.allocate_space(b.len());
+                ptr::copy_nonoverlapping(b.as_ptr(), arena.get_mut_ptr(addr_b), b.len());
+                addr_b
+            };
+
+            {
+                let a_ptr = arena.get_mut_ptr(addr_a);
+                let slice_a = slice::from_raw_parts(a_ptr, a.len());
+                assert_eq!(slice_a, a);
+            }
+
+            {
+                let b_ptr = arena.get_mut_ptr(addr_b);
+                let slice_b = slice::from_raw_parts(b_ptr, b.len());
+                assert_eq!(slice_b, b);
+            }
         }
     }
 
