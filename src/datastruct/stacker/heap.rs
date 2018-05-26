@@ -57,7 +57,6 @@ impl Heap {
             ptr::read_unaligned(ptr as *const Item)
         }
     }
-
 }
 
 

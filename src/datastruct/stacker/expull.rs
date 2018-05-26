@@ -135,7 +135,6 @@ mod tests {
         let mut block_len = 4u32;
         let mut i = 0;
         while i < 10_000_000 {
-            println!("i {}", i);
             assert!(jump_needed(i + block_len - 1).is_none());
             assert!(jump_needed(i + block_len + 1).is_none());
             assert!(jump_needed(i + block_len).is_some());

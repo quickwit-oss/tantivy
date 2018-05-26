@@ -39,7 +39,6 @@ pub mod tests {
     use core::Index;
     use core::SegmentComponent;
     use core::SegmentReader;
-    use datastruct::stacker::Heap;
     use docset::{DocSet, SkipResult};
     use fieldnorm::FieldNormReader;
     use indexer::operation::AddOperation;
@@ -160,10 +159,9 @@ pub mod tests {
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
 
-        let heap = Heap::new();
         {
             let mut segment_writer =
-                SegmentWriter::for_segment(&heap, 18, segment.clone(), &schema).unwrap();
+                SegmentWriter::for_segment(18, segment.clone(), &schema).unwrap();
             {
                 let mut doc = Document::default();
                 // checking that position works if the field has two values

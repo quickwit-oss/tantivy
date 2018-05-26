@@ -15,7 +15,7 @@ use DocId;
 use Result;
 use datastruct::stacker::Addr;
 
-fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter + 'a> {
+fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
@@ -42,46 +42,50 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter 
     }
 }
 
-pub struct MultiFieldPostingsWriter<'a> {
-    heap: &'a Heap,
+pub struct MultiFieldPostingsWriter {
+    heap: Heap,
     schema: Schema,
-    term_index: TermHashMap<'a>,
-    per_field_postings_writers: Vec<Box<PostingsWriter + 'a>>,
+    term_index: TermHashMap,
+    per_field_postings_writers: Vec<Box<PostingsWriter>>,
 }
 
 
-impl<'a> MultiFieldPostingsWriter<'a> {
+impl MultiFieldPostingsWriter {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
-    pub fn new(schema: &Schema, table_bits: usize, heap: &'a Heap) -> MultiFieldPostingsWriter<'a> {
-        let term_index = TermHashMap::new(table_bits, heap);
+    pub fn new(schema: &Schema, table_bits: usize) -> MultiFieldPostingsWriter {
+        let term_index = TermHashMap::new(table_bits);
         let per_field_postings_writers: Vec<_> = schema
             .fields()
             .iter()
             .map(|field_entry| posting_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
+            heap: Heap::new(),
             schema: schema.clone(),
-            heap,
             term_index,
             per_field_postings_writers,
         }
     }
 
+    pub fn mem_usage(&self) -> usize {
+        self.term_index.mem_usage() + self.heap.mem_usage()
+    }
+
     pub fn index_text(&mut self, doc: DocId, field: Field, token_stream: &mut TokenStream) -> u32 {
         let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
-        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, self.heap)
+        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, &self.heap)
     }
 
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
         let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
-        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, self.heap)
+        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &self.heap)
     }
 
     /// Serialize the inverted index.
     /// It pushes all term, one field at a time, towards the
     /// postings serializer.
-    #[allow(needless_range_loop)]
+//    #[allow(needless_range_loop)]
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
@@ -141,16 +145,12 @@ impl<'a> MultiFieldPostingsWriter<'a> {
             postings_writer.serialize(
                 &term_offsets[start..stop],
                 &mut field_serializer,
-                self.heap,
+                &self.term_index.heap,
+                &self.heap
             )?;
             field_serializer.close()?;
         }
         Ok(unordered_term_mappings)
-    }
-
-    /// Return true iff the term dictionary is saturated.
-    pub fn term_index(&self) -> &TermHashMap<'a> {
-        &self.term_index
     }
 }
 
@@ -181,7 +181,8 @@ pub trait PostingsWriter {
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
-        heap: &Heap,
+        term_heap: &Heap,
+        heap: &Heap
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -261,10 +262,11 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
+        termdict_heap: &Heap,
         heap: &Heap,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
-            let recorder: Rec = heap.read(addr);
+            let recorder: Rec = termdict_heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
             recorder.serialize(serializer, heap)?;
             serializer.close_term()?;

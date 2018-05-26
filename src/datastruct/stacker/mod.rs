@@ -18,13 +18,13 @@ mod tests {
 
     #[test]
     fn test_unrolled_linked_list() {
-        let heap = Heap::new();
         {
+            let heap = Heap::new();
             let mut ks: Vec<usize> = (1..5).map(|k| k * 100).collect();
             ks.push(2);
             ks.push(3);
             for k in (1..5).map(|k| k * 100) {
-                let mut hashmap: TermHashMap = TermHashMap::new(10, &heap);
+                let mut hashmap: TermHashMap = TermHashMap::new(10);
                 for j in 0..k {
                     for i in 0..500 {
                         hashmap.get_or_create(i.to_string(),
@@ -44,7 +44,7 @@ mod tests {
                 for i in 0..500 {
                     let key: String = i.to_string();
                     let addr: Addr = *map_addr.get(key.as_bytes()).unwrap();
-                    let exp_pull: ExpUnrolledLinkedList = heap.read(addr);
+                    let exp_pull: ExpUnrolledLinkedList = hashmap.heap.read(addr);
                     let mut it = exp_pull.iter(&heap);
                     for j in 0..k {
                         assert_eq!(it.next().unwrap(), i * j);

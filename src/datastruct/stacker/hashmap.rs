@@ -104,9 +104,9 @@ impl KeyValue {
 /// the computation of the hash of the key twice,
 /// or copying the key as long as there is no insert.
 ///
-pub struct TermHashMap<'a> {
+pub struct TermHashMap {
     table: Box<[KeyValue]>,
-    heap: &'a Heap,
+    pub heap: Heap,
     mask: usize,
     occupied: Vec<usize>,
 }
@@ -130,7 +130,7 @@ impl QuadraticProbing {
 }
 
 pub struct Iter<'a> {
-    hashmap: &'a TermHashMap<'a>,
+    hashmap: &'a TermHashMap,
     inner: slice::Iter<'a, usize>,
 }
 
@@ -146,8 +146,9 @@ impl<'a> Iterator for Iter<'a> {
     }
 }
 
-impl<'a> TermHashMap<'a> {
-    pub fn new(num_bucket_power_of_2: usize, heap: &'a Heap) -> TermHashMap<'a> {
+impl TermHashMap {
+    pub fn new(num_bucket_power_of_2: usize) -> TermHashMap {
+        let heap = Heap::new();
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
         TermHashMap {
@@ -308,7 +309,7 @@ mod tests {
     #[test]
     fn test_hash_map() {
         let heap = Heap::new();
-        let mut hash_map: TermHashMap = TermHashMap::new(18, &heap);
+        let mut hash_map: TermHashMap = TermHashMap::new(18);
         {
             hash_map.get_or_create(
                 "abc",
