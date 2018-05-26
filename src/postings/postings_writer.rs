@@ -15,32 +15,29 @@ use DocId;
 use Result;
 use datastruct::stacker::Addr;
 
-fn posting_from_field_entry<'a>(
-    field_entry: &FieldEntry,
-    heap: &'a Heap,
-) -> Box<PostingsWriter + 'a> {
+fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter + 'a> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
             .map(|indexing_options| match indexing_options.index_option() {
                 IndexRecordOption::Basic => {
-                    SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+                    SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
                 }
                 IndexRecordOption::WithFreqs => {
-                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed(heap)
+                    SpecializedPostingsWriter::<TermFrequencyRecorder>::new_boxed()
                 }
                 IndexRecordOption::WithFreqsAndPositions => {
-                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed(heap)
+                    SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
                 }
             })
-            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)),
+            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
         FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
-            SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
         }
         FieldType::Bytes => {
             // FieldType::Bytes cannot actually be indexed.
             // TODO fix during the indexer refactoring described in #276
-            SpecializedPostingsWriter::<NothingRecorder>::new_boxed(heap)
+            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
         }
     }
 }
@@ -61,7 +58,7 @@ impl<'a> MultiFieldPostingsWriter<'a> {
         let per_field_postings_writers: Vec<_> = schema
             .fields()
             .iter()
-            .map(|field_entry| posting_from_field_entry(field_entry, heap))
+            .map(|field_entry| posting_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
             schema: schema.clone(),
@@ -212,36 +209,34 @@ pub trait PostingsWriter {
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-pub struct SpecializedPostingsWriter<'a, Rec: Recorder + 'static> {
-    heap: &'a Heap,
+pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
 
-impl<'a, Rec: Recorder + 'static> SpecializedPostingsWriter<'a, Rec> {
+impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     /// constructor
-    pub fn new(heap: &'a Heap) -> SpecializedPostingsWriter<'a, Rec> {
+    pub fn new() -> SpecializedPostingsWriter<Rec> {
         SpecializedPostingsWriter {
-            heap,
             total_num_tokens: 0u64,
             _recorder_type: PhantomData,
         }
     }
 
     /// Builds a `SpecializedPostingsWriter` storing its data in a heap.
-    pub fn new_boxed(heap: &'a Heap) -> Box<PostingsWriter + 'a> {
-        Box::new(SpecializedPostingsWriter::<Rec>::new(heap))
+    pub fn new_boxed() -> Box<PostingsWriter> {
+        Box::new(SpecializedPostingsWriter::<Rec>::new())
     }
 }
 
-impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'a, Rec> {
+impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
         term_index: &mut TermHashMap,
         doc: DocId,
         position: u32,
         term: &Term,
-        heap: &Heap,
+        heap: &Heap
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
@@ -269,7 +264,7 @@ impl<'a, Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<'
         heap: &Heap,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
-            let recorder: Rec = self.heap.read(addr);
+            let recorder: Rec = heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
             recorder.serialize(serializer, heap)?;
             serializer.close_term()?;

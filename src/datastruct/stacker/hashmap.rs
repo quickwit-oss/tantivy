@@ -129,18 +129,18 @@ impl QuadraticProbing {
     }
 }
 
-pub struct Iter<'a: 'b, 'b> {
-    hashmap: &'b TermHashMap<'a>,
+pub struct Iter<'a> {
+    hashmap: &'a TermHashMap<'a>,
     inner: slice::Iter<'a, usize>,
 }
 
-impl<'a, 'b> Iterator for Iter<'a, 'b> {
-    type Item = (&'b [u8], Addr, UnorderedTermId);
+impl<'a> Iterator for Iter<'a> {
+    type Item = (&'a [u8], Addr, UnorderedTermId);
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
-            let (key, offset): (&'b [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
+            let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
             (key, offset, bucket as UnorderedTermId)
         })
     }
@@ -185,7 +185,7 @@ impl<'a> TermHashMap<'a> {
         };
     }
 
-    pub fn iter<'b: 'a>(&'b self) -> Iter<'a, 'b> {
+    pub fn iter(&self) -> Iter {
         Iter {
             inner: self.occupied.iter(),
             hashmap: &self,
