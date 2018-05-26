@@ -1,7 +1,6 @@
-    use super::operation::AddOperation;
+use super::operation::AddOperation;
 use core::Segment;
 use core::SerializableSegment;
-use datastruct::stacker::Heap;
 use fastfield::FastFieldsWriter;
 use fieldnorm::FieldNormsWriter;
 use indexer::segment_serializer::SegmentSerializer;
@@ -23,10 +22,9 @@ use Result;
 ///
 /// They creates the postings list in anonymous memory.
 /// The segment is layed on disk when the segment gets `finalized`.
-pub struct SegmentWriter<'a> {
-    heap: &'a Heap,
+pub struct SegmentWriter {
     max_doc: DocId,
-    multifield_postings: MultiFieldPostingsWriter<'a>,
+    multifield_postings: MultiFieldPostingsWriter,
     segment_serializer: SegmentSerializer,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
@@ -34,7 +32,7 @@ pub struct SegmentWriter<'a> {
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 
-impl<'a> SegmentWriter<'a> {
+impl SegmentWriter {
     /// Creates a new `SegmentWriter`
     ///
     /// The arguments are defined as follows
@@ -45,13 +43,12 @@ impl<'a> SegmentWriter<'a> {
     /// - segment: The segment being written
     /// - schema
     pub fn for_segment(
-        heap: &'a Heap,
         table_bits: usize,
         mut segment: Segment,
         schema: &Schema,
-    ) -> Result<SegmentWriter<'a>> {
+    ) -> Result<SegmentWriter> {
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits, heap);
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits);
         let tokenizers = schema
             .fields()
             .iter()
@@ -67,7 +64,6 @@ impl<'a> SegmentWriter<'a> {
             })
             .collect();
         Ok(SegmentWriter {
-            heap,
             max_doc: 0,
             multifield_postings,
             fieldnorms_writer: FieldNormsWriter::for_schema(schema),
@@ -94,7 +90,7 @@ impl<'a> SegmentWriter<'a> {
     }
 
     pub fn mem_usage(&self) -> usize {
-        self.heap.mem_usage() + self.multifield_postings.term_index().mem_usage()
+        self.multifield_postings.mem_usage()
     }
 
     /// Indexes a new document
@@ -233,7 +229,7 @@ fn write(
     Ok(())
 }
 
-impl<'a> SerializableSegment for SegmentWriter<'a> {
+impl SerializableSegment for SegmentWriter {
     fn write(&self, serializer: SegmentSerializer) -> Result<u32> {
         let max_doc = self.max_doc;
         write(

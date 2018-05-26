@@ -10,7 +10,6 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
 use datastruct::stacker::hashmap::split_memory;
-use datastruct::stacker::Heap;
 use directory::FileProtection;
 use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
@@ -247,11 +246,10 @@ pub fn advance_deletes(
         segment_updater: &mut SegmentUpdater,
         mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
-    let heap = Heap::new();
     let schema = segment.schema();
     let segment_id = segment.id();
     let mut segment_writer =
-        SegmentWriter::for_segment(&heap, table_size, segment.clone(), &schema)?;
+        SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
 
