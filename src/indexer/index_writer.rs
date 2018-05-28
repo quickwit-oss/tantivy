@@ -115,7 +115,10 @@ pub fn open_index_writer(
     let stamper = Stamper::new(current_opstamp);
 
     let segment_updater =
-        SegmentUpdater::new(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+        SegmentUpdater::new(
+            index.clone(),
+            stamper.clone(),
+            &delete_queue.cursor())?;
 
     let mut index_writer = IndexWriter {
         _directory_lock: Some(directory_lock),

@@ -2,10 +2,8 @@ use super::heap::Heap;
 use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
-use std::ptr;
 use std::slice;
 use datastruct::stacker::Addr;
-use byteorder::{ByteOrder, NativeEndian};
 
 mod murmurhash2 {
 
@@ -83,10 +81,19 @@ pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
 /// The key and the value are actually stored contiguously.
 /// For this reason, the (start, stop) information is actually redundant
 /// and can be simplified in the future
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone)]
 struct KeyValue {
     key_value_addr: Addr,
     hash: u32,
+}
+
+impl Default for KeyValue {
+    fn default() -> Self {
+        KeyValue {
+            key_value_addr: Addr::null_pointer(),
+            hash: 0u32
+        }
+    }
 }
 
 impl KeyValue {
@@ -127,6 +134,11 @@ impl QuadraticProbing {
         self.i += 1;
         (self.hash + self.i * self.i) & self.mask
     }
+}
+
+pub trait GetOrCreateHandler<V> {
+    fn mutate(&mut self, value: &mut V);
+    fn create(&mut self) -> V;
 }
 
 pub struct Iter<'a> {
@@ -173,8 +185,8 @@ impl TermHashMap {
 
     #[inline(never)]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
-        let key_bytes: &[u8] = self.heap.get_slice(addr);
-        let expull_addr: Addr = Addr(addr.0 + 2u32 + key_bytes.len() as u32);
+        let key_bytes: &[u8] = self.heap.get_chunk(addr);
+        let expull_addr: Addr = addr.offset(2u32 + key_bytes.len() as u32);
         (key_bytes, expull_addr)
     }
 
@@ -213,16 +225,14 @@ impl TermHashMap {
         }
     }
 
-    pub fn get_or_create<S, V, Mutate, Create>(
+    pub fn get_or_create<S, V, TGetOrCreateHandler>(
         &mut self,
         key: S,
-        mutate: Mutate,
-        create: Create) -> UnorderedTermId
+        mut get_or_create_handler: TGetOrCreateHandler) -> UnorderedTermId
     where
         S: AsRef<[u8]>,
         V: Copy,
-        Mutate: Fn(&mut V),
-        Create: Fn() -> V
+        TGetOrCreateHandler: GetOrCreateHandler<V>
     {
         if self.is_saturated() {
             self.resize();
@@ -235,29 +245,26 @@ impl TermHashMap {
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 let key_bytes_len = key_bytes.len();
-                let len = key_bytes_len + 2 + mem::size_of::<V>();
-                let key_addr = self.heap.allocate_space(len);
-                let dest_bytes = unsafe {
-                    let dest_ptr = self.heap.get_mut_ptr(key_addr);
-                    slice::from_raw_parts_mut(dest_ptr, len)
-                };
-                NativeEndian::write_u16(&mut dest_bytes[0..2], key_bytes_len as u16);
-                dest_bytes[2..key_bytes_len+2].clone_from_slice(key_bytes);
+                let key_value_len = key_bytes_len + 2 + mem::size_of::<V>();
+                let key_addr = self.heap.allocate_space(key_value_len);
                 self.set_bucket(hash, key_addr, bucket);
-                let val = create();
+                let val = get_or_create_handler.create();
                 unsafe {
-                    let val_mut_ptr = dest_bytes.as_mut_ptr().offset((2 + key_bytes_len) as isize) as *mut V;
-                    ptr::write_unaligned(val_mut_ptr, val);
-                };
+                    self.heap.write_chunk(key_addr, key_bytes);
+                    let val_addr = key_addr.offset(2 + key_bytes_len as u32);
+                    self.heap.set(val_addr, val);
+                }
                 return bucket as UnorderedTermId;
             } else if kv.hash == hash {
-                let (stored_key, expull_addr): (&[u8], Addr) = self.get_key_value(kv.key_value_addr);
-                if stored_key == key_bytes {
+                let (key_matches, expull_addr) = {
+                    let (stored_key, expull_addr): (&[u8], Addr) = self.get_key_value(kv.key_value_addr);
+                    (stored_key == key_bytes, expull_addr)
+                };
+                if key_matches {
                     unsafe {
-                        let v_ptr = self.heap.get_mut_ptr(expull_addr) as *mut V;
-                        let mut v: V = ptr::read_unaligned(v_ptr);
-                        mutate(&mut v);
-                        ptr::write_unaligned(v_ptr, v);
+                        let mut v = self.heap.read(expull_addr);
+                        get_or_create_handler.mutate(&mut v);
+                        self.heap.set(expull_addr, v);
                     };
                     return bucket as UnorderedTermId;
                 }
@@ -290,9 +297,9 @@ mod tests {
     use super::murmurhash2::murmurhash2;
     use super::split_memory;
     use std::collections::HashSet;
-    use datastruct::stacker::Heap;
     use datastruct::stacker::TermHashMap;
     use std::collections::HashMap;
+    use datastruct::stacker::hashmap::GetOrCreateHandler;
 
     #[derive(Copy, Default, Clone)]
     struct TestValue {
@@ -306,55 +313,70 @@ mod tests {
         assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
+
+    struct GetOrCreate {
+        previous_value: u32,
+        val: u32,
+        expect_create: bool
+    }
+
+    impl GetOrCreateHandler<TestValue> for GetOrCreate {
+        fn mutate(&mut self, test_value: &mut TestValue) {
+            if self.expect_create {
+                panic!("expected create");
+            }
+            assert_eq!(self.previous_value, test_value.val);
+            test_value.val = self.val;
+        }
+
+        fn create(&mut self) -> TestValue {
+            if !self.expect_create {
+                panic!("expected mutate");
+            }
+            let mut test_value = TestValue::default();
+            test_value.val = self.val;
+            test_value
+        }
+    }
+
+
     #[test]
     fn test_hash_map() {
-        let heap = Heap::new();
         let mut hash_map: TermHashMap = TermHashMap::new(18);
         {
-            hash_map.get_or_create(
-                "abc",
-         |_| { panic!(""); },
-                || {
-                    let mut test_value = TestValue::default();
-                    test_value.val = 3u32;
-                    test_value
-                });
+            let get_or_create = GetOrCreate {
+                previous_value: 0u32,
+                val: 3u32,
+                expect_create: true
+            };
+            hash_map.get_or_create("abc", get_or_create);
         }
         {
-            hash_map.get_or_create(
-                "abcd",
-                |_| { panic!(""); },
-                || {
-                    let mut test_value = TestValue::default();
-                    test_value.val = 4u32;
-                    test_value
-                });
+            let get_or_create = GetOrCreate {
+                previous_value: 0u32,
+                val: 4u32,
+                expect_create: true
+            };
+            hash_map.get_or_create("abcd", get_or_create);
         }
         {
-            hash_map.get_or_create(
-                "abc",
-                |test_value: &mut TestValue| {
-                    assert_eq!(test_value.val, 3u32);
-                },
-                || {panic!("")});
-        }
-        {
-            hash_map.get_or_create(
-                "abcd",
-                |test_value: &mut TestValue| {
-                    assert_eq!(test_value.val, 4u32);
-                },
-                TestValue::default);
+            let get_or_create = GetOrCreate {
+                previous_value: 3u32,
+                val: 5u32,
+                expect_create: false
+            };
+            hash_map.get_or_create("abc", get_or_create);
         }
 
         let mut vanilla_hash_map = HashMap::new();
         let mut iter_values = hash_map.iter();
         while let Some((key, addr, _)) = iter_values.next() {
-            let val: TestValue = heap.read(addr);
+            let val: TestValue = unsafe { hash_map.heap.read(addr) };
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);
     }
+
     
     #[test]
     fn test_murmur() {

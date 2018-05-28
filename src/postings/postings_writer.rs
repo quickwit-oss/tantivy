@@ -14,6 +14,7 @@ use tokenizer::TokenStream;
 use DocId;
 use Result;
 use datastruct::stacker::Addr;
+use datastruct::stacker::hashmap::GetOrCreateHandler;
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter> {
     match *field_entry.field_type() {
@@ -74,18 +75,17 @@ impl MultiFieldPostingsWriter {
 
     pub fn index_text(&mut self, doc: DocId, field: Field, token_stream: &mut TokenStream) -> u32 {
         let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
-        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, &self.heap)
+        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, &mut self.heap)
     }
 
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
         let postings_writer = self.per_field_postings_writers[term.field().0 as usize].deref_mut();
-        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &self.heap)
+        postings_writer.subscribe(&mut self.term_index, doc, 0u32, term, &mut self.heap)
     }
 
     /// Serialize the inverted index.
     /// It pushes all term, one field at a time, towards the
     /// postings serializer.
-//    #[allow(needless_range_loop)]
     pub fn serialize(
         &self,
         serializer: &mut InvertedIndexSerializer,
@@ -172,7 +172,7 @@ pub trait PostingsWriter {
         doc: DocId,
         pos: u32,
         term: &Term,
-        heap: &Heap,
+        heap: &mut Heap,
     ) -> UnorderedTermId;
 
     /// Serializes the postings on disk.
@@ -192,7 +192,7 @@ pub trait PostingsWriter {
         doc_id: DocId,
         field: Field,
         token_stream: &mut TokenStream,
-        heap: &Heap,
+        heap: &mut Heap,
     ) -> u32 {
         let mut term = Term::for_field(field);
         let num_tokens = {
@@ -230,6 +230,33 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     }
 }
 
+struct GetOrRecorder<'a, Rec> {
+    heap: &'a mut Heap,
+    doc: DocId,
+    position: u32,
+    _marker:  PhantomData<Rec>
+}
+
+impl<'a, Rec: Recorder> GetOrCreateHandler<Rec> for GetOrRecorder<'a, Rec> {
+    #[inline(always)]
+    fn mutate(&mut self, recorder: &mut Rec) {
+        let current_doc = recorder.current_doc();
+        if current_doc != self.doc {
+            recorder.close_doc(self.heap);
+            recorder.new_doc(self.doc, self.heap);
+        }
+        recorder.record_position(self.position, self.heap);
+    }
+
+    #[inline(always)]
+    fn create(&mut self) -> Rec {
+        let mut recorder = Rec::new(self.heap);
+        recorder.new_doc(self.doc, self.heap);
+        recorder.record_position(self.position, self.heap);
+        recorder
+    }
+}
+
 impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
@@ -237,25 +264,17 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         doc: DocId,
         position: u32,
         term: &Term,
-        heap: &Heap
+        heap: &mut Heap
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
-        term_index.get_or_create(term,
-         |recorder: &mut Rec| {
-             let current_doc = recorder.current_doc();
-             if current_doc != doc {
-                 recorder.close_doc(heap);
-                 recorder.new_doc(doc, heap);
-             }
-             recorder.record_position(position, heap);
-         },
-         || {
-             let mut recorder = Rec::new(heap);
-             recorder.new_doc(doc, heap);
-             recorder.record_position(position, heap);
-             recorder
-         })
+        let get_or_create: GetOrRecorder<Rec> = GetOrRecorder {
+            heap,
+            doc,
+            position,
+            _marker: PhantomData
+        };
+        term_index.get_or_create(term, get_or_create)
     }
 
     fn serialize(
@@ -266,7 +285,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         heap: &Heap,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
-            let recorder: Rec = termdict_heap.read(addr);
+            let recorder: Rec = unsafe { termdict_heap.read(addr) };
             serializer.new_term(&term_bytes[4..])?;
             recorder.serialize(serializer, heap)?;
             serializer.close_term()?;

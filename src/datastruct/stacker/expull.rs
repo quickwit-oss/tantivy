@@ -41,7 +41,7 @@ pub struct ExpUnrolledLinkedList {
 
 impl ExpUnrolledLinkedList {
 
-    pub fn new(heap: &Heap) -> ExpUnrolledLinkedList {
+    pub fn new(heap: &mut Heap) -> ExpUnrolledLinkedList {
         let addr = heap.allocate_space((FIRST_BLOCK as usize) * mem::size_of::<u32>());
         ExpUnrolledLinkedList {
             len: 0u32,
@@ -59,7 +59,7 @@ impl ExpUnrolledLinkedList {
         }
     }
 
-    pub fn push(&mut self, val: u32, heap: &Heap) {
+    pub fn push(&mut self, val: u32, heap: &mut Heap) {
         self.len += 1;
         if let Some(new_block_len) = jump_needed(self.len) {
             // We need to allocate another block.
@@ -67,12 +67,12 @@ impl ExpUnrolledLinkedList {
             // to the future next block.
             let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
-            unsafe { heap.set(self.tail, &new_block_addr) };
+            unsafe { heap.set(self.tail, new_block_addr) };
             self.tail = new_block_addr;
         }
         unsafe {
-            heap.set(self.tail, &val);
-            self.tail.0 += mem::size_of::<u32>() as u32;
+            heap.set(self.tail, val);
+            self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
         }
     }
 }
@@ -92,15 +92,17 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
         if self.consumed == self.len {
             None
         } else {
-            let addr: Addr;
-            self.consumed += 1;
-            if jump_needed(self.consumed).is_some() {
-                addr = self.heap.read(self.addr);
-            } else {
-                addr = self.addr;
+            unsafe {
+                let addr: Addr;
+                self.consumed += 1;
+                if jump_needed(self.consumed).is_some() {
+                    addr = self.heap.read(self.addr);
+                } else {
+                    addr = self.addr;
+                }
+                self.addr = addr.offset(mem::size_of::<u32>() as u32);
+                Some(self.heap.read(addr))
             }
-            self.addr = Addr(addr.0 + mem::size_of::<u32>() as u32);
-            Some(self.heap.read(addr))
         }
     }
 }
@@ -114,12 +116,12 @@ mod tests {
 
     #[test]
     fn test_stack() {
-        let heap = Heap::new();
-        let mut stack = ExpUnrolledLinkedList::new(&heap);
-        stack.push(1u32, &heap);
-        stack.push(2u32, &heap);
-        stack.push(4u32, &heap);
-        stack.push(8u32, &heap);
+        let mut heap = Heap::new();
+        let mut stack = ExpUnrolledLinkedList::new(&mut heap);
+        stack.push(1u32, &mut heap);
+        stack.push(2u32, &mut heap);
+        stack.push(4u32, &mut heap);
+        stack.push(8u32, &mut heap);
         {
             let mut it = stack.iter(&heap);
             assert_eq!(it.next().unwrap(), 1u32);

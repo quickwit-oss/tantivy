@@ -1,75 +1,26 @@
 use byteorder::{ByteOrder, NativeEndian};
-use std::cell::UnsafeCell;
 use std::ptr;
 
 const NUM_BITS_PAGE_ADDR: usize = 20;
 const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 
 
-/// Tantivy's custom `Heap`.
-pub struct  Heap {
-    inner: UnsafeCell<InnerHeap>,
-}
-
-#[cfg_attr(feature = "cargo-clippy", allow(mut_from_ref))]
-impl Heap {
-
-    /// Creates a new heap with a given capacity
-    pub fn new() -> Heap {
-        Heap {
-            inner: UnsafeCell::new(InnerHeap::new()),
-        }
-    }
-
-    fn inner(&self) -> &mut InnerHeap {
-        unsafe { &mut *self.inner.get() }
-    }
-
-    pub fn mem_usage(&self) -> usize {
-        self.inner().mem_usage()
-    }
-
-    /// Allocate a given amount of space and returns an address
-    /// in the Heap.
-    pub fn allocate_space(&self, num_bytes: usize) -> Addr {
-        self.inner().allocate_space(num_bytes)
-    }
-
-    pub unsafe fn get_mut_ptr(&self, addr: Addr) -> *mut u8 {
-        self.inner().get_mut_ptr(addr)
-    }
-
-    /// Fetches the `&[u8]` stored on the slice defined by the `BytesRef`
-    /// given as argumetn
-    pub fn get_slice(&self, bytes_ref: Addr) -> &[u8] {
-        self.inner().get_slice(bytes_ref)
-    }
-
-    /// Stores an item's data in the heap, at the given `address`.
-    pub unsafe fn set<Item: Copy>(&self, addr: Addr, val: &Item) {
-        let dst_ptr: *mut Item = (*self.inner.get()).get_mut_ptr(addr) as *mut Item;
-        ptr::write_unaligned(dst_ptr, *val);
-    }
-
-    pub fn read<Item: Copy>(&self, addr: Addr) -> Item {
-        unsafe {
-            let ptr = self.inner().get_ptr(addr);
-            ptr::read_unaligned(ptr as *const Item)
-        }
-    }
-}
-
 
 #[derive(Clone, Copy, Debug)]
-pub struct Addr(pub u32);
+pub struct Addr(u32);
 
-impl Default for Addr {
-    fn default() -> Self {
-        Addr(u32::max_value())
-    }
-}
 
 impl Addr {
+
+    pub fn null_pointer() -> Addr {
+        Addr(u32::max_value())
+    }
+
+    #[inline(always)]
+    pub fn offset(&self, shift: u32) -> Addr {
+        Addr(self.0.wrapping_add(shift))
+    }
+
     #[inline(always)]
     fn new(page_id: usize, local_addr: usize) -> Addr {
         Addr( (page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
@@ -91,6 +42,77 @@ impl Addr {
     }
 
 }
+
+
+
+pub struct Heap {
+    pages: Vec<Page>,
+}
+
+impl Heap {
+
+    pub fn new() -> Heap {
+        let first_page = Page::new(0);
+        Heap {
+            pages: vec![first_page]
+        }
+    }
+
+    fn add_page(&mut self) -> &mut Page {
+        let new_page_id = self.pages.len();
+        self.pages.push(Page::new(new_page_id));
+        &mut self.pages[new_page_id]
+    }
+
+    pub fn mem_usage(&self) -> usize {
+        self.pages.len() * PAGE_SIZE
+    }
+
+    /// Returns a chunk stored at the addr `Addr`.
+    ///
+    /// A chunk is assumed to have been written using the
+    /// `.write_chunk(..)` method.
+    pub fn get_chunk(&self, addr: Addr) -> &[u8] {
+        self.pages[addr.page_id()].get_chunk(addr.page_local_addr())
+    }
+
+    /// Assumes the space is preallocated.
+    /// Write a slice at the given address. Prepends the content by its length
+    /// encoded over 2 bytes.
+    ///
+    /// The slice is required to have a length of less than `u16::max_value()`.
+    pub unsafe fn write_chunk(&mut self, addr: Addr, data: &[u8]) {
+        assert!(data.len() < u16::max_value() as usize);
+        let dest_bytes = self.pages[addr.page_id()].get_mut_slice(addr.page_local_addr(), data.len() + 2);
+        NativeEndian::write_u16(&mut dest_bytes[0..2], data.len() as u16);
+        dest_bytes[2..].copy_from_slice(data);
+    }
+
+    unsafe fn get_mut_ptr(&mut self, addr: Addr) -> *mut u8 {
+        self.pages[addr.page_id()].get_mut_ptr(addr.page_local_addr())
+    }
+
+    /// Stores an item's data in the heap, at the given `address`.
+    pub unsafe fn set<Item: Copy>(&mut self, addr: Addr, val: Item) {
+        let dst_ptr: *mut Item = self.get_mut_ptr(addr) as *mut Item;
+        ptr::write_unaligned(dst_ptr, val);
+    }
+
+    pub unsafe fn read<Item: Copy>(&self, addr: Addr) -> Item {
+        let ptr = self.pages[addr.page_id()].get_ptr(addr.page_local_addr());
+        ptr::read_unaligned(ptr as *const Item)
+    }
+
+    pub fn allocate_space(&mut self, len: usize) -> Addr {
+        let page_id = self.pages.len() - 1;
+        if let Some(addr) = self.pages[page_id].allocate_space(len) {
+            return addr;
+        }
+        self.add_page().allocate_space(len).unwrap()
+    }
+
+}
+
 
 struct Page {
     page_id: usize,
@@ -114,9 +136,13 @@ impl Page {
         len + self.len <= PAGE_SIZE
     }
 
-    fn get_slice(&self, local_addr: usize) -> &[u8] {
+    fn get_chunk(&self, local_addr: usize) -> &[u8] {
         let len = NativeEndian::read_u16(&self.data[local_addr..local_addr + 2]) as usize;
         &self.data[local_addr + 2..][..len]
+    }
+
+    fn get_mut_slice(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
+        &mut self.data[local_addr..][..len]
     }
 
     fn allocate_space(&mut self, len: usize) -> Option<Addr> {
@@ -141,51 +167,6 @@ impl Page {
 }
 
 
-pub struct InnerHeap {
-    pages: Vec<Page>,
-}
-
-impl InnerHeap {
-
-    pub fn new() -> InnerHeap {
-        let first_page = Page::new(0);
-        InnerHeap {
-            pages: vec![first_page]
-        }
-    }
-
-    fn add_page(&mut self) -> &mut Page {
-        let new_page_id = self.pages.len();
-        self.pages.push(Page::new(new_page_id));
-        &mut self.pages[new_page_id]
-    }
-
-    pub fn mem_usage(&self) -> usize {
-        self.pages.len() * PAGE_SIZE
-    }
-
-    pub fn get_slice(&self, addr: Addr) -> &[u8] {
-        self.pages[addr.page_id()].get_slice(addr.page_local_addr())
-    }
-
-    pub unsafe fn get_ptr(&self, addr: Addr) -> *const u8 {
-        self.pages[addr.page_id()].get_ptr(addr.page_local_addr())
-    }
-
-    pub unsafe fn get_mut_ptr(&mut self, addr: Addr) -> *mut u8 {
-        self.pages[addr.page_id()].get_mut_ptr(addr.page_local_addr())
-    }
-
-    pub fn allocate_space(&mut self, len: usize) -> Addr {
-        let page_id = self.pages.len() - 1;
-        if let Some(addr) = self.pages[page_id].allocate_space(len) {
-            return addr;
-        }
-        self.add_page().allocate_space(len).unwrap()
-    }
-
-}
-
 
 #[cfg(test)]
 mod tests {
@@ -196,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_arena_allocate() {
-        let arena = Heap::new();
+        let mut arena = Heap::new();
         let a = b"hello";
         let b = b"happy tax payer";
 

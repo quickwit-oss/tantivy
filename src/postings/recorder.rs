@@ -17,17 +17,17 @@ const POSITION_END: u32 = std::u32::MAX;
 ///   * the term positions
 pub trait Recorder: Copy {
     ///
-    fn new(heap: &Heap) -> Self;
+    fn new(heap: &mut Heap) -> Self;
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
     /// This method shall only be called if the term is within the document.
-    fn new_doc(&mut self, doc: DocId, heap: &Heap);
+    fn new_doc(&mut self, doc: DocId, heap: &mut Heap);
     /// Record the position of a term. For each document,
     /// this method will be called `term_freq` times.
-    fn record_position(&mut self, position: u32, heap: &Heap);
+    fn record_position(&mut self, position: u32, heap: &mut Heap);
     /// Close the document. It will help record the term frequency.
-    fn close_doc(&mut self, heap: &Heap);
+    fn close_doc(&mut self, heap: &mut Heap);
     /// Pushes the postings information to the serializer.
     fn serialize(
         &self,
@@ -44,7 +44,7 @@ pub struct NothingRecorder {
 }
 
 impl Recorder for NothingRecorder {
-    fn new(heap: &Heap) -> Self {
+    fn new(heap: &mut Heap) -> Self {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value()
@@ -55,14 +55,14 @@ impl Recorder for NothingRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &Heap) {}
+    fn record_position(&mut self, _position: u32, _heap: &mut Heap) {}
 
-    fn close_doc(&mut self, _heap: &Heap) {}
+    fn close_doc(&mut self, _heap: &mut Heap) {}
 
     fn serialize(
         &self,
@@ -86,7 +86,7 @@ pub struct TermFrequencyRecorder {
 
 impl Recorder for TermFrequencyRecorder {
 
-    fn new(heap: &Heap) -> Self {
+    fn new(heap: &mut Heap) -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
@@ -98,16 +98,16 @@ impl Recorder for TermFrequencyRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &Heap) {
+    fn record_position(&mut self, _position: u32, _heap: &mut Heap) {
         self.current_tf += 1;
     }
 
-    fn close_doc(&mut self, heap: &Heap) {
+    fn close_doc(&mut self, heap: &mut Heap) {
         debug_assert!(self.current_tf > 0);
         self.stack.push(self.current_tf, heap);
         self.current_tf = 0;
@@ -143,7 +143,7 @@ pub struct TFAndPositionRecorder {
 
 impl Recorder for TFAndPositionRecorder {
 
-    fn new(heap: &Heap) -> Self {
+    fn new(heap: &mut Heap) -> Self {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
@@ -154,16 +154,16 @@ impl Recorder for TFAndPositionRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, position: u32, heap: &Heap) {
+    fn record_position(&mut self, position: u32, heap: &mut Heap) {
         self.stack.push(position, heap);
     }
 
-    fn close_doc(&mut self, heap: &Heap) {
+    fn close_doc(&mut self, heap: &mut Heap) {
         self.stack.push(POSITION_END, heap);
     }
 
