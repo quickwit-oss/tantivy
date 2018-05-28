@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.56/src/internals/attr.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>attr.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.62/src/internals/attr.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>attr.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1536,6 +1536,28 @@
 <span id="1536">1536</span>
 <span id="1537">1537</span>
 <span id="1538">1538</span>
+<span id="1539">1539</span>
+<span id="1540">1540</span>
+<span id="1541">1541</span>
+<span id="1542">1542</span>
+<span id="1543">1543</span>
+<span id="1544">1544</span>
+<span id="1545">1545</span>
+<span id="1546">1546</span>
+<span id="1547">1547</span>
+<span id="1548">1548</span>
+<span id="1549">1549</span>
+<span id="1550">1550</span>
+<span id="1551">1551</span>
+<span id="1552">1552</span>
+<span id="1553">1553</span>
+<span id="1554">1554</span>
+<span id="1555">1555</span>
+<span id="1556">1556</span>
+<span id="1557">1557</span>
+<span id="1558">1558</span>
+<span id="1559">1559</span>
+<span id="1560">1560</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1644,6 +1666,7 @@
 <span class="doccomment">/// Represents container (e.g. struct) attribute information</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Container</span> {
     <span class="ident">name</span>: <span class="ident">Name</span>,
+    <span class="ident">transparent</span>: <span class="ident">bool</span>,
     <span class="ident">deny_unknown_fields</span>: <span class="ident">bool</span>,
     <span class="ident">default</span>: <span class="ident">Default</span>,
     <span class="ident">rename_all</span>: <span class="ident">RenameRule</span>,
@@ -1720,6 +1743,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_ast</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">item</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">DeriveInput</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser_name</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;rename&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">de_name</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;rename&quot;</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">transparent</span> <span class="op">=</span> <span class="ident">BoolAttr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;transparent&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">deny_unknown_fields</span> <span class="op">=</span> <span class="ident">BoolAttr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;deny_unknown_fields&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">default</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;default&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rename_all</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="string">&quot;rename_all&quot;</span>);
@@ -1739,7 +1763,7 @@
                 <span class="kw">match</span> <span class="ident">meta_item</span> {
                     <span class="comment">// Parse `#[serde(rename = &quot;foo&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;rename&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">ser_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                             <span class="ident">de_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                         }
@@ -1755,7 +1779,7 @@
 
                     <span class="comment">// Parse `#[serde(rename_all = &quot;foo&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;rename_all&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">match</span> <span class="ident">RenameRule</span>::<span class="ident">from_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">value</span>()) {
                                 <span class="prelude-val">Ok</span>(<span class="ident">rename_rule</span>) <span class="op">=&gt;</span> <span class="ident">rename_all</span>.<span class="ident">set</span>(<span class="ident">rename_rule</span>),
                                 <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="ident">cx</span>.<span class="ident">error</span>(<span class="macro">format</span><span class="macro">!</span>(
@@ -1767,13 +1791,18 @@
                         }
                     }
 
+                    <span class="comment">// Parse `#[serde(transparent)]`</span>
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;transparent&quot;</span> <span class="op">=&gt;</span> {
+                        <span class="ident">transparent</span>.<span class="ident">set_true</span>();
+                    }
+
                     <span class="comment">// Parse `#[serde(deny_unknown_fields)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;deny_unknown_fields&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;deny_unknown_fields&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">deny_unknown_fields</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(default)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
                         <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">syn</span>::<span class="ident">DataStruct</span> {
                             <span class="ident">fields</span>: <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Named</span>(<span class="kw">_</span>),
                             ..
@@ -1788,7 +1817,7 @@
 
                     <span class="comment">// Parse `#[serde(default = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
                                 <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">syn</span>::<span class="ident">DataStruct</span> {
                                     <span class="ident">fields</span>: <span class="ident">syn</span>::<span class="ident">Fields</span>::<span class="ident">Named</span>(<span class="kw">_</span>),
@@ -1807,7 +1836,7 @@
                     <span class="comment">// Parse `#[serde(bound = &quot;D: Serialize&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;bound&quot;</span> <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">where_predicates</span>) <span class="op">=</span>
-                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
+                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
                         {
                             <span class="ident">ser_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>.<span class="ident">clone</span>());
                             <span class="ident">de_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>);
@@ -1823,7 +1852,7 @@
                     }
 
                     <span class="comment">// Parse `#[serde(untagged)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;untagged&quot;</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;untagged&quot;</span> <span class="op">=&gt;</span> <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
                         <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                             <span class="ident">untagged</span>.<span class="ident">set_true</span>();
                         }
@@ -1834,7 +1863,7 @@
 
                     <span class="comment">// Parse `#[serde(tag = &quot;type&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;tag&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
                                 <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                                     <span class="ident">internal_tag</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
@@ -1848,7 +1877,7 @@
 
                     <span class="comment">// Parse `#[serde(content = &quot;c&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;content&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">match</span> <span class="ident">item</span>.<span class="ident">data</span> {
                                 <span class="ident">syn</span>::<span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> {
                                     <span class="ident">content</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
@@ -1863,23 +1892,23 @@
 
                     <span class="comment">// Parse `#[serde(from = &quot;Type&quot;)]</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;from&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">from_ty</span>) <span class="op">=</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">from_ty</span>) <span class="op">=</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">type_from</span>.<span class="ident">set_opt</span>(<span class="prelude-val">Some</span>(<span class="ident">from_ty</span>));
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(into = &quot;Type&quot;)]</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;into&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">into_ty</span>) <span class="op">=</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">into_ty</span>) <span class="op">=</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">type_into</span>.<span class="ident">set_opt</span>(<span class="prelude-val">Some</span>(<span class="ident">into_ty</span>));
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(remote = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;remote&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">if</span> <span class="ident">is_primitive_path</span>(<span class="kw-2">&amp;</span><span class="ident">path</span>, <span class="string">&quot;Self&quot;</span>) {
-                                <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">into</span>());
+                                <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">clone</span>().<span class="ident">into</span>());
                             } <span class="kw">else</span> {
                                 <span class="ident">remote</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                             }
@@ -1887,12 +1916,12 @@
                     }
 
                     <span class="comment">// Parse `#[serde(field_identifier)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;field_identifier&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;field_identifier&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">field_identifier</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(variant_identifier)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;variant_identifier&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;variant_identifier&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">variant_identifier</span>.<span class="ident">set_true</span>();
                     }
 
@@ -1915,6 +1944,7 @@
                 <span class="ident">serialize</span>: <span class="ident">ser_name</span>.<span class="ident">get</span>().<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">to_string</span>()),
                 <span class="ident">deserialize</span>: <span class="ident">de_name</span>.<span class="ident">get</span>().<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">item</span>.<span class="ident">ident</span>.<span class="ident">to_string</span>()),
             },
+            <span class="ident">transparent</span>: <span class="ident">transparent</span>.<span class="ident">get</span>(),
             <span class="ident">deny_unknown_fields</span>: <span class="ident">deny_unknown_fields</span>.<span class="ident">get</span>(),
             <span class="ident">default</span>: <span class="ident">default</span>.<span class="ident">get</span>().<span class="ident">unwrap_or</span>(<span class="ident">Default</span>::<span class="prelude-val">None</span>),
             <span class="ident">rename_all</span>: <span class="ident">rename_all</span>.<span class="ident">get</span>().<span class="ident">unwrap_or</span>(<span class="ident">RenameRule</span>::<span class="prelude-val">None</span>),
@@ -1935,6 +1965,10 @@
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">rename_all</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">RenameRule</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">rename_all</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transparent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">transparent</span>
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">deny_unknown_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -2095,7 +2129,7 @@
                 <span class="kw">match</span> <span class="ident">meta_item</span> {
                     <span class="comment">// Parse `#[serde(rename = &quot;foo&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;rename&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">ser_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                             <span class="ident">de_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                         }
@@ -2111,7 +2145,7 @@
 
                     <span class="comment">// Parse `#[serde(rename_all = &quot;foo&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;rename_all&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">match</span> <span class="ident">RenameRule</span>::<span class="ident">from_str</span>(<span class="kw-2">&amp;</span><span class="ident">s</span>.<span class="ident">value</span>()) {
                                 <span class="prelude-val">Ok</span>(<span class="ident">rename_rule</span>) <span class="op">=&gt;</span> <span class="ident">rename_all</span>.<span class="ident">set</span>(<span class="ident">rename_rule</span>),
                                 <span class="prelude-val">Err</span>(()) <span class="op">=&gt;</span> <span class="ident">cx</span>.<span class="ident">error</span>(<span class="macro">format</span><span class="macro">!</span>(
@@ -2124,30 +2158,30 @@
                     }
 
                     <span class="comment">// Parse `#[serde(skip)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_serializing</span>.<span class="ident">set_true</span>();
                         <span class="ident">skip_deserializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(skip_deserializing)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_deserializing&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_deserializing&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_deserializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(skip_serializing)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_serializing&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_serializing&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_serializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(other)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;other&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;other&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">other</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(bound = &quot;D: Serialize&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;bound&quot;</span> <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">where_predicates</span>) <span class="op">=</span>
-                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
+                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
                         {
                             <span class="ident">ser_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>.<span class="ident">clone</span>());
                             <span class="ident">de_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>);
@@ -2164,7 +2198,7 @@
 
                     <span class="comment">// Parse `#[serde(with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser_path</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">clone</span>();
                             <span class="ident">ser_path</span>
                                 .<span class="ident">path</span>
@@ -2182,14 +2216,14 @@
 
                     <span class="comment">// Parse `#[serde(serialize_with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;serialize_with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">serialize_with</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(deserialize_with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;deserialize_with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">deserialize_with</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
@@ -2303,6 +2337,7 @@
     <span class="ident">borrowed_lifetimes</span>: <span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Lifetime</span><span class="op">&gt;</span>,
     <span class="ident">getter</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span><span class="op">&gt;</span>,
     <span class="ident">flatten</span>: <span class="ident">bool</span>,
+    <span class="ident">transparent</span>: <span class="ident">bool</span>,
 }
 
 <span class="doccomment">/// Represents the default to use for a field when deserializing.</span>
@@ -2316,7 +2351,6 @@
 }
 
 <span class="kw">impl</span> <span class="ident">Default</span> {
-    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;deserialize_in_place&quot;</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_none</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">Default</span>::<span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="bool-val">true</span>,
@@ -2367,7 +2401,7 @@
                 <span class="kw">match</span> <span class="ident">meta_item</span> {
                     <span class="comment">// Parse `#[serde(rename = &quot;foo&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;rename&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">s</span>) <span class="op">=</span> <span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">ser_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                             <span class="ident">de_name</span>.<span class="ident">set</span>(<span class="ident">s</span>.<span class="ident">value</span>());
                         }
@@ -2382,57 +2416,57 @@
                     }
 
                     <span class="comment">// Parse `#[serde(default)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">default</span>.<span class="ident">set</span>(<span class="ident">Default</span>::<span class="ident">Default</span>);
                     }
 
                     <span class="comment">// Parse `#[serde(default = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;default&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">default</span>.<span class="ident">set</span>(<span class="ident">Default</span>::<span class="ident">Path</span>(<span class="ident">path</span>));
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(skip_serializing)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_serializing&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_serializing&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_serializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(skip_deserializing)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_deserializing&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip_deserializing&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_deserializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(skip)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;skip&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">skip_serializing</span>.<span class="ident">set_true</span>();
                         <span class="ident">skip_deserializing</span>.<span class="ident">set_true</span>();
                     }
 
                     <span class="comment">// Parse `#[serde(skip_serializing_if = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;skip_serializing_if&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">skip_serializing_if</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(serialize_with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;serialize_with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">serialize_with</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(deserialize_with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;deserialize_with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">deserialize_with</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(with = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;with&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser_path</span> <span class="op">=</span> <span class="ident">path</span>.<span class="ident">clone</span>();
                             <span class="ident">ser_path</span>
                                 .<span class="ident">path</span>
@@ -2451,7 +2485,7 @@
                     <span class="comment">// Parse `#[serde(bound = &quot;D: Serialize&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;bound&quot;</span> <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">where_predicates</span>) <span class="op">=</span>
-                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
+                            <span class="ident">parse_lit_into_where</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
                         {
                             <span class="ident">ser_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>.<span class="ident">clone</span>());
                             <span class="ident">de_bound</span>.<span class="ident">set</span>(<span class="ident">where_predicates</span>);
@@ -2467,7 +2501,7 @@
                     }
 
                     <span class="comment">// Parse `#[serde(borrow)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;borrow&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;borrow&quot;</span> <span class="op">=&gt;</span> {
                         <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">borrowable</span>) <span class="op">=</span> <span class="ident">borrowable_lifetimes</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>) {
                             <span class="ident">borrowed_lifetimes</span>.<span class="ident">set</span>(<span class="ident">borrowable</span>);
                         }
@@ -2475,9 +2509,7 @@
 
                     <span class="comment">// Parse `#[serde(borrow = &quot;&#39;a + &#39;b&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;borrow&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">lifetimes</span>) <span class="op">=</span>
-                            <span class="ident">parse_lit_into_lifetimes</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>)
-                        {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">lifetimes</span>) <span class="op">=</span> <span class="ident">parse_lit_into_lifetimes</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">borrowable</span>) <span class="op">=</span> <span class="ident">borrowable_lifetimes</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">ty</span>) {
                                 <span class="kw">for</span> <span class="ident">lifetime</span> <span class="kw">in</span> <span class="kw-2">&amp;</span><span class="ident">lifetimes</span> {
                                     <span class="kw">if</span> <span class="op">!</span><span class="ident">borrowable</span>.<span class="ident">contains</span>(<span class="ident">lifetime</span>) {
@@ -2494,13 +2526,13 @@
 
                     <span class="comment">// Parse `#[serde(getter = &quot;...&quot;)]`</span>
                     <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">m</span>)) <span class="kw">if</span> <span class="ident">m</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;getter&quot;</span> <span class="op">=&gt;</span> {
-                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="ident">m</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
+                        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">parse_lit_into_expr_path</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">m</span>.<span class="ident">lit</span>) {
                             <span class="ident">getter</span>.<span class="ident">set</span>(<span class="ident">path</span>);
                         }
                     }
 
                     <span class="comment">// Parse `#[serde(flatten)]`</span>
-                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;flatten&quot;</span> <span class="op">=&gt;</span> {
+                    <span class="ident">Meta</span>(<span class="ident">Word</span>(<span class="kw-2">ref</span> <span class="ident">word</span>)) <span class="kw">if</span> <span class="ident">word</span> <span class="op">==</span> <span class="string">&quot;flatten&quot;</span> <span class="op">=&gt;</span> {
                         <span class="ident">flatten</span>.<span class="ident">set_true</span>();
                     }
 
@@ -2605,6 +2637,7 @@
             <span class="ident">borrowed_lifetimes</span>: <span class="ident">borrowed_lifetimes</span>,
             <span class="ident">getter</span>: <span class="ident">getter</span>.<span class="ident">get</span>(),
             <span class="ident">flatten</span>: <span class="ident">flatten</span>.<span class="ident">get</span>(),
+            <span class="ident">transparent</span>: <span class="bool-val">false</span>,
         }
     }
 
@@ -2664,6 +2697,14 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flatten</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="self">self</span>.<span class="ident">flatten</span>
     }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">transparent</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+        <span class="self">self</span>.<span class="ident">transparent</span>
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">mark_transparent</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="self">self</span>.<span class="ident">transparent</span> <span class="op">=</span> <span class="bool-val">true</span>;
+    }
 }
 
 <span class="kw">type</span> <span class="ident">SerAndDe</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="op">=</span> (<span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>);
@@ -2676,21 +2717,22 @@
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">SerAndDe</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span>
 <span class="kw">where</span>
     <span class="ident">T</span>: <span class="lifetime">&#39;a</span>,
-    <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>,
+    <span class="ident">F</span>: <span class="ident">Fn</span>(<span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="kw-2">&amp;</span><span class="ident">Ident</span>, <span class="kw-2">&amp;</span><span class="ident">Ident</span>, <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">T</span>, ()<span class="op">&gt;</span>,
 {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">ser_meta</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">de_meta</span> <span class="op">=</span> <span class="ident">Attr</span>::<span class="ident">none</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>);
+    <span class="kw">let</span> <span class="ident">attr_name</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="ident">attr_name</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>());
 
     <span class="kw">for</span> <span class="ident">meta</span> <span class="kw">in</span> <span class="ident">metas</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">meta</span> {
             <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">meta</span>)) <span class="kw">if</span> <span class="ident">meta</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;serialize&quot;</span> <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">f</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">meta</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">lit</span>) {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">f</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">attr_name</span>, <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">lit</span>) {
                     <span class="ident">ser_meta</span>.<span class="ident">set</span>(<span class="ident">v</span>);
                 }
             }
 
             <span class="ident">Meta</span>(<span class="ident">NameValue</span>(<span class="kw-2">ref</span> <span class="ident">meta</span>)) <span class="kw">if</span> <span class="ident">meta</span>.<span class="ident">ident</span> <span class="op">==</span> <span class="string">&quot;deserialize&quot;</span> <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">f</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">meta</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>(), <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">lit</span>) {
+                <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">v</span>) <span class="op">=</span> <span class="ident">f</span>(<span class="ident">cx</span>, <span class="kw-2">&amp;</span><span class="ident">attr_name</span>, <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">ident</span>, <span class="kw-2">&amp;</span><span class="ident">meta</span>.<span class="ident">lit</span>) {
                     <span class="ident">de_meta</span>.<span class="ident">set</span>(<span class="ident">v</span>);
                 }
             }
@@ -2739,8 +2781,8 @@
 
 <span class="kw">fn</span> <span class="ident">get_lit_str</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    <span class="ident">meta_item_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
+    <span class="ident">meta_item_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
     <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">Lit</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">syn</span>::<span class="ident">LitStr</span>, ()<span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="kw">let</span> <span class="ident">syn</span>::<span class="ident">Lit</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=</span> <span class="kw-2">*</span><span class="ident">lit</span> {
@@ -2754,7 +2796,7 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">parse_lit_into_path</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Path</span>, ()<span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_lit_into_path</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>, <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Path</span>, ()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">attr_name</span>, <span class="ident">lit</span>));
     <span class="ident">parse_lit_str</span>(<span class="ident">string</span>)
         .<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">cx</span>.<span class="ident">error</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;failed to parse path: {:?}&quot;</span>, <span class="ident">string</span>.<span class="ident">value</span>())))
@@ -2762,7 +2804,7 @@
 
 <span class="kw">fn</span> <span class="ident">parse_lit_into_expr_path</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
     <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span>, ()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">attr_name</span>, <span class="ident">lit</span>));
@@ -2772,8 +2814,8 @@
 
 <span class="kw">fn</span> <span class="ident">parse_lit_into_where</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
-    <span class="ident">meta_item_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
+    <span class="ident">meta_item_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
     <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">WherePredicate</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">meta_item_name</span>, <span class="ident">lit</span>));
@@ -2788,7 +2830,7 @@
         .<span class="ident">map_err</span>(<span class="op">|</span><span class="ident">err</span><span class="op">|</span> <span class="ident">cx</span>.<span class="ident">error</span>(<span class="ident">err</span>))
 }
 
-<span class="kw">fn</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Type</span>, ()<span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">parse_lit_into_ty</span>(<span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>, <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>, <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Type</span>, ()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">attr_name</span>, <span class="ident">lit</span>));
 
     <span class="ident">parse_lit_str</span>(<span class="ident">string</span>).<span class="ident">map_err</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
@@ -2804,7 +2846,7 @@
 <span class="comment">// lifetimes separated by `+`.</span>
 <span class="kw">fn</span> <span class="ident">parse_lit_into_lifetimes</span>(
     <span class="ident">cx</span>: <span class="kw-2">&amp;</span><span class="ident">Ctxt</span>,
-    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>,
+    <span class="ident">attr_name</span>: <span class="kw-2">&amp;</span><span class="ident">Ident</span>,
     <span class="ident">lit</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Lit</span>,
 ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">BTreeSet</span><span class="op">&lt;</span><span class="ident">syn</span>::<span class="ident">Lifetime</span><span class="op">&gt;</span>, ()<span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">string</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">get_lit_str</span>(<span class="ident">cx</span>, <span class="ident">attr_name</span>, <span class="ident">attr_name</span>, <span class="ident">lit</span>));
@@ -2825,7 +2867,7 @@
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Ok</span>(<span class="ident">BorrowedLifetimes</span>(<span class="ident">lifetimes</span>)) <span class="op">=</span> <span class="ident">parse_lit_str</span>(<span class="ident">string</span>) {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">set</span> <span class="op">=</span> <span class="ident">BTreeSet</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">lifetime</span> <span class="kw">in</span> <span class="ident">lifetimes</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">set</span>.<span class="ident">insert</span>(<span class="ident">lifetime</span>) {
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">set</span>.<span class="ident">insert</span>(<span class="ident">lifetime</span>.<span class="ident">clone</span>()) {
                 <span class="ident">cx</span>.<span class="ident">error</span>(<span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;duplicate borrowed lifetime `{}`&quot;</span>, <span class="ident">lifetime</span>));
             }
         }
@@ -2965,7 +3007,9 @@
 }
 
 <span class="kw">fn</span> <span class="ident">is_primitive_path</span>(<span class="ident">path</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Path</span>, <span class="ident">primitive</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    <span class="ident">path</span>.<span class="ident">leading_colon</span>.<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span> <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">ident</span> <span class="op">==</span> <span class="ident">primitive</span>
+    <span class="ident">path</span>.<span class="ident">leading_colon</span>.<span class="ident">is_none</span>()
+        <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>.<span class="ident">len</span>() <span class="op">==</span> <span class="number">1</span>
+        <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">ident</span> <span class="op">==</span> <span class="ident">primitive</span>
         <span class="op">&amp;&amp;</span> <span class="ident">path</span>.<span class="ident">segments</span>[<span class="number">0</span>].<span class="ident">arguments</span>.<span class="ident">is_empty</span>()
 }
 

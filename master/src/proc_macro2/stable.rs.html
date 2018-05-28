@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.3.8/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.4.3/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1296,6 +1296,16 @@
 <span id="1296">1296</span>
 <span id="1297">1297</span>
 <span id="1298">1298</span>
+<span id="1299">1299</span>
+<span id="1300">1300</span>
+<span id="1301">1301</span>
+<span id="1302">1302</span>
+<span id="1303">1303</span>
+<span id="1304">1304</span>
+<span id="1305">1305</span>
+<span id="1306">1306</span>
+<span id="1307">1307</span>
+<span id="1308">1308</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">procmacro2_semver_exempt</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
 
@@ -1313,7 +1323,7 @@
 <span class="kw">use</span> <span class="ident">strnom</span>::{<span class="ident">block_comment</span>, <span class="ident">skip_whitespace</span>, <span class="ident">whitespace</span>, <span class="ident">word_break</span>, <span class="ident">Cursor</span>, <span class="ident">PResult</span>};
 <span class="kw">use</span> <span class="ident">unicode_xid</span>::<span class="ident">UnicodeXID</span>;
 
-<span class="kw">use</span> {<span class="ident">Delimiter</span>, <span class="ident">Group</span>, <span class="ident">Op</span>, <span class="ident">Spacing</span>, <span class="ident">TokenTree</span>};
+<span class="kw">use</span> {<span class="ident">Delimiter</span>, <span class="ident">Group</span>, <span class="ident">Punct</span>, <span class="ident">Spacing</span>, <span class="ident">TokenTree</span>};
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TokenStream</span> {
@@ -1394,9 +1404,9 @@
                         <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{} {} {}&quot;</span>, <span class="ident">start</span>, <span class="ident">tt</span>.<span class="ident">stream</span>(), <span class="ident">end</span>)<span class="question-mark">?</span>
                     }
                 }
-                <span class="ident">TokenTree</span>::<span class="ident">Term</span>(<span class="kw-2">ref</span> <span class="ident">tt</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">tt</span>.<span class="ident">as_str</span>())<span class="question-mark">?</span>,
-                <span class="ident">TokenTree</span>::<span class="ident">Op</span>(<span class="kw-2">ref</span> <span class="ident">tt</span>) <span class="op">=&gt;</span> {
-                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">tt</span>.<span class="ident">op</span>())<span class="question-mark">?</span>;
+                <span class="ident">TokenTree</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">tt</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">tt</span>)<span class="question-mark">?</span>,
+                <span class="ident">TokenTree</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">tt</span>) <span class="op">=&gt;</span> {
+                    <span class="macro">write</span><span class="macro">!</span>(<span class="ident">f</span>, <span class="string">&quot;{}&quot;</span>, <span class="ident">tt</span>.<span class="ident">as_char</span>())<span class="question-mark">?</span>;
                     <span class="kw">match</span> <span class="ident">tt</span>.<span class="ident">spacing</span>() {
                         <span class="ident">Spacing</span>::<span class="ident">Alone</span> <span class="op">=&gt;</span> {}
                         <span class="ident">Spacing</span>::<span class="ident">Joint</span> <span class="op">=&gt;</span> <span class="ident">joint</span> <span class="op">=</span> <span class="bool-val">true</span>,
@@ -1455,6 +1465,12 @@
     }
 }
 
+<span class="kw">impl</span> <span class="ident">Extend</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">TokenStream</span> {
+    <span class="kw">fn</span> <span class="ident">extend</span><span class="op">&lt;</span><span class="ident">I</span>: <span class="ident">IntoIterator</span><span class="op">&lt;</span><span class="ident">Item</span> <span class="op">=</span> <span class="ident">TokenTree</span><span class="op">&gt;&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">streams</span>: <span class="ident">I</span>) {
+        <span class="self">self</span>.<span class="ident">inner</span>.<span class="ident">extend</span>(<span class="ident">streams</span>);
+    }
+}
+
 <span class="kw">pub</span> <span class="kw">type</span> <span class="ident">TokenTreeIter</span> <span class="op">=</span> <span class="ident">vec</span>::<span class="ident">IntoIter</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span>;
 
 <span class="kw">impl</span> <span class="ident">IntoIterator</span> <span class="kw">for</span> <span class="ident">TokenStream</span> {
@@ -1469,6 +1485,7 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">PartialEq</span>, <span class="ident">Eq</span>, <span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">FileName</span>(<span class="ident">String</span>);
 
+<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">file_name</span>(<span class="ident">s</span>: <span class="ident">String</span>) <span class="op">-&gt;</span> <span class="ident">FileName</span> {
     <span class="ident">FileName</span>(<span class="ident">s</span>)
 }
@@ -1706,22 +1723,32 @@
     }
 }
 
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Copy</span>, <span class="ident">Clone</span>)]</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Term</span> {
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Ident</span> {
     <span class="ident">intern</span>: <span class="ident">usize</span>,
     <span class="ident">span</span>: <span class="ident">Span</span>,
+    <span class="ident">raw</span>: <span class="ident">bool</span>,
 }
 
 <span class="macro">thread_local</span><span class="macro">!</span>(<span class="kw">static</span> <span class="ident">SYMBOLS</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Interner</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">Interner</span>::<span class="ident">new</span>()));
 
-<span class="kw">impl</span> <span class="ident">Term</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Term</span> {
+<span class="kw">impl</span> <span class="ident">Ident</span> {
+    <span class="kw">fn</span> <span class="ident">_new</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">raw</span>: <span class="ident">bool</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Ident</span> {
         <span class="ident">validate_term</span>(<span class="ident">string</span>);
 
-        <span class="ident">Term</span> {
+        <span class="ident">Ident</span> {
             <span class="ident">intern</span>: <span class="ident">SYMBOLS</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">borrow_mut</span>().<span class="ident">intern</span>(<span class="ident">string</span>)),
             <span class="ident">span</span>: <span class="ident">span</span>,
+            <span class="ident">raw</span>: <span class="ident">raw</span>,
         }
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Ident</span> {
+        <span class="ident">Ident</span>::<span class="ident">_new</span>(<span class="ident">string</span>, <span class="bool-val">false</span>, <span class="ident">span</span>)
+    }
+
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_raw</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Ident</span> {
+        <span class="ident">Ident</span>::<span class="ident">_new</span>(<span class="ident">string</span>, <span class="bool-val">true</span>, <span class="ident">span</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
@@ -1742,20 +1769,13 @@
 }
 
 <span class="kw">fn</span> <span class="ident">validate_term</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-    <span class="kw">let</span> <span class="ident">validate</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&#39;\&#39;&#39;</span>) {
-        <span class="kw-2">&amp;</span><span class="ident">string</span>[<span class="number">1</span>..]
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">string</span>.<span class="ident">starts_with</span>(<span class="string">&quot;r#&quot;</span>) {
-        <span class="kw-2">&amp;</span><span class="ident">string</span>[<span class="number">2</span>..]
-    } <span class="kw">else</span> {
-        <span class="ident">string</span>
-    };
-
+    <span class="kw">let</span> <span class="ident">validate</span> <span class="op">=</span> <span class="ident">string</span>;
     <span class="kw">if</span> <span class="ident">validate</span>.<span class="ident">is_empty</span>() {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Term is not allowed to be empty; use Option&lt;Term&gt;&quot;</span>);
+        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Ident is not allowed to be empty; use Option&lt;Ident&gt;&quot;</span>);
     }
 
     <span class="kw">if</span> <span class="ident">validate</span>.<span class="ident">bytes</span>().<span class="ident">all</span>(<span class="op">|</span><span class="ident">digit</span><span class="op">|</span> <span class="ident">digit</span> <span class="op">&gt;=</span> <span class="string">b&#39;0&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">digit</span> <span class="op">&lt;=</span> <span class="string">b&#39;9&#39;</span>) {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Term cannot be a number; use Literal instead&quot;</span>);
+        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Ident cannot be a number; use Literal instead&quot;</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">xid_ok</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
@@ -1773,16 +1793,26 @@
     }
 
     <span class="kw">if</span> <span class="op">!</span><span class="ident">xid_ok</span>(<span class="ident">validate</span>) {
-        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;{:?} is not a valid Term&quot;</span>, <span class="ident">string</span>);
+        <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;{:?} is not a valid Ident&quot;</span>, <span class="ident">string</span>);
     }
 }
 
-<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Term</span> {
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">Ident</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">debug</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Term&quot;</span>);
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">raw</span> {
+            <span class="string">&quot;r#&quot;</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)<span class="question-mark">?</span>;
+        }
+        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+    }
+}
+
+<span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Ident</span> {
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">debug</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Ident&quot;</span>);
         <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;sym&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>()));
         <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
         <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;span&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">span</span>);
+        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;raw&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">raw</span>);
         <span class="ident">debug</span>.<span class="ident">finish</span>()
     }
 }
@@ -1901,7 +1931,8 @@
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">string</span>(<span class="ident">t</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">Literal</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">t</span>.<span class="ident">chars</span>()
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">t</span>
+            .<span class="ident">chars</span>()
             .<span class="ident">flat_map</span>(<span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">escape_default</span>())
             .<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>();
         <span class="ident">s</span>.<span class="ident">push</span>(<span class="string">&#39;&quot;&#39;</span>);
@@ -2012,9 +2043,9 @@
     <span class="op">|</span>
     <span class="macro">map</span><span class="macro">!</span>(<span class="ident">literal</span>, <span class="op">|</span><span class="ident">l</span><span class="op">|</span> <span class="ident">TokenTree</span>::<span class="ident">Literal</span>(::<span class="ident">Literal</span>::<span class="ident">_new_stable</span>(<span class="ident">l</span>))) <span class="comment">// must be before symbol</span>
     <span class="op">|</span>
-    <span class="ident">symbol</span>
+    <span class="macro">map</span><span class="macro">!</span>(<span class="ident">op</span>, <span class="ident">TokenTree</span>::<span class="ident">Punct</span>)
     <span class="op">|</span>
-    <span class="macro">map</span><span class="macro">!</span>(<span class="ident">op</span>, <span class="ident">TokenTree</span>::<span class="ident">Op</span>)
+    <span class="ident">symbol_leading_ws</span>
 ));
 
 <span class="macro">named</span><span class="macro">!</span>(<span class="ident">group</span> <span class="op">-&gt;</span> <span class="ident">Group</span>, <span class="macro">alt</span><span class="macro">!</span>(
@@ -2037,17 +2068,14 @@
     ) <span class="op">=&gt;</span> { <span class="op">|</span><span class="ident">ts</span><span class="op">|</span> <span class="ident">Group</span>::<span class="ident">new</span>(<span class="ident">Delimiter</span>::<span class="ident">Brace</span>, ::<span class="ident">TokenStream</span>::<span class="ident">_new_stable</span>(<span class="ident">ts</span>)) }
 ));
 
-<span class="kw">fn</span> <span class="ident">symbol</span>(<span class="kw-2">mut</span> <span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span> {
-    <span class="ident">input</span> <span class="op">=</span> <span class="ident">skip_whitespace</span>(<span class="ident">input</span>);
+<span class="kw">fn</span> <span class="ident">symbol_leading_ws</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span> {
+    <span class="ident">symbol</span>(<span class="ident">skip_whitespace</span>(<span class="ident">input</span>))
+}
 
+<span class="kw">fn</span> <span class="ident">symbol</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">char_indices</span>();
 
-    <span class="kw">let</span> <span class="ident">lifetime</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">starts_with</span>(<span class="string">&quot;&#39;&quot;</span>);
-    <span class="kw">if</span> <span class="ident">lifetime</span> {
-        <span class="ident">chars</span>.<span class="ident">next</span>();
-    }
-
-    <span class="kw">let</span> <span class="ident">raw</span> <span class="op">=</span> <span class="op">!</span><span class="ident">lifetime</span> <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">starts_with</span>(<span class="string">&quot;r#&quot;</span>);
+    <span class="kw">let</span> <span class="ident">raw</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">starts_with</span>(<span class="string">&quot;r#&quot;</span>);
     <span class="kw">if</span> <span class="ident">raw</span> {
         <span class="ident">chars</span>.<span class="ident">next</span>();
         <span class="ident">chars</span>.<span class="ident">next</span>();
@@ -2067,26 +2095,17 @@
     }
 
     <span class="kw">let</span> <span class="ident">a</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">input</span>.<span class="ident">rest</span>[..<span class="ident">end</span>];
-    <span class="kw">if</span> <span class="ident">a</span> <span class="op">==</span> <span class="string">&quot;r#_&quot;</span> <span class="op">||</span> <span class="ident">lifetime</span> <span class="op">&amp;&amp;</span> <span class="ident">a</span> <span class="op">!=</span> <span class="string">&quot;&#39;static&quot;</span> <span class="op">&amp;&amp;</span> <span class="ident">KEYWORDS</span>.<span class="ident">contains</span>(<span class="op">&amp;&amp;</span><span class="ident">a</span>[<span class="number">1</span>..]) {
+    <span class="kw">if</span> <span class="ident">a</span> <span class="op">==</span> <span class="string">&quot;r#_&quot;</span> {
         <span class="prelude-val">Err</span>(<span class="ident">LexError</span>)
-    } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">a</span> <span class="op">==</span> <span class="string">&quot;_&quot;</span> {
-        <span class="prelude-val">Ok</span>((<span class="ident">input</span>.<span class="ident">advance</span>(<span class="ident">end</span>), <span class="ident">Op</span>::<span class="ident">new</span>(<span class="string">&#39;_&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>).<span class="ident">into</span>()))
     } <span class="kw">else</span> {
-        <span class="prelude-val">Ok</span>((
-            <span class="ident">input</span>.<span class="ident">advance</span>(<span class="ident">end</span>),
-            ::<span class="ident">Term</span>::<span class="ident">new</span>(<span class="ident">a</span>, ::<span class="ident">Span</span>::<span class="ident">call_site</span>()).<span class="ident">into</span>(),
-        ))
+        <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">raw</span> {
+            ::<span class="ident">Ident</span>::<span class="ident">_new_raw</span>(<span class="kw-2">&amp;</span><span class="ident">a</span>[<span class="number">2</span>..], ::<span class="ident">Span</span>::<span class="ident">call_site</span>())
+        } <span class="kw">else</span> {
+            ::<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="ident">a</span>, ::<span class="ident">Span</span>::<span class="ident">call_site</span>())
+        };
+        <span class="prelude-val">Ok</span>((<span class="ident">input</span>.<span class="ident">advance</span>(<span class="ident">end</span>), <span class="ident">ident</span>.<span class="ident">into</span>()))
     }
 }
-
-<span class="comment">// From https://github.com/rust-lang/rust/blob/master/src/libsyntax_pos/symbol.rs</span>
-<span class="kw">static</span> <span class="ident">KEYWORDS</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static</span> <span class="ident">str</span>] <span class="op">=</span> <span class="kw-2">&amp;</span>[
-    <span class="string">&quot;abstract&quot;</span>, <span class="string">&quot;alignof&quot;</span>, <span class="string">&quot;as&quot;</span>, <span class="string">&quot;become&quot;</span>, <span class="string">&quot;box&quot;</span>, <span class="string">&quot;break&quot;</span>, <span class="string">&quot;const&quot;</span>, <span class="string">&quot;continue&quot;</span>, <span class="string">&quot;crate&quot;</span>, <span class="string">&quot;do&quot;</span>,
-    <span class="string">&quot;else&quot;</span>, <span class="string">&quot;enum&quot;</span>, <span class="string">&quot;extern&quot;</span>, <span class="string">&quot;false&quot;</span>, <span class="string">&quot;final&quot;</span>, <span class="string">&quot;fn&quot;</span>, <span class="string">&quot;for&quot;</span>, <span class="string">&quot;if&quot;</span>, <span class="string">&quot;impl&quot;</span>, <span class="string">&quot;in&quot;</span>, <span class="string">&quot;let&quot;</span>, <span class="string">&quot;loop&quot;</span>,
-    <span class="string">&quot;macro&quot;</span>, <span class="string">&quot;match&quot;</span>, <span class="string">&quot;mod&quot;</span>, <span class="string">&quot;move&quot;</span>, <span class="string">&quot;mut&quot;</span>, <span class="string">&quot;offsetof&quot;</span>, <span class="string">&quot;override&quot;</span>, <span class="string">&quot;priv&quot;</span>, <span class="string">&quot;proc&quot;</span>, <span class="string">&quot;pub&quot;</span>, <span class="string">&quot;pure&quot;</span>,
-    <span class="string">&quot;ref&quot;</span>, <span class="string">&quot;return&quot;</span>, <span class="string">&quot;self&quot;</span>, <span class="string">&quot;Self&quot;</span>, <span class="string">&quot;sizeof&quot;</span>, <span class="string">&quot;static&quot;</span>, <span class="string">&quot;struct&quot;</span>, <span class="string">&quot;super&quot;</span>, <span class="string">&quot;trait&quot;</span>, <span class="string">&quot;true&quot;</span>,
-    <span class="string">&quot;type&quot;</span>, <span class="string">&quot;typeof&quot;</span>, <span class="string">&quot;unsafe&quot;</span>, <span class="string">&quot;unsized&quot;</span>, <span class="string">&quot;use&quot;</span>, <span class="string">&quot;virtual&quot;</span>, <span class="string">&quot;where&quot;</span>, <span class="string">&quot;while&quot;</span>, <span class="string">&quot;yield&quot;</span>,
-];
 
 <span class="kw">fn</span> <span class="ident">literal</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">Literal</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">input_no_ws</span> <span class="op">=</span> <span class="ident">skip_whitespace</span>(<span class="ident">input</span>);
@@ -2096,10 +2115,7 @@
             <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">input_no_ws</span>.<span class="ident">len</span>();
             <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">input_no_ws</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="ident">a</span>.<span class="ident">len</span>();
             <span class="kw">let</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">start</span> <span class="op">+</span> <span class="ident">len</span>;
-            <span class="prelude-val">Ok</span>((
-                <span class="ident">a</span>,
-                <span class="ident">Literal</span>::<span class="ident">_new</span>(<span class="ident">input</span>.<span class="ident">rest</span>[<span class="ident">start</span>..<span class="ident">end</span>].<span class="ident">to_string</span>()),
-            ))
+            <span class="prelude-val">Ok</span>((<span class="ident">a</span>, <span class="ident">Literal</span>::<span class="ident">_new</span>(<span class="ident">input</span>.<span class="ident">rest</span>[<span class="ident">start</span>..<span class="ident">end</span>].<span class="ident">to_string</span>())))
         }
         <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
     }
@@ -2510,15 +2526,19 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">op</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">Op</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">op</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">Punct</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">input</span> <span class="op">=</span> <span class="ident">skip_whitespace</span>(<span class="ident">input</span>);
     <span class="kw">match</span> <span class="ident">op_char</span>(<span class="ident">input</span>) {
+        <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="string">&#39;\&#39;&#39;</span>)) <span class="op">=&gt;</span> {
+            <span class="ident">symbol</span>(<span class="ident">rest</span>)<span class="question-mark">?</span>;
+            <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="ident">Punct</span>::<span class="ident">new</span>(<span class="string">&#39;\&#39;&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Joint</span>)))
+        }
         <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="ident">ch</span>)) <span class="op">=&gt;</span> {
             <span class="kw">let</span> <span class="ident">kind</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">op_char</span>(<span class="ident">rest</span>) {
                 <span class="prelude-val">Ok</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="ident">Spacing</span>::<span class="ident">Joint</span>,
                 <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="ident">Spacing</span>::<span class="ident">Alone</span>,
             };
-            <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="ident">Op</span>::<span class="ident">new</span>(<span class="ident">ch</span>, <span class="ident">kind</span>)))
+            <span class="prelude-val">Ok</span>((<span class="ident">rest</span>, <span class="ident">Punct</span>::<span class="ident">new</span>(<span class="ident">ch</span>, <span class="ident">kind</span>)))
         }
         <span class="prelude-val">Err</span>(<span class="ident">LexError</span>) <span class="op">=&gt;</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
     }
@@ -2537,7 +2557,7 @@
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>);
         }
     };
-    <span class="kw">let</span> <span class="ident">recognized</span> <span class="op">=</span> <span class="string">&quot;~!@#$%^&amp;*-=+|;:,&lt;.&gt;/?&quot;</span>;
+    <span class="kw">let</span> <span class="ident">recognized</span> <span class="op">=</span> <span class="string">&quot;~!@#$%^&amp;*-=+|;:,&lt;.&gt;/?&#39;&quot;</span>;
     <span class="kw">if</span> <span class="ident">recognized</span>.<span class="ident">contains</span>(<span class="ident">first</span>) {
         <span class="prelude-val">Ok</span>((<span class="ident">input</span>.<span class="ident">advance</span>(<span class="ident">first</span>.<span class="ident">len_utf8</span>()), <span class="ident">first</span>))
     } <span class="kw">else</span> {
@@ -2548,13 +2568,13 @@
 <span class="kw">fn</span> <span class="ident">doc_comment</span>(<span class="ident">input</span>: <span class="ident">Cursor</span>) <span class="op">-&gt;</span> <span class="ident">PResult</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TokenTree</span><span class="op">&gt;&gt;</span> {
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">trees</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
     <span class="kw">let</span> (<span class="ident">rest</span>, ((<span class="ident">comment</span>, <span class="ident">inner</span>), <span class="ident">span</span>)) <span class="op">=</span> <span class="ident">spanned</span>(<span class="ident">input</span>, <span class="ident">doc_comment_contents</span>)<span class="question-mark">?</span>;
-    <span class="ident">trees</span>.<span class="ident">push</span>(<span class="ident">TokenTree</span>::<span class="ident">Op</span>(<span class="ident">Op</span>::<span class="ident">new</span>(<span class="string">&#39;#&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>)));
+    <span class="ident">trees</span>.<span class="ident">push</span>(<span class="ident">TokenTree</span>::<span class="ident">Punct</span>(<span class="ident">Punct</span>::<span class="ident">new</span>(<span class="string">&#39;#&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>)));
     <span class="kw">if</span> <span class="ident">inner</span> {
-        <span class="ident">trees</span>.<span class="ident">push</span>(<span class="ident">Op</span>::<span class="ident">new</span>(<span class="string">&#39;!&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>).<span class="ident">into</span>());
+        <span class="ident">trees</span>.<span class="ident">push</span>(<span class="ident">Punct</span>::<span class="ident">new</span>(<span class="string">&#39;!&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>).<span class="ident">into</span>());
     }
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">stream</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[
-        <span class="ident">TokenTree</span>::<span class="ident">Term</span>(::<span class="ident">Term</span>::<span class="ident">new</span>(<span class="string">&quot;doc&quot;</span>, <span class="ident">span</span>)),
-        <span class="ident">TokenTree</span>::<span class="ident">Op</span>(<span class="ident">Op</span>::<span class="ident">new</span>(<span class="string">&#39;=&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>)),
+        <span class="ident">TokenTree</span>::<span class="ident">Ident</span>(::<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;doc&quot;</span>, <span class="ident">span</span>)),
+        <span class="ident">TokenTree</span>::<span class="ident">Punct</span>(<span class="ident">Punct</span>::<span class="ident">new</span>(<span class="string">&#39;=&#39;</span>, <span class="ident">Spacing</span>::<span class="ident">Alone</span>)),
         <span class="ident">TokenTree</span>::<span class="ident">Literal</span>(::<span class="ident">Literal</span>::<span class="ident">string</span>(<span class="ident">comment</span>)),
     ];
     <span class="kw">for</span> <span class="ident">tt</span> <span class="kw">in</span> <span class="ident">stream</span>.<span class="ident">iter_mut</span>() {

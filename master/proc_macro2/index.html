@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `proc_macro2` crate."><meta name="keywords" content="rust, rustlang, rust-lang, proc_macro2"><title>proc_macro2 - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate proc_macro2</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'proc_macro2', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>proc_macro2</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/proc_macro2/lib.rs.html#1-662' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A &quot;shim crate&quot; intended to multiplex the <a href="https://doc.rust-lang.org/proc_macro/"><code>proc_macro</code></a> API on to stable
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `proc_macro2` crate."><meta name="keywords" content="rust, rustlang, rust-lang, proc_macro2"><title>proc_macro2 - Rust</title><link rel="stylesheet" type="text/css" href="../normalize.css"><link rel="stylesheet" type="text/css" href="../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../dark.css"><link rel="stylesheet" type="text/css" href="../light.css" id="themeStyle"><script src="../storage.js"></script></head><body class="rustdoc mod"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Crate proc_macro2</p><div class="sidebar-elems"><div class="block items"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li></ul></div><p class='location'></p><script>window.sidebarCurrent = {name: 'proc_macro2', ty: 'mod', relpath: '../'};</script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../settings.html"><img src="../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Crate <a class="mod" href=''>proc_macro2</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../src/proc_macro2/lib.rs.html#1-1012' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A &quot;shim crate&quot; intended to multiplex the <a href="https://doc.rust-lang.org/proc_macro/"><code>proc_macro</code></a> API on to stable
 Rust.</p>
 <p>Procedural macros in Rust operate over the upstream
 <a href="https://doc.rust-lang.org/proc_macro/struct.TokenStream.html"><code>proc_macro::TokenStream</code></a> type. This type currently is quite
@@ -35,7 +35,8 @@ as a reminder that you are outside of the normal semver guarantees.</p>
                            <td><a class="mod" href="token_stream/index.html"
                                   title='mod proc_macro2::token_stream'>token_stream</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Public implementation details for the <code>TokenStream</code> type, such as iterators.</p>
+
                            </td>
                        </tr></table><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
 <table>
@@ -43,49 +44,58 @@ as a reminder that you are outside of the normal semver guarantees.</p>
                            <td><a class="struct" href="struct.Group.html"
                                   title='struct proc_macro2::Group'>Group</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>A delimited token stream.</p>
+
+                           </td>
+                       </tr>
+                       <tr class=' module-item'>
+                           <td><a class="struct" href="struct.Ident.html"
+                                  title='struct proc_macro2::Ident'>Ident</a></td>
+                           <td class='docblock-short'>
+                                <p>A word of Rust code, which may be a keyword or legal variable name.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.LexError.html"
                                   title='struct proc_macro2::LexError'>LexError</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Error returned from <code>TokenStream::from_str</code>.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Literal.html"
                                   title='struct proc_macro2::Literal'>Literal</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>A literal string (<code>&quot;hello&quot;</code>), byte string (<code>b&quot;hello&quot;</code>), character (<code>'a'</code>),
+byte character (<code>b'a'</code>), an integer or floating point number with or without
+a suffix (<code>1</code>, <code>1u8</code>, <code>2.3</code>, <code>2.3f32</code>).</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Op.html"
-                                  title='struct proc_macro2::Op'>Op</a></td>
+                           <td><a class="struct" href="struct.Punct.html"
+                                  title='struct proc_macro2::Punct'>Punct</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>An <code>Punct</code> is an single punctuation character like <code>+</code>, <code>-</code> or <code>#</code>.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.Span.html"
                                   title='struct proc_macro2::Span'>Span</a></td>
                            <td class='docblock-short'>
-                                
-                           </td>
-                       </tr>
-                       <tr class=' module-item'>
-                           <td><a class="struct" href="struct.Term.html"
-                                  title='struct proc_macro2::Term'>Term</a></td>
-                           <td class='docblock-short'>
-                                
+                                <p>A region of source code, along with macro expansion information.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="struct" href="struct.TokenStream.html"
                                   title='struct proc_macro2::TokenStream'>TokenStream</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>An abstract stream of tokens, or more concretely a sequence of token trees.</p>
+
                            </td>
                        </tr></table><h2 id='enums' class='section-header'><a href="#enums">Enums</a></h2>
 <table>
@@ -93,20 +103,24 @@ as a reminder that you are outside of the normal semver guarantees.</p>
                            <td><a class="enum" href="enum.Delimiter.html"
                                   title='enum proc_macro2::Delimiter'>Delimiter</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Describes how a sequence of token trees is delimited.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="enum" href="enum.Spacing.html"
                                   title='enum proc_macro2::Spacing'>Spacing</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Whether an <code>Punct</code> is followed immediately by another <code>Punct</code> or followed by
+another token or whitespace.</p>
+
                            </td>
                        </tr>
                        <tr class=' module-item'>
                            <td><a class="enum" href="enum.TokenTree.html"
                                   title='enum proc_macro2::TokenTree'>TokenTree</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>A single token or a delimited sequence of token trees (e.g. <code>[1, (), ..]</code>).</p>
+
                            </td>
                        </tr></table></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../";window.currentCrate = "proc_macro2";</script><script src="../aliases.js"></script><script src="../main.js"></script><script defer src="../search-index.js"></script></body></html>

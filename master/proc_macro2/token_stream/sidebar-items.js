@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["IntoIter",""]]});
+initSidebarItems({"struct":[["IntoIter","An iterator over `TokenStream`'s `TokenTree`s."]]});

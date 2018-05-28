@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.56/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde_derive-1.0.62/src/ser.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>ser.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1272,6 +1272,15 @@
 <span id="1272">1272</span>
 <span id="1273">1273</span>
 <span id="1274">1274</span>
+<span id="1275">1275</span>
+<span id="1276">1276</span>
+<span id="1277">1277</span>
+<span id="1278">1278</span>
+<span id="1279">1279</span>
+<span id="1280">1280</span>
+<span id="1281">1281</span>
+<span id="1282">1282</span>
+<span id="1283">1283</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1281,25 +1290,24 @@
 <span class="comment">// option. This file may not be copied, modified, or distributed</span>
 <span class="comment">// except according to those terms.</span>
 
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="ident">Span</span>;
-<span class="kw">use</span> <span class="ident">quote</span>::<span class="ident">Tokens</span>;
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Span</span>, <span class="ident">TokenStream</span>};
 <span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">spanned</span>::<span class="ident">Spanned</span>;
 <span class="kw">use</span> <span class="ident">syn</span>::{<span class="self">self</span>, <span class="ident">Ident</span>, <span class="ident">Index</span>, <span class="ident">Member</span>};
 
 <span class="kw">use</span> <span class="ident">bound</span>;
 <span class="kw">use</span> <span class="ident">fragment</span>::{<span class="ident">Fragment</span>, <span class="ident">Match</span>, <span class="ident">Stmts</span>};
 <span class="kw">use</span> <span class="ident">internals</span>::<span class="ident">ast</span>::{<span class="ident">Container</span>, <span class="ident">Data</span>, <span class="ident">Field</span>, <span class="ident">Style</span>, <span class="ident">Variant</span>};
-<span class="kw">use</span> <span class="ident">internals</span>::{<span class="ident">attr</span>, <span class="ident">Ctxt</span>};
+<span class="kw">use</span> <span class="ident">internals</span>::{<span class="ident">attr</span>, <span class="ident">Ctxt</span>, <span class="ident">Derive</span>};
 <span class="kw">use</span> <span class="ident">pretend</span>;
 <span class="kw">use</span> <span class="ident">try</span>;
 
-<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_derive_serialize</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">DeriveInput</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Tokens</span>, <span class="ident">String</span><span class="op">&gt;</span> {
+<span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">expand_derive_serialize</span>(<span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">DeriveInput</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">TokenStream</span>, <span class="ident">String</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">ctxt</span> <span class="op">=</span> <span class="ident">Ctxt</span>::<span class="ident">new</span>();
-    <span class="kw">let</span> <span class="ident">cont</span> <span class="op">=</span> <span class="ident">Container</span>::<span class="ident">from_ast</span>(<span class="kw-2">&amp;</span><span class="ident">ctxt</span>, <span class="ident">input</span>);
+    <span class="kw">let</span> <span class="ident">cont</span> <span class="op">=</span> <span class="ident">Container</span>::<span class="ident">from_ast</span>(<span class="kw-2">&amp;</span><span class="ident">ctxt</span>, <span class="ident">input</span>, <span class="ident">Derive</span>::<span class="ident">Serialize</span>);
     <span class="ident">precondition</span>(<span class="kw-2">&amp;</span><span class="ident">ctxt</span>, <span class="kw-2">&amp;</span><span class="ident">cont</span>);
     <span class="macro">try</span><span class="macro">!</span>(<span class="ident">ctxt</span>.<span class="ident">check</span>());
 
-    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">cont</span>.<span class="ident">ident</span>;
     <span class="kw">let</span> <span class="ident">params</span> <span class="op">=</span> <span class="ident">Parameters</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="ident">cont</span>);
     <span class="kw">let</span> (<span class="ident">impl_generics</span>, <span class="ident">ty_generics</span>, <span class="ident">where_clause</span>) <span class="op">=</span> <span class="ident">params</span>.<span class="ident">generics</span>.<span class="ident">split_for_impl</span>();
     <span class="kw">let</span> <span class="ident">dummy_const</span> <span class="op">=</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;_IMPL_SERIALIZE_FOR_{}&quot;</span>, <span class="ident">ident</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>());
@@ -1385,7 +1393,7 @@
 
         <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">remote</span>() {
             <span class="prelude-val">Some</span>(<span class="ident">remote</span>) <span class="op">=&gt;</span> <span class="ident">remote</span>.<span class="ident">clone</span>(),
-            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">cont</span>.<span class="ident">ident</span>.<span class="ident">into</span>(),
+            <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="ident">cont</span>.<span class="ident">ident</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
         };
 
         <span class="kw">let</span> <span class="ident">generics</span> <span class="op">=</span> <span class="ident">build_generics</span>(<span class="ident">cont</span>);
@@ -1400,8 +1408,8 @@
 
     <span class="doccomment">/// Type name to use in error messages and `&amp;&#39;static str` arguments to</span>
     <span class="doccomment">/// various Serializer methods.</span>
-    <span class="kw">fn</span> <span class="ident">type_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="self">self</span>.<span class="ident">this</span>.<span class="ident">segments</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">ident</span>.<span class="ident">as_ref</span>()
+    <span class="kw">fn</span> <span class="ident">type_name</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">String</span> {
+        <span class="self">self</span>.<span class="ident">this</span>.<span class="ident">segments</span>.<span class="ident">last</span>().<span class="ident">unwrap</span>().<span class="ident">value</span>().<span class="ident">ident</span>.<span class="ident">to_string</span>()
     }
 }
 
@@ -1435,27 +1443,24 @@
 <span class="kw">fn</span> <span class="ident">needs_serialize_bound</span>(<span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Field</span>, <span class="ident">variant</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Variant</span><span class="op">&gt;</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
     <span class="op">!</span><span class="ident">field</span>.<span class="ident">skip_serializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">serialize_with</span>().<span class="ident">is_none</span>() <span class="op">&amp;&amp;</span> <span class="ident">field</span>.<span class="ident">ser_bound</span>().<span class="ident">is_none</span>()
         <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">map_or</span>(<span class="bool-val">true</span>, <span class="op">|</span><span class="ident">variant</span><span class="op">|</span> {
-            <span class="op">!</span><span class="ident">variant</span>.<span class="ident">skip_serializing</span>() <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">serialize_with</span>().<span class="ident">is_none</span>()
+            <span class="op">!</span><span class="ident">variant</span>.<span class="ident">skip_serializing</span>()
+                <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">serialize_with</span>().<span class="ident">is_none</span>()
                 <span class="op">&amp;&amp;</span> <span class="ident">variant</span>.<span class="ident">ser_bound</span>().<span class="ident">is_none</span>()
         })
 }
 
 <span class="kw">fn</span> <span class="ident">serialize_body</span>(<span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>, <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
-    <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">type_into</span>) <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">type_into</span>() {
+    <span class="kw">if</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">transparent</span>() {
+        <span class="ident">serialize_transparent</span>(<span class="ident">cont</span>, <span class="ident">params</span>)
+    } <span class="kw">else</span> <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">type_into</span>) <span class="op">=</span> <span class="ident">cont</span>.<span class="ident">attrs</span>.<span class="ident">type_into</span>() {
         <span class="ident">serialize_into</span>(<span class="ident">params</span>, <span class="ident">type_into</span>)
     } <span class="kw">else</span> {
         <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">data</span> {
             <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw-2">ref</span> <span class="ident">variants</span>) <span class="op">=&gt;</span> <span class="ident">serialize_enum</span>(<span class="ident">params</span>, <span class="ident">variants</span>, <span class="kw-2">&amp;</span><span class="ident">cont</span>.<span class="ident">attrs</span>),
             <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">Style</span>::<span class="ident">Struct</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">is_none</span>()) {
-                    <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;struct has unnamed fields&quot;</span>);
-                }
                 <span class="ident">serialize_struct</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="kw-2">&amp;</span><span class="ident">cont</span>.<span class="ident">attrs</span>)
             }
             <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">Style</span>::<span class="ident">Tuple</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> {
-                <span class="kw">if</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">any</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">is_some</span>()) {
-                    <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;tuple struct has named fields&quot;</span>);
-                }
                 <span class="ident">serialize_tuple_struct</span>(<span class="ident">params</span>, <span class="ident">fields</span>, <span class="kw-2">&amp;</span><span class="ident">cont</span>.<span class="ident">attrs</span>)
             }
             <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="ident">Style</span>::<span class="ident">Newtype</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> {
@@ -1466,8 +1471,28 @@
     }
 }
 
+<span class="kw">fn</span> <span class="ident">serialize_transparent</span>(<span class="ident">cont</span>: <span class="kw-2">&amp;</span><span class="ident">Container</span>, <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
+    <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">cont</span>.<span class="ident">data</span> {
+        <span class="ident">Data</span>::<span class="ident">Struct</span>(<span class="kw">_</span>, <span class="kw-2">ref</span> <span class="ident">fields</span>) <span class="op">=&gt;</span> <span class="ident">fields</span>,
+        <span class="ident">Data</span>::<span class="ident">Enum</span>(<span class="kw">_</span>) <span class="op">=&gt;</span> <span class="macro">unreachable</span><span class="macro">!</span>(),
+    };
+
+    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">self_var</span>;
+    <span class="kw">let</span> <span class="ident">transparent_field</span> <span class="op">=</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">find</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">attrs</span>.<span class="ident">transparent</span>()).<span class="ident">unwrap</span>();
+    <span class="kw">let</span> <span class="ident">member</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">transparent_field</span>.<span class="ident">member</span>;
+
+    <span class="kw">let</span> <span class="ident">path</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">transparent_field</span>.<span class="ident">attrs</span>.<span class="ident">serialize_with</span>() {
+        <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">path</span>),
+        <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">Serialize</span>::<span class="ident">serialize</span>),
+    };
+
+    <span class="macro">quote_block</span><span class="macro">!</span> {
+        #<span class="ident">path</span>(<span class="kw-2">&amp;</span>#<span class="ident">self_var</span>.#<span class="ident">member</span>, <span class="ident">__serializer</span>)
+    }
+}
+
 <span class="kw">fn</span> <span class="ident">serialize_into</span>(<span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>, <span class="ident">type_into</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
-    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">self_var</span>;
+    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">self_var</span>;
     <span class="macro">quote_block</span><span class="macro">!</span> {
         <span class="ident">_serde</span>::<span class="ident">Serialize</span>::<span class="ident">serialize</span>(
             <span class="kw-2">&amp;</span><span class="ident">_serde</span>::<span class="ident">export</span>::<span class="ident">Into</span>::<span class="op">&lt;</span>#<span class="ident">type_into</span><span class="op">&gt;</span>::<span class="ident">into</span>(<span class="ident">_serde</span>::<span class="ident">export</span>::<span class="ident">Clone</span>::<span class="ident">clone</span>(#<span class="ident">self_var</span>)),
@@ -1579,8 +1604,7 @@
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing_if</span>() {
             <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="number">1</span>),
             <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct has unnamed fields&quot;</span>);
-                <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">Member</span>::<span class="ident">Named</span>(<span class="ident">ident</span>));
+                <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">member</span>);
                 <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">field_expr</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> })
             }
         })
@@ -1615,8 +1639,7 @@
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing_if</span>() {
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="number">1</span>),
                 <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> {
-                    <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct has unnamed fields&quot;</span>);
-                    <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">Member</span>::<span class="ident">Named</span>(<span class="ident">ident</span>));
+                    <span class="kw">let</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">member</span>);
                     <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">field_expr</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> })
                 }
             })
@@ -1634,7 +1657,7 @@
 <span class="kw">fn</span> <span class="ident">serialize_enum</span>(<span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>, <span class="ident">variants</span>: <span class="kw-2">&amp;</span>[<span class="ident">Variant</span>], <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>) <span class="op">-&gt;</span> <span class="ident">Fragment</span> {
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">variants</span>.<span class="ident">len</span>() <span class="kw">as</span> <span class="ident">u64</span> <span class="op">&lt;=</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="ident">u32</span>::<span class="ident">max_value</span>()));
 
-    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">self_var</span>;
+    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">self_var</span>;
 
     <span class="kw">let</span> <span class="ident">arms</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">variants</span>
         .<span class="ident">iter</span>()
@@ -1656,9 +1679,9 @@
     <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="ident">Variant</span>,
     <span class="ident">variant_index</span>: <span class="ident">u32</span>,
     <span class="ident">cattrs</span>: <span class="kw-2">&amp;</span><span class="ident">attr</span>::<span class="ident">Container</span>,
-) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
-    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>;
+    <span class="kw">let</span> <span class="ident">variant_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">variant</span>.<span class="ident">ident</span>;
 
     <span class="kw">if</span> <span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>() {
         <span class="kw">let</span> <span class="ident">skipped_msg</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(
@@ -1698,12 +1721,9 @@
                 }
             }
             <span class="ident">Style</span>::<span class="ident">Struct</span> <span class="op">=&gt;</span> {
-                <span class="kw">let</span> <span class="ident">fields</span> <span class="op">=</span> <span class="ident">variant</span>
-                    .<span class="ident">fields</span>
-                    .<span class="ident">iter</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct variant has unnamed fields&quot;</span>));
+                <span class="kw">let</span> <span class="ident">members</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">f</span>.<span class="ident">member</span>);
                 <span class="macro">quote</span><span class="macro">!</span> {
-                    #<span class="ident">this</span>::#<span class="ident">variant_ident</span> { #(<span class="kw-2">ref</span> #<span class="ident">fields</span>),<span class="op">*</span> }
+                    #<span class="ident">this</span>::#<span class="ident">variant_ident</span> { #(<span class="kw-2">ref</span> #<span class="ident">members</span>),<span class="op">*</span> }
                 }
             }
         };
@@ -1809,7 +1829,7 @@
     <span class="kw">let</span> <span class="ident">variant_name</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">name</span>().<span class="ident">serialize_name</span>();
 
     <span class="kw">let</span> <span class="ident">enum_ident_str</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">type_name</span>();
-    <span class="kw">let</span> <span class="ident">variant_ident_str</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>.<span class="ident">as_ref</span>();
+    <span class="kw">let</span> <span class="ident">variant_ident_str</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">ident</span>.<span class="ident">to_string</span>();
 
     <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">attrs</span>.<span class="ident">serialize_with</span>() {
         <span class="kw">let</span> <span class="ident">ser</span> <span class="op">=</span> <span class="ident">wrap_serialize_variant_with</span>(<span class="ident">params</span>, <span class="ident">path</span>, <span class="ident">variant</span>);
@@ -1931,15 +1951,11 @@
                 <span class="macro">unreachable</span><span class="macro">!</span>()
             }
         }
-        <span class="ident">Style</span>::<span class="ident">Newtype</span> <span class="op">=&gt;</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;__field0&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>())],
+        <span class="ident">Style</span>::<span class="ident">Newtype</span> <span class="op">=&gt;</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="ident">Member</span>::<span class="ident">Named</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="string">&quot;__field0&quot;</span>, <span class="ident">Span</span>::<span class="ident">call_site</span>()))],
         <span class="ident">Style</span>::<span class="ident">Tuple</span> <span class="op">=&gt;</span> (<span class="number">0</span>..<span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">len</span>())
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">i</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>()))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">i</span><span class="op">|</span> <span class="ident">Member</span>::<span class="ident">Named</span>(<span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">i</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>())))
             .<span class="ident">collect</span>(),
-        <span class="ident">Style</span>::<span class="ident">Struct</span> <span class="op">=&gt;</span> <span class="ident">variant</span>
-            .<span class="ident">fields</span>
-            .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct variant has unnamed fields&quot;</span>))
-            .<span class="ident">collect</span>(),
+        <span class="ident">Style</span>::<span class="ident">Struct</span> <span class="op">=&gt;</span> <span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">member</span>.<span class="ident">clone</span>()).<span class="ident">collect</span>(),
     };
 
     <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">ty_generics</span>, <span class="ident">where_clause</span>) <span class="op">=</span> <span class="ident">params</span>.<span class="ident">generics</span>.<span class="ident">split_for_impl</span>();
@@ -2125,10 +2141,10 @@
 
     <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">serialized_fields</span>
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">ident</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct has unnamed fields&quot;</span>);
+            <span class="kw">let</span> <span class="ident">member</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">member</span>;
 
             <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing_if</span>() {
-                <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">ident</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> }),
+                <span class="prelude-val">Some</span>(<span class="ident">path</span>) <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="kw">if</span> #<span class="ident">path</span>(#<span class="ident">member</span>) { <span class="number">0</span> } <span class="kw">else</span> { <span class="number">1</span> }),
                 <span class="prelude-val">None</span> <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="number">1</span>),
             }
         })
@@ -2204,7 +2220,7 @@
         } <span class="op">=&gt;</span> {
             <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
             <span class="kw">let</span> <span class="ident">fields_ty</span> <span class="op">=</span> <span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">f</span>.<span class="ident">ty</span>);
-            <span class="kw">let</span> <span class="ident">fields_ident</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">ident</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
+            <span class="kw">let</span> <span class="ident">members</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="kw-2">&amp;</span><span class="ident">f</span>.<span class="ident">member</span>).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;&gt;</span>();
 
             <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">ty_generics</span>, <span class="ident">where_clause</span>) <span class="op">=</span> <span class="ident">params</span>.<span class="ident">generics</span>.<span class="ident">split_for_impl</span>();
             <span class="kw">let</span> <span class="ident">wrapper_generics</span> <span class="op">=</span> <span class="ident">bound</span>::<span class="ident">with_lifetime_bound</span>(<span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">generics</span>, <span class="string">&quot;&#39;__a&quot;</span>);
@@ -2221,7 +2237,7 @@
                     <span class="kw">where</span>
                         <span class="ident">__S</span>: <span class="ident">_serde</span>::<span class="ident">Serializer</span>,
                     {
-                        <span class="kw">let</span> (#(#<span class="ident">fields_ident</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>;
+                        <span class="kw">let</span> (#(#<span class="ident">members</span>,)<span class="kw-2">*</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">data</span>;
                         <span class="kw">let</span> #<span class="ident">let_mut</span> <span class="ident">__serde_state</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">_serde</span>::<span class="ident">Serializer</span>::<span class="ident">serialize_map</span>(
                             <span class="ident">__serializer</span>,
                             <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="prelude-val">None</span>));
@@ -2236,7 +2252,7 @@
                     #<span class="ident">variant_index</span>,
                     #<span class="ident">variant_name</span>,
                     <span class="kw-2">&amp;</span><span class="ident">__EnumFlatten</span> {
-                        <span class="ident">data</span>: (#(#<span class="ident">fields_ident</span>,)<span class="kw-2">*</span>),
+                        <span class="ident">data</span>: (#(#<span class="ident">members</span>,)<span class="kw-2">*</span>),
                         <span class="ident">phantom</span>: <span class="ident">_serde</span>::<span class="ident">export</span>::<span class="ident">PhantomData</span>::<span class="op">&lt;</span>#<span class="ident">this</span> #<span class="ident">ty_generics</span><span class="op">&gt;</span>,
                     })
             }
@@ -2272,7 +2288,7 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">is_enum</span>: <span class="ident">bool</span>,
     <span class="ident">tuple_trait</span>: <span class="kw-2">&amp;</span><span class="ident">TupleTrait</span>,
-) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Tokens</span><span class="op">&gt;</span> {
+) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span> {
     <span class="ident">fields</span>
         .<span class="ident">iter</span>()
         .<span class="ident">enumerate</span>()
@@ -2320,17 +2336,17 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">is_enum</span>: <span class="ident">bool</span>,
     <span class="ident">struct_trait</span>: <span class="kw-2">&amp;</span><span class="ident">StructTrait</span>,
-) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Tokens</span><span class="op">&gt;</span> {
+) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span> {
     <span class="ident">fields</span>
         .<span class="ident">iter</span>()
         .<span class="ident">filter</span>(<span class="op">|</span><span class="kw-2">&amp;</span><span class="ident">field</span><span class="op">|</span> <span class="op">!</span><span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">skip_serializing</span>())
         .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">field_ident</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">ident</span>.<span class="ident">expect</span>(<span class="string">&quot;struct has unnamed field&quot;</span>);
+            <span class="kw">let</span> <span class="ident">member</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">field</span>.<span class="ident">member</span>;
 
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">field_expr</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">is_enum</span> {
-                <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">field_ident</span>)
+                <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">member</span>)
             } <span class="kw">else</span> {
-                <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">Member</span>::<span class="ident">Named</span>(<span class="ident">field_ident</span>))
+                <span class="ident">get_member</span>(<span class="ident">params</span>, <span class="ident">field</span>, <span class="kw-2">&amp;</span><span class="ident">member</span>)
             };
 
             <span class="kw">let</span> <span class="ident">key_expr</span> <span class="op">=</span> <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">name</span>().<span class="ident">serialize_name</span>();
@@ -2384,8 +2400,8 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">field_ty</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>,
     <span class="ident">serialize_with</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span>,
-    <span class="ident">field_expr</span>: <span class="kw-2">&amp;</span><span class="ident">Tokens</span>,
-) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+    <span class="ident">field_expr</span>: <span class="kw-2">&amp;</span><span class="ident">TokenStream</span>,
+) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="ident">wrap_serialize_with</span>(<span class="ident">params</span>, <span class="ident">serialize_with</span>, <span class="kw-2">&amp;</span>[<span class="ident">field_ty</span>], <span class="kw-2">&amp;</span>[<span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">field_expr</span>)])
 }
 
@@ -2393,16 +2409,18 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">serialize_with</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span>,
     <span class="ident">variant</span>: <span class="kw-2">&amp;</span><span class="ident">Variant</span>,
-) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="kw">let</span> <span class="ident">field_tys</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">variant</span>.<span class="ident">fields</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> <span class="ident">field</span>.<span class="ident">ty</span>).<span class="ident">collect</span>();
     <span class="kw">let</span> <span class="ident">field_exprs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">variant</span>
         .<span class="ident">fields</span>
         .<span class="ident">iter</span>()
-        .<span class="ident">enumerate</span>()
-        .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">field</span>)<span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="ident">field</span>
-                .<span class="ident">ident</span>
-                .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">i</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>()));
+        .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field</span><span class="op">|</span> {
+            <span class="kw">let</span> <span class="ident">id</span> <span class="op">=</span> <span class="kw">match</span> <span class="ident">field</span>.<span class="ident">member</span> {
+                <span class="ident">Member</span>::<span class="ident">Named</span>(<span class="kw-2">ref</span> <span class="ident">ident</span>) <span class="op">=&gt;</span> <span class="ident">ident</span>.<span class="ident">clone</span>(),
+                <span class="ident">Member</span>::<span class="ident">Unnamed</span>(<span class="kw-2">ref</span> <span class="ident">member</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">Ident</span>::<span class="ident">new</span>(<span class="kw-2">&amp;</span><span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;__field{}&quot;</span>, <span class="ident">member</span>.<span class="ident">index</span>), <span class="ident">Span</span>::<span class="ident">call_site</span>())
+                }
+            };
             <span class="macro">quote</span><span class="macro">!</span>(#<span class="ident">id</span>)
         })
         .<span class="ident">collect</span>();
@@ -2418,8 +2436,8 @@
     <span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>,
     <span class="ident">serialize_with</span>: <span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">ExprPath</span>,
     <span class="ident">field_tys</span>: <span class="kw-2">&amp;</span>[<span class="kw-2">&amp;</span><span class="ident">syn</span>::<span class="ident">Type</span>],
-    <span class="ident">field_exprs</span>: <span class="kw-2">&amp;</span>[<span class="ident">Tokens</span>],
-) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+    <span class="ident">field_exprs</span>: <span class="kw-2">&amp;</span>[<span class="ident">TokenStream</span>],
+) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
     <span class="kw">let</span> <span class="ident">this</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">this</span>;
     <span class="kw">let</span> (<span class="kw">_</span>, <span class="ident">ty_generics</span>, <span class="ident">where_clause</span>) <span class="op">=</span> <span class="ident">params</span>.<span class="ident">generics</span>.<span class="ident">split_for_impl</span>();
 
@@ -2465,7 +2483,7 @@
 <span class="comment">//     _serde::ser::SerializeStruct::end(__serde_state)</span>
 <span class="comment">//</span>
 <span class="comment">// where we want to omit the `mut` to avoid a warning.</span>
-<span class="kw">fn</span> <span class="ident">mut_if</span>(<span class="ident">is_mut</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Tokens</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">mut_if</span>(<span class="ident">is_mut</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span> {
     <span class="kw">if</span> <span class="ident">is_mut</span> {
         <span class="prelude-val">Some</span>(<span class="macro">quote</span><span class="macro">!</span>(<span class="kw-2">mut</span>))
     } <span class="kw">else</span> {
@@ -2473,8 +2491,8 @@
     }
 }
 
-<span class="kw">fn</span> <span class="ident">get_member</span>(<span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Field</span>, <span class="ident">member</span>: <span class="kw-2">&amp;</span><span class="ident">Member</span>) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
-    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="ident">params</span>.<span class="ident">self_var</span>;
+<span class="kw">fn</span> <span class="ident">get_member</span>(<span class="ident">params</span>: <span class="kw-2">&amp;</span><span class="ident">Parameters</span>, <span class="ident">field</span>: <span class="kw-2">&amp;</span><span class="ident">Field</span>, <span class="ident">member</span>: <span class="kw-2">&amp;</span><span class="ident">Member</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
+    <span class="kw">let</span> <span class="ident">self_var</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">params</span>.<span class="ident">self_var</span>;
     <span class="kw">match</span> (<span class="ident">params</span>.<span class="ident">is_remote</span>, <span class="ident">field</span>.<span class="ident">attrs</span>.<span class="ident">getter</span>()) {
         (<span class="bool-val">false</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> <span class="macro">quote</span><span class="macro">!</span>(<span class="kw-2">&amp;</span>#<span class="ident">self_var</span>.#<span class="ident">member</span>),
         (<span class="bool-val">true</span>, <span class="prelude-val">None</span>) <span class="op">=&gt;</span> {
@@ -2499,7 +2517,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">StructTrait</span> {
-    <span class="kw">fn</span> <span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">StructTrait</span>::<span class="ident">SerializeMap</span> <span class="op">=&gt;</span> {
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="ident">span</span><span class="op">=&gt;</span> <span class="ident">_serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeMap</span>::<span class="ident">serialize_entry</span>)
@@ -2513,7 +2531,7 @@
         }
     }
 
-    <span class="kw">fn</span> <span class="ident">skip_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Tokens</span><span class="op">&gt;</span> {
+    <span class="kw">fn</span> <span class="ident">skip_field</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TokenStream</span><span class="op">&gt;</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">StructTrait</span>::<span class="ident">SerializeMap</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
             <span class="ident">StructTrait</span>::<span class="ident">SerializeStruct</span> <span class="op">=&gt;</span> {
@@ -2533,7 +2551,7 @@
 }
 
 <span class="kw">impl</span> <span class="ident">TupleTrait</span> {
-    <span class="kw">fn</span> <span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Tokens</span> {
+    <span class="kw">fn</span> <span class="ident">serialize_element</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span> {
             <span class="ident">TupleTrait</span>::<span class="ident">SerializeTuple</span> <span class="op">=&gt;</span> {
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="ident">span</span><span class="op">=&gt;</span> <span class="ident">_serde</span>::<span class="ident">ser</span>::<span class="ident">SerializeTuple</span>::<span class="ident">serialize_element</span>)

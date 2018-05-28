@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.56/src/ser/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.62/src/ser/impls.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>impls.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -763,14 +763,6 @@
 <span id="763">763</span>
 <span id="764">764</span>
 <span id="765">765</span>
-<span id="766">766</span>
-<span id="767">767</span>
-<span id="768">768</span>
-<span id="769">769</span>
-<span id="770">770</span>
-<span id="771">771</span>
-<span id="772">772</span>
-<span id="773">773</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -817,6 +809,11 @@
 <span class="macro">primitive_impl</span><span class="macro">!</span>(<span class="ident">f32</span>, <span class="ident">serialize_f32</span>);
 <span class="macro">primitive_impl</span><span class="macro">!</span>(<span class="ident">f64</span>, <span class="ident">serialize_f64</span>);
 <span class="macro">primitive_impl</span><span class="macro">!</span>(<span class="ident">char</span>, <span class="ident">serialize_char</span>);
+
+<span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+    <span class="macro">primitive_impl</span><span class="macro">!</span>(<span class="ident">i128</span>, <span class="ident">serialize_i128</span>);
+    <span class="macro">primitive_impl</span><span class="macro">!</span>(<span class="ident">u128</span>, <span class="ident">serialize_u128</span>);
+}
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
@@ -1182,25 +1179,11 @@
 
 <span class="comment">////////////////////////////////////////////////////////////////////////////////</span>
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>)]</span>
-<span class="attribute">#[<span class="ident">allow</span>(<span class="ident">deprecated</span>)]</span>
-<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">NonZero</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span>
-<span class="kw">where</span>
-    <span class="ident">T</span>: <span class="ident">Serialize</span> <span class="op">+</span> <span class="ident">Zeroable</span> <span class="op">+</span> <span class="ident">Clone</span>,
-{
-    <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
-    <span class="kw">where</span>
-        <span class="ident">S</span>: <span class="ident">Serializer</span>,
-    {
-        <span class="self">self</span>.<span class="ident">clone</span>().<span class="ident">get</span>().<span class="ident">serialize</span>(<span class="ident">serializer</span>)
-    }
-}
-
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">nonzero_integers</span> {
     ( $( <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span>: <span class="ident">ident</span>, )<span class="op">+</span> ) <span class="op">=&gt;</span> {
         $(
-            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;unstable&quot;</span>)]</span>
-            <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span> {
+            <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">num_nonzero</span>)]</span>
+            <span class="kw">impl</span> <span class="ident">Serialize</span> <span class="kw">for</span> <span class="ident">num</span>::<span class="macro-nonterminal">$</span><span class="macro-nonterminal">T</span> {
                 <span class="kw">fn</span> <span class="ident">serialize</span><span class="op">&lt;</span><span class="ident">S</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">serializer</span>: <span class="ident">S</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">S</span>::<span class="prelude-val">Ok</span>, <span class="ident">S</span>::<span class="ident">Error</span><span class="op">&gt;</span>
                 <span class="kw">where</span>
                     <span class="ident">S</span>: <span class="ident">Serializer</span>,
@@ -1323,7 +1306,8 @@
         <span class="ident">S</span>: <span class="ident">Serializer</span>,
     {
         <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">SerializeStruct</span>;
-        <span class="kw">let</span> <span class="ident">duration_since_epoch</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">duration_since</span>(<span class="ident">UNIX_EPOCH</span>)
+        <span class="kw">let</span> <span class="ident">duration_since_epoch</span> <span class="op">=</span> <span class="self">self</span>
+            .<span class="ident">duration_since</span>(<span class="ident">UNIX_EPOCH</span>)
             .<span class="ident">expect</span>(<span class="string">&quot;SystemTime must be later than UNIX_EPOCH&quot;</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">state</span> <span class="op">=</span> <span class="macro">try</span><span class="macro">!</span>(<span class="ident">serializer</span>.<span class="ident">serialize_struct</span>(<span class="string">&quot;SystemTime&quot;</span>, <span class="number">2</span>));
         <span class="macro">try</span><span class="macro">!</span>(<span class="ident">state</span>.<span class="ident">serialize_field</span>(<span class="string">&quot;secs_since_epoch&quot;</span>, <span class="kw-2">&amp;</span><span class="ident">duration_since_epoch</span>.<span class="ident">as_secs</span>()));

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.56/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.62/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1933,6 +1933,66 @@
 <span id="1933">1933</span>
 <span id="1934">1934</span>
 <span id="1935">1935</span>
+<span id="1936">1936</span>
+<span id="1937">1937</span>
+<span id="1938">1938</span>
+<span id="1939">1939</span>
+<span id="1940">1940</span>
+<span id="1941">1941</span>
+<span id="1942">1942</span>
+<span id="1943">1943</span>
+<span id="1944">1944</span>
+<span id="1945">1945</span>
+<span id="1946">1946</span>
+<span id="1947">1947</span>
+<span id="1948">1948</span>
+<span id="1949">1949</span>
+<span id="1950">1950</span>
+<span id="1951">1951</span>
+<span id="1952">1952</span>
+<span id="1953">1953</span>
+<span id="1954">1954</span>
+<span id="1955">1955</span>
+<span id="1956">1956</span>
+<span id="1957">1957</span>
+<span id="1958">1958</span>
+<span id="1959">1959</span>
+<span id="1960">1960</span>
+<span id="1961">1961</span>
+<span id="1962">1962</span>
+<span id="1963">1963</span>
+<span id="1964">1964</span>
+<span id="1965">1965</span>
+<span id="1966">1966</span>
+<span id="1967">1967</span>
+<span id="1968">1968</span>
+<span id="1969">1969</span>
+<span id="1970">1970</span>
+<span id="1971">1971</span>
+<span id="1972">1972</span>
+<span id="1973">1973</span>
+<span id="1974">1974</span>
+<span id="1975">1975</span>
+<span id="1976">1976</span>
+<span id="1977">1977</span>
+<span id="1978">1978</span>
+<span id="1979">1979</span>
+<span id="1980">1980</span>
+<span id="1981">1981</span>
+<span id="1982">1982</span>
+<span id="1983">1983</span>
+<span id="1984">1984</span>
+<span id="1985">1985</span>
+<span id="1986">1986</span>
+<span id="1987">1987</span>
+<span id="1988">1988</span>
+<span id="1989">1989</span>
+<span id="1990">1990</span>
+<span id="1991">1991</span>
+<span id="1992">1992</span>
+<span id="1993">1993</span>
+<span id="1994">1994</span>
+<span id="1995">1995</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -1984,8 +2044,8 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//!  - **Primitive types**:</span>
 <span class="doccomment">//!    - bool</span>
-<span class="doccomment">//!    - i8, i16, i32, i64, isize</span>
-<span class="doccomment">//!    - u8, u16, u32, u64, usize</span>
+<span class="doccomment">//!    - i8, i16, i32, i64, i128, isize</span>
+<span class="doccomment">//!    - u8, u16, u32, u64, u128, usize</span>
 <span class="doccomment">//!    - f32, f64</span>
 <span class="doccomment">//!    - char</span>
 <span class="doccomment">//!    - str</span>
@@ -2017,7 +2077,6 @@
 <span class="doccomment">//!    - LinkedList\&lt;T\&gt;</span>
 <span class="doccomment">//!    - VecDeque\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Vec\&lt;T\&gt;</span>
-<span class="doccomment">//!    - EnumSet\&lt;T\&gt; (unstable)</span>
 <span class="doccomment">//!  - **FFI types**:</span>
 <span class="doccomment">//!    - CStr</span>
 <span class="doccomment">//!    - CString</span>
@@ -2029,8 +2088,7 @@
 <span class="doccomment">//!    - Path</span>
 <span class="doccomment">//!    - PathBuf</span>
 <span class="doccomment">//!    - Range\&lt;T\&gt;</span>
-<span class="doccomment">//!    - NonZero\&lt;T\&gt; (unstable, deprecated)</span>
-<span class="doccomment">//!    - num::NonZero* (unstable)</span>
+<span class="doccomment">//!    - num::NonZero*</span>
 <span class="doccomment">//!  - **Net types**:</span>
 <span class="doccomment">//!    - IpAddr</span>
 <span class="doccomment">//!    - Ipv4Addr</span>
@@ -2183,7 +2241,7 @@
 <span class="doccomment">/// A **data format** that can serialize any data structure supported by Serde.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The role of this trait is to define the serialization half of the Serde data</span>
-<span class="doccomment">/// model, which is a way to categorize every Rust data structure into one of 27</span>
+<span class="doccomment">/// model, which is a way to categorize every Rust data structure into one of 29</span>
 <span class="doccomment">/// possible types. Each method of the `Serializer` trait corresponds to one of</span>
 <span class="doccomment">/// the types of the data model.</span>
 <span class="doccomment">///</span>
@@ -2192,10 +2250,10 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// The types that make up the Serde data model are:</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///  - **12 primitive types**</span>
+<span class="doccomment">///  - **14 primitive types**</span>
 <span class="doccomment">///    - bool</span>
-<span class="doccomment">///    - i8, i16, i32, i64</span>
-<span class="doccomment">///    - u8, u16, u32, u64</span>
+<span class="doccomment">///    - i8, i16, i32, i64, i128</span>
+<span class="doccomment">///    - u8, u16, u32, u64, u128</span>
 <span class="doccomment">///    - f32, f64</span>
 <span class="doccomment">///    - char</span>
 <span class="doccomment">///  - **string**</span>
@@ -2430,6 +2488,37 @@
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_i64</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
 
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// Serialize an `i128` value.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// ```rust</span>
+        <span class="doccomment">/// # #[macro_use]</span>
+        <span class="doccomment">/// # extern crate serde;</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # use serde::Serializer;</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # __private_serialize!();</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// impl Serialize for i128 {</span>
+        <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
+        <span class="doccomment">///     where</span>
+        <span class="doccomment">///         S: Serializer,</span>
+        <span class="doccomment">///     {</span>
+        <span class="doccomment">///         serializer.serialize_i128(*self)</span>
+        <span class="doccomment">///     }</span>
+        <span class="doccomment">/// }</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # fn main() {}</span>
+        <span class="doccomment">/// ```</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default behavior unconditionally returns an error.</span>
+        <span class="kw">fn</span> <span class="ident">serialize_i128</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i128</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">v</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;i128 is not supported&quot;</span>))
+        }
+    }
+
     <span class="doccomment">/// Serialize a `u8` value.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// If the format does not differentiate between `u8` and `u64`, a</span>
@@ -2533,6 +2622,37 @@
     <span class="doccomment">/// # fn main() {}</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">fn</span> <span class="ident">serialize_u64</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u64</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>;
+
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// Serialize a `u128` value.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// ```rust</span>
+        <span class="doccomment">/// # #[macro_use]</span>
+        <span class="doccomment">/// # extern crate serde;</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # use serde::Serializer;</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # __private_serialize!();</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// impl Serialize for u128 {</span>
+        <span class="doccomment">///     fn serialize&lt;S&gt;(&amp;self, serializer: S) -&gt; Result&lt;S::Ok, S::Error&gt;</span>
+        <span class="doccomment">///     where</span>
+        <span class="doccomment">///         S: Serializer,</span>
+        <span class="doccomment">///     {</span>
+        <span class="doccomment">///         serializer.serialize_u128(*self)</span>
+        <span class="doccomment">///     }</span>
+        <span class="doccomment">/// }</span>
+        <span class="doccomment">/// #</span>
+        <span class="doccomment">/// # fn main() {}</span>
+        <span class="doccomment">/// ```</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default behavior unconditionally returns an error.</span>
+        <span class="kw">fn</span> <span class="ident">serialize_u128</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u128</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="prelude-val">Ok</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span> {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">v</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;u128 is not supported&quot;</span>))
+        }
+    }
 
     <span class="doccomment">/// Serialize an `f32` value.</span>
     <span class="doccomment">///</span>

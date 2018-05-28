@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.3/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../uuid/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/uuid-0.6.5/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script><link rel="shortcut icon" href="https://www.rust-lang.org/favicon.ico"></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><a href='../../uuid/index.html'><img src='https://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png' alt='logo' width='100'></a></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1798,10 +1798,73 @@
 <span id="1798">1798</span>
 <span id="1799">1799</span>
 <span id="1800">1800</span>
+<span id="1801">1801</span>
+<span id="1802">1802</span>
+<span id="1803">1803</span>
+<span id="1804">1804</span>
+<span id="1805">1805</span>
+<span id="1806">1806</span>
+<span id="1807">1807</span>
+<span id="1808">1808</span>
+<span id="1809">1809</span>
+<span id="1810">1810</span>
+<span id="1811">1811</span>
+<span id="1812">1812</span>
+<span id="1813">1813</span>
+<span id="1814">1814</span>
+<span id="1815">1815</span>
+<span id="1816">1816</span>
+<span id="1817">1817</span>
+<span id="1818">1818</span>
+<span id="1819">1819</span>
+<span id="1820">1820</span>
+<span id="1821">1821</span>
+<span id="1822">1822</span>
+<span id="1823">1823</span>
+<span id="1824">1824</span>
+<span id="1825">1825</span>
+<span id="1826">1826</span>
+<span id="1827">1827</span>
+<span id="1828">1828</span>
+<span id="1829">1829</span>
+<span id="1830">1830</span>
+<span id="1831">1831</span>
+<span id="1832">1832</span>
+<span id="1833">1833</span>
+<span id="1834">1834</span>
+<span id="1835">1835</span>
+<span id="1836">1836</span>
+<span id="1837">1837</span>
+<span id="1838">1838</span>
+<span id="1839">1839</span>
+<span id="1840">1840</span>
+<span id="1841">1841</span>
+<span id="1842">1842</span>
+<span id="1843">1843</span>
+<span id="1844">1844</span>
+<span id="1845">1845</span>
+<span id="1846">1846</span>
+<span id="1847">1847</span>
+<span id="1848">1848</span>
+<span id="1849">1849</span>
+<span id="1850">1850</span>
+<span id="1851">1851</span>
+<span id="1852">1852</span>
+<span id="1853">1853</span>
+<span id="1854">1854</span>
+<span id="1855">1855</span>
+<span id="1856">1856</span>
+<span id="1857">1857</span>
+<span id="1858">1858</span>
+<span id="1859">1859</span>
+<span id="1860">1860</span>
+<span id="1861">1861</span>
+<span id="1862">1862</span>
 </pre><pre class="rust ">
-<span class="comment">// Copyright 2013-2014 The Rust Project Developers. See the COPYRIGHT</span>
-<span class="comment">// file at the top-level directory of this distribution and at</span>
-<span class="comment">// http://rust-lang.org/COPYRIGHT.</span>
+<span class="comment">// Copyright 2013-2014 The Rust Project Developers.</span>
+<span class="comment">// Copyright 2018 The Uuid Project Developers.</span>
+<span class="comment">//</span>
+<span class="comment">// See the COPYRIGHT file at the top-level directory of this distribution.</span>
 <span class="comment">//</span>
 <span class="comment">// Licensed under the Apache License, Version 2.0 &lt;LICENSE-APACHE or</span>
 <span class="comment">// http://www.apache.org/licenses/LICENSE-2.0&gt; or the MIT license</span>
@@ -1912,9 +1975,14 @@
 )]</span>
 <span class="attribute">#![<span class="ident">deny</span>(<span class="ident">warnings</span>)]</span>
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>), <span class="ident">no_std</span>)]</span>
+<span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>, <span class="ident">feature</span>(<span class="ident">const_fn</span>))]</span>
 
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;byteorder&quot;</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">byteorder</span>;
 <span class="attribute">#[<span class="ident">macro_use</span>]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">cfg_if</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;std&quot;</span>)]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">core</span>;
 
 <span class="macro">cfg_if</span><span class="macro">!</span> {
     <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;md5&quot;</span>)]</span> {
@@ -1973,7 +2041,10 @@
 
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">prelude</span>;
 
+<span class="kw">mod</span> <span class="ident">adapter</span>;
 <span class="kw">mod</span> <span class="ident">core_support</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;u128&quot;</span>)]</span>
+<span class="kw">mod</span> <span class="ident">u128_support</span>;
 
 <span class="macro">cfg_if</span><span class="macro">!</span> {
     <span class="kw">if</span> <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;serde&quot;</span>)]</span> {
@@ -2142,9 +2213,6 @@
     <span class="ident">InvalidGroupLength</span>(<span class="ident">usize</span>, <span class="ident">usize</span>, <span class="ident">u8</span>),
 }
 
-<span class="kw">const</span> <span class="ident">SIMPLE_LENGTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">32</span>;
-<span class="kw">const</span> <span class="ident">HYPHENATED_LENGTH</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">36</span>;
-
 <span class="doccomment">/// Converts a `ParseError` to a string.</span>
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Display</span> <span class="kw">for</span> <span class="ident">ParseError</span> {
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
@@ -2152,7 +2220,9 @@
             <span class="ident">ParseError</span>::<span class="ident">InvalidLength</span>(<span class="ident">found</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(
                 <span class="ident">f</span>,
                 <span class="string">&quot;Invalid length; expecting {} or {} chars, found {}&quot;</span>,
-                <span class="ident">SIMPLE_LENGTH</span>, <span class="ident">HYPHENATED_LENGTH</span>, <span class="ident">found</span>
+                <span class="ident">adapter</span>::<span class="ident">UUID_SIMPLE_LENGTH</span>,
+                <span class="ident">adapter</span>::<span class="ident">UUID_HYPHENATED_LENGTH</span>,
+                <span class="ident">found</span>
             ),
             <span class="ident">ParseError</span>::<span class="ident">InvalidCharacter</span>(<span class="ident">found</span>, <span class="ident">pos</span>) <span class="op">=&gt;</span> <span class="macro">write</span><span class="macro">!</span>(
                 <span class="ident">f</span>,
@@ -2198,6 +2268,31 @@
     <span class="doccomment">/// assert_eq!(uuid.hyphenated().to_string(),</span>
     <span class="doccomment">///            &quot;00000000-0000-0000-0000-000000000000&quot;);</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">nil</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
+        <span class="ident">Uuid</span> { <span class="ident">bytes</span>: [<span class="number">0</span>; <span class="number">16</span>] }
+    }
+
+    <span class="doccomment">/// The &#39;nil UUID&#39;.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// The nil UUID is special form of UUID that is specified to have all</span>
+    <span class="doccomment">/// 128 bits set to zero, as defined in [IETF RFC 4122 Section 4.1.7][RFC].</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// [RFC]: https://tools.ietf.org/html/rfc4122.html#section-4.1.7</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// Basic usage:</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// use uuid::Uuid;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let uuid = Uuid::nil();</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// assert_eq!(uuid.hyphenated().to_string(),</span>
+    <span class="doccomment">///            &quot;00000000-0000-0000-0000-000000000000&quot;);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">nil</span>() <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
         <span class="ident">Uuid</span> { <span class="ident">bytes</span>: [<span class="number">0</span>; <span class="number">16</span>] }
     }
@@ -2517,8 +2612,14 @@
     <span class="doccomment">///</span>
     <span class="doccomment">/// let uuid = Uuid::from_uuid_bytes(bytes);</span>
     <span class="doccomment">/// ```</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_uuid_bytes</span>(<span class="ident">b</span>: <span class="ident">UuidBytes</span>) <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
-        <span class="ident">Uuid</span> { <span class="ident">bytes</span>: <span class="ident">b</span> }
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>))]</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">from_uuid_bytes</span>(<span class="ident">bytes</span>: <span class="ident">UuidBytes</span>) <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
+        <span class="ident">Uuid</span> { <span class="ident">bytes</span> }
+    }
+
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">from_uuid_bytes</span>(<span class="ident">bytes</span>: <span class="ident">UuidBytes</span>) <span class="op">-&gt;</span> <span class="ident">Uuid</span> {
+        <span class="ident">Uuid</span> { <span class="ident">bytes</span> }
     }
 
     <span class="doccomment">/// Creates a v4 Uuid from random bytes (e.g. bytes supplied from `Rand` crate)</span>
@@ -2646,8 +2747,10 @@
     <span class="doccomment">///            (0x936DA01F, 0x9ABD, 0x4D9D, b&quot;\x80\xC7\x02\xAF\x85\xC8\x22\xA8&quot;));</span>
     <span class="doccomment">/// ```</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_fields</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> (<span class="ident">u32</span>, <span class="ident">u16</span>, <span class="ident">u16</span>, <span class="kw-2">&amp;</span>[<span class="ident">u8</span>; <span class="number">8</span>]) {
-        <span class="kw">let</span> <span class="ident">d1</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span> <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
-            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">3</span>]);
+        <span class="kw">let</span> <span class="ident">d1</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">3</span>]);
 
         <span class="kw">let</span> <span class="ident">d2</span> <span class="op">=</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">4</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">5</span>]);
 
@@ -2672,6 +2775,27 @@
     <span class="doccomment">///            &amp;[147, 109, 160, 31, 154, 189, 77, 157,</span>
     <span class="doccomment">///              128, 199, 2, 175, 133, 200, 34, 168]);</span>
     <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>)]</span>
+    <span class="kw">pub</span> <span class="kw">const</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>; <span class="number">16</span>] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">bytes</span>
+    }
+
+    <span class="doccomment">/// Returns an array of 16 octets containing the UUID data.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// # Examples</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// ```</span>
+    <span class="doccomment">/// use uuid::Uuid;</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let uuid = Uuid::nil();</span>
+    <span class="doccomment">/// assert_eq!(uuid.as_bytes(), &amp;[0; 16]);</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// let uuid = Uuid::parse_str(&quot;936DA01F9ABD4d9d80C702AF85C822A8&quot;).unwrap();</span>
+    <span class="doccomment">/// assert_eq!(uuid.as_bytes(),</span>
+    <span class="doccomment">///            &amp;[147, 109, 160, 31, 154, 189, 77, 157,</span>
+    <span class="doccomment">///              128, 199, 2, 175, 133, 200, 34, 168]);</span>
+    <span class="doccomment">/// ```</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;const_fn&quot;</span>))]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_bytes</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">u8</span>; <span class="number">16</span>] {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">bytes</span>
     }
@@ -2728,17 +2852,22 @@
     <span class="doccomment">/// counter portion of a V1 UUID.  If the supplied UUID is not V1, this</span>
     <span class="doccomment">/// will return None</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">to_timestamp</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">u64</span>, <span class="ident">u16</span>)<span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">get_version</span>()
+        <span class="kw">if</span> <span class="self">self</span>
+            .<span class="ident">get_version</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">v</span><span class="op">|</span> <span class="ident">v</span> <span class="op">!=</span> <span class="ident">UuidVersion</span>::<span class="ident">Mac</span>)
             .<span class="ident">unwrap_or</span>(<span class="bool-val">true</span>)
         {
             <span class="kw">return</span> <span class="prelude-val">None</span>;
         }
 
-        <span class="kw">let</span> <span class="ident">ts</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">6</span>] <span class="op">&amp;</span> <span class="number">0x0F</span>) <span class="op">&lt;&lt;</span> <span class="number">56</span> <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">7</span>]) <span class="op">&lt;&lt;</span> <span class="number">48</span>
-            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">4</span>]) <span class="op">&lt;&lt;</span> <span class="number">40</span> <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">5</span>]) <span class="op">&lt;&lt;</span> <span class="number">32</span>
-            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span> <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
-            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">3</span>]);
+        <span class="kw">let</span> <span class="ident">ts</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">6</span>] <span class="op">&amp;</span> <span class="number">0x0F</span>) <span class="op">&lt;&lt;</span> <span class="number">56</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">7</span>]) <span class="op">&lt;&lt;</span> <span class="number">48</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">4</span>]) <span class="op">&lt;&lt;</span> <span class="number">40</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">5</span>]) <span class="op">&lt;&lt;</span> <span class="number">32</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span>
+            <span class="op">|</span> <span class="ident">u64</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">3</span>]);
 
         <span class="kw">let</span> <span class="ident">count</span>: <span class="ident">u16</span> <span class="op">=</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">8</span>] <span class="op">&amp;</span> <span class="number">0x3F</span>) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="self">self</span>.<span class="ident">bytes</span>[<span class="number">9</span>]);
 
@@ -2752,9 +2881,9 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse_str</span>(<span class="kw-2">mut</span> <span class="ident">input</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">Uuid</span>, <span class="ident">ParseError</span><span class="op">&gt;</span> {
         <span class="comment">// Ensure length is valid for any of the supported formats</span>
         <span class="kw">let</span> <span class="ident">len</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">len</span>();
-        <span class="kw">if</span> <span class="ident">len</span> <span class="op">==</span> (<span class="ident">HYPHENATED_LENGTH</span> <span class="op">+</span> <span class="number">9</span>) <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">starts_with</span>(<span class="string">&quot;urn:uuid:&quot;</span>) {
+        <span class="kw">if</span> <span class="ident">len</span> <span class="op">==</span> (<span class="ident">adapter</span>::<span class="ident">UUID_HYPHENATED_LENGTH</span> <span class="op">+</span> <span class="number">9</span>) <span class="op">&amp;&amp;</span> <span class="ident">input</span>.<span class="ident">starts_with</span>(<span class="string">&quot;urn:uuid:&quot;</span>) {
             <span class="ident">input</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">input</span>[<span class="number">9</span>..];
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">len</span> <span class="op">!=</span> <span class="ident">SIMPLE_LENGTH</span> <span class="op">&amp;&amp;</span> <span class="ident">len</span> <span class="op">!=</span> <span class="ident">HYPHENATED_LENGTH</span> {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="ident">len</span> <span class="op">!=</span> <span class="ident">adapter</span>::<span class="ident">UUID_SIMPLE_LENGTH</span> <span class="op">&amp;&amp;</span> <span class="ident">len</span> <span class="op">!=</span> <span class="ident">adapter</span>::<span class="ident">UUID_HYPHENATED_LENGTH</span> {
             <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseError</span>::<span class="ident">InvalidLength</span>(<span class="ident">len</span>));
         }
 
@@ -2765,7 +2894,7 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">16</span>];
 
         <span class="kw">for</span> (<span class="ident">i_char</span>, <span class="ident">chr</span>) <span class="kw">in</span> <span class="ident">input</span>.<span class="ident">bytes</span>().<span class="ident">enumerate</span>() {
-            <span class="kw">if</span> <span class="ident">digit</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;=</span> <span class="ident">SIMPLE_LENGTH</span> <span class="op">&amp;&amp;</span> <span class="ident">group</span> <span class="op">!=</span> <span class="number">4</span> {
+            <span class="kw">if</span> <span class="ident">digit</span> <span class="kw">as</span> <span class="ident">usize</span> <span class="op">&gt;=</span> <span class="ident">adapter</span>::<span class="ident">UUID_SIMPLE_LENGTH</span> <span class="op">&amp;&amp;</span> <span class="ident">group</span> <span class="op">!=</span> <span class="number">4</span> {
                 <span class="kw">if</span> <span class="ident">group</span> <span class="op">==</span> <span class="number">0</span> {
                     <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">ParseError</span>::<span class="ident">InvalidLength</span>(<span class="ident">len</span>));
                 }
@@ -2887,8 +3016,10 @@
 
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">hyphenated_write</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">f</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">format</span>:<span class="ident">expr</span>, <span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>:<span class="ident">expr</span>) <span class="op">=&gt;</span> {{
-        <span class="kw">let</span> <span class="ident">data1</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span> <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
-            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">3</span>]);
+        <span class="kw">let</span> <span class="ident">data1</span> <span class="op">=</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">0</span>]) <span class="op">&lt;&lt;</span> <span class="number">24</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">1</span>]) <span class="op">&lt;&lt;</span> <span class="number">16</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">2</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span>
+            <span class="op">|</span> <span class="ident">u32</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">3</span>]);
 
         <span class="kw">let</span> <span class="ident">data2</span> <span class="op">=</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">4</span>]) <span class="op">&lt;&lt;</span> <span class="number">8</span> <span class="op">|</span> <span class="ident">u16</span>::<span class="ident">from</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">bytes</span>[<span class="number">5</span>]);
 
@@ -3407,25 +3538,18 @@
             };
         }
 
-        <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:X}&quot;</span>, <span class="ident">u</span>, <span class="number">36</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_uppercase</span>() <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>)
+        <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:X}&quot;</span>, <span class="ident">u</span>, <span class="number">36</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_uppercase</span>()
+            <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>)
             <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;-&#39;</span>);
-        <span class="macro">check</span><span class="macro">!</span>(
-            <span class="ident">buf</span>,
-            <span class="string">&quot;{:X}&quot;</span>,
-            <span class="ident">u</span>.<span class="ident">hyphenated</span>(),
-            <span class="number">36</span>,
-            <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_uppercase</span>() <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;-&#39;</span>
-        );
+        <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:X}&quot;</span>, <span class="ident">u</span>.<span class="ident">hyphenated</span>(), <span class="number">36</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_uppercase</span>()
+            <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>)
+            <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;-&#39;</span>);
         <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:X}&quot;</span>, <span class="ident">u</span>.<span class="ident">simple</span>(), <span class="number">32</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_uppercase</span>()
             <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>));
 
-        <span class="macro">check</span><span class="macro">!</span>(
-            <span class="ident">buf</span>,
-            <span class="string">&quot;{:x}&quot;</span>,
-            <span class="ident">u</span>.<span class="ident">hyphenated</span>(),
-            <span class="number">36</span>,
-            <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_lowercase</span>() <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;-&#39;</span>
-        );
+        <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:x}&quot;</span>, <span class="ident">u</span>.<span class="ident">hyphenated</span>(), <span class="number">36</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_lowercase</span>()
+            <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>)
+            <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;-&#39;</span>);
         <span class="macro">check</span><span class="macro">!</span>(<span class="ident">buf</span>, <span class="string">&quot;{:x}&quot;</span>, <span class="ident">u</span>.<span class="ident">simple</span>(), <span class="number">32</span>, <span class="op">|</span><span class="ident">c</span><span class="op">|</span> <span class="ident">c</span>.<span class="ident">is_lowercase</span>()
             <span class="op">||</span> <span class="ident">c</span>.<span class="ident">is_digit</span>(<span class="number">10</span>));
     }

@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.56/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.62/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2090,6 +2090,144 @@
 <span id="2090">2090</span>
 <span id="2091">2091</span>
 <span id="2092">2092</span>
+<span id="2093">2093</span>
+<span id="2094">2094</span>
+<span id="2095">2095</span>
+<span id="2096">2096</span>
+<span id="2097">2097</span>
+<span id="2098">2098</span>
+<span id="2099">2099</span>
+<span id="2100">2100</span>
+<span id="2101">2101</span>
+<span id="2102">2102</span>
+<span id="2103">2103</span>
+<span id="2104">2104</span>
+<span id="2105">2105</span>
+<span id="2106">2106</span>
+<span id="2107">2107</span>
+<span id="2108">2108</span>
+<span id="2109">2109</span>
+<span id="2110">2110</span>
+<span id="2111">2111</span>
+<span id="2112">2112</span>
+<span id="2113">2113</span>
+<span id="2114">2114</span>
+<span id="2115">2115</span>
+<span id="2116">2116</span>
+<span id="2117">2117</span>
+<span id="2118">2118</span>
+<span id="2119">2119</span>
+<span id="2120">2120</span>
+<span id="2121">2121</span>
+<span id="2122">2122</span>
+<span id="2123">2123</span>
+<span id="2124">2124</span>
+<span id="2125">2125</span>
+<span id="2126">2126</span>
+<span id="2127">2127</span>
+<span id="2128">2128</span>
+<span id="2129">2129</span>
+<span id="2130">2130</span>
+<span id="2131">2131</span>
+<span id="2132">2132</span>
+<span id="2133">2133</span>
+<span id="2134">2134</span>
+<span id="2135">2135</span>
+<span id="2136">2136</span>
+<span id="2137">2137</span>
+<span id="2138">2138</span>
+<span id="2139">2139</span>
+<span id="2140">2140</span>
+<span id="2141">2141</span>
+<span id="2142">2142</span>
+<span id="2143">2143</span>
+<span id="2144">2144</span>
+<span id="2145">2145</span>
+<span id="2146">2146</span>
+<span id="2147">2147</span>
+<span id="2148">2148</span>
+<span id="2149">2149</span>
+<span id="2150">2150</span>
+<span id="2151">2151</span>
+<span id="2152">2152</span>
+<span id="2153">2153</span>
+<span id="2154">2154</span>
+<span id="2155">2155</span>
+<span id="2156">2156</span>
+<span id="2157">2157</span>
+<span id="2158">2158</span>
+<span id="2159">2159</span>
+<span id="2160">2160</span>
+<span id="2161">2161</span>
+<span id="2162">2162</span>
+<span id="2163">2163</span>
+<span id="2164">2164</span>
+<span id="2165">2165</span>
+<span id="2166">2166</span>
+<span id="2167">2167</span>
+<span id="2168">2168</span>
+<span id="2169">2169</span>
+<span id="2170">2170</span>
+<span id="2171">2171</span>
+<span id="2172">2172</span>
+<span id="2173">2173</span>
+<span id="2174">2174</span>
+<span id="2175">2175</span>
+<span id="2176">2176</span>
+<span id="2177">2177</span>
+<span id="2178">2178</span>
+<span id="2179">2179</span>
+<span id="2180">2180</span>
+<span id="2181">2181</span>
+<span id="2182">2182</span>
+<span id="2183">2183</span>
+<span id="2184">2184</span>
+<span id="2185">2185</span>
+<span id="2186">2186</span>
+<span id="2187">2187</span>
+<span id="2188">2188</span>
+<span id="2189">2189</span>
+<span id="2190">2190</span>
+<span id="2191">2191</span>
+<span id="2192">2192</span>
+<span id="2193">2193</span>
+<span id="2194">2194</span>
+<span id="2195">2195</span>
+<span id="2196">2196</span>
+<span id="2197">2197</span>
+<span id="2198">2198</span>
+<span id="2199">2199</span>
+<span id="2200">2200</span>
+<span id="2201">2201</span>
+<span id="2202">2202</span>
+<span id="2203">2203</span>
+<span id="2204">2204</span>
+<span id="2205">2205</span>
+<span id="2206">2206</span>
+<span id="2207">2207</span>
+<span id="2208">2208</span>
+<span id="2209">2209</span>
+<span id="2210">2210</span>
+<span id="2211">2211</span>
+<span id="2212">2212</span>
+<span id="2213">2213</span>
+<span id="2214">2214</span>
+<span id="2215">2215</span>
+<span id="2216">2216</span>
+<span id="2217">2217</span>
+<span id="2218">2218</span>
+<span id="2219">2219</span>
+<span id="2220">2220</span>
+<span id="2221">2221</span>
+<span id="2222">2222</span>
+<span id="2223">2223</span>
+<span id="2224">2224</span>
+<span id="2225">2225</span>
+<span id="2226">2226</span>
+<span id="2227">2227</span>
+<span id="2228">2228</span>
+<span id="2229">2229</span>
+<span id="2230">2230</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2145,8 +2283,8 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//!  - **Primitive types**:</span>
 <span class="doccomment">//!    - bool</span>
-<span class="doccomment">//!    - i8, i16, i32, i64, isize</span>
-<span class="doccomment">//!    - u8, u16, u32, u64, usize</span>
+<span class="doccomment">//!    - i8, i16, i32, i64, i128, isize</span>
+<span class="doccomment">//!    - u8, u16, u32, u64, u128, usize</span>
 <span class="doccomment">//!    - f32, f64</span>
 <span class="doccomment">//!    - char</span>
 <span class="doccomment">//!  - **Compound types**:</span>
@@ -2177,7 +2315,6 @@
 <span class="doccomment">//!    - LinkedList\&lt;T\&gt;</span>
 <span class="doccomment">//!    - VecDeque\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Vec\&lt;T\&gt;</span>
-<span class="doccomment">//!    - EnumSet\&lt;T\&gt; (unstable)</span>
 <span class="doccomment">//!  - **Zero-copy types**:</span>
 <span class="doccomment">//!    - &amp;str</span>
 <span class="doccomment">//!    - &amp;[u8]</span>
@@ -2191,8 +2328,7 @@
 <span class="doccomment">//!    - Path</span>
 <span class="doccomment">//!    - PathBuf</span>
 <span class="doccomment">//!    - Range\&lt;T\&gt;</span>
-<span class="doccomment">//!    - NonZero\&lt;T\&gt; (unstable, deprecated)</span>
-<span class="doccomment">//!    - num::NonZero* (unstable)</span>
+<span class="doccomment">//!    - num::NonZero*</span>
 <span class="doccomment">//!  - **Net types**:</span>
 <span class="doccomment">//!    - IpAddr</span>
 <span class="doccomment">//!    - Ipv4Addr</span>
@@ -2599,6 +2735,14 @@
 <span class="doccomment">/// [de]: https://docs.serde.rs/serde/de/index.html</span>
 <span class="doccomment">/// [codegen]: https://serde.rs/codegen.html</span>
 <span class="doccomment">/// [impl-deserialize]: https://serde.rs/impl-deserialize.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by `Self` when deserialized. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// Deserialize this value from the given Serde deserializer.</span>
     <span class="doccomment">///</span>
@@ -2663,6 +2807,14 @@
 <span class="doccomment">///     T: DeserializeOwned;</span>
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The relationship between `Deserialize` and `DeserializeOwned` in trait</span>
+<span class="doccomment">/// bounds is explained in more detail on the page [Understanding deserializer</span>
+<span class="doccomment">/// lifetimes].</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">DeserializeOwned</span>: <span class="kw">for</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> <span class="ident">Deserialize</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {}
 <span class="kw">impl</span><span class="op">&lt;</span><span class="ident">T</span><span class="op">&gt;</span> <span class="ident">DeserializeOwned</span> <span class="kw">for</span> <span class="ident">T</span>
 <span class="kw">where</span>
@@ -2712,6 +2864,14 @@
 <span class="doccomment">/// In practice the majority of deserialization is stateless. An API expecting a</span>
 <span class="doccomment">/// seed can be appeased by passing `std::marker::PhantomData` as a seed in the</span>
 <span class="doccomment">/// case of stateless deserialization.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by `Self::Value` when deserialized. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
@@ -2852,7 +3012,7 @@
 <span class="doccomment">/// Serde.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The role of this trait is to define the deserialization half of the Serde</span>
-<span class="doccomment">/// data model, which is a way to categorize every Rust data type into one of 27</span>
+<span class="doccomment">/// data model, which is a way to categorize every Rust data type into one of 29</span>
 <span class="doccomment">/// possible types. Each method of the `Serializer` trait corresponds to one of</span>
 <span class="doccomment">/// the types of the data model.</span>
 <span class="doccomment">///</span>
@@ -2862,10 +3022,10 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// The types that make up the Serde data model are:</span>
 <span class="doccomment">///</span>
-<span class="doccomment">///  - **12 primitive types**</span>
+<span class="doccomment">///  - **14 primitive types**</span>
 <span class="doccomment">///    - bool</span>
-<span class="doccomment">///    - i8, i16, i32, i64</span>
-<span class="doccomment">///    - u8, u16, u32, u64</span>
+<span class="doccomment">///    - i8, i16, i32, i64, i128</span>
+<span class="doccomment">///    - u8, u16, u32, u64, u128</span>
 <span class="doccomment">///    - f32, f64</span>
 <span class="doccomment">///    - char</span>
 <span class="doccomment">///  - **string**</span>
@@ -2936,6 +3096,14 @@
 <span class="doccomment">/// what type is in the input. Know that relying on `Deserializer::deserialize_any`</span>
 <span class="doccomment">/// means your data type will be able to deserialize from self-describing</span>
 <span class="doccomment">/// formats only, ruling out Bincode and many others.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed from the input when deserializing. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -2979,6 +3147,20 @@
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>;
 
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// Hint that the `Deserialize` type is expecting an `i128` value.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default behavior unconditionally returns an error.</span>
+        <span class="kw">fn</span> <span class="ident">deserialize_i128</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+        {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">visitor</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;i128 is not supported&quot;</span>))
+        }
+    }
+
     <span class="doccomment">/// Hint that the `Deserialize` type is expecting a `u8` value.</span>
     <span class="kw">fn</span> <span class="ident">deserialize_u8</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
@@ -2998,6 +3180,20 @@
     <span class="kw">fn</span> <span class="ident">deserialize_u64</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
     <span class="kw">where</span>
         <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>;
+
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// Hint that the `Deserialize` type is expecting an `u128` value.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default behavior unconditionally returns an error.</span>
+        <span class="kw">fn</span> <span class="ident">deserialize_u128</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">V</span>: <span class="ident">Visitor</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>
+        {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">visitor</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">custom</span>(<span class="string">&quot;u128 is not supported&quot;</span>))
+        }
+    }
 
     <span class="doccomment">/// Hint that the `Deserialize` type is expecting a `f32` value.</span>
     <span class="kw">fn</span> <span class="ident">deserialize_f32</span><span class="op">&lt;</span><span class="ident">V</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">visitor</span>: <span class="ident">V</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">V</span>::<span class="ident">Value</span>, <span class="self">Self</span>::<span class="ident">Error</span><span class="op">&gt;</span>
@@ -3231,6 +3427,16 @@
 
 <span class="doccomment">/// This trait represents a visitor that walks through a deserializer.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the requirement for lifetime of data</span>
+<span class="doccomment">/// that may be borrowed by `Self::Value`. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// # use std::fmt;</span>
 <span class="doccomment">/// #</span>
@@ -3345,6 +3551,20 @@
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Signed</span>(<span class="ident">v</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
     }
 
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// The input contains a `i128`.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default implementation fails with a type error.</span>
+        <span class="kw">fn</span> <span class="ident">visit_i128</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">i128</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">E</span>: <span class="ident">Error</span>,
+        {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">v</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;i128&quot;</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
+        }
+    }
+
     <span class="doccomment">/// The input contains a `u8`.</span>
     <span class="doccomment">///</span>
     <span class="doccomment">/// The default implementation forwards to [`visit_u64`].</span>
@@ -3389,6 +3609,20 @@
         <span class="ident">E</span>: <span class="ident">Error</span>,
     {
         <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Unsigned</span>(<span class="ident">v</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
+    }
+
+    <span class="macro">serde_if_integer128</span><span class="macro">!</span> {
+        <span class="doccomment">/// The input contains a `u128`.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// This method is available only on Rust compiler versions &gt;=1.26. The</span>
+        <span class="doccomment">/// default implementation fails with a type error.</span>
+        <span class="kw">fn</span> <span class="ident">visit_u128</span><span class="op">&lt;</span><span class="ident">E</span><span class="op">&gt;</span>(<span class="self">self</span>, <span class="ident">v</span>: <span class="ident">u128</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="self">Self</span>::<span class="ident">Value</span>, <span class="ident">E</span><span class="op">&gt;</span>
+        <span class="kw">where</span>
+            <span class="ident">E</span>: <span class="ident">Error</span>,
+        {
+            <span class="kw">let</span> <span class="kw">_</span> <span class="op">=</span> <span class="ident">v</span>;
+            <span class="prelude-val">Err</span>(<span class="ident">Error</span>::<span class="ident">invalid_type</span>(<span class="ident">Unexpected</span>::<span class="ident">Other</span>(<span class="string">&quot;u128&quot;</span>), <span class="kw-2">&amp;</span><span class="self">self</span>))
+        }
     }
 
     <span class="doccomment">/// The input contains an `f32`.</span>
@@ -3639,6 +3873,14 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is a trait that a `Deserializer` passes to a `Visitor` implementation,</span>
 <span class="doccomment">/// which deserializes each item in a sequence.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by deserialized sequence elements. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -3706,6 +3948,14 @@
 <span class="doccomment">/// Provides a `Visitor` access to each entry of a map in the input.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// This is a trait that a `Deserializer` passes to a `Visitor` implementation.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by deserialized map entries. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -3883,6 +4133,14 @@
 <span class="doccomment">///</span>
 <span class="doccomment">/// `EnumAccess` is created by the `Deserializer` and passed to the</span>
 <span class="doccomment">/// `Visitor` in order to identify which variant of an enum to deserialize.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by the deserialized enum variant. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">EnumAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -3915,6 +4173,14 @@
 <span class="doccomment">/// `VariantAccess` is a visitor that is created by the `Deserializer` and</span>
 <span class="doccomment">/// passed to the `Deserialize` to deserialize the content of a particular enum</span>
 <span class="doccomment">/// variant.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed by the deserialized enum variant. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">VariantAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization. Must match the error type of our `EnumAccess`.</span>
@@ -4117,6 +4383,16 @@
 
 <span class="doccomment">/// Converts an existing value into a `Deserializer` from which other values can</span>
 <span class="doccomment">/// be deserialized.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Lifetime</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
+<span class="doccomment">/// borrowed from the resulting `Deserializer`. See the page [Understanding</span>
+<span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// #[macro_use]</span>

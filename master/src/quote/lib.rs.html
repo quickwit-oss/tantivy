@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/quote-0.5.2/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/quote-0.6.2/src/lib.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>lib.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -538,7 +538,7 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```toml</span>
 <span class="doccomment">//! [dependencies]</span>
-<span class="doccomment">//! quote = &quot;0.5&quot;</span>
+<span class="doccomment">//! quote = &quot;0.6&quot;</span>
 <span class="doccomment">//! ```</span>
 <span class="doccomment">//!</span>
 <span class="doccomment">//! ```</span>
@@ -580,7 +580,8 @@
 <span class="doccomment">//!</span>
 <span class="doccomment">//!     impl #generics serde::Serialize for SerializeWith #generics #where_clause {</span>
 <span class="doccomment">//!         fn serialize&lt;S&gt;(&amp;self, s: &amp;mut S) -&gt; Result&lt;(), S::Error&gt;</span>
-<span class="doccomment">//!             where S: serde::Serializer</span>
+<span class="doccomment">//!         where</span>
+<span class="doccomment">//!             S: serde::Serializer,</span>
 <span class="doccomment">//!         {</span>
 <span class="doccomment">//!             #path(self.value, s)</span>
 <span class="doccomment">//!         }</span>
@@ -603,14 +604,14 @@
 <span class="doccomment">//! An even higher limit may be necessary for especially large invocations.</span>
 
 <span class="comment">// Quote types in rustdoc of other crates get linked to here.</span>
-<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/quote/0.5.2&quot;</span>)]</span>
+<span class="attribute">#![<span class="ident">doc</span>(<span class="ident">html_root_url</span> <span class="op">=</span> <span class="string">&quot;https://docs.rs/quote/0.6.2&quot;</span>)]</span>
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">proc_macro2</span>;
 
-<span class="kw">mod</span> <span class="ident">tokens</span>;
-<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">tokens</span>::<span class="ident">Tokens</span>;
+<span class="kw">mod</span> <span class="ident">ext</span>;
+<span class="kw">pub</span> <span class="kw">use</span> <span class="ident">ext</span>::<span class="ident">TokenStreamExt</span>;
 
 <span class="kw">mod</span> <span class="ident">to_tokens</span>;
 <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">to_tokens</span>::<span class="ident">ToTokens</span>;
@@ -622,9 +623,9 @@
     <span class="kw">pub</span> <span class="kw">use</span> <span class="ident">proc_macro2</span>::<span class="kw-2">*</span>;
 
     <span class="comment">// Not public API.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> ::<span class="ident">Tokens</span>, <span class="ident">span</span>: <span class="ident">Span</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">parse</span>(<span class="ident">tokens</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>, <span class="ident">span</span>: <span class="ident">Span</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
         <span class="kw">let</span> <span class="ident">s</span>: <span class="ident">TokenStream</span> <span class="op">=</span> <span class="ident">s</span>.<span class="ident">parse</span>().<span class="ident">expect</span>(<span class="string">&quot;invalid token stream&quot;</span>);
-        <span class="ident">tokens</span>.<span class="ident">append_all</span>(<span class="ident">s</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">t</span><span class="op">|</span> {
+        <span class="ident">tokens</span>.<span class="ident">extend</span>(<span class="ident">s</span>.<span class="ident">into_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="kw-2">mut</span> <span class="ident">t</span><span class="op">|</span> {
             <span class="ident">t</span>.<span class="ident">set_span</span>(<span class="ident">span</span>);
             <span class="ident">t</span>
         }));
@@ -634,10 +635,10 @@
 <span class="doccomment">/// The whole point.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Performs variable interpolation against the input and produces it as</span>
-<span class="doccomment">/// [`Tokens`]. For returning tokens to the compiler in a procedural macro, use</span>
+<span class="doccomment">/// [`TokenStream`]. For returning tokens to the compiler in a procedural macro, use</span>
 <span class="doccomment">/// `into()` to build a `TokenStream`.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [`Tokens`]: struct.Tokens.html</span>
+<span class="doccomment">/// [`TokenStream`]: https://docs.rs/proc-macro2/0.4/proc_macro2/struct.TokenStream.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// # Interpolation</span>
 <span class="doccomment">///</span>
@@ -665,7 +666,7 @@
 <span class="doccomment">/// `ToTokens` implementation. Tokens that originate within the `quote!`</span>
 <span class="doccomment">/// invocation are spanned with [`Span::call_site()`].</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [`Span::call_site()`]: https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html#method.call_site</span>
+<span class="doccomment">/// [`Span::call_site()`]: https://docs.rs/proc-macro2/0.4/proc_macro2/struct.Span.html#method.call_site</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// A different span can be provided through the [`quote_spanned!`] macro.</span>
 <span class="doccomment">///</span>
@@ -674,9 +675,8 @@
 <span class="doccomment">/// # Example</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
-<span class="doccomment">/// # #[cfg(feature = &quot;proc-macro&quot;)]</span>
+<span class="doccomment">/// # #[cfg(any())]</span>
 <span class="doccomment">/// extern crate proc_macro;</span>
-<span class="doccomment">/// # #[cfg(not(feature = &quot;proc-macro&quot;))]</span>
 <span class="doccomment">/// # extern crate proc_macro2 as proc_macro;</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// #[macro_use]</span>
@@ -726,7 +726,7 @@
 <span class="doccomment">/// to quote. The span expression should be brief -- use a variable for anything</span>
 <span class="doccomment">/// more than a few characters. There should be no space before the `=&gt;` token.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// [`Span`]: https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html</span>
+<span class="doccomment">/// [`Span`]: https://docs.rs/proc-macro2/0.4/proc_macro2/struct.Span.html</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```</span>
 <span class="doccomment">/// # #[macro_use]</span>
@@ -777,8 +777,8 @@
 <span class="doccomment">/// # extern crate quote;</span>
 <span class="doccomment">/// # extern crate proc_macro2;</span>
 <span class="doccomment">/// #</span>
-<span class="doccomment">/// # use quote::{Tokens, ToTokens};</span>
-<span class="doccomment">/// # use proc_macro2::Span;</span>
+<span class="doccomment">/// # use quote::{TokenStreamExt, ToTokens};</span>
+<span class="doccomment">/// # use proc_macro2::{Span, TokenStream};</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # struct Type;</span>
 <span class="doccomment">/// #</span>
@@ -789,7 +789,7 @@
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # impl ToTokens for Type {</span>
-<span class="doccomment">/// #     fn to_tokens(&amp;self, _tokens: &amp;mut Tokens) {}</span>
+<span class="doccomment">/// #     fn to_tokens(&amp;self, _tokens: &amp;mut TokenStream) {}</span>
 <span class="doccomment">/// # }</span>
 <span class="doccomment">/// #</span>
 <span class="doccomment">/// # fn main() {</span>
@@ -825,7 +825,7 @@
 <span class="macro">macro_rules</span><span class="macro">!</span> <span class="ident">quote_spanned</span> {
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">expr</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         {
-            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_s</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">Tokens</span>::<span class="ident">new</span>();
+            <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_s</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">TokenStream</span>::<span class="ident">empty</span>();
             <span class="kw">let</span> <span class="ident">_span</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>;
             <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="ident">_s</span> <span class="ident">_span</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tt</span>)<span class="kw-2">*</span>);
             <span class="ident">_s</span>
@@ -963,13 +963,13 @@
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>:<span class="ident">ident</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">ident</span> # [ $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>:<span class="ident">tt</span>)<span class="op">*</span> ] $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
         <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span> #);
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">append</span>({
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">extend</span>({
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">g</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Group</span>::<span class="ident">new</span>(
                 <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Delimiter</span>::<span class="ident">Bracket</span>,
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">inner</span>)<span class="kw-2">*</span>).<span class="ident">into</span>(),
             );
             <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>);
-            <span class="ident">g</span>
+            <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>))
         });
         <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>);
     };
@@ -980,37 +980,37 @@
     };
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>:<span class="ident">ident</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">ident</span> ( $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>:<span class="ident">tt</span>)<span class="op">*</span> ) $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">append</span>({
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">extend</span>({
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">g</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Group</span>::<span class="ident">new</span>(
                 <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Delimiter</span>::<span class="ident">Parenthesis</span>,
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>)<span class="kw-2">*</span>).<span class="ident">into</span>(),
             );
             <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>);
-            <span class="ident">g</span>
+            <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>))
         });
         <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>);
     };
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>:<span class="ident">ident</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">ident</span> [ $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>:<span class="ident">tt</span>)<span class="op">*</span> ] $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">append</span>({
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">extend</span>({
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">g</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Group</span>::<span class="ident">new</span>(
                 <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Delimiter</span>::<span class="ident">Bracket</span>,
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>)<span class="kw-2">*</span>).<span class="ident">into</span>(),
             );
             <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>);
-            <span class="ident">g</span>
+            <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>))
         });
         <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>);
     };
 
     (<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>:<span class="ident">ident</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>:<span class="ident">ident</span> { $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>:<span class="ident">tt</span>)<span class="op">*</span> } $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>:<span class="ident">tt</span>)<span class="kw-2">*</span>) <span class="op">=&gt;</span> {
-        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">append</span>({
+        <span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span>.<span class="ident">extend</span>({
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">g</span> <span class="op">=</span> <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Group</span>::<span class="ident">new</span>(
                 <span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">Delimiter</span>::<span class="ident">Brace</span>,
                 <span class="macro">quote_spanned</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span><span class="op">=&gt;</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">first</span>)<span class="kw-2">*</span>).<span class="ident">into</span>(),
             );
             <span class="ident">g</span>.<span class="ident">set_span</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span>);
-            <span class="ident">g</span>
+            <span class="prelude-val">Some</span>(<span class="macro-nonterminal">$</span><span class="kw">crate</span>::<span class="macro-nonterminal">__rt</span>::<span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>))
         });
         <span class="macro">quote_each_token</span><span class="macro">!</span>(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">tokens</span> <span class="macro-nonterminal">$</span><span class="macro-nonterminal">span</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">rest</span>)<span class="kw-2">*</span>);
     };

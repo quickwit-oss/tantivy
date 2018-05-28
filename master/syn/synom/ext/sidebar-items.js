@@ -1,0 +1,1 @@
+initSidebarItems({"trait":[["IdentExt","Additional parsing methods for `Ident`."]]});

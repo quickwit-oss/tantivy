@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.13.10/src/buffer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>buffer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/syn-0.14.0/src/buffer.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>buffer.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">  1</span>
 <span id="2">  2</span>
 <span id="3">  3</span>
 <span id="4">  4</span>
@@ -593,8 +593,8 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;proc-macro&quot;</span>)]</span>
 <span class="kw">use</span> <span class="ident">proc_macro</span> <span class="kw">as</span> <span class="ident">pm</span>;
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Delimiter</span>, <span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">Term</span>, <span class="ident">TokenStream</span>};
-<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Group</span>, <span class="ident">Op</span>, <span class="ident">TokenTree</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Delimiter</span>, <span class="ident">Ident</span>, <span class="ident">Literal</span>, <span class="ident">Span</span>, <span class="ident">TokenStream</span>};
+<span class="kw">use</span> <span class="ident">proc_macro2</span>::{<span class="ident">Group</span>, <span class="ident">Punct</span>, <span class="ident">TokenTree</span>};
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">marker</span>::<span class="ident">PhantomData</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
@@ -607,8 +607,8 @@
 <span class="kw">enum</span> <span class="ident">Entry</span> {
     <span class="comment">// Mimicking types from proc-macro.</span>
     <span class="ident">Group</span>(<span class="ident">Span</span>, <span class="ident">Delimiter</span>, <span class="ident">TokenBuffer</span>),
-    <span class="ident">Term</span>(<span class="ident">Term</span>),
-    <span class="ident">Op</span>(<span class="ident">Op</span>),
+    <span class="ident">Ident</span>(<span class="ident">Ident</span>),
+    <span class="ident">Punct</span>(<span class="ident">Punct</span>),
     <span class="ident">Literal</span>(<span class="ident">Literal</span>),
     <span class="comment">// End entries contain a raw pointer to the entry from the containing</span>
     <span class="comment">// token tree, or null if this is the outermost level.</span>
@@ -641,11 +641,11 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">seqs</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">new</span>();
         <span class="kw">for</span> <span class="ident">tt</span> <span class="kw">in</span> <span class="ident">stream</span> {
             <span class="kw">match</span> <span class="ident">tt</span> {
-                <span class="ident">TokenTree</span>::<span class="ident">Term</span>(<span class="ident">sym</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">Term</span>(<span class="ident">sym</span>));
+                <span class="ident">TokenTree</span>::<span class="ident">Ident</span>(<span class="ident">sym</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="ident">sym</span>));
                 }
-                <span class="ident">TokenTree</span>::<span class="ident">Op</span>(<span class="ident">op</span>) <span class="op">=&gt;</span> {
-                    <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">Op</span>(<span class="ident">op</span>));
+                <span class="ident">TokenTree</span>::<span class="ident">Punct</span>(<span class="ident">op</span>) <span class="op">=&gt;</span> {
+                    <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="ident">op</span>));
                 }
                 <span class="ident">TokenTree</span>::<span class="ident">Literal</span>(<span class="ident">l</span>) <span class="op">=&gt;</span> {
                     <span class="ident">entries</span>.<span class="ident">push</span>(<span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="ident">l</span>));
@@ -739,8 +739,8 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="comment">// It&#39;s safe in this situation for us to put an `Entry` object in global</span>
         <span class="comment">// storage, despite it not actually being safe to send across threads</span>
-        <span class="comment">// (`Term` is a reference into a thread-local table). This is because</span>
-        <span class="comment">// this entry never includes a `Term` object.</span>
+        <span class="comment">// (`Ident` is a reference into a thread-local table). This is because</span>
+        <span class="comment">// this entry never includes a `Ident` object.</span>
         <span class="comment">//</span>
         <span class="comment">// This wrapper struct allows us to break the rules and put a `Sync`</span>
         <span class="comment">// object in global storage.</span>
@@ -832,22 +832,22 @@
         <span class="prelude-val">None</span>
     }
 
-    <span class="doccomment">/// If the cursor is pointing at a `Term`, returns it along with a cursor</span>
+    <span class="doccomment">/// If the cursor is pointing at a `Ident`, returns it along with a cursor</span>
     <span class="doccomment">/// pointing at the next `TokenTree`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">term</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Term</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">ident</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Ident</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="ident">Entry</span>::<span class="ident">Term</span>(<span class="ident">term</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">term</span>, <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
+            <span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">term</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">term</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
 
-    <span class="doccomment">/// If the cursor is pointing at an `Op`, returns it along with a cursor</span>
+    <span class="doccomment">/// If the cursor is pointing at an `Punct`, returns it along with a cursor</span>
     <span class="doccomment">/// pointing at the next `TokenTree`.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">op</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Op</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">punct</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span>(<span class="ident">Punct</span>, <span class="ident">Cursor</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>)<span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">ignore_none</span>();
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
-            <span class="ident">Entry</span>::<span class="ident">Op</span>(<span class="ident">op</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">op</span>, <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
+            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="op">=&gt;</span> <span class="prelude-val">Some</span>((<span class="ident">op</span>.<span class="ident">clone</span>(), <span class="kw">unsafe</span> { <span class="self">self</span>.<span class="ident">bump</span>() })),
             <span class="kw">_</span> <span class="op">=&gt;</span> <span class="prelude-val">None</span>,
         }
     }
@@ -890,8 +890,8 @@
                 <span class="ident">TokenTree</span>::<span class="ident">from</span>(<span class="ident">g</span>)
             }
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">lit</span>) <span class="op">=&gt;</span> <span class="ident">lit</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
-            <span class="ident">Entry</span>::<span class="ident">Term</span>(<span class="ident">term</span>) <span class="op">=&gt;</span> <span class="ident">term</span>.<span class="ident">into</span>(),
-            <span class="ident">Entry</span>::<span class="ident">Op</span>(<span class="ident">op</span>) <span class="op">=&gt;</span> <span class="ident">op</span>.<span class="ident">into</span>(),
+            <span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">term</span>) <span class="op">=&gt;</span> <span class="ident">term</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
+            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">op</span>) <span class="op">=&gt;</span> <span class="ident">op</span>.<span class="ident">clone</span>().<span class="ident">into</span>(),
             <span class="ident">Entry</span>::<span class="ident">End</span>(..) <span class="op">=&gt;</span> {
                 <span class="kw">return</span> <span class="prelude-val">None</span>;
             }
@@ -906,8 +906,8 @@
         <span class="kw">match</span> <span class="kw-2">*</span><span class="self">self</span>.<span class="ident">entry</span>() {
             <span class="ident">Entry</span>::<span class="ident">Group</span>(<span class="ident">span</span>, ..) <span class="op">=&gt;</span> <span class="ident">span</span>,
             <span class="ident">Entry</span>::<span class="ident">Literal</span>(<span class="kw-2">ref</span> <span class="ident">l</span>) <span class="op">=&gt;</span> <span class="ident">l</span>.<span class="ident">span</span>(),
-            <span class="ident">Entry</span>::<span class="ident">Term</span>(<span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">span</span>(),
-            <span class="ident">Entry</span>::<span class="ident">Op</span>(<span class="ident">o</span>) <span class="op">=&gt;</span> <span class="ident">o</span>.<span class="ident">span</span>(),
+            <span class="ident">Entry</span>::<span class="ident">Ident</span>(<span class="kw-2">ref</span> <span class="ident">t</span>) <span class="op">=&gt;</span> <span class="ident">t</span>.<span class="ident">span</span>(),
+            <span class="ident">Entry</span>::<span class="ident">Punct</span>(<span class="kw-2">ref</span> <span class="ident">o</span>) <span class="op">=&gt;</span> <span class="ident">o</span>.<span class="ident">span</span>(),
             <span class="ident">Entry</span>::<span class="ident">End</span>(..) <span class="op">=&gt;</span> <span class="ident">Span</span>::<span class="ident">call_site</span>(),
         }
     }

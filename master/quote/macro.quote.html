@@ -4,7 +4,7 @@
 }</pre>
 </div><div class='docblock'><p>The whole point.</p>
 <p>Performs variable interpolation against the input and produces it as
-<a href="struct.Tokens.html"><code>Tokens</code></a>. For returning tokens to the compiler in a procedural macro, use
+<a href="https://docs.rs/proc-macro2/0.4/proc_macro2/struct.TokenStream.html"><code>TokenStream</code></a>. For returning tokens to the compiler in a procedural macro, use
 <code>into()</code> to build a <code>TokenStream</code>.</p>
 <h1 id="interpolation" class="section-header"><a href="#interpolation">Interpolation</a></h1>
 <p>Variable interpolation is done with <code>#var</code> (similar to <code>$var</code> in
@@ -25,7 +25,7 @@ implements <code>IntoIterator</code>, including <code>Vec</code> or a pre-existi
 <h1 id="hygiene" class="section-header"><a href="#hygiene">Hygiene</a></h1>
 <p>Any interpolated tokens preserve the <code>Span</code> information provided by their
 <code>ToTokens</code> implementation. Tokens that originate within the <code>quote!</code>
-invocation are spanned with <a href="https://docs.rs/proc-macro2/0.2/proc_macro2/struct.Span.html#method.call_site"><code>Span::call_site()</code></a>.</p>
+invocation are spanned with <a href="https://docs.rs/proc-macro2/0.4/proc_macro2/struct.Span.html#method.call_site"><code>Span::call_site()</code></a>.</p>
 <p>A different span can be provided through the <a href="macro.quote_spanned.html"><code>quote_spanned!</code></a> macro.</p>
 <h1 id="example" class="section-header"><a href="#example">Example</a></h1>
 <pre class="rust rust-example-rendered">

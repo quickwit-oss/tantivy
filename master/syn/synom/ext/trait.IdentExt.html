@@ -1,0 +1,42 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="API documentation for the Rust `IdentExt` trait in crate `syn`."><meta name="keywords" content="rust, rustlang, rust-lang, IdentExt"><title>syn::synom::ext::IdentExt - Rust</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc trait"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div><p class='location'>Trait IdentExt</p><div class="sidebar-elems"><div class="block items"><a class="sidebar-title" href="#required-methods">Required Methods</a><div class="sidebar-links"><a href="#tymethod.parse_any">parse_any</a></div><a class="sidebar-title" href="#implementors">Implementors</a></div><p class='location'><a href='../../index.html'>syn</a>::<wbr><a href='../index.html'>synom</a>::<wbr><a href='index.html'>ext</a></p><script>window.sidebarCurrent = {name: 'IdentExt', ty: 'trait', relpath: ''};</script><script defer src="sidebar-items.js"></script></div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><h1 class='fqn'><span class='in-band'>Trait <a href='../../index.html'>syn</a>::<wbr><a href='../index.html'>synom</a>::<wbr><a href='index.html'>ext</a>::<wbr><a class="trait" href=''>IdentExt</a></span><span class='out-of-band'><span id='render-detail'><a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class='inner'>&#x2212;</span>]</a></span><a class='srclink' href='../../../src/syn/synom.rs.html#312-341' title='goto source code'>[src]</a></span></h1><div class="docblock type-decl"><pre class='rust trait'>pub trait IdentExt: <a class="trait" href="https://doc.rust-lang.org/nightly/core/marker/trait.Sized.html" title="trait core::marker::Sized">Sized</a> + Sealed {
+    fn <a href='#tymethod.parse_any' class='fnname'>parse_any</a>(input: <a class="struct" href="../../../syn/buffer/struct.Cursor.html" title="struct syn::buffer::Cursor">Cursor</a>) -&gt; <a class="type" href="../../../syn/synom/type.PResult.html" title="type syn::synom::PResult">PResult</a>&lt;Self&gt;;
+}</pre></div><div class='docblock'><p>Additional parsing methods for <code>Ident</code>.</p>
+<p>This trait is sealed and cannot be implemented for types outside of Syn.</p>
+<p><em>This trait is available if Syn is built with the <code>&quot;parsing&quot;</code> feature.</em></p>
+</div>
+            <h2 id='required-methods' class='small-section-header'>
+              Required Methods<a href='#required-methods' class='anchor'></a>
+            </h2>
+            <div class='methods'>
+        <h3 id='tymethod.parse_any' class='method'><span id='parse_any.v' class='invisible'><code>fn <a href='#tymethod.parse_any' class='fnname'>parse_any</a>(input: <a class="struct" href="../../../syn/buffer/struct.Cursor.html" title="struct syn::buffer::Cursor">Cursor</a>) -&gt; <a class="type" href="../../../syn/synom/type.PResult.html" title="type syn::synom::PResult">PResult</a>&lt;Self&gt;</code></span></h3><div class='docblock'><p>Parses any identifier including keywords.</p>
+<p>This is useful when parsing a DSL which allows Rust keywords as
+identifiers.</p>
+
+<pre class="rust rust-example-rendered">
+<span class="attribute">#[<span class="ident">macro_use</span>]</span>
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">syn</span>;
+
+<span class="kw">use</span> <span class="ident">syn</span>::<span class="ident">Ident</span>;
+
+<span class="comment">// Parses input that looks like `name = NAME` where `NAME` can be</span>
+<span class="comment">// any identifier.</span>
+<span class="comment">//</span>
+<span class="comment">// Examples:</span>
+<span class="comment">//</span>
+<span class="comment">//     name = anything</span>
+<span class="comment">//     name = impl</span>
+<span class="macro">named</span><span class="macro">!</span>(<span class="ident">parse_dsl</span> <span class="op">-&gt;</span> <span class="ident">Ident</span>, <span class="macro">do_parse</span><span class="macro">!</span>(
+    <span class="macro">custom_keyword</span><span class="macro">!</span>(<span class="ident">name</span>) <span class="op">&gt;&gt;</span>
+    <span class="macro">punct</span><span class="macro">!</span>(<span class="op">=</span>) <span class="op">&gt;&gt;</span>
+    <span class="ident">name</span>: <span class="macro">call</span><span class="macro">!</span>(<span class="ident">Ident</span>::<span class="ident">parse_any</span>) <span class="op">&gt;&gt;</span>
+    (<span class="ident">name</span>)
+));</pre>
+</div></div>
+        <h2 id='implementors' class='small-section-header'>
+          Implementors<a href='#implementors' class='anchor'></a>
+        </h2>
+        <ul class='item-list' id='implementors-list'>
+    <li><table class='table-display'><tbody><tr><td><code>impl IdentExt for <a class="struct" href="../../../syn/struct.Ident.html" title="struct syn::Ident">Ident</a></code><td><div class='out-of-band'><a class='srclink' href='../../../src/syn/synom.rs.html#343-347' title='goto source code'>[src]</a></div></td></tr></tbody></table></li>
+</ul><script type="text/javascript">window.inlined_types=new Set([]);</script><script type="text/javascript" async
+                         src="../../../implementors/syn/synom/ext/trait.IdentExt.js">
+                 </script></section><section id="search" class="content hidden"></section><section class="footer"></section><aside id="help" class="hidden"><div><h1 class="hidden">Help</h1><div class="shortcuts"><h2>Keyboard Shortcuts</h2><dl><dt><kbd>?</kbd></dt><dd>Show this help dialog</dd><dt><kbd>S</kbd></dt><dd>Focus the search field</dd><dt><kbd>↑</kbd></dt><dd>Move up in search results</dd><dt><kbd>↓</kbd></dt><dd>Move down in search results</dd><dt><kbd>↹</kbd></dt><dd>Switch tab</dd><dt><kbd>&#9166;</kbd></dt><dd>Go to active search result</dd><dt><kbd>+</kbd></dt><dd>Expand all sections</dd><dt><kbd>-</kbd></dt><dd>Collapse all sections</dd></dl></div><div class="infos"><h2>Search Tricks</h2><p>Prefix searches with a type followed by a colon (e.g. <code>fn:</code>) to restrict the search to a given type.</p><p>Accepted types are: <code>fn</code>, <code>mod</code>, <code>struct</code>, <code>enum</code>, <code>trait</code>, <code>type</code>, <code>macro</code>, and <code>const</code>.</p><p>Search functions by type signature (e.g. <code>vec -> usize</code> or <code>* -> vec</code>)</p><p>Search multiple things at once by splitting your query with comma (e.g. <code>str,u8</code> or <code>String,struct:Vec,test</code>)</p></div></div></aside><script>window.rootPath = "../../../";window.currentCrate = "syn";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script defer src="../../../search-index.js"></script></body></html>
