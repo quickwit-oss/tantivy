@@ -15,24 +15,7 @@ mod tests {
     use super::Heap;
     use super::TermHashMap;
     use super::ExpUnrolledLinkedList;
-    use datastruct::stacker::hashmap::GetOrCreateHandler;
 
-    struct GetOrCreate<     'a> {
-        heap: &'a mut Heap,
-        val: u32
-    }
-
-    impl<'a> GetOrCreateHandler<ExpUnrolledLinkedList> for GetOrCreate<'a> {
-        fn mutate(&mut self, exp_unrolled_linkedlist: &mut ExpUnrolledLinkedList) {
-            exp_unrolled_linkedlist.push(self.val, self.heap);
-        }
-
-        fn create(&mut self) -> ExpUnrolledLinkedList {
-            let mut stack = ExpUnrolledLinkedList::new(self.heap);
-            stack.push(self.val, self.heap);
-            stack
-        }
-    }
 
     #[test]
     fn test_unrolled_linked_list() {
@@ -45,11 +28,11 @@ mod tests {
                 let mut hashmap: TermHashMap = TermHashMap::new(10);
                 for j in 0..k {
                     for i in 0..500 {
-                        let mut get_or_create = GetOrCreate {
-                            heap: &mut heap,
-                            val: i*j
-                        };
-                        hashmap.get_or_create(i.to_string(), get_or_create);
+                        hashmap.mutate(i.to_string(), |stack_opt: Option<ExpUnrolledLinkedList>| {
+                            let mut stack = stack_opt.unwrap_or_else(|| ExpUnrolledLinkedList::new(&mut heap));
+                            stack.push(i*j, &mut heap);
+                            stack
+                        });
                     }
                 }
                 let mut map_addr: HashMap<Vec<u8>, Addr> = HashMap::new();

@@ -14,7 +14,6 @@ use tokenizer::TokenStream;
 use DocId;
 use Result;
 use datastruct::stacker::Addr;
-use datastruct::stacker::hashmap::GetOrCreateHandler;
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter> {
     match *field_entry.field_type() {
@@ -230,33 +229,6 @@ impl<Rec: Recorder + 'static> SpecializedPostingsWriter<Rec> {
     }
 }
 
-struct GetOrRecorder<'a, Rec> {
-    heap: &'a mut Heap,
-    doc: DocId,
-    position: u32,
-    _marker:  PhantomData<Rec>
-}
-
-impl<'a, Rec: Recorder> GetOrCreateHandler<Rec> for GetOrRecorder<'a, Rec> {
-    #[inline(always)]
-    fn mutate(&mut self, recorder: &mut Rec) {
-        let current_doc = recorder.current_doc();
-        if current_doc != self.doc {
-            recorder.close_doc(self.heap);
-            recorder.new_doc(self.doc, self.heap);
-        }
-        recorder.record_position(self.position, self.heap);
-    }
-
-    #[inline(always)]
-    fn create(&mut self) -> Rec {
-        let mut recorder = Rec::new(self.heap);
-        recorder.new_doc(self.doc, self.heap);
-        recorder.record_position(self.position, self.heap);
-        recorder
-    }
-}
-
 impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> {
     fn subscribe(
         &mut self,
@@ -268,13 +240,24 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
-        let get_or_create: GetOrRecorder<Rec> = GetOrRecorder {
-            heap,
-            doc,
-            position,
-            _marker: PhantomData
-        };
-        term_index.get_or_create(term, get_or_create)
+        term_index.mutate(term, |opt_recorder: Option<Rec>| {
+            if opt_recorder.is_some() {
+                let mut recorder = opt_recorder.unwrap();
+                let current_doc = recorder.current_doc();
+                if current_doc != doc {
+                    recorder.close_doc(heap);
+                    recorder.new_doc(doc, heap);
+                }
+                recorder.record_position(position, heap);
+                recorder
+            } else {
+                let mut recorder = Rec::new(heap);
+                recorder.new_doc(doc, heap);
+                recorder.record_position(position, heap);
+                recorder
+            }
+
+        })
     }
 
     fn serialize(

@@ -87,7 +87,7 @@ impl Heap {
         NativeEndian::write_u16(&mut dest_bytes[0..2], data.len() as u16);
         dest_bytes[2..].copy_from_slice(data);
     }
-
+    
     unsafe fn get_mut_ptr(&mut self, addr: Addr) -> *mut u8 {
         self.pages[addr.page_id()].get_mut_ptr(addr.page_local_addr())
     }

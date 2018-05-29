@@ -136,10 +136,6 @@ impl QuadraticProbing {
     }
 }
 
-pub trait GetOrCreateHandler<V> {
-    fn mutate(&mut self, value: &mut V);
-    fn create(&mut self) -> V;
-}
 
 pub struct Iter<'a> {
     hashmap: &'a TermHashMap,
@@ -225,14 +221,14 @@ impl TermHashMap {
         }
     }
 
-    pub fn get_or_create<S, V, TGetOrCreateHandler>(
+    pub fn mutate<S, V, TGetOrCreateHandler>(
         &mut self,
         key: S,
         mut get_or_create_handler: TGetOrCreateHandler) -> UnorderedTermId
     where
         S: AsRef<[u8]>,
         V: Copy,
-        TGetOrCreateHandler: GetOrCreateHandler<V>
+        TGetOrCreateHandler: FnMut(Option<V>) -> V
     {
         if self.is_saturated() {
             self.resize();
@@ -248,7 +244,7 @@ impl TermHashMap {
                 let key_value_len = key_bytes_len + 2 + mem::size_of::<V>();
                 let key_addr = self.heap.allocate_space(key_value_len);
                 self.set_bucket(hash, key_addr, bucket);
-                let val = get_or_create_handler.create();
+                let val = get_or_create_handler(None);
                 unsafe {
                     self.heap.write_chunk(key_addr, key_bytes);
                     let val_addr = key_addr.offset(2 + key_bytes_len as u32);
@@ -262,9 +258,9 @@ impl TermHashMap {
                 };
                 if key_matches {
                     unsafe {
-                        let mut v = self.heap.read(expull_addr);
-                        get_or_create_handler.mutate(&mut v);
-                        self.heap.set(expull_addr, v);
+                        let v = self.heap.read(expull_addr);
+                        let new_v = get_or_create_handler(Some(v));
+                        self.heap.set(expull_addr, new_v);
                     };
                     return bucket as UnorderedTermId;
                 }
@@ -299,12 +295,6 @@ mod tests {
     use std::collections::HashSet;
     use datastruct::stacker::TermHashMap;
     use std::collections::HashMap;
-    use datastruct::stacker::hashmap::GetOrCreateHandler;
-
-    #[derive(Copy, Default, Clone)]
-    struct TestValue {
-        val: u32
-    }
 
     #[test]
     fn test_hashmap_size() {
@@ -313,59 +303,26 @@ mod tests {
         assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
-
-    struct GetOrCreate {
-        previous_value: u32,
-        val: u32,
-        expect_create: bool
-    }
-
-    impl GetOrCreateHandler<TestValue> for GetOrCreate {
-        fn mutate(&mut self, test_value: &mut TestValue) {
-            if self.expect_create {
-                panic!("expected create");
-            }
-            assert_eq!(self.previous_value, test_value.val);
-            test_value.val = self.val;
-        }
-
-        fn create(&mut self) -> TestValue {
-            if !self.expect_create {
-                panic!("expected mutate");
-            }
-            let mut test_value = TestValue::default();
-            test_value.val = self.val;
-            test_value
-        }
-    }
-
-
     #[test]
     fn test_hash_map() {
         let mut hash_map: TermHashMap = TermHashMap::new(18);
         {
-            let get_or_create = GetOrCreate {
-                previous_value: 0u32,
-                val: 3u32,
-                expect_create: true
-            };
-            hash_map.get_or_create("abc", get_or_create);
+            hash_map.mutate("abc", |opt_val: Option<u32>| {
+                assert_eq!(opt_val, None);
+                3u32
+            });
         }
         {
-            let get_or_create = GetOrCreate {
-                previous_value: 0u32,
-                val: 4u32,
-                expect_create: true
-            };
-            hash_map.get_or_create("abcd", get_or_create);
+            hash_map.mutate("abcd", |opt_val: Option<u32>| {
+                assert_eq!(opt_val, None);
+                4u32
+            });
         }
         {
-            let get_or_create = GetOrCreate {
-                previous_value: 3u32,
-                val: 5u32,
-                expect_create: false
-            };
-            hash_map.get_or_create("abc", get_or_create);
+            hash_map.mutate("abc", |opt_val: Option<u32>| {
+                assert_eq!(opt_val, Some(3u32));
+                5u32
+            });
         }
 
         let mut vanilla_hash_map = HashMap::new();
