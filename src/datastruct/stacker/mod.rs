@@ -1,9 +1,14 @@
 mod expull;
 
 pub use self::expull::ExpUnrolledLinkedList;
-pub(crate) mod hashmap;
+
+mod hashmap;
+mod murmurhash2;
+
 mod heap;
+pub use self::murmurhash2::murmurhash2;
 pub use self::hashmap::TermHashMap;
+pub(crate) use self::hashmap::compute_table_size;
 pub use self::heap::{Heap, Addr};
 
 
@@ -43,7 +48,7 @@ mod tests {
                 for i in 0..500 {
                     let key: String = i.to_string();
                     let addr: Addr = *map_addr.get(key.as_bytes()).unwrap();
-                    let exp_pull: ExpUnrolledLinkedList = unsafe { hashmap.heap.read(addr) };
+                    let exp_pull: ExpUnrolledLinkedList = unsafe { hashmap.heap.read(addr) }; // test
                     let mut it = exp_pull.iter(&heap);
                     for j in 0..k {
                         assert_eq!(it.next().unwrap(), i * j);

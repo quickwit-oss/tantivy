@@ -59,6 +59,9 @@ impl ExpUnrolledLinkedList {
         }
     }
 
+    /// Appends a new element to the current stack.
+    ///
+    /// If the current block end is reached, a new block is allocated.
     pub fn push(&mut self, val: u32, heap: &mut Heap) {
         self.len += 1;
         if let Some(new_block_len) = jump_needed(self.len) {
@@ -67,10 +70,12 @@ impl ExpUnrolledLinkedList {
             // to the future next block.
             let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
-            unsafe { heap.set(self.tail, new_block_addr) };
+            unsafe { // logic
+                heap.set(self.tail, new_block_addr)
+            };
             self.tail = new_block_addr;
         }
-        unsafe {
+        unsafe { // logic
             heap.set(self.tail, val);
             self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
         }
@@ -92,17 +97,19 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
         if self.consumed == self.len {
             None
         } else {
-            unsafe {
-                let addr: Addr;
-                self.consumed += 1;
+            self.consumed += 1;
+            let addr: Addr =
                 if jump_needed(self.consumed).is_some() {
-                    addr = self.heap.read(self.addr);
+                    unsafe { // logic
+                        self.heap.read(self.addr)
+                    }
                 } else {
-                    addr = self.addr;
-                }
-                self.addr = addr.offset(mem::size_of::<u32>() as u32);
-                Some(self.heap.read(addr))
-            }
+                    self.addr
+                };
+            self.addr = addr.offset(mem::size_of::<u32>() as u32);
+            Some(unsafe { // logic
+                self.heap.read(addr)
+            })
         }
     }
 }

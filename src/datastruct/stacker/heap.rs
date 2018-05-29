@@ -123,7 +123,7 @@ struct Page {
 impl Page {
     fn new(page_id: usize) -> Page {
         let mut data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-        unsafe { data.set_len(PAGE_SIZE); }
+        unsafe { data.set_len(PAGE_SIZE); } // avoid initializing page
         Page {
             page_id,
             len: 0,
@@ -181,7 +181,7 @@ mod tests {
         let a = b"hello";
         let b = b"happy tax payer";
 
-        unsafe {
+        unsafe { // test
             let addr_a = {
                 let addr_a = arena.allocate_space(a.len());
                 ptr::copy_nonoverlapping(a.as_ptr(), arena.get_mut_ptr(addr_a), a.len());

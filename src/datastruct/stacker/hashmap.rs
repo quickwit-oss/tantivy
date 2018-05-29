@@ -4,74 +4,11 @@ use std::iter;
 use std::mem;
 use std::slice;
 use datastruct::stacker::Addr;
+use super::murmurhash2;
 
-mod murmurhash2 {
 
-    const SEED: u32 = 3_242_157_231u32;
-    const M: u32 = 0x5bd1_e995;
-
-    #[inline(always)]
-    pub fn murmurhash2(key: &[u8]) -> u32 {
-        let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
-        let len = key.len() as u32;
-        let mut h: u32 = SEED ^ len;
-
-        let num_blocks = len >> 2;
-        for _ in 0..num_blocks {
-            let mut k: u32 = unsafe { *key_ptr }; // ok because of num_blocks definition
-            k = k.wrapping_mul(M);
-            k ^= k >> 24;
-            k = k.wrapping_mul(M);
-            h = h.wrapping_mul(M);
-            h ^= k;
-            key_ptr = key_ptr.wrapping_offset(1);
-        }
-
-        // Handle the last few bytes of the input array
-        let remaining: &[u8] = &key[key.len() & !3..];
-        match remaining.len() {
-            3 => {
-                h ^= u32::from(remaining[2]) << 16;
-                h ^= u32::from(remaining[1]) << 8;
-                h ^= u32::from(remaining[0]);
-                h = h.wrapping_mul(M);
-            }
-            2 => {
-                h ^= u32::from(remaining[1]) << 8;
-                h ^= u32::from(remaining[0]);
-                h = h.wrapping_mul(M);
-            }
-            1 => {
-                h ^= u32::from(remaining[0]);
-                h = h.wrapping_mul(M);
-            }
-            _ => {}
-        }
-        h ^= h >> 13;
-        h = h.wrapping_mul(M);
-        h ^ (h >> 15)
-    }
-}
-
-/// Split the thread memory budget into
-/// - the heap size
-/// - the hash table "table" itself.
-///
-/// Returns (the heap size in bytes, the hash table size in number of bits)
-pub(crate) fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
-    let table_size_limit: usize = per_thread_memory_budget / 3;
-    let compute_table_size = |num_bits: usize| (1 << num_bits) * mem::size_of::<KeyValue>();
-    let table_num_bits: usize = (1..)
-        .into_iter()
-        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
-        .last()
-        .expect(&format!(
-            "Per thread memory is too small: {}",
-            per_thread_memory_budget
-        ));
-    let table_size = compute_table_size(table_num_bits);
-    let heap_size = per_thread_memory_budget - table_size;
-    (heap_size, table_num_bits)
+pub(crate) fn compute_table_size(num_bits: usize) -> usize  {
+    (1 << num_bits) * mem::size_of::<KeyValue>()
 }
 
 /// `KeyValue` is the item stored in the hash table.
@@ -245,7 +182,7 @@ impl TermHashMap {
                 let key_addr = self.heap.allocate_space(key_value_len);
                 self.set_bucket(hash, key_addr, bucket);
                 let val = get_or_create_handler(None);
-                unsafe {
+                unsafe { // logic - heap is not shared
                     self.heap.write_chunk(key_addr, key_bytes);
                     let val_addr = key_addr.offset(2 + key_bytes_len as u32);
                     self.heap.set(val_addr, val);
@@ -257,7 +194,7 @@ impl TermHashMap {
                     (stored_key == key_bytes, expull_addr)
                 };
                 if key_matches {
-                    unsafe {
+                    unsafe { // logic
                         let v = self.heap.read(expull_addr);
                         let new_v = get_or_create_handler(Some(v));
                         self.heap.set(expull_addr, new_v);
@@ -291,17 +228,10 @@ mod bench {
 mod tests {
 
     use super::murmurhash2::murmurhash2;
-    use super::split_memory;
     use std::collections::HashSet;
     use datastruct::stacker::TermHashMap;
     use std::collections::HashMap;
 
-    #[test]
-    fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (67232, 12));
-        assert_eq!(split_memory(1_000_000), (737856, 15));
-        assert_eq!(split_memory(10_000_000), (7902848, 18));
-    }
 
     #[test]
     fn test_hash_map() {
@@ -328,7 +258,9 @@ mod tests {
         let mut vanilla_hash_map = HashMap::new();
         let mut iter_values = hash_map.iter();
         while let Some((key, addr, _)) = iter_values.next() {
-            let val: TestValue = unsafe { hash_map.heap.read(addr) };
+            let val: u32 = unsafe { // test
+                hash_map.heap.read(addr)
+            };
             vanilla_hash_map.insert(key.to_owned(), val);
         }
         assert_eq!(vanilla_hash_map.len(), 2);

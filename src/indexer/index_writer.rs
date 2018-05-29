@@ -9,7 +9,6 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use datastruct::stacker::hashmap::split_memory;
 use directory::FileProtection;
 use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
@@ -26,6 +25,7 @@ use indexer::SegmentWriter;
 use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
+use datastruct::stacker::compute_table_size;
 use std::mem;
 use std::mem::swap;
 use std::thread;
@@ -44,6 +44,28 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type DocumentSender = chan::Sender<AddOperation>;
 type DocumentReceiver = chan::Receiver<AddOperation>;
+
+
+
+/// Split the thread memory budget into
+/// - the heap size
+/// - the hash table "table" itself.
+///
+/// Returns (the heap size in bytes, the hash table size in number of bits)
+fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
+    let table_size_limit: usize = per_thread_memory_budget / 3;
+    let table_num_bits: usize = (1..)
+        .into_iter()
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
+        .last()
+        .expect(&format!(
+            "Per thread memory is too small: {}",
+            per_thread_memory_budget
+        ));
+    let table_size = compute_table_size(table_num_bits);
+    let heap_size = per_thread_memory_budget - table_size;
+    (heap_size, table_num_bits)
+}
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -630,6 +652,7 @@ mod tests {
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
+    use super::split_memory;
     use Index;
     use Term;
 
@@ -818,6 +841,14 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
+    }
+
+
+    #[test]
+    fn test_hashmap_size() {
+        assert_eq!(split_memory(100_000), (67232, 12));
+        assert_eq!(split_memory(1_000_000), (737856, 15));
+        assert_eq!(split_memory(10_000_000), (7902848, 18));
     }
 
 }
