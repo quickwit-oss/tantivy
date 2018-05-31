@@ -4,12 +4,12 @@ version = "0.6.0-dev"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
 categories = ["database-implementations", "data-structures"]
-description = """Tantivy is a search engine library."""
+description = """Search engine library"""
 documentation = "https://tantivy-search.github.io/tantivy/tantivy/index.html"
 homepage = "https://github.com/tantivy-search/tantivy"
 repository = "https://github.com/tantivy-search/tantivy"
 readme = "README.md"
-keywords = ["search", "information", "retrieval"]
+keywords = ["search", "search engine", "information", "retrieval"]
 
 [dependencies]
 base64 = "0.9.1"
