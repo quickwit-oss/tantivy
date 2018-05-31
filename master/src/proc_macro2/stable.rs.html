@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.4.3/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.4.4/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1306,6 +1306,18 @@
 <span id="1306">1306</span>
 <span id="1307">1307</span>
 <span id="1308">1308</span>
+<span id="1309">1309</span>
+<span id="1310">1310</span>
+<span id="1311">1311</span>
+<span id="1312">1312</span>
+<span id="1313">1313</span>
+<span id="1314">1314</span>
+<span id="1315">1315</span>
+<span id="1316">1316</span>
+<span id="1317">1317</span>
+<span id="1318">1318</span>
+<span id="1319">1319</span>
+<span id="1320">1320</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">procmacro2_semver_exempt</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
 
@@ -1334,7 +1346,7 @@
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">LexError</span>;
 
 <span class="kw">impl</span> <span class="ident">TokenStream</span> {
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">empty</span>() <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">TokenStream</span> {
         <span class="ident">TokenStream</span> { <span class="ident">inner</span>: <span class="ident">Vec</span>::<span class="ident">new</span>() }
     }
 
@@ -1768,6 +1780,18 @@
     }
 }
 
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">is_ident_start</span>(<span class="ident">c</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>) <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> <span class="op">||</span>
+    (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_start</span>(<span class="ident">c</span>))
+}
+
+<span class="attribute">#[<span class="ident">inline</span>]</span>
+<span class="kw">fn</span> <span class="ident">is_ident_continue</span>(<span class="ident">c</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>) <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> <span class="op">||</span> (<span class="string">&#39;0&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;9&#39;</span>) <span class="op">||</span>
+    (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">c</span>))
+}
+
 <span class="kw">fn</span> <span class="ident">validate_term</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
     <span class="kw">let</span> <span class="ident">validate</span> <span class="op">=</span> <span class="ident">string</span>;
     <span class="kw">if</span> <span class="ident">validate</span>.<span class="ident">is_empty</span>() {
@@ -1778,21 +1802,21 @@
         <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;Ident cannot be a number; use Literal instead&quot;</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">xid_ok</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">fn</span> <span class="ident">ident_ok</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">chars</span> <span class="op">=</span> <span class="ident">string</span>.<span class="ident">chars</span>();
         <span class="kw">let</span> <span class="ident">first</span> <span class="op">=</span> <span class="ident">chars</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
-        <span class="kw">if</span> <span class="op">!</span>(<span class="ident">UnicodeXID</span>::<span class="ident">is_xid_start</span>(<span class="ident">first</span>) <span class="op">||</span> <span class="ident">first</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">is_ident_start</span>(<span class="ident">first</span>) {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
         <span class="kw">for</span> <span class="ident">ch</span> <span class="kw">in</span> <span class="ident">chars</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">ch</span>) {
+            <span class="kw">if</span> <span class="op">!</span><span class="ident">is_ident_continue</span>(<span class="ident">ch</span>) {
                 <span class="kw">return</span> <span class="bool-val">false</span>;
             }
         }
         <span class="bool-val">true</span>
     }
 
-    <span class="kw">if</span> <span class="op">!</span><span class="ident">xid_ok</span>(<span class="ident">validate</span>) {
+    <span class="kw">if</span> <span class="op">!</span><span class="ident">ident_ok</span>(<span class="ident">validate</span>) {
         <span class="macro">panic</span><span class="macro">!</span>(<span class="string">&quot;{:?} is not a valid Ident&quot;</span>, <span class="ident">string</span>);
     }
 }
@@ -2082,13 +2106,13 @@
     }
 
     <span class="kw">match</span> <span class="ident">chars</span>.<span class="ident">next</span>() {
-        <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">ch</span>)) <span class="kw">if</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_start</span>(<span class="ident">ch</span>) <span class="op">||</span> <span class="ident">ch</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> <span class="op">=&gt;</span> {}
+        <span class="prelude-val">Some</span>((<span class="kw">_</span>, <span class="ident">ch</span>)) <span class="kw">if</span> <span class="ident">is_ident_start</span>(<span class="ident">ch</span>) <span class="op">=&gt;</span> {}
         <span class="kw">_</span> <span class="op">=&gt;</span> <span class="kw">return</span> <span class="prelude-val">Err</span>(<span class="ident">LexError</span>),
     }
 
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">end</span> <span class="op">=</span> <span class="ident">input</span>.<span class="ident">len</span>();
     <span class="kw">for</span> (<span class="ident">i</span>, <span class="ident">ch</span>) <span class="kw">in</span> <span class="ident">chars</span> {
-        <span class="kw">if</span> <span class="op">!</span><span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">ch</span>) {
+        <span class="kw">if</span> <span class="op">!</span><span class="ident">is_ident_continue</span>(<span class="ident">ch</span>) {
             <span class="ident">end</span> <span class="op">=</span> <span class="ident">i</span>;
             <span class="kw">break</span>;
         }

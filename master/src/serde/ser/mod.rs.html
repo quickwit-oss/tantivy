@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.62/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.64/src/ser/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1993,6 +1993,85 @@
 <span id="1993">1993</span>
 <span id="1994">1994</span>
 <span id="1995">1995</span>
+<span id="1996">1996</span>
+<span id="1997">1997</span>
+<span id="1998">1998</span>
+<span id="1999">1999</span>
+<span id="2000">2000</span>
+<span id="2001">2001</span>
+<span id="2002">2002</span>
+<span id="2003">2003</span>
+<span id="2004">2004</span>
+<span id="2005">2005</span>
+<span id="2006">2006</span>
+<span id="2007">2007</span>
+<span id="2008">2008</span>
+<span id="2009">2009</span>
+<span id="2010">2010</span>
+<span id="2011">2011</span>
+<span id="2012">2012</span>
+<span id="2013">2013</span>
+<span id="2014">2014</span>
+<span id="2015">2015</span>
+<span id="2016">2016</span>
+<span id="2017">2017</span>
+<span id="2018">2018</span>
+<span id="2019">2019</span>
+<span id="2020">2020</span>
+<span id="2021">2021</span>
+<span id="2022">2022</span>
+<span id="2023">2023</span>
+<span id="2024">2024</span>
+<span id="2025">2025</span>
+<span id="2026">2026</span>
+<span id="2027">2027</span>
+<span id="2028">2028</span>
+<span id="2029">2029</span>
+<span id="2030">2030</span>
+<span id="2031">2031</span>
+<span id="2032">2032</span>
+<span id="2033">2033</span>
+<span id="2034">2034</span>
+<span id="2035">2035</span>
+<span id="2036">2036</span>
+<span id="2037">2037</span>
+<span id="2038">2038</span>
+<span id="2039">2039</span>
+<span id="2040">2040</span>
+<span id="2041">2041</span>
+<span id="2042">2042</span>
+<span id="2043">2043</span>
+<span id="2044">2044</span>
+<span id="2045">2045</span>
+<span id="2046">2046</span>
+<span id="2047">2047</span>
+<span id="2048">2048</span>
+<span id="2049">2049</span>
+<span id="2050">2050</span>
+<span id="2051">2051</span>
+<span id="2052">2052</span>
+<span id="2053">2053</span>
+<span id="2054">2054</span>
+<span id="2055">2055</span>
+<span id="2056">2056</span>
+<span id="2057">2057</span>
+<span id="2058">2058</span>
+<span id="2059">2059</span>
+<span id="2060">2060</span>
+<span id="2061">2061</span>
+<span id="2062">2062</span>
+<span id="2063">2063</span>
+<span id="2064">2064</span>
+<span id="2065">2065</span>
+<span id="2066">2066</span>
+<span id="2067">2067</span>
+<span id="2068">2068</span>
+<span id="2069">2069</span>
+<span id="2070">2070</span>
+<span id="2071">2071</span>
+<span id="2072">2072</span>
+<span id="2073">2073</span>
+<span id="2074">2074</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2051,8 +2130,8 @@
 <span class="doccomment">//!    - str</span>
 <span class="doccomment">//!    - &amp;T and &amp;mut T</span>
 <span class="doccomment">//!  - **Compound types**:</span>
-<span class="doccomment">//!    - [T]</span>
-<span class="doccomment">//!    - [T; 0] through [T; 32]</span>
+<span class="doccomment">//!    - \[T\]</span>
+<span class="doccomment">//!    - \[T; 0\] through \[T; 32\]</span>
 <span class="doccomment">//!    - tuples up to size 16</span>
 <span class="doccomment">//!  - **Common standard library types**:</span>
 <span class="doccomment">//!    - String</span>
@@ -2123,6 +2202,13 @@
         <span class="doccomment">/// Trait used by `Serialize` implementations to generically construct</span>
         <span class="doccomment">/// errors belonging to the `Serializer` against which they are</span>
         <span class="doccomment">/// currently running.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// # Example implementation</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// The [example data format] presented on the website shows an error</span>
+        <span class="doccomment">/// type appropriate for a basic JSON data format.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
         <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Error</span>: <span class="ident">Sized</span> $(<span class="op">+</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">supertrait</span>)::<span class="op">+</span>)<span class="op">*</span> {
             <span class="doccomment">/// Used when a [`Serialize`] implementation encounters any error</span>
             <span class="doccomment">/// while serializing a type.</span>
@@ -2240,10 +2326,10 @@
 
 <span class="doccomment">/// A **data format** that can serialize any data structure supported by Serde.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The role of this trait is to define the serialization half of the Serde data</span>
-<span class="doccomment">/// model, which is a way to categorize every Rust data structure into one of 29</span>
-<span class="doccomment">/// possible types. Each method of the `Serializer` trait corresponds to one of</span>
-<span class="doccomment">/// the types of the data model.</span>
+<span class="doccomment">/// The role of this trait is to define the serialization half of the [Serde</span>
+<span class="doccomment">/// data model], which is a way to categorize every Rust data structure into one</span>
+<span class="doccomment">/// of 29 possible types. Each method of the `Serializer` trait corresponds to</span>
+<span class="doccomment">/// one of the types of the data model.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Implementations of `Serialize` map themselves into this data model by</span>
 <span class="doccomment">/// invoking exactly one of the `Serializer` methods.</span>
@@ -2260,7 +2346,7 @@
 <span class="doccomment">///    - UTF-8 bytes with a length and no null terminator.</span>
 <span class="doccomment">///    - When serializing, all strings are handled equally. When deserializing,</span>
 <span class="doccomment">///      there are three flavors of strings: transient, owned, and borrowed.</span>
-<span class="doccomment">///  - **byte array** - [u8]</span>
+<span class="doccomment">///  - **byte array** - \[u8\]</span>
 <span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be transient,</span>
 <span class="doccomment">///      owned, or borrowed.</span>
 <span class="doccomment">///  - **option**</span>
@@ -2305,6 +2391,15 @@
 <span class="doccomment">/// is the `serde_json::value::Serializer` (distinct from the main `serde_json`</span>
 <span class="doccomment">/// serializer) that produces a `serde_json::Value` data structure in memory as</span>
 <span class="doccomment">/// output.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [Serde data model]: https://serde.rs/data-model.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website contains example code for</span>
+<span class="doccomment">/// a basic JSON `Serializer`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Serializer</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The output type produced by this `Serializer` during successful</span>
     <span class="doccomment">/// serialization. Most serializers that produce text or binary output</span>
@@ -3516,6 +3611,8 @@
 
 <span class="doccomment">/// Returned from `Serializer::serialize_seq`.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// # use std::marker::PhantomData;</span>
 <span class="doccomment">/// #</span>
@@ -3553,6 +3650,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeSeq` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeSeq</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3570,6 +3674,8 @@
 }
 
 <span class="doccomment">/// Returned from `Serializer::serialize_tuple`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTuple};</span>
@@ -3644,6 +3750,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeTuple` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeTuple</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3661,6 +3774,8 @@
 }
 
 <span class="doccomment">/// Returned from `Serializer::serialize_tuple_struct`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleStruct};</span>
@@ -3680,6 +3795,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeTupleStruct` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeTupleStruct</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3697,6 +3819,8 @@
 }
 
 <span class="doccomment">/// Returned from `Serializer::serialize_tuple_variant`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeTupleVariant};</span>
@@ -3729,6 +3853,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeTupleVariant` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeTupleVariant</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3746,6 +3877,8 @@
 }
 
 <span class="doccomment">/// Returned from `Serializer::serialize_map`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// # use std::marker::PhantomData;</span>
@@ -3786,6 +3919,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeMap` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeMap</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3849,6 +3989,8 @@
 
 <span class="doccomment">/// Returned from `Serializer::serialize_struct`.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStruct};</span>
 <span class="doccomment">///</span>
@@ -3871,6 +4013,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeStruct` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeStruct</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;
@@ -3900,6 +4049,8 @@
 
 <span class="doccomment">/// Returned from `Serializer::serialize_struct_variant`.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// # Example use</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// ```rust</span>
 <span class="doccomment">/// use serde::ser::{Serialize, Serializer, SerializeStructVariant};</span>
 <span class="doccomment">///</span>
@@ -3924,6 +4075,13 @@
 <span class="doccomment">///     }</span>
 <span class="doccomment">/// }</span>
 <span class="doccomment">/// ```</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SerializeStructVariant` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SerializeStructVariant</span> {
     <span class="doccomment">/// Must match the `Ok` type of our `Serializer`.</span>
     <span class="kw">type</span> <span class="prelude-val">Ok</span>;

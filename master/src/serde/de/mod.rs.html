@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.62/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/serde-1.0.64/src/de/mod.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>mod.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../../normalize.css"><link rel="stylesheet" type="text/css" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../../dark.css"><link rel="stylesheet" type="text/css" href="../../../light.css" id="themeStyle"><script src="../../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../../settings.html"><img src="../../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -2228,6 +2228,50 @@
 <span id="2228">2228</span>
 <span id="2229">2229</span>
 <span id="2230">2230</span>
+<span id="2231">2231</span>
+<span id="2232">2232</span>
+<span id="2233">2233</span>
+<span id="2234">2234</span>
+<span id="2235">2235</span>
+<span id="2236">2236</span>
+<span id="2237">2237</span>
+<span id="2238">2238</span>
+<span id="2239">2239</span>
+<span id="2240">2240</span>
+<span id="2241">2241</span>
+<span id="2242">2242</span>
+<span id="2243">2243</span>
+<span id="2244">2244</span>
+<span id="2245">2245</span>
+<span id="2246">2246</span>
+<span id="2247">2247</span>
+<span id="2248">2248</span>
+<span id="2249">2249</span>
+<span id="2250">2250</span>
+<span id="2251">2251</span>
+<span id="2252">2252</span>
+<span id="2253">2253</span>
+<span id="2254">2254</span>
+<span id="2255">2255</span>
+<span id="2256">2256</span>
+<span id="2257">2257</span>
+<span id="2258">2258</span>
+<span id="2259">2259</span>
+<span id="2260">2260</span>
+<span id="2261">2261</span>
+<span id="2262">2262</span>
+<span id="2263">2263</span>
+<span id="2264">2264</span>
+<span id="2265">2265</span>
+<span id="2266">2266</span>
+<span id="2267">2267</span>
+<span id="2268">2268</span>
+<span id="2269">2269</span>
+<span id="2270">2270</span>
+<span id="2271">2271</span>
+<span id="2272">2272</span>
+<span id="2273">2273</span>
+<span id="2274">2274</span>
 </pre><pre class="rust ">
 <span class="comment">// Copyright 2017 Serde Developers</span>
 <span class="comment">//</span>
@@ -2288,7 +2332,7 @@
 <span class="doccomment">//!    - f32, f64</span>
 <span class="doccomment">//!    - char</span>
 <span class="doccomment">//!  - **Compound types**:</span>
-<span class="doccomment">//!    - [T; 0] through [T; 32]</span>
+<span class="doccomment">//!    - \[T; 0\] through \[T; 32\]</span>
 <span class="doccomment">//!    - tuples up to size 16</span>
 <span class="doccomment">//!  - **Common standard library types**:</span>
 <span class="doccomment">//!    - String</span>
@@ -2297,7 +2341,7 @@
 <span class="doccomment">//!    - PhantomData\&lt;T\&gt;</span>
 <span class="doccomment">//!  - **Wrapper types**:</span>
 <span class="doccomment">//!    - Box\&lt;T\&gt;</span>
-<span class="doccomment">//!    - Box\&lt;[T]\&gt;</span>
+<span class="doccomment">//!    - Box\&lt;\[T\]\&gt;</span>
 <span class="doccomment">//!    - Box\&lt;str\&gt;</span>
 <span class="doccomment">//!    - Rc\&lt;T\&gt;</span>
 <span class="doccomment">//!    - Arc\&lt;T\&gt;</span>
@@ -2317,7 +2361,7 @@
 <span class="doccomment">//!    - Vec\&lt;T\&gt;</span>
 <span class="doccomment">//!  - **Zero-copy types**:</span>
 <span class="doccomment">//!    - &amp;str</span>
-<span class="doccomment">//!    - &amp;[u8]</span>
+<span class="doccomment">//!    - &amp;\[u8\]</span>
 <span class="doccomment">//!  - **FFI types**:</span>
 <span class="doccomment">//!    - CString</span>
 <span class="doccomment">//!    - Box\&lt;CStr\&gt;</span>
@@ -2379,6 +2423,13 @@
         <span class="doccomment">///</span>
         <span class="doccomment">/// Most deserializers should only need to provide the `Error::custom` method</span>
         <span class="doccomment">/// and inherit the default behavior for the other methods.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// # Example implementation</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// The [example data format] presented on the website shows an error</span>
+        <span class="doccomment">/// type appropriate for a basic JSON data format.</span>
+        <span class="doccomment">///</span>
+        <span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
         <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Error</span>: <span class="ident">Sized</span> $(<span class="op">+</span> $(<span class="macro-nonterminal">$</span><span class="macro-nonterminal">supertrait</span>)::<span class="op">+</span>)<span class="op">*</span> {
             <span class="doccomment">/// Raised when there is general error when deserializing a type.</span>
             <span class="doccomment">///</span>
@@ -3011,10 +3062,10 @@
 <span class="doccomment">/// A **data format** that can deserialize any data structure supported by</span>
 <span class="doccomment">/// Serde.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// The role of this trait is to define the deserialization half of the Serde</span>
-<span class="doccomment">/// data model, which is a way to categorize every Rust data type into one of 29</span>
-<span class="doccomment">/// possible types. Each method of the `Serializer` trait corresponds to one of</span>
-<span class="doccomment">/// the types of the data model.</span>
+<span class="doccomment">/// The role of this trait is to define the deserialization half of the [Serde</span>
+<span class="doccomment">/// data model], which is a way to categorize every Rust data type into one of</span>
+<span class="doccomment">/// 29 possible types. Each method of the `Serializer` trait corresponds to one</span>
+<span class="doccomment">/// of the types of the data model.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// Implementations of `Deserialize` map themselves into this data model by</span>
 <span class="doccomment">/// passing to the `Deserializer` a `Visitor` implementation that can receive</span>
@@ -3032,7 +3083,7 @@
 <span class="doccomment">///    - UTF-8 bytes with a length and no null terminator.</span>
 <span class="doccomment">///    - When serializing, all strings are handled equally. When deserializing,</span>
 <span class="doccomment">///      there are three flavors of strings: transient, owned, and borrowed.</span>
-<span class="doccomment">///  - **byte array** - [u8]</span>
+<span class="doccomment">///  - **byte array** - \[u8\]</span>
 <span class="doccomment">///    - Similar to strings, during deserialization byte arrays can be transient,</span>
 <span class="doccomment">///      owned, or borrowed.</span>
 <span class="doccomment">///  - **option**</span>
@@ -3097,6 +3148,8 @@
 <span class="doccomment">/// means your data type will be able to deserialize from self-describing</span>
 <span class="doccomment">/// formats only, ruling out Bincode and many others.</span>
 <span class="doccomment">///</span>
+<span class="doccomment">/// [Serde data model]: https://serde.rs/data-model.html</span>
+<span class="doccomment">///</span>
 <span class="doccomment">/// # Lifetime</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// The `&#39;de` lifetime of this trait is the lifetime of data that may be</span>
@@ -3104,6 +3157,13 @@
 <span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website contains example code for</span>
+<span class="doccomment">/// a basic JSON `Deserializer`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Deserializer</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -3881,6 +3941,13 @@
 <span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `SeqAccess` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">SeqAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -3956,6 +4023,13 @@
 <span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `MapAccess` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">MapAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -4141,6 +4215,13 @@
 <span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `EnumAccess` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">EnumAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization.</span>
@@ -4181,6 +4262,13 @@
 <span class="doccomment">/// deserializer lifetimes] for a more detailed explanation of these lifetimes.</span>
 <span class="doccomment">///</span>
 <span class="doccomment">/// [Understanding deserializer lifetimes]: https://serde.rs/lifetimes.html</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// # Example implementation</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The [example data format] presented on the website demonstrates an</span>
+<span class="doccomment">/// implementation of `VariantAccess` for a basic JSON data format.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// [example data format]: https://serde.rs/data-format.html</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">VariantAccess</span><span class="op">&lt;</span><span class="lifetime">&#39;de</span><span class="op">&gt;</span>: <span class="ident">Sized</span> {
     <span class="doccomment">/// The error type that can be returned if some error occurs during</span>
     <span class="doccomment">/// deserialization. Must match the error type of our `EnumAccess`.</span>
