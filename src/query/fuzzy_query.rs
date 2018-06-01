@@ -2,6 +2,7 @@ use common::BitSet;
 use core::SegmentReader;
 use fst::Automaton;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
+use query::automaton_builder::AutomatonBuilder;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Query, Scorer, Weight};
@@ -11,18 +12,38 @@ use Result;
 use Searcher;
 
 /// A Fuzzy Query matches all of the documents
-/// containing a specific term that is with in
+/// containing a specific term that is within
 /// Levenshtein distance
 #[derive(Debug, Clone)]
-pub struct FuzzyQuery {
+pub struct FuzzyTermQuery {
+    /// What term are we searching
     term: Term,
+    /// How many changes are we going to allow
     distance: u8,
+    /// Should a transposition cost 1 or 2?
+    transposition_cost_one: bool,
+    ///
+    prefix: bool,
 }
 
-impl FuzzyQuery {
+impl FuzzyTermQuery {
     /// Creates a new Fuzzy Query
-    pub fn new(term: Term, distance: u8) -> FuzzyQuery {
-        FuzzyQuery { term, distance }
+    pub fn new(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
+        FuzzyTermQuery {
+            term,
+            distance,
+            transposition_cost_one,
+            prefix: false,
+        }
+    }
+
+    pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
+        FuzzyTermQuery {
+            term,
+            distance,
+            transposition_cost_one,
+            prefix: true,
+        }
     }
 
     pub fn specialized_weight(&self) -> AutomatonWeight<DFA> {
@@ -34,25 +55,25 @@ impl FuzzyQuery {
     }
 }
 
-impl Query for FuzzyQuery {
+impl Query for FuzzyTermQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(Box::new(self.specialized_weight()))
     }
 }
 
-impl AutomatonBuilder<DFA> for FuzzyQuery {
+impl AutomatonBuilder<DFA> for FuzzyTermQuery {
     fn build_automaton(&self) -> Box<DFA> {
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(self.distance, true);
-        let automaton = lev_automaton_builder.build_dfa(self.term.text());
+        let lev_automaton_builder =
+            LevenshteinAutomatonBuilder::new(self.distance, self.transposition_cost_one);
+
+        let automaton = if self.prefix {
+            lev_automaton_builder.build_prefix_dfa(self.term.text())
+        } else {
+            lev_automaton_builder.build_dfa(self.term.text())
+        };
+
         Box::new(automaton)
     }
-}
-
-trait AutomatonBuilder<A>
-where
-    A: Automaton,
-{
-    fn build_automaton(&self) -> Box<A>;
 }
 
 pub struct AutomatonWeight<A>
@@ -104,7 +125,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::FuzzyQuery;
+    use super::FuzzyTermQuery;
     use collector::TopCollector;
     use schema::{SchemaBuilder, TEXT};
     use tests::assert_nearly_equals;
@@ -133,7 +154,7 @@ mod test {
             let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(country_field, "japon");
 
-            let fuzzy_query = FuzzyQuery::new(term, 1);
+            let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
