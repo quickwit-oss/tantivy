@@ -1,4 +1,5 @@
-use datastruct::stacker::{ExpUnrolledLinkedList, Heap};
+use memory_arena::MemoryArena;
+use super::expull::ExpUnrolledLinkedList;
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;
@@ -17,22 +18,22 @@ const POSITION_END: u32 = std::u32::MAX;
 ///   * the term positions
 pub trait Recorder: Copy {
     ///
-    fn new(heap: &mut Heap) -> Self;
+    fn new(heap: &mut MemoryArena) -> Self;
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
     /// This method shall only be called if the term is within the document.
-    fn new_doc(&mut self, doc: DocId, heap: &mut Heap);
+    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena);
     /// Record the position of a term. For each document,
     /// this method will be called `term_freq` times.
-    fn record_position(&mut self, position: u32, heap: &mut Heap);
+    fn record_position(&mut self, position: u32, heap: &mut MemoryArena);
     /// Close the document. It will help record the term frequency.
-    fn close_doc(&mut self, heap: &mut Heap);
+    fn close_doc(&mut self, heap: &mut MemoryArena);
     /// Pushes the postings information to the serializer.
     fn serialize(
         &self,
         serializer: &mut FieldSerializer,
-        heap: &Heap,
+        heap: &MemoryArena,
     ) -> io::Result<()>;
 }
 
@@ -44,7 +45,7 @@ pub struct NothingRecorder {
 }
 
 impl Recorder for NothingRecorder {
-    fn new(heap: &mut Heap) -> Self {
+    fn new(heap: &mut MemoryArena) -> Self {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value()
@@ -55,19 +56,19 @@ impl Recorder for NothingRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &mut Heap) {}
+    fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {}
 
-    fn close_doc(&mut self, _heap: &mut Heap) {}
+    fn close_doc(&mut self, _heap: &mut MemoryArena) {}
 
     fn serialize(
         &self,
         serializer: &mut FieldSerializer,
-        heap: &Heap,
+        heap: &MemoryArena,
     ) -> io::Result<()> {
         for doc in self.stack.iter(heap) {
             serializer.write_doc(doc, 0u32, &EMPTY_ARRAY)?;
@@ -86,7 +87,7 @@ pub struct TermFrequencyRecorder {
 
 impl Recorder for TermFrequencyRecorder {
 
-    fn new(heap: &mut Heap) -> Self {
+    fn new(heap: &mut MemoryArena) -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
@@ -98,16 +99,16 @@ impl Recorder for TermFrequencyRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, _position: u32, _heap: &mut Heap) {
+    fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {
         self.current_tf += 1;
     }
 
-    fn close_doc(&mut self, heap: &mut Heap) {
+    fn close_doc(&mut self, heap: &mut MemoryArena) {
         debug_assert!(self.current_tf > 0);
         self.stack.push(self.current_tf, heap);
         self.current_tf = 0;
@@ -116,7 +117,7 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(
         &self,
         serializer: &mut FieldSerializer,
-        heap: &Heap,
+        heap: &MemoryArena,
     ) -> io::Result<()> {
         // the last document has not been closed...
         // its term freq is self.current_tf.
@@ -143,7 +144,7 @@ pub struct TFAndPositionRecorder {
 
 impl Recorder for TFAndPositionRecorder {
 
-    fn new(heap: &mut Heap) -> Self {
+    fn new(heap: &mut MemoryArena) -> Self {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
             current_doc: u32::max_value(),
@@ -154,23 +155,23 @@ impl Recorder for TFAndPositionRecorder {
         self.current_doc
     }
 
-    fn new_doc(&mut self, doc: DocId, heap: &mut Heap) {
+    fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
         self.stack.push(doc, heap);
     }
 
-    fn record_position(&mut self, position: u32, heap: &mut Heap) {
+    fn record_position(&mut self, position: u32, heap: &mut MemoryArena) {
         self.stack.push(position, heap);
     }
 
-    fn close_doc(&mut self, heap: &mut Heap) {
+    fn close_doc(&mut self, heap: &mut MemoryArena) {
         self.stack.push(POSITION_END, heap);
     }
 
     fn serialize(
         &self,
         serializer: &mut FieldSerializer,
-        heap: &Heap,
+        heap: &MemoryArena,
     ) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
         let mut positions_iter = self.stack.iter(heap);

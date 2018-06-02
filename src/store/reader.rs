@@ -2,7 +2,7 @@ use Result;
 
 use common::BinarySerializable;
 use common::VInt;
-use datastruct::SkipList;
+use super::skiplist::SkipList;
 use directory::ReadOnlySource;
 use lz4;
 use schema::Document;

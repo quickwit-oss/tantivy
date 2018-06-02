@@ -1,4 +1,6 @@
-use datastruct::stacker::{Heap, TermHashMap};
+use memory_arena::{Addr, MemoryArena};
+use term_hashmap::TermHashMap;
+
 use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use postings::UnorderedTermId;
 use postings::{FieldSerializer, InvertedIndexSerializer};
@@ -13,7 +15,6 @@ use tokenizer::Token;
 use tokenizer::TokenStream;
 use DocId;
 use Result;
-use datastruct::stacker::Addr;
 
 fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter> {
     match *field_entry.field_type() {
@@ -43,7 +44,7 @@ fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter>
 }
 
 pub struct MultiFieldPostingsWriter {
-    heap: Heap,
+    heap: MemoryArena,
     schema: Schema,
     term_index: TermHashMap,
     per_field_postings_writers: Vec<Box<PostingsWriter>>,
@@ -61,7 +62,7 @@ impl MultiFieldPostingsWriter {
             .map(|field_entry| posting_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
-            heap: Heap::new(),
+            heap: MemoryArena::new(),
             schema: schema.clone(),
             term_index,
             per_field_postings_writers,
@@ -89,7 +90,9 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self.term_index.iter().collect();
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self.term_index.iter()
+            .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId) )
+            .collect();
         term_offsets.sort_by_key(|&(k, _, _)| k);
 
         let mut offsets: Vec<(Field, usize)> = vec![];
@@ -156,7 +159,7 @@ impl MultiFieldPostingsWriter {
 /// The `PostingsWriter` is in charge of receiving documenting
 /// and building a `Segment` in anonymous memory.
 ///
-/// `PostingsWriter` writes in a `Heap`.
+/// `PostingsWriter` writes in a `MemoryArena`.
 pub trait PostingsWriter {
     /// Record that a document contains a term at a given position.
     ///
@@ -171,7 +174,7 @@ pub trait PostingsWriter {
         doc: DocId,
         pos: u32,
         term: &Term,
-        heap: &mut Heap,
+        heap: &mut MemoryArena,
     ) -> UnorderedTermId;
 
     /// Serializes the postings on disk.
@@ -180,8 +183,8 @@ pub trait PostingsWriter {
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
-        term_heap: &Heap,
-        heap: &Heap
+        term_heap: &MemoryArena,
+        heap: &MemoryArena
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -191,7 +194,7 @@ pub trait PostingsWriter {
         doc_id: DocId,
         field: Field,
         token_stream: &mut TokenStream,
-        heap: &mut Heap,
+        heap: &mut MemoryArena,
     ) -> u32 {
         let mut term = Term::for_field(field);
         let num_tokens = {
@@ -236,11 +239,11 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         doc: DocId,
         position: u32,
         term: &Term,
-        heap: &mut Heap
+        heap: &mut MemoryArena
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
-        term_index.mutate(term, |opt_recorder: Option<Rec>| {
+        term_index.mutate_or_create(term, |opt_recorder: Option<Rec>| {
             if opt_recorder.is_some() {
                 let mut recorder = opt_recorder.unwrap();
                 let current_doc = recorder.current_doc();
@@ -256,16 +259,15 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
                 recorder.record_position(position, heap);
                 recorder
             }
-
-        })
+        }) as UnorderedTermId
     }
 
     fn serialize(
         &self,
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
-        termdict_heap: &Heap,
-        heap: &Heap,
+        termdict_heap: &MemoryArena,
+        heap: &MemoryArena,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = unsafe { termdict_heap.read(addr) };

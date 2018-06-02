@@ -25,11 +25,11 @@ use indexer::SegmentWriter;
 use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
-use datastruct::stacker::compute_table_size;
 use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
+use term_hashmap::compute_table_size;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -61,7 +61,8 @@ fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
         .expect(&format!(
             "Per thread memory is too small: {}",
             per_thread_memory_budget
-        ));
+        ))
+        .min    (19);
     let table_size = compute_table_size(table_num_bits);
     let heap_size = per_thread_memory_budget - table_size;
     (heap_size, table_num_bits)

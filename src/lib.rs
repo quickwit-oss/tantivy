@@ -150,6 +150,8 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
+extern crate tantivy_memory_arena as memory_arena;
+extern crate tantivy_term_hashmap as term_hashmap;
 
 #[cfg(test)]
 #[macro_use]
@@ -188,7 +190,6 @@ mod compression;
 mod core;
 mod indexer;
 
-mod datastruct;
 #[allow(unused_doc_comment)]
 mod error;
 pub mod tokenizer;

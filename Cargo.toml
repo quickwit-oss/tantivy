@@ -44,6 +44,8 @@ downcast = { version="0.9" }
 matches = "0.1"
 bitpacking = "0.4"
 fnv = "1.0.6"
+tantivy-term-hashmap = { path = "./tantivy-term-hashmap" }
+tantivy-memory-arena = { path = "./tantivy-memory-arena" }
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"

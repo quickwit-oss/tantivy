@@ -1,23 +1,20 @@
-use super::heap::Heap;
-use std::mem;
-use datastruct::stacker::heap::Addr;
+extern crate tantivy_memory_arena as memory_arena;
 
-#[inline]
-pub fn is_power_of_2(val: u32) -> bool {
-    val & (val - 1) == 0
-}
+use memory_arena::{MemoryArena, Addr};
+use std::mem;
+use common::is_power_of_2;
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 
-
 const FIRST_BLOCK: u32 = 4u32;
+
 #[inline]
 pub fn jump_needed(len: u32) -> Option<usize> {
     match len {
         0...3 => None,
-        val @ 4...MAX_BLOCK_LEN => {
-            if is_power_of_2(val) {
-                Some(val as usize)
+        4...MAX_BLOCK_LEN => {
+            if is_power_of_2(len as usize) {
+                Some(len as usize)
             } else {
                 None
             }
@@ -32,6 +29,27 @@ pub fn jump_needed(len: u32) -> Option<usize> {
     }
 }
 
+/// An exponential unrolled link.
+///
+/// The use case is as follows. Tantivy's indexer conceptually acts like a
+/// `HashMap<Term, Vec<u32>>`. As we come accross a given term in document
+/// `D`, we lookup the term in the map and append the document id to its vector.
+///
+/// The vector is then only read when it is serialized.
+///
+/// The `ExpUnrolledLinkedList` offers a more efficient solution to this
+/// problem.
+///
+/// It combines the idea of the unrolled linked list and tries to address the
+/// problem of selecting an adequate block size using a strategy similar to
+/// that of the `Vec` amortized resize strategy.
+///
+/// Data is stored in a linked list of blocks. The first block has a size of `4`
+/// and each block has a length of twice that of the previous block up to
+/// `MAX_BLOCK_LEN = 32768`.
+///
+/// This strategy is a good trade off to handle numerous very rare terms
+/// and avoid wasting half of the memory for very frequent terms.
 #[derive(Debug, Clone, Copy)]
 pub struct ExpUnrolledLinkedList {
     len: u32,
@@ -41,7 +59,7 @@ pub struct ExpUnrolledLinkedList {
 
 impl ExpUnrolledLinkedList {
 
-    pub fn new(heap: &mut Heap) -> ExpUnrolledLinkedList {
+    pub fn new(heap: &mut MemoryArena) -> ExpUnrolledLinkedList {
         let addr = heap.allocate_space((FIRST_BLOCK as usize) * mem::size_of::<u32>());
         ExpUnrolledLinkedList {
             len: 0u32,
@@ -50,7 +68,7 @@ impl ExpUnrolledLinkedList {
         }
     }
 
-    pub fn iter<'a>(&self, heap: &'a Heap) -> ExpUnrolledLinkedListIterator<'a> {
+    pub fn iter<'a>(&self, heap: &'a MemoryArena) -> ExpUnrolledLinkedListIterator<'a> {
         ExpUnrolledLinkedListIterator {
             heap,
             addr: self.head,
@@ -62,7 +80,7 @@ impl ExpUnrolledLinkedList {
     /// Appends a new element to the current stack.
     ///
     /// If the current block end is reached, a new block is allocated.
-    pub fn push(&mut self, val: u32, heap: &mut Heap) {
+    pub fn push(&mut self, val: u32, heap: &mut MemoryArena) {
         self.len += 1;
         if let Some(new_block_len) = jump_needed(self.len) {
             // We need to allocate another block.
@@ -71,12 +89,12 @@ impl ExpUnrolledLinkedList {
             let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
             unsafe { // logic
-                heap.set(self.tail, new_block_addr)
+                heap.write(self.tail, new_block_addr)
             };
             self.tail = new_block_addr;
         }
         unsafe { // logic
-            heap.set(self.tail, val);
+            heap.write(self.tail, val);
             self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
         }
     }
@@ -84,7 +102,7 @@ impl ExpUnrolledLinkedList {
 
 
 pub struct ExpUnrolledLinkedListIterator<'a> {
-    heap: &'a Heap,
+    heap: &'a MemoryArena,
     addr: Addr,
     len: u32,
     consumed: u32,
@@ -118,12 +136,12 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 mod tests {
 
     use super::jump_needed;
-    use super::super::heap::Heap;
+    use memory_arena::MemoryArena;
     use super::*;
 
     #[test]
     fn test_stack() {
-        let mut heap = Heap::new();
+        let mut heap = MemoryArena::new();
         let mut stack = ExpUnrolledLinkedList::new(&mut heap);
         stack.push(1u32, &mut heap);
         stack.push(2u32, &mut heap);
@@ -158,8 +176,9 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::ExpUnrolledLinkedList;
-    use super::Heap;
     use test::Bencher;
+    use tantivy_memory_arena::MemoryArena;
+
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
 
@@ -184,7 +203,7 @@ mod bench {
 
     #[bench]
     fn bench_push_stack(bench: &mut Bencher) {
-        let heap = Heap::new();
+        let heap = MemoryArena::new();
         bench.iter(|| {
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {

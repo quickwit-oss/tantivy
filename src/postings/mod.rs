@@ -12,6 +12,8 @@ mod recorder;
 mod segment_postings;
 mod serializer;
 mod term_info;
+mod expull;
+
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};

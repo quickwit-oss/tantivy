@@ -43,3 +43,47 @@ pub fn murmurhash2(key: &[u8]) -> u32 {
     h = h.wrapping_mul(M);
     h ^ (h >> 15)
 }
+
+
+
+#[cfg(test)]
+mod test {
+
+    use super::murmurhash2;
+    use std::collections::HashSet;
+
+
+    #[test]
+    fn test_murmur() {
+        let s1 = "abcdef";
+        let s2 = "abcdeg";
+        for i in 0..5 {
+            assert_eq!(
+                murmurhash2(&s1[i..5].as_bytes()),
+                murmurhash2(&s2[i..5].as_bytes())
+            );
+        }
+    }
+
+    #[test]
+    fn test_murmur_against_reference_impl() {
+        assert_eq!(murmurhash2("".as_bytes()), 3632506080);
+        assert_eq!(murmurhash2("a".as_bytes()), 455683869);
+        assert_eq!(murmurhash2("ab".as_bytes()), 2448092234);
+        assert_eq!(murmurhash2("abc".as_bytes()), 2066295634);
+        assert_eq!(murmurhash2("abcd".as_bytes()), 2588571162);
+        assert_eq!(murmurhash2("abcde".as_bytes()), 2988696942);
+        assert_eq!(murmurhash2("abcdefghijklmnop".as_bytes()), 2350868870);
+    }
+
+    #[test]
+    fn test_murmur_collisions() {
+        let mut set: HashSet<u32> = HashSet::default();
+        for i in 0..10_000 {
+            let s = format!("hash{}", i);
+            let hash = murmurhash2(s.as_bytes());
+            set.insert(hash);
+        }
+        assert_eq!(set.len(), 10_000);
+    }
+}
