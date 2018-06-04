@@ -9,8 +9,6 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use datastruct::stacker::hashmap::split_memory;
-use datastruct::stacker::Heap;
 use directory::FileProtection;
 use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
@@ -31,13 +29,15 @@ use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
+use postings::compute_table_size;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
-pub const MARGIN_IN_BYTES: u32 = 1_000_000u32;
+pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
 // We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_LIMIT: u32 = MARGIN_IN_BYTES * 3u32;
+pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32)* 3u32) as usize;
+pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
@@ -45,6 +45,26 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type DocumentSender = chan::Sender<AddOperation>;
 type DocumentReceiver = chan::Receiver<AddOperation>;
+
+
+
+/// Split the thread memory budget into
+/// - the heap size
+/// - the hash table "table" itself.
+///
+/// Returns (the heap size in bytes, the hash table size in number of bits)
+fn initial_table_size(per_thread_memory_budget: usize) -> usize {
+    let table_size_limit: usize = per_thread_memory_budget / 3;
+    (1..)
+        .into_iter()
+        .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
+        .last()
+        .expect(&format!(
+            "Per thread memory is too small: {}",
+            per_thread_memory_budget
+        ))
+        .min(19) // we cap it at 512K
+}
 
 /// `IndexWriter` is the user entry-point to add document to an index.
 ///
@@ -100,11 +120,16 @@ pub fn open_index_writer(
     heap_size_in_bytes_per_thread: usize,
     directory_lock: DirectoryLock,
 ) -> Result<IndexWriter> {
-    if heap_size_in_bytes_per_thread < HEAP_SIZE_LIMIT as usize {
-        panic!(format!(
+    if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
+        let err_msg = format!(
             "The heap size per thread needs to be at least {}.",
-            HEAP_SIZE_LIMIT
-        ));
+            HEAP_SIZE_MIN);
+        bail!(ErrorKind::InvalidArgument(err_msg));
+    }
+    if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
+        let err_msg = format!(
+            "The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
+        bail!(ErrorKind::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
         chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -116,7 +141,10 @@ pub fn open_index_writer(
     let stamper = Stamper::new(current_opstamp);
 
     let segment_updater =
-        SegmentUpdater::new(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+        SegmentUpdater::new(
+            index.clone(),
+            stamper.clone(),
+            &delete_queue.cursor())?;
 
     let mut index_writer = IndexWriter {
         _directory_lock: Some(directory_lock),
@@ -238,40 +266,27 @@ pub fn advance_deletes(
     Ok(file_protect)
 }
 
-fn index_documents(
-    heap: &mut Heap,
-    table_size: usize,
-    segment: &Segment,
-    generation: usize,
-    document_iterator: &mut Iterator<Item = AddOperation>,
-    segment_updater: &mut SegmentUpdater,
-    mut delete_cursor: DeleteCursor,
+    fn index_documents(
+        memory_budget: usize,
+        segment: &Segment,
+        generation: usize,
+        document_iterator: &mut Iterator<Item = AddOperation>,
+        segment_updater: &mut SegmentUpdater,
+        mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
-    heap.clear();
     let schema = segment.schema();
     let segment_id = segment.id();
+    let table_size = initial_table_size(memory_budget);
     let mut segment_writer =
-        SegmentWriter::for_segment(heap, table_size, segment.clone(), &schema)?;
+        SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
-        // There is two possible conditions to close the segment.
-        // One is the memory arena dedicated to the segment is
-        // getting full.
-        if segment_writer.is_buffer_full() {
+
+        let mem_usage = segment_writer.mem_usage();
+
+        if mem_usage >= memory_budget - MARGIN_IN_BYTES {
             info!(
                 "Buffer limit reached, flushing segment with maxdoc={}.",
-                segment_writer.max_doc()
-            );
-            break;
-        }
-        // The second is the term dictionary hash table
-        // is reaching saturation.
-        //
-        // Tantivy does not resize its hashtable. When it reaches
-        // capacity, we just stop indexing new document.
-        if segment_writer.is_term_saturated() {
-            info!(
-                "Term dic saturated, flushing segment with maxdoc={}.",
                 segment_writer.max_doc()
             );
             break;
@@ -367,14 +382,12 @@ impl IndexWriter {
     fn add_indexing_worker(&mut self) -> Result<()> {
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
-        let (heap_size, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
-        info!("heap size {}, table_size {}", heap_size, table_size);
-        let mut heap = Heap::with_capacity(heap_size);
 
         let generation = self.generation;
 
         let mut delete_cursor = self.delete_queue.cursor();
 
+        let mem_budget = self.heap_size_in_bytes_per_thread;
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
             .name(format!(
                 "indexing thread {} for gen {}",
@@ -402,8 +415,7 @@ impl IndexWriter {
                     }
                     let segment = segment_updater.new_segment();
                     index_documents(
-                        &mut heap,
-                        table_size,
+                        mem_budget,
                         &segment,
                         generation,
                         &mut document_iterator,
@@ -641,6 +653,7 @@ mod tests {
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
+    use super::initial_table_size;
     use Index;
     use Term;
 
@@ -829,6 +842,15 @@ mod tests {
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
+    }
+
+
+    #[test]
+    fn test_hashmap_size() {
+        assert_eq!(initial_table_size(100_000), 12);
+        assert_eq!(initial_table_size(1_000_000), 15);
+        assert_eq!(initial_table_size(10_000_000), 18);
+        assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
 }

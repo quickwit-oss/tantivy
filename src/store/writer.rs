@@ -1,7 +1,7 @@
 use super::StoreReader;
 use common::CountingWriter;
 use common::{BinarySerializable, VInt};
-use datastruct::SkipListBuilder;
+use super::skiplist::SkipListBuilder;
 use directory::WritePtr;
 use lz4;
 use schema::Document;
