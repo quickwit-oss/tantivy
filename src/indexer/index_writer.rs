@@ -52,9 +52,9 @@ type DocumentReceiver = chan::Receiver<AddOperation>;
 /// - the hash table "table" itself.
 ///
 /// Returns (the heap size in bytes, the hash table size in number of bits)
-fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
+fn initial_table_size(per_thread_memory_budget: usize) -> usize {
     let table_size_limit: usize = per_thread_memory_budget / 3;
-    let table_num_bits: usize = (1..)
+    (1..)
         .into_iter()
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
@@ -62,10 +62,7 @@ fn split_memory(per_thread_memory_budget: usize) -> (usize, usize) {
             "Per thread memory is too small: {}",
             per_thread_memory_budget
         ))
-        .min    (19);
-    let table_size = compute_table_size(table_num_bits);
-    let heap_size = per_thread_memory_budget - table_size;
-    (heap_size, table_num_bits)
+        .min(19) // we cap it at 512K
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -265,7 +262,6 @@ pub fn advance_deletes(
 
     fn index_documents(
         memory_budget: usize,
-        table_size: usize,
         segment: &Segment,
         generation: usize,
         document_iterator: &mut Iterator<Item = AddOperation>,
@@ -274,6 +270,7 @@ pub fn advance_deletes(
 ) -> Result<bool> {
     let schema = segment.schema();
     let segment_id = segment.id();
+    let table_size = initial_table_size(memory_budget);
     let mut segment_writer =
         SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
@@ -379,8 +376,6 @@ impl IndexWriter {
     fn add_indexing_worker(&mut self) -> Result<()> {
         let document_receiver_clone = self.document_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
-        let (_, table_size) = split_memory(self.heap_size_in_bytes_per_thread);
-        info!("initial table_size {}", table_size);
 
         let generation = self.generation;
 
@@ -415,7 +410,6 @@ impl IndexWriter {
                     let segment = segment_updater.new_segment();
                     index_documents(
                         mem_budget,
-                        table_size,
                         &segment,
                         generation,
                         &mut document_iterator,
@@ -653,7 +647,7 @@ mod tests {
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
-    use super::split_memory;
+    use super::initial_table_size;
     use Index;
     use Term;
 
@@ -847,9 +841,10 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(split_memory(100_000), (67232, 12));
-        assert_eq!(split_memory(1_000_000), (737856, 15));
-        assert_eq!(split_memory(10_000_000), (7902848, 18));
+        assert_eq!(initial_table_size(100_000), 12);
+        assert_eq!(initial_table_size(1_000_000), 15);
+        assert_eq!(initial_table_size(10_000_000), 18);
+        assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
 }
