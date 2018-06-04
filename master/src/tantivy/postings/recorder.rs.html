@@ -190,11 +190,8 @@
 <span id="190">190</span>
 <span id="191">191</span>
 <span id="192">192</span>
-<span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">ExpUnrolledLinkedList</span>, <span class="ident">Heap</span>, <span class="ident">HeapAllocable</span>};
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">MemoryArena</span>, <span class="ident">ExpUnrolledLinkedList</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">FieldSerializer</span>;
 <span class="kw">use</span> <span class="ident">std</span>::{<span class="self">self</span>, <span class="ident">io</span>};
 <span class="kw">use</span> <span class="ident">DocId</span>;
@@ -211,62 +208,61 @@
 <span class="doccomment">///   * the document id</span>
 <span class="doccomment">///   * the term frequency</span>
 <span class="doccomment">///   * the term positions</span>
-<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Recorder</span>: <span class="ident">HeapAllocable</span> {
+<span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">Recorder</span>: <span class="ident">Copy</span> {
+    <span class="doccomment">///</span>
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span>;
     <span class="doccomment">/// Returns the current document</span>
     <span class="kw">fn</span> <span class="ident">current_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">u32</span>;
     <span class="doccomment">/// Starts recording information about a new document</span>
     <span class="doccomment">/// This method shall only be called if the term is within the document.</span>
-    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>);
+    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>);
     <span class="doccomment">/// Record the position of a term. For each document,</span>
     <span class="doccomment">/// this method will be called `term_freq` times.</span>
-    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: <span class="ident">u32</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>);
+    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: <span class="ident">u32</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>);
     <span class="doccomment">/// Close the document. It will help record the term frequency.</span>
-    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>);
+    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>);
     <span class="doccomment">/// Pushes the postings information to the serializer.</span>
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">self_addr</span>: <span class="ident">u32</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
 }
 
 <span class="doccomment">/// Only records the doc ids</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">NothingRecorder</span> {
     <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>,
     <span class="ident">current_doc</span>: <span class="ident">DocId</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">HeapAllocable</span> <span class="kw">for</span> <span class="ident">NothingRecorder</span> {
-    <span class="kw">fn</span> <span class="ident">with_addr</span>(<span class="ident">addr</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">NothingRecorder</span> {
+<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">NothingRecorder</span> {
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">NothingRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">with_addr</span>(<span class="ident">addr</span>),
-            <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
+            <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>()
         }
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">NothingRecorder</span> {
     <span class="kw">fn</span> <span class="ident">current_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">current_doc</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {}
+    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {}
 
-    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {}
+    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {}
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">self_addr</span>: <span class="ident">u32</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
-        <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">self_addr</span>, <span class="ident">heap</span>) {
+        <span class="kw">for</span> <span class="ident">doc</span> <span class="kw">in</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">heap</span>) {
             <span class="ident">serializer</span>.<span class="ident">write_doc</span>(<span class="ident">doc</span>, <span class="number">0u32</span>, <span class="kw-2">&amp;</span><span class="ident">EMPTY_ARRAY</span>)<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())
@@ -274,37 +270,37 @@
 }
 
 <span class="doccomment">/// Recorder encoding document ids, and term frequencies</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TermFrequencyRecorder</span> {
     <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>,
     <span class="ident">current_doc</span>: <span class="ident">DocId</span>,
     <span class="ident">current_tf</span>: <span class="ident">u32</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">HeapAllocable</span> <span class="kw">for</span> <span class="ident">TermFrequencyRecorder</span> {
-    <span class="kw">fn</span> <span class="ident">with_addr</span>(<span class="ident">addr</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">TermFrequencyRecorder</span> {
+<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TermFrequencyRecorder</span> {
+
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">TermFrequencyRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">with_addr</span>(<span class="ident">addr</span>),
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
             <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
             <span class="ident">current_tf</span>: <span class="number">0u32</span>,
         }
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TermFrequencyRecorder</span> {
     <span class="kw">fn</span> <span class="ident">current_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">current_doc</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">_position</span>: <span class="ident">u32</span>, <span class="ident">_heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_tf</span> <span class="op">+=</span> <span class="number">1</span>;
     }
 
-    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="self">self</span>.<span class="ident">current_tf</span> <span class="op">&gt;</span> <span class="number">0</span>);
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="self">self</span>.<span class="ident">current_tf</span>, <span class="ident">heap</span>);
         <span class="self">self</span>.<span class="ident">current_tf</span> <span class="op">=</span> <span class="number">0</span>;
@@ -312,14 +308,13 @@
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">self_addr</span>: <span class="ident">u32</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="comment">// the last document has not been closed...</span>
         <span class="comment">// its term freq is self.current_tf.</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stack</span>
-            .<span class="ident">iter</span>(<span class="ident">self_addr</span>, <span class="ident">heap</span>)
+            .<span class="ident">iter</span>(<span class="ident">heap</span>)
             .<span class="ident">chain</span>(<span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">current_tf</span>).<span class="ident">into_iter</span>());
 
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">doc_iter</span>.<span class="ident">next</span>() {
@@ -333,46 +328,45 @@
 }
 
 <span class="doccomment">/// Recorder encoding term frequencies as well as positions.</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>, <span class="ident">Copy</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TFAndPositionRecorder</span> {
     <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>,
     <span class="ident">current_doc</span>: <span class="ident">DocId</span>,
 }
 
-<span class="kw">impl</span> <span class="ident">HeapAllocable</span> <span class="kw">for</span> <span class="ident">TFAndPositionRecorder</span> {
-    <span class="kw">fn</span> <span class="ident">with_addr</span>(<span class="ident">addr</span>: <span class="ident">u32</span>) <span class="op">-&gt;</span> <span class="ident">TFAndPositionRecorder</span> {
+<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TFAndPositionRecorder</span> {
+
+    <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) <span class="op">-&gt;</span> <span class="self">Self</span> {
         <span class="ident">TFAndPositionRecorder</span> {
-            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">with_addr</span>(<span class="ident">addr</span>),
+            <span class="ident">stack</span>: <span class="ident">ExpUnrolledLinkedList</span>::<span class="ident">new</span>(<span class="ident">heap</span>),
             <span class="ident">current_doc</span>: <span class="ident">u32</span>::<span class="ident">max_value</span>(),
         }
     }
-}
 
-<span class="kw">impl</span> <span class="ident">Recorder</span> <span class="kw">for</span> <span class="ident">TFAndPositionRecorder</span> {
     <span class="kw">fn</span> <span class="ident">current_doc</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">DocId</span> {
         <span class="self">self</span>.<span class="ident">current_doc</span>
     }
 
-    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">new_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">doc</span>;
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: <span class="ident">u32</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">record_position</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">position</span>: <span class="ident">u32</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
     }
 
-    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>) {
+    <span class="kw">fn</span> <span class="ident">close_doc</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>) {
         <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">push</span>(<span class="ident">POSITION_END</span>, <span class="ident">heap</span>);
     }
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">self_addr</span>: <span class="ident">u32</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">doc_positions</span> <span class="op">=</span> <span class="ident">Vec</span>::<span class="ident">with_capacity</span>(<span class="number">100</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">self_addr</span>, <span class="ident">heap</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">positions_iter</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">stack</span>.<span class="ident">iter</span>(<span class="ident">heap</span>);
         <span class="kw">while</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="ident">doc</span>) <span class="op">=</span> <span class="ident">positions_iter</span>.<span class="ident">next</span>() {
             <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">prev_position</span> <span class="op">=</span> <span class="number">0</span>;
             <span class="ident">doc_positions</span>.<span class="ident">clear</span>();

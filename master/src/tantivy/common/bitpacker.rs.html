@@ -186,21 +186,6 @@
 <span id="186">186</span>
 <span id="187">187</span>
 <span id="188">188</span>
-<span id="189">189</span>
-<span id="190">190</span>
-<span id="191">191</span>
-<span id="192">192</span>
-<span id="193">193</span>
-<span id="194">194</span>
-<span id="195">195</span>
-<span id="196">196</span>
-<span id="197">197</span>
-<span id="198">198</span>
-<span id="199">199</span>
-<span id="200">200</span>
-<span id="201">201</span>
-<span id="202">202</span>
-<span id="203">203</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">serialize</span>::<span class="ident">BinarySerializable</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">io</span>;
@@ -208,6 +193,8 @@
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">mem</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Deref</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ptr</span>;
+
+
 
 <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">struct</span> <span class="ident">BitPacker</span> {
     <span class="ident">mini_buffer</span>: <span class="ident">u64</span>,
@@ -250,7 +237,7 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">flush</span><span class="op">&lt;</span><span class="ident">TWrite</span>: <span class="ident">Write</span><span class="op">&gt;</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">output</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TWrite</span>) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">let</span> <span class="ident">num_bytes</span> <span class="op">=</span> (<span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">+</span> <span class="number">7</span>) <span class="op">/</span> <span class="number">8</span>;
-            <span class="kw">let</span> <span class="ident">arr</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">u64</span>, [<span class="ident">u8</span>; <span class="number">8</span>]<span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">mini_buffer</span>) };
+            <span class="kw">let</span> <span class="ident">arr</span>: [<span class="ident">u8</span>; <span class="number">8</span>] <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">mem</span>::<span class="ident">transmute</span>::<span class="op">&lt;</span><span class="ident">u64</span>, [<span class="ident">u8</span>; <span class="number">8</span>]<span class="op">&gt;</span>(<span class="self">self</span>.<span class="ident">mini_buffer</span>.<span class="ident">to_le</span>()) };
             <span class="ident">output</span>.<span class="ident">write_all</span>(<span class="kw-2">&amp;</span><span class="ident">arr</span>[..<span class="ident">num_bytes</span>])<span class="question-mark">?</span>;
             <span class="self">self</span>.<span class="ident">mini_buffer_written</span> <span class="op">=</span> <span class="number">0</span>;
         }
@@ -302,31 +289,14 @@
         <span class="kw">let</span> <span class="ident">addr_in_bits</span> <span class="op">=</span> <span class="ident">idx</span> <span class="op">*</span> <span class="ident">num_bits</span>;
         <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&gt;&gt;</span> <span class="number">3</span>;
         <span class="kw">let</span> <span class="ident">bit_shift</span> <span class="op">=</span> <span class="ident">addr_in_bits</span> <span class="op">&amp;</span> <span class="number">7</span>;
-        <span class="kw">if</span> <span class="macro">cfg</span><span class="macro">!</span>(<span class="ident">feature</span> <span class="op">=</span> <span class="string">&quot;simdcompression&quot;</span>) {
-            <span class="comment">// for simdcompression,</span>
-            <span class="comment">// the bitpacker is only used for fastfields,</span>
-            <span class="comment">// and we expect them to be always padded.</span>
-            <span class="macro">debug_assert</span><span class="macro">!</span>(
-                <span class="ident">addr</span> <span class="op">+</span> <span class="number">8</span> <span class="op">&lt;=</span> <span class="ident">data</span>.<span class="ident">len</span>(),
-                <span class="string">&quot;The fast field field should have been padded with 7 bytes.&quot;</span>
-            );
-            <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span>
-                <span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">data</span>[<span class="ident">addr</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) };
-            <span class="kw">let</span> <span class="ident">val_shifted</span> <span class="op">=</span> (<span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> <span class="ident">bit_shift</span>) <span class="kw">as</span> <span class="ident">u64</span>;
-            <span class="ident">val_shifted</span> <span class="op">&amp;</span> <span class="ident">mask</span>
-        } <span class="kw">else</span> {
-            <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">if</span> <span class="ident">addr</span> <span class="op">+</span> <span class="number">8</span> <span class="op">&lt;=</span> <span class="ident">data</span>.<span class="ident">len</span>() {
-                <span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">data</span>[<span class="ident">addr</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) }
-            } <span class="kw">else</span> {
-                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">buffer</span> <span class="op">=</span> [<span class="number">0u8</span>; <span class="number">8</span>];
-                <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="ident">addr</span>..<span class="ident">data</span>.<span class="ident">len</span>() {
-                    <span class="ident">buffer</span>[<span class="ident">i</span> <span class="op">-</span> <span class="ident">addr</span>] <span class="op">+=</span> <span class="ident">data</span>[<span class="ident">i</span>];
-                }
-                <span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">buffer</span>[..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) }
-            };
-            <span class="kw">let</span> <span class="ident">val_shifted</span> <span class="op">=</span> <span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> (<span class="ident">bit_shift</span> <span class="kw">as</span> <span class="ident">u64</span>);
-            <span class="ident">val_shifted</span> <span class="op">&amp;</span> <span class="ident">mask</span>
-        }
+        <span class="macro">debug_assert</span><span class="macro">!</span>(
+            <span class="ident">addr</span> <span class="op">+</span> <span class="number">8</span> <span class="op">&lt;=</span> <span class="ident">data</span>.<span class="ident">len</span>(),
+            <span class="string">&quot;The fast field field should have been padded with 7 bytes.&quot;</span>
+        );
+        <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span>
+            <span class="ident">u64</span>::<span class="ident">from_le</span>(<span class="kw">unsafe</span> { <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">data</span>[<span class="ident">addr</span>..].<span class="ident">as_ptr</span>() <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>) });
+        <span class="kw">let</span> <span class="ident">val_shifted</span> <span class="op">=</span> (<span class="ident">val_unshifted_unmasked</span> <span class="op">&gt;&gt;</span> <span class="ident">bit_shift</span>) <span class="kw">as</span> <span class="ident">u64</span>;
+        <span class="ident">val_shifted</span> <span class="op">&amp;</span> <span class="ident">mask</span>
     }
 
     <span class="doccomment">/// Reads a range of values from the fast field.</span>

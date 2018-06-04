@@ -274,8 +274,16 @@
 <span id="274">274</span>
 <span id="275">275</span>
 <span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
 </pre><pre class="rust ">
-<span class="kw">use</span> <span class="ident">datastruct</span>::<span class="ident">stacker</span>::{<span class="ident">Heap</span>, <span class="ident">TermHashMap</span>};
+<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">stacker</span>::{<span class="ident">TermHashMap</span>, <span class="ident">Addr</span>, <span class="ident">MemoryArena</span>};
+
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">recorder</span>::{<span class="ident">NothingRecorder</span>, <span class="ident">Recorder</span>, <span class="ident">TFAndPositionRecorder</span>, <span class="ident">TermFrequencyRecorder</span>};
 <span class="kw">use</span> <span class="ident">postings</span>::<span class="ident">UnorderedTermId</span>;
 <span class="kw">use</span> <span class="ident">postings</span>::{<span class="ident">FieldSerializer</span>, <span class="ident">InvertedIndexSerializer</span>};
@@ -291,80 +299,83 @@
 <span class="kw">use</span> <span class="ident">DocId</span>;
 <span class="kw">use</span> <span class="prelude-ty">Result</span>;
 
-<span class="kw">fn</span> <span class="ident">posting_from_field_entry</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(
-    <span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>,
-    <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>,
-) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">fn</span> <span class="ident">posting_from_field_entry</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>(<span class="ident">field_entry</span>: <span class="kw-2">&amp;</span><span class="ident">FieldEntry</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;</span> {
     <span class="kw">match</span> <span class="kw-2">*</span><span class="ident">field_entry</span>.<span class="ident">field_type</span>() {
         <span class="ident">FieldType</span>::<span class="ident">Str</span>(<span class="kw-2">ref</span> <span class="ident">text_options</span>) <span class="op">=&gt;</span> <span class="ident">text_options</span>
             .<span class="ident">get_indexing_options</span>()
             .<span class="ident">map</span>(<span class="op">|</span><span class="ident">indexing_options</span><span class="op">|</span> <span class="kw">match</span> <span class="ident">indexing_options</span>.<span class="ident">index_option</span>() {
                 <span class="ident">IndexRecordOption</span>::<span class="ident">Basic</span> <span class="op">=&gt;</span> {
-                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)
+                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
                 }
                 <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqs</span> <span class="op">=&gt;</span> {
-                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">TermFrequencyRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)
+                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">TermFrequencyRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
                 }
                 <span class="ident">IndexRecordOption</span>::<span class="ident">WithFreqsAndPositions</span> <span class="op">=&gt;</span> {
-                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">TFAndPositionRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)
+                    <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">TFAndPositionRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
                 }
             })
-            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)),
+            .<span class="ident">unwrap_or_else</span>(<span class="op">||</span> <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()),
         <span class="ident">FieldType</span>::<span class="ident">U64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">I64</span>(<span class="kw">_</span>) <span class="op">|</span> <span class="ident">FieldType</span>::<span class="ident">HierarchicalFacet</span> <span class="op">=&gt;</span> {
-            <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)
+            <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
         }
         <span class="ident">FieldType</span>::<span class="ident">Bytes</span> <span class="op">=&gt;</span> {
             <span class="comment">// FieldType::Bytes cannot actually be indexed.</span>
             <span class="comment">// TODO fix during the indexer refactoring described in #276</span>
-            <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>(<span class="ident">heap</span>)
+            <span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">NothingRecorder</span><span class="op">&gt;</span>::<span class="ident">new_boxed</span>()
         }
     }
 }
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiFieldPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-    <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">MultiFieldPostingsWriter</span> {
+    <span class="ident">heap</span>: <span class="ident">MemoryArena</span>,
     <span class="ident">schema</span>: <span class="ident">Schema</span>,
-    <span class="ident">term_index</span>: <span class="ident">TermHashMap</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span>,
-    <span class="ident">per_field_postings_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;&gt;</span>,
+    <span class="ident">term_index</span>: <span class="ident">TermHashMap</span>,
+    <span class="ident">per_field_postings_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;&gt;</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">MultiFieldPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+
+<span class="kw">impl</span> <span class="ident">MultiFieldPostingsWriter</span> {
     <span class="doccomment">/// Create a new `MultiFieldPostingsWriter` given</span>
     <span class="doccomment">/// a schema and a heap.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">Schema</span>, <span class="ident">table_bits</span>: <span class="ident">usize</span>, <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>) <span class="op">-&gt;</span> <span class="ident">MultiFieldPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="ident">term_index</span> <span class="op">=</span> <span class="ident">TermHashMap</span>::<span class="ident">new</span>(<span class="ident">table_bits</span>, <span class="ident">heap</span>);
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">schema</span>: <span class="kw-2">&amp;</span><span class="ident">Schema</span>, <span class="ident">table_bits</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="ident">MultiFieldPostingsWriter</span> {
+        <span class="kw">let</span> <span class="ident">term_index</span> <span class="op">=</span> <span class="ident">TermHashMap</span>::<span class="ident">new</span>(<span class="ident">table_bits</span>);
         <span class="kw">let</span> <span class="ident">per_field_postings_writers</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw">_</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">schema</span>
             .<span class="ident">fields</span>()
             .<span class="ident">iter</span>()
-            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field_entry</span><span class="op">|</span> <span class="ident">posting_from_field_entry</span>(<span class="ident">field_entry</span>, <span class="ident">heap</span>))
+            .<span class="ident">map</span>(<span class="op">|</span><span class="ident">field_entry</span><span class="op">|</span> <span class="ident">posting_from_field_entry</span>(<span class="ident">field_entry</span>))
             .<span class="ident">collect</span>();
         <span class="ident">MultiFieldPostingsWriter</span> {
+            <span class="ident">heap</span>: <span class="ident">MemoryArena</span>::<span class="ident">new</span>(),
             <span class="ident">schema</span>: <span class="ident">schema</span>.<span class="ident">clone</span>(),
-            <span class="ident">heap</span>,
             <span class="ident">term_index</span>,
             <span class="ident">per_field_postings_writers</span>,
         }
     }
 
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">mem_usage</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">mem_usage</span>() <span class="op">+</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">mem_usage</span>()
+    }
+
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">index_text</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">field</span>: <span class="ident">Field</span>, <span class="ident">token_stream</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">field</span>.<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>].<span class="ident">deref_mut</span>();
-        <span class="ident">postings_writer</span>.<span class="ident">index_text</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>, <span class="ident">doc</span>, <span class="ident">field</span>, <span class="ident">token_stream</span>, <span class="self">self</span>.<span class="ident">heap</span>)
+        <span class="ident">postings_writer</span>.<span class="ident">index_text</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>, <span class="ident">doc</span>, <span class="ident">field</span>, <span class="ident">token_stream</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">heap</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">subscribe</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">doc</span>: <span class="ident">DocId</span>, <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span> {
         <span class="kw">let</span> <span class="ident">postings_writer</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">per_field_postings_writers</span>[<span class="ident">term</span>.<span class="ident">field</span>().<span class="number">0</span> <span class="kw">as</span> <span class="ident">usize</span>].<span class="ident">deref_mut</span>();
-        <span class="ident">postings_writer</span>.<span class="ident">subscribe</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>, <span class="ident">doc</span>, <span class="number">0u32</span>, <span class="ident">term</span>, <span class="self">self</span>.<span class="ident">heap</span>)
+        <span class="ident">postings_writer</span>.<span class="ident">subscribe</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">term_index</span>, <span class="ident">doc</span>, <span class="number">0u32</span>, <span class="ident">term</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">heap</span>)
     }
 
     <span class="doccomment">/// Serialize the inverted index.</span>
     <span class="doccomment">/// It pushes all term, one field at a time, towards the</span>
     <span class="doccomment">/// postings serializer.</span>
-    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">needless_range_loop</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">InvertedIndexSerializer</span>,
     ) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">Field</span>, <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">UnorderedTermId</span>, <span class="ident">TermOrdinal</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">UnorderedTermId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">iter</span>().<span class="ident">collect</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term_offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">iter</span>()
+            .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="ident">bucket_id</span>)<span class="op">|</span> (<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="ident">bucket_id</span> <span class="kw">as</span> <span class="ident">UnorderedTermId</span>) )
+            .<span class="ident">collect</span>();
         <span class="ident">term_offsets</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="kw-2">&amp;</span>(<span class="ident">k</span>, <span class="kw">_</span>, <span class="kw">_</span>)<span class="op">|</span> <span class="ident">k</span>);
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">offsets</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">Field</span>, <span class="ident">usize</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
@@ -419,23 +430,19 @@
             <span class="ident">postings_writer</span>.<span class="ident">serialize</span>(
                 <span class="kw-2">&amp;</span><span class="ident">term_offsets</span>[<span class="ident">start</span>..<span class="ident">stop</span>],
                 <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">field_serializer</span>,
-                <span class="self">self</span>.<span class="ident">heap</span>,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">heap</span>,
+                <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">heap</span>
             )<span class="question-mark">?</span>;
             <span class="ident">field_serializer</span>.<span class="ident">close</span>()<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(<span class="ident">unordered_term_mappings</span>)
-    }
-
-    <span class="doccomment">/// Return true iff the term dictionary is saturated.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_term_saturated</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">term_index</span>.<span class="ident">is_saturated</span>()
     }
 }
 
 <span class="doccomment">/// The `PostingsWriter` is in charge of receiving documenting</span>
 <span class="doccomment">/// and building a `Segment` in anonymous memory.</span>
 <span class="doccomment">///</span>
-<span class="doccomment">/// `PostingsWriter` writes in a `Heap`.</span>
+<span class="doccomment">/// `PostingsWriter` writes in a `MemoryArena`.</span>
 <span class="kw">pub</span> <span class="kw">trait</span> <span class="ident">PostingsWriter</span> {
     <span class="doccomment">/// Record that a document contains a term at a given position.</span>
     <span class="doccomment">///</span>
@@ -450,16 +457,17 @@
         <span class="ident">doc</span>: <span class="ident">DocId</span>,
         <span class="ident">pos</span>: <span class="ident">u32</span>,
         <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span>;
 
     <span class="doccomment">/// Serializes the postings on disk.</span>
     <span class="doccomment">/// The actual serialization format is handled by the `PostingsSerializer`.</span>
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">term_addrs</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">UnorderedTermId</span>)],
+        <span class="ident">term_addrs</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)],
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">term_heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span>;
 
     <span class="doccomment">/// Tokenize a text and subscribe all of its token.</span>
@@ -469,7 +477,7 @@
         <span class="ident">doc_id</span>: <span class="ident">DocId</span>,
         <span class="ident">field</span>: <span class="ident">Field</span>,
         <span class="ident">token_stream</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TokenStream</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">u32</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">term</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">for_field</span>(<span class="ident">field</span>);
         <span class="kw">let</span> <span class="ident">num_tokens</span> <span class="op">=</span> {
@@ -487,61 +495,67 @@
 
 <span class="doccomment">/// The `SpecializedPostingsWriter` is just here to remove dynamic</span>
 <span class="doccomment">/// dispatch to the recorder information.</span>
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
-    <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>,
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> {
     <span class="ident">total_num_tokens</span>: <span class="ident">u64</span>,
     <span class="ident">_recorder_type</span>: <span class="ident">PhantomData</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span>,
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span> {
     <span class="doccomment">/// constructor</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>) <span class="op">-&gt;</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span><span class="op">&gt;</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span> {
         <span class="ident">SpecializedPostingsWriter</span> {
-            <span class="ident">heap</span>,
             <span class="ident">total_num_tokens</span>: <span class="number">0u64</span>,
             <span class="ident">_recorder_type</span>: <span class="ident">PhantomData</span>,
         }
     }
 
     <span class="doccomment">/// Builds a `SpecializedPostingsWriter` storing its data in a heap.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_boxed</span>(<span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">Heap</span>) <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span> <span class="op">+</span> <span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
-        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span>::<span class="ident">new</span>(<span class="ident">heap</span>))
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new_boxed</span>() <span class="op">-&gt;</span> <span class="ident">Box</span><span class="op">&lt;</span><span class="ident">PostingsWriter</span><span class="op">&gt;</span> {
+        <span class="ident">Box</span>::<span class="ident">new</span>(<span class="ident">SpecializedPostingsWriter</span>::<span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span>::<span class="ident">new</span>())
     }
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">PostingsWriter</span> <span class="kw">for</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span>, <span class="ident">Rec</span><span class="op">&gt;</span> {
+<span class="kw">impl</span><span class="op">&lt;</span><span class="ident">Rec</span>: <span class="ident">Recorder</span> <span class="op">+</span> <span class="lifetime">&#39;static</span><span class="op">&gt;</span> <span class="ident">PostingsWriter</span> <span class="kw">for</span> <span class="ident">SpecializedPostingsWriter</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span> {
     <span class="kw">fn</span> <span class="ident">subscribe</span>(
         <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
         <span class="ident">term_index</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">TermHashMap</span>,
         <span class="ident">doc</span>: <span class="ident">DocId</span>,
         <span class="ident">position</span>: <span class="ident">u32</span>,
         <span class="ident">term</span>: <span class="kw-2">&amp;</span><span class="ident">Term</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">MemoryArena</span>
     ) <span class="op">-&gt;</span> <span class="ident">UnorderedTermId</span> {
         <span class="macro">debug_assert</span><span class="macro">!</span>(<span class="ident">term</span>.<span class="ident">as_slice</span>().<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="number">4</span>);
-        <span class="kw">let</span> (<span class="ident">term_ord</span>, <span class="ident">recorder</span>): (<span class="ident">UnorderedTermId</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Rec</span>) <span class="op">=</span> <span class="ident">term_index</span>.<span class="ident">get_or_create</span>(<span class="ident">term</span>);
-        <span class="kw">let</span> <span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">recorder</span>.<span class="ident">current_doc</span>();
-        <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">doc</span> {
-            <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">u32</span>::<span class="ident">max_value</span>() {
-                <span class="ident">recorder</span>.<span class="ident">close_doc</span>(<span class="ident">heap</span>);
-            }
-            <span class="ident">recorder</span>.<span class="ident">new_doc</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
-        }
         <span class="self">self</span>.<span class="ident">total_num_tokens</span> <span class="op">+=</span> <span class="number">1</span>;
-        <span class="ident">recorder</span>.<span class="ident">record_position</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
-        <span class="ident">term_ord</span>
+        <span class="ident">term_index</span>.<span class="ident">mutate_or_create</span>(<span class="ident">term</span>, <span class="op">|</span><span class="ident">opt_recorder</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Rec</span><span class="op">&gt;</span><span class="op">|</span> {
+            <span class="kw">if</span> <span class="ident">opt_recorder</span>.<span class="ident">is_some</span>() {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">recorder</span> <span class="op">=</span> <span class="ident">opt_recorder</span>.<span class="ident">unwrap</span>();
+                <span class="kw">let</span> <span class="ident">current_doc</span> <span class="op">=</span> <span class="ident">recorder</span>.<span class="ident">current_doc</span>();
+                <span class="kw">if</span> <span class="ident">current_doc</span> <span class="op">!=</span> <span class="ident">doc</span> {
+                    <span class="ident">recorder</span>.<span class="ident">close_doc</span>(<span class="ident">heap</span>);
+                    <span class="ident">recorder</span>.<span class="ident">new_doc</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
+                }
+                <span class="ident">recorder</span>.<span class="ident">record_position</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
+                <span class="ident">recorder</span>
+            } <span class="kw">else</span> {
+                <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">recorder</span> <span class="op">=</span> <span class="ident">Rec</span>::<span class="ident">new</span>(<span class="ident">heap</span>);
+                <span class="ident">recorder</span>.<span class="ident">new_doc</span>(<span class="ident">doc</span>, <span class="ident">heap</span>);
+                <span class="ident">recorder</span>.<span class="ident">record_position</span>(<span class="ident">position</span>, <span class="ident">heap</span>);
+                <span class="ident">recorder</span>
+            }
+        }) <span class="kw">as</span> <span class="ident">UnorderedTermId</span>
     }
 
     <span class="kw">fn</span> <span class="ident">serialize</span>(
         <span class="kw-2">&amp;</span><span class="self">self</span>,
-        <span class="ident">term_addrs</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">u32</span>, <span class="ident">UnorderedTermId</span>)],
+        <span class="ident">term_addrs</span>: <span class="kw-2">&amp;</span>[(<span class="kw-2">&amp;</span>[<span class="ident">u8</span>], <span class="ident">Addr</span>, <span class="ident">UnorderedTermId</span>)],
         <span class="ident">serializer</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">FieldSerializer</span>,
-        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">Heap</span>,
+        <span class="ident">termdict_heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
+        <span class="ident">heap</span>: <span class="kw-2">&amp;</span><span class="ident">MemoryArena</span>,
     ) <span class="op">-&gt;</span> <span class="ident">io</span>::<span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="kw">for</span> <span class="kw-2">&amp;</span>(<span class="ident">term_bytes</span>, <span class="ident">addr</span>, <span class="kw">_</span>) <span class="kw">in</span> <span class="ident">term_addrs</span> {
-            <span class="kw">let</span> <span class="ident">recorder</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">Rec</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">heap</span>.<span class="ident">get_mut_ref</span>(<span class="ident">addr</span>);
+            <span class="kw">let</span> <span class="ident">recorder</span>: <span class="ident">Rec</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="ident">termdict_heap</span>.<span class="ident">read</span>(<span class="ident">addr</span>) };
             <span class="ident">serializer</span>.<span class="ident">new_term</span>(<span class="kw-2">&amp;</span><span class="ident">term_bytes</span>[<span class="number">4</span>..])<span class="question-mark">?</span>;
-            <span class="ident">recorder</span>.<span class="ident">serialize</span>(<span class="ident">addr</span>, <span class="ident">serializer</span>, <span class="ident">heap</span>)<span class="question-mark">?</span>;
+            <span class="ident">recorder</span>.<span class="ident">serialize</span>(<span class="ident">serializer</span>, <span class="ident">heap</span>)<span class="question-mark">?</span>;
             <span class="ident">serializer</span>.<span class="ident">close_term</span>()<span class="question-mark">?</span>;
         }
         <span class="prelude-val">Ok</span>(())

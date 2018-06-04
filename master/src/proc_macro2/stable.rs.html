@@ -1,4 +1,4 @@
-<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.4.4/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source to the Rust file `/home/travis/.cargo/registry/src/github.com-1ecc6299db9ec823/proc-macro2-0.4.5/src/stable.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>stable.rs.html -- source</title><link rel="stylesheet" type="text/css" href="../../normalize.css"><link rel="stylesheet" type="text/css" href="../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" type="text/css" href="../../dark.css"><link rel="stylesheet" type="text/css" href="../../light.css" id="themeStyle"><script src="../../storage.js"></script></head><body class="rustdoc source"><!--[if lte IE 8]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="sidebar"><div class="sidebar-menu">&#9776;</div></nav><div class="theme-picker"><button id="theme-picker" aria-label="Pick another theme!"><img src="../../brush.svg" width="18" alt="Pick another theme!"></button><div id="theme-choices"></div></div><script src="../../theme.js"></script><nav class="sub"><form class="search-form js-only"><div class="search-container"><input class="search-input" name="search" autocomplete="off" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><a id="settings-menu" href="../../settings.html"><img src="../../wheel.svg" width="18" alt="Change settings"></a></div></form></nav><section id="main" class="content"><pre class="line-numbers"><span id="1">   1</span>
 <span id="2">   2</span>
 <span id="3">   3</span>
 <span id="4">   4</span>
@@ -1284,51 +1284,15 @@
 <span id="1284">1284</span>
 <span id="1285">1285</span>
 <span id="1286">1286</span>
-<span id="1287">1287</span>
-<span id="1288">1288</span>
-<span id="1289">1289</span>
-<span id="1290">1290</span>
-<span id="1291">1291</span>
-<span id="1292">1292</span>
-<span id="1293">1293</span>
-<span id="1294">1294</span>
-<span id="1295">1295</span>
-<span id="1296">1296</span>
-<span id="1297">1297</span>
-<span id="1298">1298</span>
-<span id="1299">1299</span>
-<span id="1300">1300</span>
-<span id="1301">1301</span>
-<span id="1302">1302</span>
-<span id="1303">1303</span>
-<span id="1304">1304</span>
-<span id="1305">1305</span>
-<span id="1306">1306</span>
-<span id="1307">1307</span>
-<span id="1308">1308</span>
-<span id="1309">1309</span>
-<span id="1310">1310</span>
-<span id="1311">1311</span>
-<span id="1312">1312</span>
-<span id="1313">1313</span>
-<span id="1314">1314</span>
-<span id="1315">1315</span>
-<span id="1316">1316</span>
-<span id="1317">1317</span>
-<span id="1318">1318</span>
-<span id="1319">1319</span>
-<span id="1320">1320</span>
 </pre><pre class="rust ">
 <span class="attribute">#![<span class="ident">cfg_attr</span>(<span class="ident">not</span>(<span class="ident">procmacro2_semver_exempt</span>), <span class="ident">allow</span>(<span class="ident">dead_code</span>))]</span>
 
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">borrow</span>::<span class="ident">Borrow</span>;
+<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cell</span>::<span class="ident">RefCell</span>;
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">cmp</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">iter</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">rc</span>::<span class="ident">Rc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">str</span>::<span class="ident">FromStr</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">vec</span>;
 
@@ -1737,19 +1701,17 @@
 
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Clone</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Ident</span> {
-    <span class="ident">intern</span>: <span class="ident">usize</span>,
+    <span class="ident">sym</span>: <span class="ident">String</span>,
     <span class="ident">span</span>: <span class="ident">Span</span>,
     <span class="ident">raw</span>: <span class="ident">bool</span>,
 }
-
-<span class="macro">thread_local</span><span class="macro">!</span>(<span class="kw">static</span> <span class="ident">SYMBOLS</span>: <span class="ident">RefCell</span><span class="op">&lt;</span><span class="ident">Interner</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">RefCell</span>::<span class="ident">new</span>(<span class="ident">Interner</span>::<span class="ident">new</span>()));
 
 <span class="kw">impl</span> <span class="ident">Ident</span> {
     <span class="kw">fn</span> <span class="ident">_new</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>, <span class="ident">raw</span>: <span class="ident">bool</span>, <span class="ident">span</span>: <span class="ident">Span</span>) <span class="op">-&gt;</span> <span class="ident">Ident</span> {
         <span class="ident">validate_term</span>(<span class="ident">string</span>);
 
         <span class="ident">Ident</span> {
-            <span class="ident">intern</span>: <span class="ident">SYMBOLS</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">s</span><span class="op">|</span> <span class="ident">s</span>.<span class="ident">borrow_mut</span>().<span class="ident">intern</span>(<span class="ident">string</span>)),
+            <span class="ident">sym</span>: <span class="ident">string</span>.<span class="ident">to_owned</span>(),
             <span class="ident">span</span>: <span class="ident">span</span>,
             <span class="ident">raw</span>: <span class="ident">raw</span>,
         }
@@ -1763,14 +1725,6 @@
         <span class="ident">Ident</span>::<span class="ident">_new</span>(<span class="ident">string</span>, <span class="bool-val">true</span>, <span class="ident">span</span>)
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">as_str</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="ident">SYMBOLS</span>.<span class="ident">with</span>(<span class="op">|</span><span class="ident">interner</span><span class="op">|</span> {
-            <span class="kw">let</span> <span class="ident">interner</span> <span class="op">=</span> <span class="ident">interner</span>.<span class="ident">borrow</span>();
-            <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">interner</span>.<span class="ident">get</span>(<span class="self">self</span>.<span class="ident">intern</span>);
-            <span class="kw">unsafe</span> { <span class="kw-2">&amp;</span><span class="kw-2">*</span>(<span class="ident">s</span> <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">str</span>) }
-        })
-    }
-
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">span</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">Span</span> {
         <span class="self">self</span>.<span class="ident">span</span>
     }
@@ -1782,14 +1736,19 @@
 
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">is_ident_start</span>(<span class="ident">c</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>) <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> <span class="op">||</span>
-    (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_start</span>(<span class="ident">c</span>))
+    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>)
+        <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>)
+        <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span>
+        <span class="op">||</span> (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_start</span>(<span class="ident">c</span>))
 }
 
 <span class="attribute">#[<span class="ident">inline</span>]</span>
 <span class="kw">fn</span> <span class="ident">is_ident_continue</span>(<span class="ident">c</span>: <span class="ident">char</span>) <span class="op">-&gt;</span> <span class="ident">bool</span> {
-    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>) <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>) <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span> <span class="op">||</span> (<span class="string">&#39;0&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;9&#39;</span>) <span class="op">||</span>
-    (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">c</span>))
+    (<span class="string">&#39;a&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;z&#39;</span>)
+        <span class="op">||</span> (<span class="string">&#39;A&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;Z&#39;</span>)
+        <span class="op">||</span> <span class="ident">c</span> <span class="op">==</span> <span class="string">&#39;_&#39;</span>
+        <span class="op">||</span> (<span class="string">&#39;0&#39;</span> <span class="op">&lt;=</span> <span class="ident">c</span> <span class="op">&amp;&amp;</span> <span class="ident">c</span> <span class="op">&lt;=</span> <span class="string">&#39;9&#39;</span>)
+        <span class="op">||</span> (<span class="ident">c</span> <span class="op">&gt;</span> <span class="string">&#39;\x7f&#39;</span> <span class="op">&amp;&amp;</span> <span class="ident">UnicodeXID</span>::<span class="ident">is_xid_continue</span>(<span class="ident">c</span>))
 }
 
 <span class="kw">fn</span> <span class="ident">validate_term</span>(<span class="ident">string</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
@@ -1826,56 +1785,29 @@
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">raw</span> {
             <span class="string">&quot;r#&quot;</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)<span class="question-mark">?</span>;
         }
-        <span class="self">self</span>.<span class="ident">as_str</span>().<span class="ident">fmt</span>(<span class="ident">f</span>)
+        <span class="self">self</span>.<span class="ident">sym</span>.<span class="ident">fmt</span>(<span class="ident">f</span>)
     }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">Ident</span> {
+    <span class="comment">// Ident(proc_macro), Ident(r#union)</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">procmacro2_semver_exempt</span>))]</span>
     <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">debug</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Ident&quot;</span>);
-        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;sym&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.<span class="ident">as_str</span>()));
-        <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
-        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;span&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">span</span>);
-        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;raw&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">raw</span>);
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">debug</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_tuple</span>(<span class="string">&quot;Ident&quot;</span>);
+        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>));
         <span class="ident">debug</span>.<span class="ident">finish</span>()
     }
-}
 
-<span class="kw">struct</span> <span class="ident">Interner</span> {
-    <span class="ident">string_to_index</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">MyRc</span>, <span class="ident">usize</span><span class="op">&gt;</span>,
-    <span class="ident">index_to_string</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;&gt;</span>,
-}
-
-<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Hash</span>, <span class="ident">Eq</span>, <span class="ident">PartialEq</span>)]</span>
-<span class="kw">struct</span> <span class="ident">MyRc</span>(<span class="ident">Rc</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>);
-
-<span class="kw">impl</span> <span class="ident">Borrow</span><span class="op">&lt;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="kw">for</span> <span class="ident">MyRc</span> {
-    <span class="kw">fn</span> <span class="ident">borrow</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="number">0</span>
-    }
-}
-
-<span class="kw">impl</span> <span class="ident">Interner</span> {
-    <span class="kw">fn</span> <span class="ident">new</span>() <span class="op">-&gt;</span> <span class="ident">Interner</span> {
-        <span class="ident">Interner</span> {
-            <span class="ident">string_to_index</span>: <span class="ident">HashMap</span>::<span class="ident">new</span>(),
-            <span class="ident">index_to_string</span>: <span class="ident">Vec</span>::<span class="ident">new</span>(),
-        }
-    }
-
-    <span class="kw">fn</span> <span class="ident">intern</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">s</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
-        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span><span class="ident">idx</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">string_to_index</span>.<span class="ident">get</span>(<span class="ident">s</span>) {
-            <span class="kw">return</span> <span class="ident">idx</span>;
-        }
-        <span class="kw">let</span> <span class="ident">s</span> <span class="op">=</span> <span class="ident">Rc</span>::<span class="ident">new</span>(<span class="ident">s</span>.<span class="ident">to_string</span>());
-        <span class="self">self</span>.<span class="ident">index_to_string</span>.<span class="ident">push</span>(<span class="ident">s</span>.<span class="ident">clone</span>());
-        <span class="self">self</span>.<span class="ident">string_to_index</span>
-            .<span class="ident">insert</span>(<span class="ident">MyRc</span>(<span class="ident">s</span>), <span class="self">self</span>.<span class="ident">index_to_string</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>);
-        <span class="self">self</span>.<span class="ident">index_to_string</span>.<span class="ident">len</span>() <span class="op">-</span> <span class="number">1</span>
-    }
-
-    <span class="kw">fn</span> <span class="ident">get</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">idx</span>: <span class="ident">usize</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">str</span> {
-        <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">index_to_string</span>[<span class="ident">idx</span>]
+    <span class="comment">// Ident {</span>
+    <span class="comment">//     sym: proc_macro,</span>
+    <span class="comment">//     span: bytes(128..138)</span>
+    <span class="comment">// }</span>
+    <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">procmacro2_semver_exempt</span>)]</span>
+    <span class="kw">fn</span> <span class="ident">fmt</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">f</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">fmt</span>::<span class="ident">Formatter</span>) <span class="op">-&gt;</span> <span class="ident">fmt</span>::<span class="prelude-ty">Result</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">debug</span> <span class="op">=</span> <span class="ident">f</span>.<span class="ident">debug_struct</span>(<span class="string">&quot;Ident&quot;</span>);
+        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;sym&quot;</span>, <span class="kw-2">&amp;</span><span class="macro">format_args</span><span class="macro">!</span>(<span class="string">&quot;{}&quot;</span>, <span class="self">self</span>));
+        <span class="ident">debug</span>.<span class="ident">field</span>(<span class="string">&quot;span&quot;</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">span</span>);
+        <span class="ident">debug</span>.<span class="ident">finish</span>()
     }
 }
 

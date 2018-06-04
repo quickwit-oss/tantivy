@@ -332,7 +332,6 @@
 <span id="332">332</span>
 <span id="333">333</span>
 <span id="334">334</span>
-<span id="335">335</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">byteorder</span>::<span class="ident">ByteOrder</span>;
 <span class="kw">use</span> <span class="ident">common</span>::<span class="ident">bitpacker</span>::<span class="ident">BitPacker</span>;
@@ -429,8 +428,7 @@
     <span class="kw">let</span> <span class="ident">addr_byte</span> <span class="op">=</span> <span class="ident">addr_bits</span> <span class="op">/</span> <span class="number">8</span>;
     <span class="kw">let</span> <span class="ident">bit_shift</span> <span class="op">=</span> (<span class="ident">addr_bits</span> <span class="op">%</span> <span class="number">8</span>) <span class="kw">as</span> <span class="ident">u64</span>;
     <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">data</span>.<span class="ident">len</span>() <span class="op">&gt;=</span> <span class="ident">addr_byte</span> <span class="op">+</span> <span class="number">8</span>);
-    <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> {
-        <span class="comment">//&lt; ok : check len above</span>
+    <span class="kw">let</span> <span class="ident">val_unshifted_unmasked</span>: <span class="ident">u64</span> <span class="op">=</span> <span class="kw">unsafe</span> { <span class="comment">// ok thanks to the 7 byte padding on `.close`</span>
         <span class="kw">let</span> <span class="ident">addr</span> <span class="op">=</span> <span class="ident">data</span>.<span class="ident">as_ptr</span>().<span class="ident">offset</span>(<span class="ident">addr_byte</span> <span class="kw">as</span> <span class="ident">isize</span>) <span class="kw">as</span> <span class="kw-2">*</span><span class="kw">const</span> <span class="ident">u64</span>;
         <span class="ident">ptr</span>::<span class="ident">read_unaligned</span>(<span class="ident">addr</span>)
     };
