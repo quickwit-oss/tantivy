@@ -1,5 +1,4 @@
-use memory_arena::{Addr, MemoryArena};
-use term_hashmap::TermHashMap;
+use super::stacker::{TermHashMap, Addr, MemoryArena};
 
 use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use postings::UnorderedTermId;

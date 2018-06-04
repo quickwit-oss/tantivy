@@ -1,5 +1,4 @@
-use memory_arena::MemoryArena;
-use super::expull::ExpUnrolledLinkedList;
+use super::stacker::{MemoryArena, ExpUnrolledLinkedList};
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;

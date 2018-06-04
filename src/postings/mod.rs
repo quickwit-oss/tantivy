@@ -12,7 +12,7 @@ mod recorder;
 mod segment_postings;
 mod serializer;
 mod term_info;
-mod expull;
+mod stacker;
 
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
@@ -22,6 +22,8 @@ pub use self::postings::Postings;
 pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
+
+pub(crate) use self::stacker::compute_table_size;
 
 pub use common::HasLen;
 

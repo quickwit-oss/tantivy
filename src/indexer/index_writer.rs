@@ -29,14 +29,15 @@ use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
-use term_hashmap::compute_table_size;
+use postings::compute_table_size;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
 pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
 // We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_LIMIT: u32 = (MARGIN_IN_BYTES as u32)* 3u32;
+pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32)* 3u32) as usize;
+pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
@@ -119,11 +120,16 @@ pub fn open_index_writer(
     heap_size_in_bytes_per_thread: usize,
     directory_lock: DirectoryLock,
 ) -> Result<IndexWriter> {
-    if heap_size_in_bytes_per_thread < HEAP_SIZE_LIMIT as usize {
-        panic!(format!(
+    if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
+        let err_msg = format!(
             "The heap size per thread needs to be at least {}.",
-            HEAP_SIZE_LIMIT
-        ));
+            HEAP_SIZE_MIN);
+        bail!(ErrorKind::InvalidArgument(err_msg));
+    }
+    if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
+        let err_msg = format!(
+            "The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
+        bail!(ErrorKind::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
         chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);

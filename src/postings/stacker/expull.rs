@@ -1,6 +1,5 @@
-extern crate tantivy_memory_arena as memory_arena;
+use super::{MemoryArena, Addr};
 
-use memory_arena::{MemoryArena, Addr};
 use std::mem;
 use common::is_power_of_2;
 
@@ -136,7 +135,7 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 mod tests {
 
     use super::jump_needed;
-    use memory_arena::MemoryArena;
+    use super::super::MemoryArena;
     use super::*;
 
     #[test]
