@@ -18,7 +18,9 @@ lazy_static = "0.2.1"
 tinysegmenter = "0.1.0"
 regex = "0.2"
 fst = {version="0.3", default-features=false}
-atomicwrites = {git="https://github.com/fulmicoton/rust-atomicwrites", optional=true}
+# 0.2.1 won't work on ARM.
+# https://github.com/untitaker/rust-atomicwrites/issues/22
+atomicwrites = {version="0.2.2", optional=true}
 tempfile = "2.1"
 log = "0.3.6"
 combine = "2.2"
