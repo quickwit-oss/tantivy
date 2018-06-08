@@ -8,32 +8,46 @@
 
 **Tantivy** is a **full text search engine library** written in rust.
 
-It is strongly inspired by Lucene's design.
+It is closer to Lucene than to Elastic Search and Solr in the sense it is not
+an off-the-shelf search engine server, but rather a crate that can be used
+to build such a search engine.
+
+Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Features
 
+- Full-text search
 - Tiny startup time (<10ms), perfect for command line tools
-- tf-idf scoring
-- Basic query language
-- Phrase queries
+- BM25 scoring (the same as lucene)
+- Basic query language (`+michael +jackson`)
+- Phrase queries search (\"michael jackson\"`)
 - Incremental indexing
 - Multithreaded indexing (indexing English Wikipedia takes < 3 minutes on my desktop)
 - Mmap directory
-- optional SIMD integer compression
+- SIMD integer compression when the platform/CPU includes the SSE2 instruction set.
 - Single valued and multivalued u64 and i64 fast fields (equivalent of doc values in Lucene)
+- `&[u8]` fast fields
 - LZ4 compressed document store
 - Range queries
-- Faceting
-- configurable indexing (optional term frequency and position indexing
+- Faceted search
+- Configurable indexing (optional term frequency and position indexing
 - Cheesy logo with a horse
+
+# Non-features
+
+- Distributed search and will not be in the scope of tantivy.
+
+
+# Supported OS
 
 Tantivy supports Linux, MacOS and Windows.
 
-
 # Getting started
 
-- [tantivy's usage example](http://fulmicoton.com/tantivy-examples/simple_search.html)
+- [tantivy's simple search example](http://fulmicoton.com/tantivy-examples/simple_search.html)
 - [tantivy-cli and its tutorial](https://github.com/tantivy-search/tantivy-cli).
+`tantivy-cli` is an actual command line interface that makes it easy for you to create a search engine,
+index documents and search via the CLI or a small server with a REST API.
 It will walk you through getting a wikipedia search engine up and running in a few minutes.
 - [reference doc]
     - [For the last released version](https://docs.rs/tantivy/)
@@ -49,32 +63,6 @@ To check out and run test, you can simply run :
     git clone git@github.com:tantivy-search/tantivy.git
     cd tantivy
     cargo build
-
-
-## Note on release build and performance
-
-If your project depends on `tantivy`, for better performance, make sure to enable
-`sse3` instructions using a RUSTFLAGS. (This instruction set is likely to
-be available on most `x86_64` CPUs you will encounter).
-
-For instance,
-
-    RUSTFLAGS='-C target-feature=+sse3'
-
-Or, if you are targetting a specific cpu
-
-    RUSTFLAGS='-C target-cpu=native' build --release
-
-Regardless of the flags you pass, by default `tantivy` will contain `SSE3` instructions.
-If you want to disable those, you can run the following command :
-
-    cargo build --no-default-features
-
-Alternatively, if you are trying to compile `tantivy` without simd compression,
-you can disable this functionality. In this case, this submodule is not required
-and you can compile tantivy by using the `--no-default-features` flag.
-
-    cargo build --no-default-features
 
 
 # Contribute
