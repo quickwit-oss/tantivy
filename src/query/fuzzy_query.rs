@@ -2,16 +2,14 @@ use common::BitSet;
 use core::SegmentReader;
 use fst::Automaton;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
-use query::automaton_builder::AutomatonBuilder;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Query, Scorer, Weight};
 use schema::{Field, IndexRecordOption, Term};
-use termdict::{TermDictionary, TermStreamer};
 use std::collections::HashMap;
+use termdict::{TermDictionary, TermStreamer};
 use Result;
 use Searcher;
-
 
 lazy_static! {
     static ref LEV_BUILDER: HashMap<(u8, bool), LevenshteinAutomatonBuilder> = {
@@ -80,21 +78,11 @@ impl Query for FuzzyTermQuery {
     }
 }
 
-impl AutomatonBuilder<DFA> for FuzzyQuery {
-    fn build_automaton(&self) -> Box<DFA> {
-        let lev_automaton_builder =
-        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(self.distance, true);
-
-        let automaton = if self.prefix {
-            lev_automaton_builder.build_prefix_dfa(self.term.text())
-        } else {
-        let automaton = lev_automaton_builder.build_dfa(self.term.text());
-        };
-
 pub struct AutomatonWeight<A>
 where
     A: Automaton,
 {
+    term: Term,
     field: Field,
     automaton: A,
 }
@@ -137,13 +125,13 @@ where
 
 #[cfg(test)]
 mod test {
-    use super::FuzzyQuery;
-    use schema::SchemaBuilder;
-    use Index;
+    use super::FuzzyTermQuery;
     use collector::TopCollector;
+    use schema::SchemaBuilder;
     use schema::TEXT;
-    use Term;
     use tests::assert_nearly_equals;
+    use Index;
+    use Term;
 
     #[test]
     pub fn test_automaton_weight() {

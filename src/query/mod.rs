@@ -23,7 +23,6 @@ mod weight;
 #[cfg(test)]
 mod vec_docset;
 
-pub(crate) mod automaton_builder;
 pub(crate) mod score_combiner;
 
 pub use self::intersection::Intersection;
