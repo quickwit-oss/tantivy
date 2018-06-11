@@ -33,6 +33,7 @@ and should rely on either
 
 !*/
 
+mod skiplist;
 mod reader;
 mod writer;
 pub use self::reader::StoreReader;

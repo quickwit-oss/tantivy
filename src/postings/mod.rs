@@ -12,6 +12,8 @@ mod recorder;
 mod segment_postings;
 mod serializer;
 mod term_info;
+mod stacker;
+
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
@@ -20,6 +22,8 @@ pub use self::postings::Postings;
 pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
+
+pub(crate) use self::stacker::compute_table_size;
 
 pub use common::HasLen;
 
@@ -39,7 +43,6 @@ pub mod tests {
     use core::Index;
     use core::SegmentComponent;
     use core::SegmentReader;
-    use datastruct::stacker::Heap;
     use docset::{DocSet, SkipResult};
     use fieldnorm::FieldNormReader;
     use indexer::operation::AddOperation;
@@ -160,10 +163,9 @@ pub mod tests {
         let index = Index::create_in_ram(schema.clone());
         let segment = index.new_segment();
 
-        let heap = Heap::with_capacity(10_000_000);
         {
             let mut segment_writer =
-                SegmentWriter::for_segment(&heap, 18, segment.clone(), &schema).unwrap();
+                SegmentWriter::for_segment(18, segment.clone(), &schema).unwrap();
             {
                 let mut doc = Document::default();
                 // checking that position works if the field has two values

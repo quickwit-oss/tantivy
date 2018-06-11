@@ -187,7 +187,6 @@ mod compression;
 mod core;
 mod indexer;
 
-mod datastruct;
 #[allow(unused_doc_comment)]
 mod error;
 pub mod tokenizer;

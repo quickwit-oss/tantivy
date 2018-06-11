@@ -25,7 +25,7 @@ impl Default for Token {
             offset_from: 0,
             offset_to: 0,
             position: usize::max_value(),
-            text: String::new(),
+            text: String::with_capacity(200),
         }
     }
 }
