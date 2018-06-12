@@ -4,10 +4,10 @@ use common::BinarySerializable;
 use common::VInt;
 use super::skiplist::SkipList;
 use directory::ReadOnlySource;
-use lz4;
+use super::decompress;
 use schema::Document;
 use std::cell::RefCell;
-use std::io::{self, Read};
+use std::io;
 use std::mem::size_of;
 use DocId;
 
@@ -61,9 +61,7 @@ impl StoreReader {
             let mut current_block_mut = self.current_block.borrow_mut();
             current_block_mut.clear();
             let compressed_block = self.compressed_block(block_offset);
-            let mut lz4_decoder = lz4::Decoder::new(compressed_block)?;
-            *self.current_block_offset.borrow_mut() = usize::max_value();
-            lz4_decoder.read_to_end(&mut current_block_mut).map(|_| ())?;
+            decompress(compressed_block, &mut current_block_mut)?;
             *self.current_block_offset.borrow_mut() = block_offset;
         }
         Ok(())

@@ -18,8 +18,8 @@ lazy_static = "0.2.1"
 tinysegmenter = "0.1.0"
 regex = "0.2"
 fst = {version="0.3", default-features=false}
-# 0.2.1 won't work on ARM.
-# https://github.com/untitaker/rust-atomicwrites/issues/22
+lz4 = {version="1.20", optional=true}
+snap = {version="0.2"}
 atomicwrites = {version="0.2.2", optional=true}
 tempfile = "2.1"
 log = "0.3.6"
@@ -31,7 +31,6 @@ serde_json = "1.0"
 num_cpus = "1.2"
 itertools = "0.5.9"
 levenshtein_automata = {version="0.1", features=["fst_automaton"]}
-lz4 = "1.20"
 bit-set = "0.4.0"
 uuid = { version = "0.6", features = ["v4", "serde"] }
 chan = "0.1"
@@ -65,6 +64,7 @@ default = ["mmap"]
 simd = ["bitpacking/simd"]
 mmap = ["fst/mmap", "atomicwrites"]
 unstable = ["simd"]
+lz4-compression = ["lz4"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
