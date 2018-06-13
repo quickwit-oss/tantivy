@@ -58,12 +58,7 @@ impl Index {
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
         let ram_directory = RAMDirectory::create();
-        // unwrap is ok here
-        let directory = ManagedDirectory::new(ram_directory).expect(
-            "Creating a managed directory from a brand new RAM directory \
-             should never fail.",
-        );
-        Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail")
+        Index::create(ram_directory, schema).expect("Creating a RAMDirectory should never fail")
     }
 
     /// Creates a new index in a given filepath.
@@ -73,8 +68,7 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        let directory = ManagedDirectory::new(mmap_directory)?;
-        Index::from_directory(directory, schema)
+        Index::create(mmap_directory, schema)
     }
 
     /// Creates a new index in a temp directory.
@@ -88,7 +82,12 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
-        let directory = ManagedDirectory::new(mmap_directory)?;
+        Index::create(mmap_directory, schema)
+    }
+
+    /// Creates a new index given an implementation of the trait `Directory`
+    pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+        let directory = ManagedDirectory::new(dir)?;
         Index::from_directory(directory, schema)
     }
 
