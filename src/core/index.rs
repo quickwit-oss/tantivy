@@ -71,7 +71,7 @@ impl Index {
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
     #[cfg(feature = "mmap")]
-    pub fn create<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
+    pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
         let directory = ManagedDirectory::new(mmap_directory)?;
         Index::from_directory(directory, schema)

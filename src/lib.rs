@@ -55,7 +55,7 @@
 //!
 //! // Indexing documents
 //!
-//! let index = Index::create(index_path, schema.clone())?;
+//! let index = Index::create_in_dir(index_path, schema.clone())?;
 //!
 //! // Here we use a buffer of 100MB that will be split
 //! // between indexing threads.

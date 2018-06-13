@@ -64,7 +64,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     //
     // This will actually just save a meta.json
     // with our schema in the directory.
-    let index = Index::create(index_path, schema.clone())?;
+    let index = Index::create_in_dir(index_path, schema.clone())?;
 
     // To insert document we need an index writer.
     // There must be only one writer at a time.
