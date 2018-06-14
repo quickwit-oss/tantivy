@@ -61,7 +61,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     //
     // This will actually just save a meta.json
     // with our schema in the directory.
-    let index = Index::create(index_path, schema.clone())?;
+    let index = Index::create_in_dir(index_path, schema.clone())?;
 
     // here we are registering our custome tokenizer
     // this will store tokens of 3 characters each
