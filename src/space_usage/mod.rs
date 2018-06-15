@@ -68,6 +68,11 @@ impl SearcherSpaceUsage {
         self.segments.push(segment);
     }
 
+    /// Per segment space usage
+    pub fn segments(&self) -> &[SegmentSpaceUsage] {
+        &self.segments[..]
+    }
+
     /// Returns total byte usage of this searcher, including all large subcomponents.
     /// Does not account for smaller things like `meta.json`.
     pub fn total(&self) -> ByteCount {
@@ -124,6 +129,46 @@ impl SegmentSpaceUsage {
         }
     }
 
+    /// Num docs in segment
+    pub fn num_docs(&self) -> u32 {
+        self.num_docs
+    }
+
+    /// Space usage for term dictionary
+    pub fn termdict(&self) -> &PerFieldSpaceUsage {
+        &self.termdict
+    }
+
+    /// Space usage for postings list
+    pub fn postings(&self) -> &PerFieldSpaceUsage {
+        &self.postings
+    }
+
+    /// Space usage for positions
+    pub fn positions(&self) -> &PerFieldSpaceUsage {
+        &self.positions
+    }
+
+    /// Space usage for fast fields
+    pub fn fast_fields(&self) -> &PerFieldSpaceUsage {
+        &self.fast_fields
+    }
+
+    /// Space usage for field norms
+    pub fn fieldnorms(&self) -> &PerFieldSpaceUsage {
+        &self.fieldnorms
+    }
+
+    /// Space usage for stored documents
+    pub fn store(&self) -> &StoreSpaceUsage {
+        &self.store
+    }
+
+    /// Space usage for document deletions
+    pub fn deletes(&self) -> ByteCount {
+        self.deletes
+    }
+
     /// Total space usage in bytes for this segment.
     pub fn total(&self) -> ByteCount {
         self.total
@@ -146,6 +191,16 @@ impl StoreSpaceUsage {
         StoreSpaceUsage { data, offsets }
     }
 
+    /// Space usage for the data part of the store
+    pub fn data_usage(&self) -> ByteCount {
+        self.data
+    }
+
+    /// Space usage for the offsets part of the store (doc ID -> offset)
+    pub fn offsets_usage(&self) -> ByteCount {
+        self.offsets
+    }
+
     /// Total space usage in bytes for this Store
     pub fn total(&self) -> ByteCount {
         self.data + self.offsets
@@ -166,6 +221,11 @@ impl PerFieldSpaceUsage {
     pub(crate) fn new(fields: HashMap<Field, FieldUsage>) -> PerFieldSpaceUsage {
         let total = fields.values().map(|x| x.total()).fold(ByteCount(0), Add::add);
         PerFieldSpaceUsage { fields, total }
+    }
+
+    /// Per field space usage
+    pub fn fields(&self) -> impl Iterator<Item = (&Field, &FieldUsage)> {
+        self.fields.iter()
     }
 
     /// Bytes used by the represented file
@@ -204,6 +264,16 @@ impl FieldUsage {
         assert!(self.sub_weights[idx].is_none());
         self.sub_weights[idx] = Some(size);
         self.weight += size
+    }
+
+    /// Field
+    pub fn field(&self) -> Field {
+        self.field
+    }
+
+    /// Space usage for each index
+    pub fn sub_weights(&self) -> &[Option<ByteCount>] {
+        &self.sub_weights[..]
     }
 
     /// Total bytes used for this field in this context
