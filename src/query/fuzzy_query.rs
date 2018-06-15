@@ -134,7 +134,7 @@ mod test {
     use Term;
 
     #[test]
-    pub fn test_automaton_weight() {
+    pub fn test_fuzzy_term() {
         let mut schema_builder = SchemaBuilder::new();
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
