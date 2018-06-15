@@ -45,13 +45,6 @@ pub struct Index {
 }
 
 impl Index {
-    /// Create a new index from a directory.
-    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
-        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
-        let metas = IndexMeta::with_schema(schema);
-        Index::create_from_metas(directory, &metas)
-    }
-
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
@@ -89,6 +82,13 @@ impl Index {
     pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
         let directory = ManagedDirectory::new(dir)?;
         Index::from_directory(directory, schema)
+    }
+
+    /// Create a new index from a directory.
+    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
+        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
+        let metas = IndexMeta::with_schema(schema);
+        Index::create_from_metas(directory, &metas)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
