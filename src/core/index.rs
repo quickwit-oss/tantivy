@@ -45,13 +45,6 @@ pub struct Index {
 }
 
 impl Index {
-    /// Create a new index from a directory.
-    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
-        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
-        let metas = IndexMeta::with_schema(schema);
-        Index::create_from_metas(directory, &metas)
-    }
-
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
@@ -91,6 +84,13 @@ impl Index {
         Index::from_directory(directory, schema)
     }
 
+    /// Create a new index from a directory.
+    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
+        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
+        let metas = IndexMeta::with_schema(schema);
+        Index::create_from_metas(directory, &metas)
+    }
+
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
@@ -109,18 +109,18 @@ impl Index {
         &self.tokenizers
     }
 
+    /// Opens a new directory from an index path.
+    #[cfg(feature = "mmap")]
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
+        let mmap_directory = MmapDirectory::open(directory_path)?;
+        Index::open(mmap_directory)
+    }
+
     /// Open the index using the provided directory
-    pub fn open_directory<D: Directory>(directory: D) -> Result<Index> {
+    pub fn open<D: Directory>(directory: D) -> Result<Index> {
         let directory = ManagedDirectory::new(directory)?;
         let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, &metas)
-    }
-
-    /// Opens a new directory from an index path.
-    #[cfg(feature = "mmap")]
-    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
-        let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open_directory(mmap_directory)
     }
 
     /// Reads the index meta file from the directory.
