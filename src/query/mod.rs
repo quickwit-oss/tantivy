@@ -15,6 +15,7 @@ mod phrase_query;
 mod query;
 mod query_parser;
 mod range_query;
+mod regex_query;
 mod reqopt_scorer;
 mod scorer;
 mod term_query;
