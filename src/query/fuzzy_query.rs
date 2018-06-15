@@ -60,7 +60,7 @@ impl FuzzyTermQuery {
         }
     }
 
-    pub fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
+    fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
         let automaton = LEV_BUILDER.get(&(self.distance, false))
             .unwrap() // TODO return an error
             .build_dfa(self.term.text());
