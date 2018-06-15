@@ -51,12 +51,7 @@ impl Index {
     /// This should only be used for unit tests.
     pub fn create_in_ram(schema: Schema) -> Index {
         let ram_directory = RAMDirectory::create();
-        // unwrap is ok here
-        let directory = ManagedDirectory::new(ram_directory).expect(
-            "Creating a managed directory from a brand new RAM directory \
-             should never fail.",
-        );
-        Index::from_directory(directory, schema).expect("Creating a RAMDirectory should never fail")
+        Index::create(ram_directory, schema).expect("Creating a RAMDirectory should never fail")
     }
 
     /// Creates a new index in a given filepath.
@@ -64,15 +59,9 @@ impl Index {
     ///
     /// If a previous index was in this directory, then its meta file will be destroyed.
     #[cfg(feature = "mmap")]
-    pub fn create<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
+    pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        let directory = ManagedDirectory::new(mmap_directory)?;
-        Index::from_directory(directory, schema)
-    }
-
-    /// Accessor for the tokenizer manager.
-    pub fn tokenizers(&self) -> &TokenizerManager {
-        &self.tokenizers
+        Index::create(mmap_directory, schema)
     }
 
     /// Creates a new index in a temp directory.
@@ -86,8 +75,20 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn create_from_tempdir(schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::create_from_tempdir()?;
-        let directory = ManagedDirectory::new(mmap_directory)?;
+        Index::create(mmap_directory, schema)
+    }
+
+    /// Creates a new index given an implementation of the trait `Directory`
+    pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+        let directory = ManagedDirectory::new(dir)?;
         Index::from_directory(directory, schema)
+    }
+
+    /// Create a new index from a directory.
+    fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
+        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
+        let metas = IndexMeta::with_schema(schema);
+        Index::create_from_metas(directory, &metas)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
@@ -103,24 +104,22 @@ impl Index {
         Ok(index)
     }
 
-    /// Open the index using the provided directory
-    pub fn open_directory<D: Directory>(directory: D) -> Result<Index> {
-        let directory = ManagedDirectory::new(directory)?;
-        let metas = load_metas(&directory)?;
-        Index::create_from_metas(directory, &metas)
+    /// Accessor for the tokenizer manager.
+    pub fn tokenizers(&self) -> &TokenizerManager {
+        &self.tokenizers
     }
 
     /// Opens a new directory from an index path.
     #[cfg(feature = "mmap")]
-    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open_directory(mmap_directory)
+        Index::open(mmap_directory)
     }
 
-    /// Create a new index from a directory.
-    pub fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
-        save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
-        let metas = IndexMeta::with_schema(schema);
+    /// Open the index using the provided directory
+    pub fn open<D: Directory>(directory: D) -> Result<Index> {
+        let directory = ManagedDirectory::new(directory)?;
+        let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, &metas)
     }
 

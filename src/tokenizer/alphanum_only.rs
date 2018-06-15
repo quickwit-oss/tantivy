@@ -1,3 +1,28 @@
+//! # Example
+//! ```
+//! extern crate tantivy;
+//! use tantivy::tokenizer::*;
+//!
+//! # fn main() {
+//!
+//! let tokenizer = RawTokenizer
+//!   .filter(AlphaNumOnlyFilter);
+//!
+//! let mut stream = tokenizer.token_stream("hello there");
+//! // is none because the raw filter emits one token that
+//! // contains a space
+//! assert!(stream.next().is_none());
+//!
+//! let tokenizer = SimpleTokenizer
+//!   .filter(AlphaNumOnlyFilter);
+//!
+//! let mut stream = tokenizer.token_stream("hello there 💣");
+//! assert!(stream.next().is_some());
+//! assert!(stream.next().is_some());
+//! // the "emoji" is dropped because its not an alphanum
+//! assert!(stream.next().is_none());
+//! # }
+//! ```
 use super::{Token, TokenFilter, TokenStream};
 
 /// `TokenFilter` that removes all tokens that contain non
@@ -49,14 +74,12 @@ where
     }
 
     fn advance(&mut self) -> bool {
-        loop {
-            if self.tail.advance() {
-                if self.predicate(self.tail.token()) {
-                    return true;
-                }
-            } else {
-                return false;
+        while self.tail.advance() {
+            if self.predicate(self.tail.token()) {
+                return true;
             }
         }
+
+        false
     }
 }

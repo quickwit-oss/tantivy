@@ -10,7 +10,7 @@ use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
 use fastfield::{self, FastFieldNotAvailableError};
-use fastfield::{FastValue, MultiValueIntFastFieldReader};
+use fastfield::{BytesFastFieldReader, FastValue, MultiValueIntFastFieldReader};
 use fieldnorm::FieldNormReader;
 use schema::Cardinality;
 use schema::Document;
@@ -124,7 +124,7 @@ impl SegmentReader {
     pub(crate) fn fast_field_reader_with_idx<Item: FastValue>(
         &self,
         field: Field,
-        idx: usize
+        idx: usize,
     ) -> fastfield::Result<FastFieldReader<Item>> {
         if let Some(ff_source) = self.fast_fields_composite.open_read_with_idx(field, idx) {
             Ok(FastFieldReader::open(ff_source))
@@ -149,6 +149,23 @@ impl SegmentReader {
         } else {
             Err(FastFieldNotAvailableError::new(field_entry))
         }
+    }
+
+    /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
+    pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
+        let field_entry = self.schema.get_field_entry(field);
+        match field_entry.field_type() {
+            &FieldType::Bytes => {}
+            _ => return Err(FastFieldNotAvailableError::new(field_entry)),
+        }
+        let idx_reader = self.fast_fields_composite
+            .open_read_with_idx(field, 0)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
+            .map(FastFieldReader::open)?;
+        let values = self.fast_fields_composite
+            .open_read_with_idx(field, 1)
+            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
+        Ok(BytesFastFieldReader::open(idx_reader, values))
     }
 
     /// Accessor to the `FacetReader` associated to a given `Field`.
@@ -338,6 +355,11 @@ impl SegmentReader {
             .unwrap_or(false)
     }
 
+    /// Returns an iterator that will iterate over the alive document ids
+    pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator {
+        SegmentReaderAliveDocsIterator::new(&self)
+    }
+
     /// Summarize total space usage of this segment.
     pub fn space_usage(&self) -> SegmentSpaceUsage {
         SegmentSpaceUsage::new(
@@ -356,5 +378,92 @@ impl SegmentReader {
 impl fmt::Debug for SegmentReader {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "SegmentReader({:?})", self.segment_id)
+    }
+}
+
+/// Implements the iterator trait to allow easy iteration
+/// over non-deleted ("alive") DocIds in a SegmentReader
+pub struct SegmentReaderAliveDocsIterator<'a> {
+    reader: &'a SegmentReader,
+    max_doc: DocId,
+    current: DocId,
+}
+
+impl<'a> SegmentReaderAliveDocsIterator<'a> {
+    pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
+        SegmentReaderAliveDocsIterator {
+            reader: reader,
+            max_doc: reader.max_doc(),
+            current: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
+    type Item = DocId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        // TODO: Use TinySet (like in BitSetDocSet) to speed this process up
+        if self.current >= self.max_doc {
+            return None;
+        }
+
+        // find the next alive doc id
+        while self.reader.is_deleted(self.current) {
+            self.current += 1;
+
+            if self.current >= self.max_doc {
+                return None;
+            }
+        }
+
+        // capture the current alive DocId
+        let result = Some(self.current);
+
+        // move down the chain
+        self.current += 1;
+
+        result
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use core::Index;
+    use schema::{SchemaBuilder, Term, STORED, TEXT};
+    use DocId;
+
+    #[test]
+    fn test_alive_docs_iterator() {
+        let mut schema_builder = SchemaBuilder::new();
+        schema_builder.add_text_field("name", TEXT | STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        let name = schema.get_field("name").unwrap();
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => "tantivy"));
+            index_writer.add_document(doc!(name => "horse"));
+            index_writer.add_document(doc!(name => "jockey"));
+            index_writer.add_document(doc!(name => "cap"));
+
+            // we should now have one segment with two docs
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            index_writer2.delete_term(Term::from_field_text(name, "horse"));
+            index_writer2.delete_term(Term::from_field_text(name, "cap"));
+
+            // ok, now we should have a deleted doc
+            index_writer2.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
+        assert_eq!(vec![0u32, 2u32], docs);
     }
 }

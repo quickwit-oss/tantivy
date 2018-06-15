@@ -1,3 +1,21 @@
+//! # Example
+//! ```
+//! extern crate tantivy;
+//! use tantivy::tokenizer::*;
+//!
+//! # fn main() {
+//!
+//! let tokenizer = SimpleTokenizer
+//!   .filter(RemoveLongFilter::limit(5));
+//!
+//! let mut stream = tokenizer.token_stream("toolong nice");
+//! // because `toolong` is more than 5 characters, it is filtered
+//! // out of the token stream.
+//! assert_eq!(stream.next().unwrap().text, "nice");
+//! assert!(stream.next().is_none());
+//! # }
+//! ```
+//!
 use super::{Token, TokenFilter, TokenStream};
 
 /// `RemoveLongFilter` removes tokens that are longer
@@ -68,14 +86,12 @@ where
     }
 
     fn advance(&mut self) -> bool {
-        loop {
-            if self.tail.advance() {
-                if self.predicate(self.tail.token()) {
-                    return true;
-                }
-            } else {
-                return false;
+        while self.tail.advance() {
+            if self.predicate(self.tail.token()) {
+                return true;
             }
         }
+
+        false
     }
 }

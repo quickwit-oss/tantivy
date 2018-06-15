@@ -3,8 +3,8 @@ use std::fmt;
 use super::Field;
 use byteorder::{BigEndian, ByteOrder};
 use common;
-use std::str;
 use schema::Facet;
+use std::str;
 
 /// Size (in bytes) of the buffer of a int field.
 const INT_TERM_LEN: usize = 4 + 8;
@@ -74,8 +74,10 @@ impl Term {
     /// It is declared unsafe, as the term content
     /// is not initialized, and a call to `.field()`
     /// would panic.
-    pub(crate) unsafe fn with_capacity(num_bytes: usize) -> Term {
-        Term(Vec::with_capacity(num_bytes))
+    pub(crate) fn for_field(field: Field) -> Term {
+        let mut term = Term(Vec::with_capacity(100));
+        term.set_field(field);
+        term
     }
 
     /// Returns the field.
@@ -105,6 +107,12 @@ impl Term {
     fn set_bytes(&mut self, bytes: &[u8]) {
         self.0.resize(4, 0u8);
         self.0.extend(bytes);
+    }
+
+    pub(crate) fn from_field_bytes(field: Field, bytes: &[u8]) -> Term {
+        let mut term = Term::for_field(field);
+        term.set_bytes(bytes);
+        term
     }
 
     /// Set the texts only, keeping the field untouched.

@@ -55,7 +55,7 @@
 //!
 //! // Indexing documents
 //!
-//! let index = Index::create(index_path, schema.clone())?;
+//! let index = Index::create_in_dir(index_path, schema.clone())?;
 //!
 //! // Here we use a buffer of 100MB that will be split
 //! // between indexing threads.
@@ -116,6 +116,9 @@ extern crate lazy_static;
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg_attr(test, macro_use)]
+extern crate serde_json;
+
 #[macro_use]
 extern crate log;
 
@@ -124,23 +127,24 @@ extern crate error_chain;
 
 #[cfg(feature = "mmap")]
 extern crate atomicwrites;
+extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
 extern crate chan;
 extern crate combine;
 extern crate crossbeam;
+extern crate fnv;
 extern crate fst;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate itertools;
-extern crate lz4;
+extern crate levenshtein_automata;
 extern crate num_cpus;
 extern crate owning_ref;
 extern crate regex;
 extern crate rust_stemmers;
 extern crate serde;
-extern crate serde_json;
 extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
@@ -183,7 +187,6 @@ mod compression;
 mod core;
 mod indexer;
 
-mod datastruct;
 #[allow(unused_doc_comment)]
 mod error;
 pub mod tokenizer;
@@ -191,7 +194,7 @@ pub mod tokenizer;
 pub mod collector;
 pub mod directory;
 pub mod fastfield;
-pub(crate) mod fieldnorm;
+pub mod fieldnorm;
 pub mod postings;
 pub mod query;
 pub mod schema;

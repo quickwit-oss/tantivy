@@ -15,6 +15,8 @@ pub enum Value {
     I64(i64),
     /// Hierarchical Facet
     Facet(Facet),
+    /// Arbitrarily sized byte array
+    Bytes(Vec<u8>),
 }
 
 impl Serialize for Value {
@@ -27,6 +29,7 @@ impl Serialize for Value {
             Value::U64(u) => serializer.serialize_u64(u),
             Value::I64(u) => serializer.serialize_i64(u),
             Value::Facet(ref facet) => facet.serialize(serializer),
+            Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
         }
     }
 }
@@ -131,6 +134,12 @@ impl<'a> From<Facet> for Value {
     }
 }
 
+impl From<Vec<u8>> for Value {
+    fn from(bytes: Vec<u8>) -> Value {
+        Value::Bytes(bytes)
+    }
+}
+
 mod binary_serialize {
     use super::Value;
     use common::BinarySerializable;
@@ -141,6 +150,7 @@ mod binary_serialize {
     const U64_CODE: u8 = 1;
     const I64_CODE: u8 = 2;
     const HIERARCHICAL_FACET_CODE: u8 = 3;
+    const BYTES_CODE: u8 = 4;
 
     impl BinarySerializable for Value {
         fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -161,6 +171,10 @@ mod binary_serialize {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
                     facet.serialize(writer)
                 }
+                Value::Bytes(ref bytes) => {
+                    BYTES_CODE.serialize(writer)?;
+                    bytes.serialize(writer)
+                }
             }
         }
         fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
@@ -179,6 +193,7 @@ mod binary_serialize {
                     Ok(Value::I64(value))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
+                BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),
                 _ => Err(io::Error::new(
                     io::ErrorKind::InvalidData,
                     format!("No field type is associated with code {:?}", type_code),

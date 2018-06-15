@@ -16,7 +16,7 @@ use Term;
 /// * `idf`        - inverse document frequency.
 /// * `term_freq`  - number of occurrences of the term in the field
 /// * `field norm` - number of tokens in the field.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct TermQuery {
     term: Term,
     index_record_option: IndexRecordOption,
@@ -29,6 +29,11 @@ impl TermQuery {
             term,
             index_record_option: segment_postings_options,
         }
+    }
+
+    /// The `Term` this query is built out of.
+    pub fn term(&self) -> &Term {
+        &self.term
     }
 
     /// Returns a weight object.

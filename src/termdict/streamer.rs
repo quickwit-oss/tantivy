@@ -1,18 +1,26 @@
 use super::TermDictionary;
+use fst::automaton::AlwaysMatch;
 use fst::map::{Stream, StreamBuilder};
+use fst::Automaton;
 use fst::{IntoStreamer, Streamer};
 use postings::TermInfo;
 use termdict::TermOrdinal;
 
-/// `TermStreamerBuilder` is an helper object used to define
+/// `TermStreamerBuilder` is a helper object used to define
 /// a range of terms that should be streamed.
-pub struct TermStreamerBuilder<'a> {
+pub struct TermStreamerBuilder<'a, A = AlwaysMatch>
+where
+    A: Automaton,
+{
     fst_map: &'a TermDictionary,
-    stream_builder: StreamBuilder<'a>,
+    stream_builder: StreamBuilder<'a, A>,
 }
 
-impl<'a> TermStreamerBuilder<'a> {
-    pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a>) -> Self {
+impl<'a, A> TermStreamerBuilder<'a, A>
+where
+    A: Automaton,
+{
+    pub(crate) fn new(fst_map: &'a TermDictionary, stream_builder: StreamBuilder<'a, A>) -> Self {
         TermStreamerBuilder {
             fst_map,
             stream_builder,
@@ -45,7 +53,7 @@ impl<'a> TermStreamerBuilder<'a> {
 
     /// Creates the stream corresponding to the range
     /// of terms defined using the `TermStreamerBuilder`.
-    pub fn into_stream(self) -> TermStreamer<'a> {
+    pub fn into_stream(self) -> TermStreamer<'a, A> {
         TermStreamer {
             fst_map: self.fst_map,
             stream: self.stream_builder.into_stream(),
@@ -58,15 +66,21 @@ impl<'a> TermStreamerBuilder<'a> {
 
 /// `TermStreamer` acts as a cursor over a range of terms of a segment.
 /// Terms are guaranteed to be sorted.
-pub struct TermStreamer<'a> {
+pub struct TermStreamer<'a, A = AlwaysMatch>
+where
+    A: Automaton,
+{
     fst_map: &'a TermDictionary,
-    stream: Stream<'a>,
+    stream: Stream<'a, A>,
     term_ord: TermOrdinal,
     current_key: Vec<u8>,
     current_value: TermInfo,
 }
 
-impl<'a> TermStreamer<'a> {
+impl<'a, A> TermStreamer<'a, A>
+where
+    A: Automaton,
+{
     /// Advance position the stream on the next item.
     /// Before the first call to `.advance()`, the stream
     /// is an unitialized state.

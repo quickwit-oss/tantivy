@@ -1,50 +1,20 @@
 /*!
-The term dictionary is one of the key datastructure of
-tantivy. It associates sorted `terms` to a `TermInfo` struct
-that serves as an address in their respective posting list.
+The term dictionary main role is to associate the sorted [`Term`s](../struct.Term.html) to
+a [`TermInfo`](../postings/struct.TermInfo.html) struct that contains some meta-information
+about the term.
 
-The term dictionary API makes it possible to iterate through
-a range of keys in a sorted manner.
+Internally, the term dictionary relies on the `fst` crate to store
+a sorted mapping that associate each term to its rank in the lexicographical order.
+For instance, in a dictionary containing the sorted terms "abba", "bjork", "blur" and "donovan",
+the `TermOrdinal` are respectively `0`, `1`, `2`, and `3`.
 
+For `u64`-terms, tantivy explicitely uses a `BigEndian` representation to ensure that the
+lexicographical order matches the natural order of integers.
 
-# Implementations
+`i64`-terms are transformed to `u64` using a continuous mapping `val ⟶ val - i64::min_value()`
+and then treated as a `u64`.
 
-There is currently two implementations of the term dictionary.
-
-## Default implementation : `fstdict`
-
-The default one relies heavily on the `fst` crate.
-It associate each terms `&[u8]` representation to a `u64`
-that is in fact an address in a buffer. The value is then accessible
-via deserializing the value at this address.
-
-
-## Stream implementation : `streamdict`
-
-The `fstdict` is a tiny bit slow when streaming all of
-the terms.
-For some use case (analytics engine), it is preferrable
-to use the `streamdict`, that offers better streaming
-performance, to the detriment of `lookup` performance.
-
-`streamdict` can be enabled by adding the `streamdict`
-feature when compiling `tantivy`.
-
-`streamdict` encodes each term relatively to the precedent
-as follows.
-
-- number of bytes that needs to be popped.
-- number of bytes that needs to be added.
-- sequence of bytes that is to be added
-- value.
-
-Because such a structure does not allow for lookups,
-it comes with a `fst` that indexes 1 out of `1024`
-terms in this structure.
-
-A `lookup` therefore consists in a lookup in the `fst`
-followed by a streaming through at most `1024` elements in the
-term `stream`.
+A second datastructure makes it possible to access a [`TermInfo`](../postings/struct.TermInfo.html).
 */
 
 /// Position of the term in the sorted list of terms.
@@ -58,7 +28,6 @@ mod termdict;
 pub use self::merger::TermMerger;
 pub use self::streamer::{TermStreamer, TermStreamerBuilder};
 pub use self::termdict::{TermDictionary, TermDictionaryBuilder};
-
 
 #[cfg(test)]
 mod tests {
@@ -199,7 +168,7 @@ mod tests {
         let mut term_string = String::new();
         while term_it.advance() {
             //let term = Term::from_bytes(term_it.key());
-            term_string.push_str(unsafe { str::from_utf8_unchecked(term_it.key()) });
+            term_string.push_str(unsafe { str::from_utf8_unchecked(term_it.key()) }); // ok test
         }
         assert_eq!(&*term_string, "abcdef");
     }
@@ -420,4 +389,46 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_automaton_search() {
+        use levenshtein_automata::LevenshteinAutomatonBuilder;
+
+        const COUNTRIES: [&'static str; 7] = [
+            "San Marino",
+            "Serbia",
+            "Slovakia",
+            "Slovenia",
+            "Spain",
+            "Sweden",
+            "Switzerland",
+        ];
+
+        let mut directory = RAMDirectory::create();
+        let path = PathBuf::from("TermDictionary");
+        {
+            let write = directory.open_write(&path).unwrap();
+            let field_type = FieldType::Str(TEXT);
+            let mut term_dictionary_builder =
+                TermDictionaryBuilder::new(write, field_type).unwrap();
+            for term in COUNTRIES.iter() {
+                term_dictionary_builder
+                    .insert(term.as_bytes(), &make_term_info(0u64))
+                    .unwrap();
+            }
+            term_dictionary_builder.finish().unwrap();
+        }
+        let source = directory.open_read(&path).unwrap();
+        let term_dict: TermDictionary = TermDictionary::from_source(source);
+
+        // We can now build an entire dfa.
+        let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
+        let automaton = lev_automaton_builder.build_dfa("Spaen");
+
+        let mut range = term_dict.search(automaton).into_stream();
+
+        // get the first finding
+        assert!(range.advance());
+        assert_eq!("Spain".as_bytes(), range.key());
+        assert!(!range.advance());
+    }
 }

@@ -87,6 +87,11 @@ impl Document {
         self.add(FieldValue::new(field, Value::I64(value)));
     }
 
+    /// Add a bytes field
+    pub fn add_bytes(&mut self, field: Field, value: Vec<u8>) {
+        self.add(FieldValue::new(field, Value::Bytes(value)))
+    }
+
     /// Add a field value
     pub fn add(&mut self, field_value: FieldValue) {
         self.field_values.push(field_value);

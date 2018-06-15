@@ -67,6 +67,11 @@ impl<Item: FastValue> FastFieldReader<Item> {
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
     ///
+    /// Regardless of the type of `Item`, this method works
+    /// - transmuting the output array
+    /// - extracting the `Item`s as if they were `u64`
+    /// - possibly converting the `u64` value to the right type.
+    ///
     /// # Panics
     ///
     /// May panic if `start + output.len()` is greater than
@@ -75,7 +80,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     // TODO change start to `u64`.
     // For multifastfield, start is an index in a second fastfield, not a `DocId`
     pub fn get_range(&self, start: u32, output: &mut [Item]) {
-        let output_u64: &mut [u64] = unsafe { mem::transmute(output) };
+        let output_u64: &mut [u64] = unsafe { mem::transmute(output) }; // ok: Item is either `u64` or `i64`
         self.bit_unpacker.get_range(start, output_u64);
         for out in output_u64.iter_mut() {
             *out = Item::from_u64(*out + self.min_value_u64).as_u64();

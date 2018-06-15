@@ -5,6 +5,8 @@ use std::mem;
 use std::ops::Deref;
 use std::ptr;
 
+
+
 pub(crate) struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,
@@ -46,7 +48,7 @@ impl BitPacker {
     pub fn flush<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
             let num_bytes = (self.mini_buffer_written + 7) / 8;
-            let arr: [u8; 8] = unsafe { mem::transmute::<u64, [u8; 8]>(self.mini_buffer) };
+            let arr: [u8; 8] = unsafe { mem::transmute::<u64, [u8; 8]>(self.mini_buffer.to_le()) };
             output.write_all(&arr[..num_bytes])?;
             self.mini_buffer_written = 0;
         }
@@ -98,31 +100,14 @@ where
         let addr_in_bits = idx * num_bits;
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
-        if cfg!(feature = "simdcompression") {
-            // for simdcompression,
-            // the bitpacker is only used for fastfields,
-            // and we expect them to be always padded.
-            debug_assert!(
-                addr + 8 <= data.len(),
-                "The fast field field should have been padded with 7 bytes."
-            );
-            let val_unshifted_unmasked: u64 =
-                unsafe { ptr::read_unaligned(data[addr..].as_ptr() as *const u64) };
-            let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
-            val_shifted & mask
-        } else {
-            let val_unshifted_unmasked: u64 = if addr + 8 <= data.len() {
-                unsafe { ptr::read_unaligned(data[addr..].as_ptr() as *const u64) }
-            } else {
-                let mut buffer = [0u8; 8];
-                for i in addr..data.len() {
-                    buffer[i - addr] += data[i];
-                }
-                unsafe { ptr::read_unaligned(buffer[..].as_ptr() as *const u64) }
-            };
-            let val_shifted = val_unshifted_unmasked >> (bit_shift as u64);
-            val_shifted & mask
-        }
+        debug_assert!(
+            addr + 8 <= data.len(),
+            "The fast field field should have been padded with 7 bytes."
+        );
+        let val_unshifted_unmasked: u64 =
+            u64::from_le(unsafe { ptr::read_unaligned(data[addr..].as_ptr() as *const u64) });
+        let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
+        val_shifted & mask
     }
 
     /// Reads a range of values from the fast field.

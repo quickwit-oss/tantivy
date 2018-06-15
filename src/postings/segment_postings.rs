@@ -279,19 +279,11 @@ impl Postings for SegmentPostings {
 
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
         if self.position_computer.is_some() {
-            let prev_capacity = output.capacity();
-            let term_freq = self.term_freq() as usize;
-            if term_freq > prev_capacity {
-                let additional_len = term_freq - output.len();
-                output.reserve(additional_len);
-            }
-            unsafe {
-                output.set_len(term_freq);
-                self.position_computer
-                    .as_mut()
-                    .unwrap()
-                    .positions_with_offset(offset, &mut output[..])
-            }
+            output.resize(self.term_freq() as usize, 0u32);
+            self.position_computer
+                .as_mut()
+                .unwrap()
+                .positions_with_offset(offset, &mut output[..])
         } else {
             output.clear();
         }

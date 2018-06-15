@@ -7,6 +7,7 @@ mod bitset;
 mod bm25;
 mod boolean_query;
 mod exclude;
+mod fuzzy_query;
 mod intersection;
 mod occur;
 mod phrase_query;

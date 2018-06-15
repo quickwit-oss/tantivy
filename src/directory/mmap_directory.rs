@@ -40,9 +40,11 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadE
         // instead.
         return Ok(None);
     }
-    MmapReadOnly::open(&file)
-        .map(Some)
-        .map_err(|e| From::from(IOError::with_path(full_path.to_owned(), e)))
+    unsafe {
+        MmapReadOnly::open(&file)
+            .map(Some)
+            .map_err(|e| From::from(IOError::with_path(full_path.to_owned(), e)))
+    }
 }
 
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]

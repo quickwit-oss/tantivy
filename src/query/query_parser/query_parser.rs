@@ -227,6 +227,10 @@ impl QueryParser {
                 let term = Term::from_field_text(field, phrase);
                 Ok(Some(LogicalLiteral::Term(term)))
             }
+            FieldType::Bytes => {
+                let field_name = self.schema.get_field_name(field).to_string();
+                Err(QueryParserError::FieldNotIndexed(field_name))
+            }
         }
     }
 
