@@ -111,13 +111,13 @@ impl Index {
 
     /// Opens a new directory from an index path.
     #[cfg(feature = "mmap")]
-    pub fn open<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
+    pub fn open_in_dir<P: AsRef<Path>>(directory_path: P) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
-        Index::open_directory(mmap_directory)
+        Index::open(mmap_directory)
     }
 
     /// Open the index using the provided directory
-    pub fn open_directory<D: Directory>(directory: D) -> Result<Index> {
+    pub fn open<D: Directory>(directory: D) -> Result<Index> {
         let directory = ManagedDirectory::new(directory)?;
         let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, &metas)
