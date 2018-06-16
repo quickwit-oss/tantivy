@@ -3,6 +3,7 @@ Query
 */
 
 mod all_query;
+mod automaton_weight;
 mod bitset;
 mod bm25;
 mod boolean_query;
@@ -14,6 +15,7 @@ mod phrase_query;
 mod query;
 mod query_parser;
 mod range_query;
+mod regex_query;
 mod reqopt_scorer;
 mod scorer;
 mod term_query;
@@ -32,6 +34,7 @@ pub use self::union::Union;
 pub use self::vec_docset::VecDocSet;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
+pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::exclude::Exclude;

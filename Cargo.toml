@@ -18,6 +18,7 @@ lazy_static = "0.2.1"
 tinysegmenter = "0.1.0"
 regex = "0.2"
 fst = {version="0.3", default-features=false}
+fst-regex = { version="0.2" }
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
 atomicwrites = {version="0.2.2", optional=true}
