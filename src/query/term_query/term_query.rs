@@ -45,7 +45,7 @@ use Term;
 ///         index_writer.add_document(doc!(
 ///             title => "The Diary of a Young Girl",
 ///         ));
-///         index_writer.commit().unwrap();
+///         index_writer.commit()?;
 ///     }
 ///
 ///     index.load_searchers()?;
@@ -57,7 +57,7 @@ use Term;
 ///         {
 ///             let mut collectors = chain().push(&mut top_collector).push(&mut count_collector);
 ///             let query = TermQuery::new(
-///                 Term::from_field_text(title, "dairy"),
+///                 Term::from_field_text(title, "diary"),
 ///                 IndexRecordOption::Basic,
 ///             );
 ///             searcher.search(&query, &mut collectors).unwrap();
