@@ -38,6 +38,7 @@ pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
 pub use self::exclude::Exclude;
+pub use self::fuzzy_query::FuzzyTermQuery;
 pub use self::intersection::intersect_scorers;
 pub use self::occur::Occur;
 pub use self::phrase_query::PhraseQuery;
