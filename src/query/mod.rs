@@ -46,6 +46,7 @@ pub use self::query::Query;
 pub use self::query_parser::QueryParser;
 pub use self::query_parser::QueryParserError;
 pub use self::range_query::RangeQuery;
+pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::scorer::ConstScorer;
 pub use self::scorer::EmptyScorer;
