@@ -43,7 +43,8 @@ impl Eq for GlobalScoredDoc {}
 /// with the best scores.
 ///
 /// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity is `O(n log K)`.
+/// The theorical complexity for collecting the top `K` out of `n` documents
+/// is `O(n log K)`.
 ///
 /// ```rust
 /// #[macro_use]
