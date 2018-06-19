@@ -265,6 +265,9 @@ impl QueryParser {
                 let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
+            UserInputAST::Range{..} => {
+                unimplemented!()
+            }
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {

@@ -14,10 +14,31 @@ impl fmt::Debug for UserInputLiteral {
     }
 }
 
+pub enum UserInputBound {
+    Inclusive(String),
+    Exclusive(String),
+}
+
+impl UserInputBound {
+    fn display_lower(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            UserInputBound::Inclusive(ref word) => write!(formatter, "[\"{}\"", word),
+            UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
+        }
+    }
+    fn display_upper(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        match *self {
+            UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
+            UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),
+        }
+    }
+}
+
 pub enum UserInputAST {
     Clause(Vec<Box<UserInputAST>>),
     Not(Box<UserInputAST>),
     Must(Box<UserInputAST>),
+    Range { field: String, lower: UserInputBound, upper: UserInputBound },
     Leaf(Box<UserInputLiteral>),
 }
 
@@ -45,6 +66,13 @@ impl fmt::Debug for UserInputAST {
                 Ok(())
             }
             UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
+            UserInputAST::Range { ref field, ref lower, ref upper } => {
+                write!(formatter, "{}:", field)?;
+                lower.display_lower(formatter)?;
+                write!(formatter, " TO ")?;
+                upper.display_upper(formatter)?;
+                Ok(())
+            },
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }

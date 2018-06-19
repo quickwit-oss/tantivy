@@ -6,6 +6,7 @@ use std::fmt;
 pub enum LogicalLiteral {
     Term(Term),
     Phrase(Vec<Term>),
+//    Range(Term, Term),
 }
 
 #[derive(Clone)]
