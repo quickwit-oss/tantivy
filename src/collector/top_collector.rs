@@ -92,7 +92,7 @@ impl Eq for GlobalScoredDoc {}
 ///           .map(|(score, doc_address)| (score, doc_address.doc()))
 ///           .collect();
 ///
-///         assert_eq!(score_docs, vec![(0.7261542, 0), (0.6099695, 0)]);
+///         assert_eq!(score_docs, vec![(0.7261542, 1), (0.6099695, 3)]);
 ///     }
 ///
 ///     Ok(())

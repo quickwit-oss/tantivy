@@ -65,7 +65,7 @@ lazy_static! {
 ///             let query = FuzzyTermQuery::new(term, 1, true);
 ///             searcher.search(&query, &mut collectors).unwrap();
 ///         }
-///         assert_eq!(count_collector.count(), 3);
+///         assert_eq!(count_collector.count(), 2);
 ///         assert!(top_collector.at_capacity());
 ///     }
 ///
