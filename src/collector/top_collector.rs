@@ -61,7 +61,7 @@ impl Eq for GlobalScoredDoc {}
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
 ///     {
-///         let mut index_writer = index.writer(3_000_000)?;
+///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
 ///         index_writer.add_document(doc!(
 ///             title => "The Name of the Wind",
 ///         ));
@@ -240,4 +240,6 @@ mod tests {
     fn test_top_0() {
         TopCollector::with_limit(0);
     }
+
+
 }
