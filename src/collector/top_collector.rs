@@ -43,7 +43,61 @@ impl Eq for GlobalScoredDoc {}
 /// with the best scores.
 ///
 /// The implementation is based on a `BinaryHeap`.
-/// The theorical complexity is `O(n log K)`.
+/// The theorical complexity for collecting the top `K` out of `n` documents
+/// is `O(n log K)`.
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate tantivy;
+/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::{Index, Result, DocId, Score};
+/// use tantivy::collector::TopCollector;
+/// use tantivy::query::QueryParser;
+///
+/// # fn main() { example().unwrap(); }
+/// fn example() -> Result<()> {
+///     let mut schema_builder = SchemaBuilder::new();
+///     let title = schema_builder.add_text_field("title", TEXT);
+///     let schema = schema_builder.build();
+///     let index = Index::create_in_ram(schema);
+///     {
+///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+///         index_writer.add_document(doc!(
+///             title => "The Name of the Wind",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "The Diary of Muadib",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "A Dairy Cow",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "The Diary of a Young Girl",
+///         ));
+///         index_writer.commit().unwrap();
+///     }
+///
+///     index.load_searchers()?;
+///     let searcher = index.searcher();
+///
+///     {
+///	        let mut top_collector = TopCollector::with_limit(2);
+///         let query_parser = QueryParser::for_index(&index, vec![title]);
+///         let query = query_parser.parse_query("diary")?;
+///         searcher.search(&*query, &mut top_collector).unwrap();
+///
+///         let score_docs: Vec<(Score, DocId)> = top_collector
+///           .score_docs()
+///           .into_iter()
+///           .map(|(score, doc_address)| (score, doc_address.doc()))
+///           .collect();
+///
+///         assert_eq!(score_docs, vec![(0.7261542, 1), (0.6099695, 3)]);
+///     }
+///
+///     Ok(())
+/// }
+/// ```
 pub struct TopCollector {
     limit: usize,
     heap: BinaryHeap<GlobalScoredDoc>,
@@ -186,4 +240,6 @@ mod tests {
     fn test_top_0() {
         TopCollector::with_limit(0);
     }
+
+
 }

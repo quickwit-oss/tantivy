@@ -8,6 +8,7 @@ use schema::{Field, IndexRecordOption};
 use termdict::{TermDictionary, TermStreamer};
 use Result;
 
+/// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
 where
   A: Automaton,
@@ -20,6 +21,7 @@ impl<A> AutomatonWeight<A>
 where
   A: Automaton,
 {
+  /// Create a new AutomationWeight
   pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
     AutomatonWeight { field, automaton }
   }
