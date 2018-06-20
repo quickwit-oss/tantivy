@@ -89,6 +89,28 @@ pub struct RangeQuery {
 }
 
 impl RangeQuery {
+    /// Creates a new `RangeQuery` from bounded start and end terms.
+    ///
+    /// If the value type is not correct, something may go terribly wrong when
+    /// the `Weight` object is created.
+    pub fn new_term_bounds(
+        field: Field,
+        value_type: Type,
+        left_bound: Bound<Term>,
+        right_bound: Bound<Term>
+    ) -> RangeQuery {
+        let verify_and_unwrap_term = |val: &Term| {
+            assert_eq!(field, val.field());
+            val.value_bytes().to_owned()
+        };
+        RangeQuery {
+            field,
+            value_type,
+            left_bound: map_bound(&left_bound, &verify_and_unwrap_term),
+            right_bound: map_bound(&right_bound, &verify_and_unwrap_term),
+        }
+    }
+
     /// Creates a new `RangeQuery` over a `i64` field.
     ///
     /// If the field is not of the type `i64`, tantivy

@@ -26,10 +26,18 @@ impl UserInputBound {
             UserInputBound::Exclusive(ref word) => write!(formatter, "{{\"{}\"", word),
         }
     }
+
     fn display_upper(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             UserInputBound::Inclusive(ref word) => write!(formatter, "\"{}\"]", word),
             UserInputBound::Exclusive(ref word) => write!(formatter, "\"{}\"}}", word),
+        }
+    }
+
+    pub fn term_str(&self) -> &str {
+        match *self {
+            UserInputBound::Inclusive(ref contents) => contents,
+            UserInputBound::Exclusive(ref contents) => contents,
         }
     }
 }
