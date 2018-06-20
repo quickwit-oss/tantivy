@@ -553,6 +553,18 @@ mod test {
              Term([0, 0, 0, 0, 98])]\"",
             false,
         );
+        test_parse_query_to_logical_ast_helper(
+            "title:[a TO b]",
+            "(Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:{titi TO toto}",
+            "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO \
+             Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
+            false,
+        );
     }
 
     #[test]
