@@ -15,6 +15,7 @@ use std::str::FromStr;
 use tokenizer::TokenizerManager;
 use std::ops::Bound;
 use query::RangeQuery;
+use query::AllQuery;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -304,6 +305,9 @@ impl QueryParser {
                     upper: self.resolve_bound(field, &upper)?,
                 }))))
             }
+            UserInputAST::All => {
+                Ok((Occur::Should, LogicalAST::Leaf(Box::new(LogicalLiteral::All))))
+            }
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
@@ -369,6 +373,7 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
         LogicalLiteral::Range { field, value_type, lower, upper } => {
             Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper))
         },
+        LogicalLiteral::All => Box::new(AllQuery),
     }
 }
 
@@ -563,6 +568,11 @@ mod test {
             "title:{titi TO toto}",
             "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO \
              Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "*",
+            "*",
             false,
         );
     }

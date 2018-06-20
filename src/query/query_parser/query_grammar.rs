@@ -66,6 +66,7 @@ where
         .map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
         .or((char('+'), parser(leaf)).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
         .or((char('('), parser(parse_to_ast), char(')')).map(|(_, expr, _)| expr))
+        .or(char('*').map(|_| UserInputAST::All))
         .or(try(parser(range)))
         .or(parser(literal))
         .parse_stream(input)

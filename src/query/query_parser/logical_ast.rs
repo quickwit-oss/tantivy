@@ -10,6 +10,7 @@ pub enum LogicalLiteral {
     Term(Term),
     Phrase(Vec<Term>),
     Range { field: Field, value_type: Type, lower: Bound<Term>, upper: Bound<Term> },
+    All,
 }
 
 #[derive(Clone)]
@@ -59,6 +60,7 @@ impl fmt::Debug for LogicalLiteral {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
             LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),
             LogicalLiteral::Range { ref lower, ref upper, .. } => write!(formatter, "({:?} TO {:?})", lower, upper),
+            LogicalLiteral::All => write!(formatter, "*"),
         }
     }
 }

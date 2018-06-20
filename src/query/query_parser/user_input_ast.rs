@@ -47,6 +47,7 @@ pub enum UserInputAST {
     Not(Box<UserInputAST>),
     Must(Box<UserInputAST>),
     Range { field: String, lower: UserInputBound, upper: UserInputBound },
+    All,
     Leaf(Box<UserInputLiteral>),
 }
 
@@ -81,6 +82,7 @@ impl fmt::Debug for UserInputAST {
                 upper.display_upper(formatter)?;
                 Ok(())
             },
+            UserInputAST::All => write!(formatter, "*"),
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }
