@@ -72,14 +72,25 @@ impl From<ParseIntError> for QueryParserError {
 ///   by relevance : The user typically just scans through the first few
 ///   documents in order of decreasing relevance and will stop when the documents
 ///   are not relevant anymore.
-///   Making it possible to make this behavior customizable is tracked in
-///   [issue #27](https://github.com/fulmicoton/tantivy/issues/27).
+///
+///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
 /// * negative terms: By prepending a term by a `-`, a term can be excluded
 ///   from the search. This is useful for disambiguating a query.
 ///   e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///
+/// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
+///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed
+///   by "obama".
+///
+/// * range terms: Range searches can be done by specifying the start and end bound. These can be
+///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains
+///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
+///   Inclusive bounds are `[]`, exclusive are `{}`.
+///
+/// *  all docs query: A plain `*` will match all documents in the index.
 ///
 pub struct QueryParser {
     schema: Schema,
