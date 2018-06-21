@@ -12,6 +12,12 @@ fn word<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
     many1(satisfy(|c: char| c.is_alphanumeric()))
 }
 
+
+fn negative_number<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
+    (char('-'), many1(satisfy(|c: char| c.is_numeric())))
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+}
+
 fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
@@ -21,10 +27,7 @@ where
         phrase.or(word())
     };
 
-    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric())))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
-
-    let term_val_with_field = negative_numbers.or(term_val());
+    let term_val_with_field = negative_number().or(term_val());
 
     let term_query =
         (field(), char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
@@ -42,19 +45,22 @@ where
 }
 
 fn range<I: Stream<Item = char>>(input: I) -> ParseResult<UserInputAST, I> {
+    let term_val = || {
+        word().or(negative_number())
+    };
     let lower_bound = {
-        let excl = (char('{'), word()).map(|(_, w)| UserInputBound::Exclusive(w));
-        let incl = (char('['), word()).map(|(_, w)| UserInputBound::Inclusive(w));
+        let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
+        let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
         excl.or(incl)
     };
     let upper_bound = {
-        let excl = (word(), char('}')).map(|(w, _)| UserInputBound::Exclusive(w));
-        let incl = (word(), char(']')).map(|(w, _)| UserInputBound::Inclusive(w));
+        let excl = (term_val(), char('}')).map(|(w, _)| UserInputBound::Exclusive(w));
+        let incl = (term_val(), char(']')).map(|(w, _)| UserInputBound::Inclusive(w));
         // TODO: this backtracking should be unnecessary
         try(excl).or(incl)
     };
-    (field(), char(':'), lower_bound, spaces(), string("TO"), spaces(), upper_bound)
-        .map(|(field, _, lower, _, _, _, upper)| UserInputAST::Range { field, lower, upper })
+    (optional((field(), char(':')).map(|x| x.0)), lower_bound, spaces(), string("TO"), spaces(), upper_bound)
+        .map(|(field, lower, _, _, _, upper)| UserInputAST::Range { field, lower, upper })
         .parse_stream(input)
 }
 
@@ -115,6 +121,7 @@ mod test {
         test_parse_query_to_ast_helper("abc:a b", "(abc:\"a\" \"b\")");
         test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
         test_parse_query_to_ast_helper("foo:[1 TO 5]", "foo:[\"1\" TO \"5\"]");
+        test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
         test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
         test_is_parse_err("abc +    ");

@@ -16,6 +16,7 @@ use tokenizer::TokenizerManager;
 use std::ops::Bound;
 use query::RangeQuery;
 use query::AllQuery;
+use std::borrow::Cow;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -282,6 +283,19 @@ impl QueryParser {
         }
     }
 
+    fn resolved_fields(&self, given_field: &Option<String>) -> Result<Cow<[Field]>, QueryParserError> {
+        match *given_field {
+            None => {
+                if self.default_fields.is_empty() {
+                    Err(QueryParserError::NoDefaultFieldDeclared)
+                } else {
+                    Ok(Cow::from(&self.default_fields[..]))
+                }
+            },
+            Some(ref field) => Ok(Cow::from(vec![self.resolve_field_name(&*field)?])),
+        }
+    }
+
     fn compute_logical_ast_with_occur(
         &self,
         user_input_ast: UserInputAST,
@@ -306,15 +320,23 @@ impl QueryParser {
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
             UserInputAST::Range { field, lower, upper } => {
-                let field = self.resolve_field_name(&field)?;
-                let field_entry = self.schema.get_field_entry(field);
-                let value_type = field_entry.field_type().value_type();
-                Ok((Occur::Should, LogicalAST::Leaf(Box::new(LogicalLiteral::Range{
-                    field,
-                    value_type,
-                    lower: self.resolve_bound(field, &lower)?,
-                    upper: self.resolve_bound(field, &upper)?,
-                }))))
+                let fields = self.resolved_fields(&field)?;
+                let mut clauses = fields.iter().map(|&field| {
+                    let field_entry = self.schema.get_field_entry(field);
+                    let value_type = field_entry.field_type().value_type();
+                    Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                        field,
+                        value_type,
+                        lower: self.resolve_bound(field, &lower)?,
+                        upper: self.resolve_bound(field, &upper)?,
+                    })))
+                }).collect::<Result<Vec<_>, QueryParserError>>()?;
+                let result_ast = if clauses.len() == 1 {
+                    clauses.pop().unwrap()
+                } else {
+                    LogicalAST::Clause(clauses.into_iter().map(|clause| (Occur::Should, clause)).collect())
+                };
+                Ok((Occur::Should, result_ast))
             }
             UserInputAST::All => {
                 Ok((Occur::Should, LogicalAST::Leaf(Box::new(LogicalLiteral::All))))
@@ -573,6 +595,14 @@ mod test {
             "title:[a TO b]",
             "(Included(Term([0, 0, 0, 0, 97])) TO \
              Included(Term([0, 0, 0, 0, 98])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "[a TO b]",
+            "((Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98]))) \
+             (Included(Term([0, 0, 0, 1, 97])) TO \
+             Included(Term([0, 0, 0, 1, 98]))))",
             false,
         );
         test_parse_query_to_logical_ast_helper(
