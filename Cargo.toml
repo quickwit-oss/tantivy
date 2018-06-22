@@ -44,7 +44,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "0.1.0"
 downcast = { version="0.9" }
 matches = "0.1"
-bitpacking = "0.4"
+bitpacking = "0.5"
 fnv = "1.0.6"
 
 [target.'cfg(windows)'.dependencies]
@@ -62,9 +62,7 @@ debug-assertions = false
 
 [features]
 default = ["mmap"]
-simd = ["bitpacking/simd"]
 mmap = ["fst/mmap", "atomicwrites"]
-unstable = ["simd"]
 lz4-compression = ["lz4"]
 
 [badges]

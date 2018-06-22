@@ -27,6 +27,7 @@ use num_cpus;
 use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
+use indexer::index_writer::HEAP_SIZE_MIN;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -136,8 +137,12 @@ impl Index {
     /// `IndexWriter` on the system is accessing the index directory,
     /// it is safe to manually delete the lockfile.
     ///
-    /// num_threads specifies the number of indexing workers that
+    /// - `num_threads` defines the number of indexing workers that
     /// should work at the same time.
+    ///
+    /// - `overall_heap_size_in_bytes` sets the amount of memory
+    /// allocated for all indexing thread.
+    /// Each thread will receive a budget of  `overall_heap_size_in_bytes / num_threads`.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
@@ -146,21 +151,30 @@ impl Index {
     pub fn writer_with_num_threads(
         &self,
         num_threads: usize,
-        heap_size_in_bytes: usize,
+        overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
         let directory_lock = DirectoryLock::lock(self.directory().box_clone())?;
-        open_index_writer(self, num_threads, heap_size_in_bytes, directory_lock)
+        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
+        open_index_writer(self, num_threads, heap_size_in_bytes_per_thread, directory_lock)
     }
 
     /// Creates a multithreaded writer
-    /// It just calls `writer_with_num_threads` with the number of cores as `num_threads`
+    ///
+    /// Tantivy will automatically define the number of threads to use.
+    /// `overall_heap_size_in_bytes` is the total target memory usage that will be split
+    /// between a given number of threads.
     ///
     /// # Errors
     /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
     /// # Panics
     /// If the heap size per thread is too small, panics.
-    pub fn writer(&self, heap_size_in_bytes: usize) -> Result<IndexWriter> {
-        self.writer_with_num_threads(num_cpus::get(), heap_size_in_bytes)
+    pub fn writer(&self, overall_heap_size_in_bytes: usize) -> Result<IndexWriter> {
+        let mut num_threads = num_cpus::get();
+        let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
+        if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
+            num_threads = (overall_heap_size_in_bytes / HEAP_SIZE_MIN).max(1);
+        }
+        self.writer_with_num_threads(num_threads, overall_heap_size_in_bytes)
     }
 
     /// Accessor to the index schema

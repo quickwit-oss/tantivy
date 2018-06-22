@@ -1,14 +1,23 @@
 Tantivy 0.6
 ==========================
-- Removed C code. Tantivy is now pure Rust.
-- BM25
-- Approximate field norms encoded over 1 byte.
-- Compiles on stable rust
+
+
+Special thanks to @drusellers and @jason-wolfe for their contributions
+to this release!
+
+- Removed C code. Tantivy is now pure Rust. (@pmasurel)
+- BM25 (@pmasurel)
+- Approximate field norms encoded over 1 byte. (@pmasurel)
+- Compiles on stable rust (@pmasurel)
 - Add &[u8] fastfield for associating arbitrary bytes to each document (@jason-wolfe) (#270)
     - Completely uncompressed
     - Internally: One u64 fast field for indexes, one fast field for the bytes themselves.
 - Add NGram token support (@drusellers)
 - Add Stopword Filter support (@drusellers)
+- Add a FuzzyTermQuery (@drusellers)
+- Add a RegexQuery (@drusellers)
+- Various performance improvements (@pmasurel)_
+
 
 Tantivy 0.5.2
 ===========================

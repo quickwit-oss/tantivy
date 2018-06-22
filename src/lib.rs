@@ -188,7 +188,7 @@ mod compression;
 mod core;
 mod indexer;
 
-#[allow(unused_doc_comment)]
+#[allow(unused_doc_comments)]
 mod error;
 pub mod tokenizer;
 

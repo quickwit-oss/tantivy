@@ -712,7 +712,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(3, 3_000_000).unwrap();
+            let mut index_writer = index.writer(3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"a"));
             index_writer.rollback().unwrap();
 
@@ -745,7 +745,7 @@ mod tests {
         };
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(4, 3_000_000).unwrap();
+            let mut index_writer = index.writer(12_000_000).unwrap();
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
                 let mut doc = Document::default();
@@ -779,7 +779,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(4, 3_000_000).unwrap();
+            let mut index_writer = index.writer(12_000_000).unwrap();
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
                 index_writer.add_document(doc!(text_field => "a"));
@@ -814,7 +814,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(4, 3_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
                 index_writer.add_document(doc!(text_field => "a"));

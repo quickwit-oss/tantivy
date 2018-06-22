@@ -507,7 +507,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -587,7 +587,7 @@ mod tests {
             .collect();
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }
@@ -644,7 +644,7 @@ mod bench {
         // 40425 docs
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }
