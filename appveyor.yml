@@ -6,9 +6,6 @@ environment:
   matrix:
     - channel: nightly
       target: x86_64-pc-windows-msvc
-    - channel: nightly
-      target: x86_64-pc-windows-gnu
-      msys_bits: 64
 
 install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
