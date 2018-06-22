@@ -1,15 +1,14 @@
-use super::{Addr, MemoryArena, ArenaStorable};
+use super::murmurhash2;
+use super::{Addr, ArenaStorable, MemoryArena};
 use std::iter;
 use std::mem;
 use std::slice;
-use super::murmurhash2;
 
 pub type BucketId = usize;
 
-
 struct KeyBytesValue<'a, V> {
     key: &'a [u8],
-    value: V
+    value: V,
 }
 
 impl<'a, V> KeyBytesValue<'a, V> {
@@ -19,7 +18,9 @@ impl<'a, V> KeyBytesValue<'a, V> {
 }
 
 impl<'a, V> ArenaStorable for KeyBytesValue<'a, V>
-    where V: ArenaStorable {
+where
+    V: ArenaStorable,
+{
     fn num_bytes(&self) -> usize {
         0u16.num_bytes() + self.key.len() + self.value.num_bytes()
     }
@@ -33,7 +34,7 @@ impl<'a, V> ArenaStorable for KeyBytesValue<'a, V>
 
 /// Returns the actual memory size in bytes
 /// required to create a table of size $2^num_bits$.
-pub fn compute_table_size(num_bits: usize) -> usize  {
+pub fn compute_table_size(num_bits: usize) -> usize {
     (1 << num_bits) * mem::size_of::<KeyValue>()
 }
 
@@ -54,7 +55,7 @@ impl Default for KeyValue {
     fn default() -> Self {
         KeyValue {
             key_value_addr: Addr::null_pointer(),
-            hash: 0u32
+            hash: 0u32,
         }
     }
 }
@@ -99,7 +100,6 @@ impl QuadraticProbing {
     }
 }
 
-
 pub struct Iter<'a> {
     hashmap: &'a TermHashMap,
     inner: slice::Iter<'a, usize>,
@@ -111,7 +111,8 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
-            let (key, offset): (&'a [u8], Addr) = unsafe { self.hashmap.get_key_value(kv.key_value_addr) };
+            let (key, offset): (&'a [u8], Addr) =
+                unsafe { self.hashmap.get_key_value(kv.key_value_addr) };
             (key, offset, bucket as BucketId)
         })
     }
@@ -195,14 +196,11 @@ impl TermHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
-    pub fn mutate_or_create<S, V, TMutator>(
-        &mut self,
-        key: S,
-        mut updater: TMutator) -> BucketId
-        where
-            S: AsRef<[u8]>,
-            V: Copy,
-            TMutator: FnMut(Option<V>) -> V
+    pub fn mutate_or_create<S, V, TMutator>(&mut self, key: S, mut updater: TMutator) -> BucketId
+    where
+        S: AsRef<[u8]>,
+        V: Copy,
+        TMutator: FnMut(Option<V>) -> V,
     {
         if self.is_saturated() {
             self.resize();
@@ -220,11 +218,13 @@ impl TermHashMap {
                 return bucket as BucketId;
             } else if kv.hash == hash {
                 let (key_matches, val_addr) = {
-                    let (stored_key, val_addr): (&[u8], Addr) = unsafe { self.get_key_value(kv.key_value_addr) };
+                    let (stored_key, val_addr): (&[u8], Addr) =
+                        unsafe { self.get_key_value(kv.key_value_addr) };
                     (stored_key == key_bytes, val_addr)
                 };
                 if key_matches {
-                    unsafe { // logic
+                    unsafe {
+                        // logic
                         let v = self.heap.read(val_addr);
                         let new_v = updater(Some(v));
                         self.heap.write(val_addr, new_v);
@@ -257,9 +257,8 @@ mod bench {
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashMap;
     use super::TermHashMap;
-
+    use std::collections::HashMap;
 
     #[test]
     fn test_hash_map() {
@@ -286,7 +285,8 @@ mod tests {
         let mut vanilla_hash_map = HashMap::new();
         let mut iter_values = hash_map.iter();
         while let Some((key, addr, _)) = iter_values.next() {
-            let val: u32 = unsafe { // test
+            let val: u32 = unsafe {
+                // test
                 hash_map.heap.read(addr)
             };
             vanilla_hash_map.insert(key.to_owned(), val);

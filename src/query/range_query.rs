@@ -195,12 +195,16 @@ impl RangeQuery {
 
     /// Lower bound of range
     pub fn left_bound(&self) -> Bound<Term> {
-        map_bound(&self.left_bound, &|bytes| Term::from_field_bytes(self.field, bytes))
+        map_bound(&self.left_bound, &|bytes| {
+            Term::from_field_bytes(self.field, bytes)
+        })
     }
 
     /// Upper bound of range
     pub fn right_bound(&self) -> Bound<Term> {
-        map_bound(&self.right_bound, &|bytes| Term::from_field_bytes(self.field, bytes))
+        map_bound(&self.right_bound, &|bytes| {
+            Term::from_field_bytes(self.field, bytes)
+        })
     }
 }
 

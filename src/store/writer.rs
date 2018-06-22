@@ -1,9 +1,9 @@
+use super::compress;
+use super::skiplist::SkipListBuilder;
 use super::StoreReader;
 use common::CountingWriter;
 use common::{BinarySerializable, VInt};
-use super::skiplist::SkipListBuilder;
 use directory::WritePtr;
-use super::compress;
 use schema::Document;
 use std::io::{self, Write};
 use DocId;

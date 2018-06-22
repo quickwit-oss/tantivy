@@ -117,7 +117,8 @@ impl ManagedDirectory {
         let mut files_to_delete = vec![];
         {
             // releasing the lock as .delete() will use it too.
-            let meta_informations_rlock = self.meta_informations
+            let meta_informations_rlock = self
+                .meta_informations
                 .read()
                 .expect("Managed directory rlock poisoned in garbage collect.");
 
@@ -170,7 +171,8 @@ impl ManagedDirectory {
         if !deleted_files.is_empty() {
             // update the list of managed files by removing
             // the file that were removed.
-            let mut meta_informations_wlock = self.meta_informations
+            let mut meta_informations_wlock = self
+                .meta_informations
                 .write()
                 .expect("Managed directory wlock poisoned (2).");
             {
@@ -193,7 +195,8 @@ impl ManagedDirectory {
     pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
         let pathbuf = path.to_owned();
         {
-            let mut meta_informations_wlock = self.meta_informations
+            let mut meta_informations_wlock = self
+                .meta_informations
                 .write()
                 .expect("Managed file lock poisoned on protect");
             *meta_informations_wlock
@@ -215,7 +218,8 @@ impl ManagedDirectory {
     /// will not lead to garbage files that will
     /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
-        let mut meta_wlock = self.meta_informations
+        let mut meta_wlock = self
+            .meta_informations
             .write()
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());
@@ -248,7 +252,8 @@ impl Directory for ManagedDirectory {
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         {
-            let metas_rlock = self.meta_informations
+            let metas_rlock = self
+                .meta_informations
                 .read()
                 .expect("poisoned lock in managed directory meta");
             if let Some(counter) = metas_rlock.protected_files.get(path) {

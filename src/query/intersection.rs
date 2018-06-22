@@ -228,7 +228,8 @@ where
     TOtherScorer: Scorer,
 {
     fn score(&mut self) -> Score {
-        self.left.score() + self.right.score()
+        self.left.score()
+            + self.right.score()
             + self.others.iter_mut().map(Scorer::score).sum::<Score>()
     }
 }

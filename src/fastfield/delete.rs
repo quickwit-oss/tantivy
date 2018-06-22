@@ -41,7 +41,8 @@ pub struct DeleteBitSet {
 impl DeleteBitSet {
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
-        let num_deleted: usize = data.as_slice()
+        let num_deleted: usize = data
+            .as_slice()
             .iter()
             .map(|b| b.count_ones() as usize)
             .sum();

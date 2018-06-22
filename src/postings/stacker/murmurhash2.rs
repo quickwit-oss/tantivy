@@ -44,14 +44,11 @@ pub fn murmurhash2(key: &[u8]) -> u32 {
     h ^ (h >> 15)
 }
 
-
-
 #[cfg(test)]
 mod test {
 
     use super::murmurhash2;
     use std::collections::HashSet;
-
 
     #[test]
     fn test_murmur() {

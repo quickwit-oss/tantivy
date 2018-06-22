@@ -1,4 +1,4 @@
-use super::stacker::{TermHashMap, Addr, MemoryArena};
+use super::stacker::{Addr, MemoryArena, TermHashMap};
 
 use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use postings::UnorderedTermId;
@@ -49,7 +49,6 @@ pub struct MultiFieldPostingsWriter {
     per_field_postings_writers: Vec<Box<PostingsWriter>>,
 }
 
-
 impl MultiFieldPostingsWriter {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
@@ -74,7 +73,13 @@ impl MultiFieldPostingsWriter {
 
     pub fn index_text(&mut self, doc: DocId, field: Field, token_stream: &mut TokenStream) -> u32 {
         let postings_writer = self.per_field_postings_writers[field.0 as usize].deref_mut();
-        postings_writer.index_text(&mut self.term_index, doc, field, token_stream, &mut self.heap)
+        postings_writer.index_text(
+            &mut self.term_index,
+            doc,
+            field,
+            token_stream,
+            &mut self.heap,
+        )
     }
 
     pub fn subscribe(&mut self, doc: DocId, term: &Term) -> UnorderedTermId {
@@ -89,8 +94,10 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self.term_index.iter()
-            .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId) )
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self
+            .term_index
+            .iter()
+            .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId))
             .collect();
         term_offsets.sort_by_key(|&(k, _, _)| k);
 
@@ -147,7 +154,7 @@ impl MultiFieldPostingsWriter {
                 &term_offsets[start..stop],
                 &mut field_serializer,
                 &self.term_index.heap,
-                &self.heap
+                &self.heap,
             )?;
             field_serializer.close()?;
         }
@@ -183,7 +190,7 @@ pub trait PostingsWriter {
         term_addrs: &[(&[u8], Addr, UnorderedTermId)],
         serializer: &mut FieldSerializer,
         term_heap: &MemoryArena,
-        heap: &MemoryArena
+        heap: &MemoryArena,
     ) -> io::Result<()>;
 
     /// Tokenize a text and subscribe all of its token.
@@ -238,7 +245,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         doc: DocId,
         position: u32,
         term: &Term,
-        heap: &mut MemoryArena
+        heap: &mut MemoryArena,
     ) -> UnorderedTermId {
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;

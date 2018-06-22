@@ -5,8 +5,6 @@ use std::mem;
 use std::ops::Deref;
 use std::ptr;
 
-
-
 pub(crate) struct BitPacker {
     mini_buffer: u64,
     mini_buffer_written: usize,

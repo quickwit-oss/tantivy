@@ -1,10 +1,10 @@
 use Result;
 
+use super::decompress;
+use super::skiplist::SkipList;
 use common::BinarySerializable;
 use common::VInt;
-use super::skiplist::SkipList;
 use directory::ReadOnlySource;
-use super::decompress;
 use schema::Document;
 use std::cell::RefCell;
 use std::io;

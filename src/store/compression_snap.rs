@@ -12,7 +12,6 @@ pub fn compress(uncompressed: &[u8], compressed: &mut Vec<u8>) -> io::Result<()>
 
 pub fn decompress(compressed: &[u8], decompressed: &mut Vec<u8>) -> io::Result<()> {
     decompressed.clear();
-    snap::Reader::new(compressed)
-        .read_to_end(decompressed)?;
+    snap::Reader::new(compressed).read_to_end(decompressed)?;
     Ok(())
 }

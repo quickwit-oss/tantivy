@@ -22,6 +22,7 @@ use indexer::DirectoryLock;
 use indexer::MergePolicy;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
+use postings::compute_table_size;
 use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
@@ -29,14 +30,13 @@ use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
-use postings::compute_table_size;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
 pub const MARGIN_IN_BYTES: usize = 1_000_000;
 
 // We impose the memory per thread to be at least 3 MB.
-pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32)* 3u32) as usize;
+pub const HEAP_SIZE_MIN: usize = ((MARGIN_IN_BYTES as u32) * 3u32) as usize;
 pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 
 // Add document will block if the number of docs waiting in the queue to be indexed
@@ -45,8 +45,6 @@ const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
 type DocumentSender = chan::Sender<AddOperation>;
 type DocumentReceiver = chan::Receiver<AddOperation>;
-
-
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -123,12 +121,12 @@ pub fn open_index_writer(
     if heap_size_in_bytes_per_thread < HEAP_SIZE_MIN {
         let err_msg = format!(
             "The heap size per thread needs to be at least {}.",
-            HEAP_SIZE_MIN);
+            HEAP_SIZE_MIN
+        );
         bail!(ErrorKind::InvalidArgument(err_msg));
     }
     if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
-        let err_msg = format!(
-            "The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
+        let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
         bail!(ErrorKind::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
@@ -141,10 +139,7 @@ pub fn open_index_writer(
     let stamper = Stamper::new(current_opstamp);
 
     let segment_updater =
-        SegmentUpdater::new(
-            index.clone(),
-            stamper.clone(),
-            &delete_queue.cursor())?;
+        SegmentUpdater::new(index.clone(), stamper.clone(), &delete_queue.cursor())?;
 
     let mut index_writer = IndexWriter {
         _directory_lock: Some(directory_lock),
@@ -266,19 +261,18 @@ pub fn advance_deletes(
     Ok(file_protect)
 }
 
-    fn index_documents(
-        memory_budget: usize,
-        segment: &Segment,
-        generation: usize,
-        document_iterator: &mut Iterator<Item = AddOperation>,
-        segment_updater: &mut SegmentUpdater,
-        mut delete_cursor: DeleteCursor,
+fn index_documents(
+    memory_budget: usize,
+    segment: &Segment,
+    generation: usize,
+    document_iterator: &mut Iterator<Item = AddOperation>,
+    segment_updater: &mut SegmentUpdater,
+    mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
     let schema = segment.schema();
     let segment_id = segment.id();
     let table_size = initial_table_size(memory_budget);
-    let mut segment_writer =
-        SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
+    let mut segment_writer = SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
 
@@ -348,7 +342,8 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        let result = self.segment_updater
+        let result = self
+            .segment_updater
             .wait_merging_thread()
             .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
 
@@ -493,7 +488,8 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self._directory_lock
+        let directory_lock = self
+            ._directory_lock
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
@@ -649,11 +645,11 @@ impl IndexWriter {
 #[cfg(test)]
 mod tests {
 
+    use super::initial_table_size;
     use env_logger;
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
-    use super::initial_table_size;
     use Index;
     use Term;
 
@@ -843,7 +839,6 @@ mod tests {
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
     }
-
 
     #[test]
     fn test_hashmap_size() {

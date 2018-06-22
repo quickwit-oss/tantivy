@@ -28,7 +28,6 @@ use std::ptr;
 const NUM_BITS_PAGE_ADDR: usize = 20;
 const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 
-
 /// Represents a pointer into the `MemoryArena`
 /// .
 /// Pointer are 32-bits and are split into
@@ -42,7 +41,6 @@ const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 pub struct Addr(u32);
 
 impl Addr {
-
     /// Creates a null pointer.
     pub fn null_pointer() -> Addr {
         Addr(u32::max_value())
@@ -54,7 +52,7 @@ impl Addr {
     }
 
     fn new(page_id: usize, local_addr: usize) -> Addr {
-        Addr( (page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
+        Addr((page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
     }
 
     fn page_id(&self) -> usize {
@@ -71,7 +69,6 @@ impl Addr {
     }
 }
 
-
 /// Trait required for an object to be `storable`.
 ///
 /// # Warning
@@ -86,7 +83,10 @@ pub trait ArenaStorable {
     unsafe fn write_into(self, arena: &mut MemoryArena, addr: Addr);
 }
 
-impl<V> ArenaStorable for V where V: Copy {
+impl<V> ArenaStorable for V
+where
+    V: Copy,
+{
     fn num_bytes(&self) -> usize {
         mem::size_of::<V>()
     }
@@ -103,12 +103,11 @@ pub struct MemoryArena {
 }
 
 impl MemoryArena {
-
     /// Creates a new memory arena.
     pub fn new() -> MemoryArena {
         let first_page = Page::new(0);
         MemoryArena {
-            pages: vec![first_page]
+            pages: vec![first_page],
         }
     }
 
@@ -137,7 +136,7 @@ impl MemoryArena {
     pub fn write_bytes<B: AsRef<[u8]>>(&mut self, addr: Addr, data: B) {
         let bytes = data.as_ref();
         self.pages[addr.page_id()]
-            .get_mut_slice(addr.page_local_addr(), bytes    .len())
+            .get_mut_slice(addr.page_local_addr(), bytes.len())
             .copy_from_slice(bytes);
     }
 
@@ -147,8 +146,7 @@ impl MemoryArena {
     ///
     /// Panics if the memory has not been allocated beforehands.
     pub fn read_slice(&self, addr: Addr, len: usize) -> &[u8] {
-        self.pages[addr.page_id()]
-            .get_slice(addr.page_local_addr(), len)
+        self.pages[addr.page_id()].get_slice(addr.page_local_addr(), len)
     }
 
     unsafe fn get_mut_ptr(&mut self, addr: Addr) -> *mut u8 {
@@ -161,7 +159,9 @@ impl MemoryArena {
     pub fn store<Item: ArenaStorable>(&mut self, val: Item) -> Addr {
         let num_bytes = val.num_bytes();
         let addr = self.allocate_space(num_bytes);
-        unsafe { self.write(addr, val); };
+        unsafe {
+            self.write(addr, val);
+        };
         addr
     }
 
@@ -187,24 +187,24 @@ impl MemoryArena {
         }
         self.add_page().allocate_space(len).unwrap()
     }
-
 }
-
 
 struct Page {
     page_id: usize,
     len: usize,
-    data: Box<[u8]>
+    data: Box<[u8]>,
 }
 
 impl Page {
     fn new(page_id: usize) -> Page {
         let mut data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-        unsafe { data.set_len(PAGE_SIZE); } // avoid initializing page
+        unsafe {
+            data.set_len(PAGE_SIZE);
+        } // avoid initializing page
         Page {
             page_id,
             len: 0,
-            data: data.into_boxed_slice()
+            data: data.into_boxed_slice(),
         }
     }
 
@@ -256,26 +256,33 @@ mod tests {
         let addr_a = arena.allocate_space(a.len());
         arena.write_bytes(addr_a, a);
 
-        let addr_b= arena.allocate_space(b.len());
+        let addr_b = arena.allocate_space(b.len());
         arena.write_bytes(addr_b, b);
 
         assert_eq!(arena.read_slice(addr_a, a.len()), a);
         assert_eq!(arena.read_slice(addr_b, b.len()), b);
     }
 
-
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
     struct MyTest {
         pub a: usize,
         pub b: u8,
-        pub c: u32
+        pub c: u32,
     }
 
     #[test]
     fn test_store_object() {
         let mut arena = MemoryArena::new();
-        let a = MyTest { a: 143, b: 21, c: 32};
-        let b = MyTest { a: 113, b: 221, c: 12};
+        let a = MyTest {
+            a: 143,
+            b: 21,
+            c: 32,
+        };
+        let b = MyTest {
+            a: 113,
+            b: 221,
+            c: 12,
+        };
         let addr_a = arena.store(a);
         let addr_b = arena.store(b);
         assert_eq!(unsafe { arena.read::<MyTest>(addr_a) }, a);

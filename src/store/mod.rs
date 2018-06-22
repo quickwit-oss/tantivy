@@ -33,22 +33,21 @@ and should rely on either
 
 !*/
 
-mod skiplist;
 mod reader;
+mod skiplist;
 mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
 
-#[cfg(feature="lz4")]
+#[cfg(feature = "lz4")]
 mod compression_lz4;
-#[cfg(feature="lz4")]
+#[cfg(feature = "lz4")]
 use self::compression_lz4::*;
 
-#[cfg(not(feature="lz4"))]
+#[cfg(not(feature = "lz4"))]
 mod compression_snap;
-#[cfg(not(feature="lz4"))]
+#[cfg(not(feature = "lz4"))]
 use self::compression_snap::*;
-
 
 #[cfg(test)]
 pub mod tests {

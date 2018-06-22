@@ -21,13 +21,13 @@ use directory::ManagedDirectory;
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
 use indexer::index_writer::open_index_writer;
+use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use indexer::DirectoryLock;
 use num_cpus;
 use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
-use indexer::index_writer::HEAP_SIZE_MIN;
 
 const NUM_SEARCHERS: usize = 12;
 
@@ -155,7 +155,12 @@ impl Index {
     ) -> Result<IndexWriter> {
         let directory_lock = DirectoryLock::lock(self.directory().box_clone())?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
-        open_index_writer(self, num_threads, heap_size_in_bytes_per_thread, directory_lock)
+        open_index_writer(
+            self,
+            num_threads,
+            heap_size_in_bytes_per_thread,
+            directory_lock,
+        )
     }
 
     /// Creates a multithreaded writer
@@ -186,7 +191,8 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self.searchable_segment_metas()?
+        Ok(self
+            .searchable_segment_metas()?
             .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
@@ -221,7 +227,8 @@ impl Index {
 
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        Ok(self.searchable_segment_metas()?
+        Ok(self
+            .searchable_segment_metas()?
             .iter()
             .map(|segment_meta| segment_meta.id())
             .collect())

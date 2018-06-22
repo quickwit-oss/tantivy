@@ -164,7 +164,8 @@ impl TermDictionary {
         let fst = self.fst_index.as_fst();
         let mut node = fst.root();
         while ord != 0 || !node.is_final() {
-            if let Some(transition) = node.transitions()
+            if let Some(transition) = node
+                .transitions()
                 .take_while(|transition| transition.out.value() <= ord)
                 .last()
             {

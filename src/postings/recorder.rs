@@ -1,4 +1,4 @@
-use super::stacker::{MemoryArena, ExpUnrolledLinkedList};
+use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use postings::FieldSerializer;
 use std::{self, io};
 use DocId;
@@ -29,11 +29,7 @@ pub trait Recorder: Copy {
     /// Close the document. It will help record the term frequency.
     fn close_doc(&mut self, heap: &mut MemoryArena);
     /// Pushes the postings information to the serializer.
-    fn serialize(
-        &self,
-        serializer: &mut FieldSerializer,
-        heap: &MemoryArena,
-    ) -> io::Result<()>;
+    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()>;
 }
 
 /// Only records the doc ids
@@ -47,7 +43,7 @@ impl Recorder for NothingRecorder {
     fn new(heap: &mut MemoryArena) -> Self {
         NothingRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
-            current_doc: u32::max_value()
+            current_doc: u32::max_value(),
         }
     }
 
@@ -64,11 +60,7 @@ impl Recorder for NothingRecorder {
 
     fn close_doc(&mut self, _heap: &mut MemoryArena) {}
 
-    fn serialize(
-        &self,
-        serializer: &mut FieldSerializer,
-        heap: &MemoryArena,
-    ) -> io::Result<()> {
+    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
         for doc in self.stack.iter(heap) {
             serializer.write_doc(doc, 0u32, &EMPTY_ARRAY)?;
         }
@@ -85,7 +77,6 @@ pub struct TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
-
     fn new(heap: &mut MemoryArena) -> Self {
         TermFrequencyRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
@@ -113,14 +104,11 @@ impl Recorder for TermFrequencyRecorder {
         self.current_tf = 0;
     }
 
-    fn serialize(
-        &self,
-        serializer: &mut FieldSerializer,
-        heap: &MemoryArena,
-    ) -> io::Result<()> {
+    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
         // the last document has not been closed...
         // its term freq is self.current_tf.
-        let mut doc_iter = self.stack
+        let mut doc_iter = self
+            .stack
             .iter(heap)
             .chain(Some(self.current_tf).into_iter());
 
@@ -142,7 +130,6 @@ pub struct TFAndPositionRecorder {
 }
 
 impl Recorder for TFAndPositionRecorder {
-
     fn new(heap: &mut MemoryArena) -> Self {
         TFAndPositionRecorder {
             stack: ExpUnrolledLinkedList::new(heap),
@@ -167,11 +154,7 @@ impl Recorder for TFAndPositionRecorder {
         self.stack.push(POSITION_END, heap);
     }
 
-    fn serialize(
-        &self,
-        serializer: &mut FieldSerializer,
-        heap: &MemoryArena,
-    ) -> io::Result<()> {
+    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
         let mut doc_positions = Vec::with_capacity(100);
         let mut positions_iter = self.stack.iter(heap);
         while let Some(doc) = positions_iter.next() {

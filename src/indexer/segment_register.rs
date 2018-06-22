@@ -59,7 +59,8 @@ impl SegmentRegister {
     }
 
     pub fn segment_metas(&self) -> Vec<SegmentMeta> {
-        let mut segment_ids: Vec<SegmentMeta> = self.segment_states
+        let mut segment_ids: Vec<SegmentMeta> = self
+            .segment_states
             .values()
             .map(|segment_entry| segment_entry.meta().clone())
             .collect();

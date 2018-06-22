@@ -342,16 +342,19 @@ impl FacetCollector {
     pub fn harvest(mut self) -> FacetCounts {
         self.finalize_segment();
 
-        let collapsed_facet_ords: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_ords: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_ords[..])
             .collect();
-        let collapsed_facet_counts: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_counts: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_counts[..])
             .collect();
 
-        let facet_streams = self.segment_counters
+        let facet_streams = self
+            .segment_counters
             .iter()
             .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
             .collect::<Vec<_>>();
@@ -402,7 +405,8 @@ impl Collector for FacetCollector {
 
     fn collect(&mut self, doc: DocId, _: Score) {
         let facet_reader: &mut FacetReader = unsafe {
-            &mut *self.ff_reader
+            &mut *self
+                .ff_reader
                 .as_ref()
                 .expect("collect() was called before set_segment. This should never happen.")
                 .get()
@@ -507,7 +511,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -587,7 +591,7 @@ mod tests {
             .collect();
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }
@@ -644,7 +648,7 @@ mod bench {
         // 40425 docs
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer_with_num_threads(1,3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }

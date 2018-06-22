@@ -38,9 +38,9 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 - Distributed search and will not be in the scope of tantivy.
 
 
-# Supported OS
+# Supported OS and compiler
 
-Tantivy supports Linux, MacOS and Windows.
+Tantivy works on stable rust (>= 1.27) and supports Linux, MacOS and Windows.
 
 # Getting started
 
@@ -57,8 +57,8 @@ It will walk you through getting a wikipedia search engine up and running in a f
 
 ## Development
 
-Tantivy now compiles on stable rust.
-To check out and run test, you can simply run :
+Tantivy compiles on stable rust but requires `Rust >= 1.27`.
+To check out and run tests, you can simply run :
 
     git clone git@github.com:tantivy-search/tantivy.git
     cd tantivy
