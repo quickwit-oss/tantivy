@@ -13,6 +13,10 @@ use schema::{FieldType, Term};
 use std::num::ParseIntError;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
+use std::ops::Bound;
+use query::RangeQuery;
+use query::AllQuery;
+use std::borrow::Cow;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -39,6 +43,9 @@ pub enum QueryParserError {
     /// The tokenizer for the given field is unknown
     /// The two argument strings are the name of the field, the name of the tokenizer
     UnknownTokenizer(String, String),
+    /// The query contains a range query with a phrase as one of the bounds.
+    /// Only terms can be used as bounds.
+    RangeMustNotHavePhrase,
 }
 
 impl From<ParseIntError> for QueryParserError {
@@ -66,14 +73,25 @@ impl From<ParseIntError> for QueryParserError {
 ///   by relevance : The user typically just scans through the first few
 ///   documents in order of decreasing relevance and will stop when the documents
 ///   are not relevant anymore.
-///   Making it possible to make this behavior customizable is tracked in
-///   [issue #27](https://github.com/fulmicoton/tantivy/issues/27).
+///
+///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
 /// * negative terms: By prepending a term by a `-`, a term can be excluded
 ///   from the search. This is useful for disambiguating a query.
 ///   e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///
+/// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
+///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed
+///   by "obama".
+///
+/// * range terms: Range searches can be done by specifying the start and end bound. These can be
+///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains
+///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
+///   Inclusive bounds are `[]`, exclusive are `{}`.
+///
+/// *  all docs query: A plain `*` will match all documents in the index.
 ///
 pub struct QueryParser {
     schema: Schema,
@@ -155,11 +173,12 @@ impl QueryParser {
         }
         Ok(ast)
     }
-    fn compute_logical_ast_for_leaf(
+
+    fn compute_terms_for_string(
         &self,
         field: Field,
-        phrase: &str,
-    ) -> Result<Option<LogicalLiteral>, QueryParserError> {
+        phrase: &str
+    ) -> Result<Vec<Term>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         if !field_type.is_indexed() {
@@ -170,12 +189,12 @@ impl QueryParser {
             FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
-                Ok(Some(LogicalLiteral::Term(term)))
+                Ok(vec![term])
             }
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);
-                Ok(Some(LogicalLiteral::Term(term)))
+                Ok(vec![term])
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
@@ -194,17 +213,15 @@ impl QueryParser {
                         terms.push(term);
                     });
                     if terms.is_empty() {
-                        Ok(None)
+                        Ok(vec![])
                     } else if terms.len() == 1 {
-                        Ok(Some(LogicalLiteral::Term(
-                            terms.into_iter().next().unwrap(),
-                        )))
+                        Ok(terms)
                     } else {
                         let field_entry = self.schema.get_field_entry(field);
                         let field_type = field_entry.field_type();
                         if let Some(index_record_option) = field_type.get_index_record_option() {
                             if index_record_option.has_positions() {
-                                Ok(Some(LogicalLiteral::Phrase(terms)))
+                                Ok(terms)
                             } else {
                                 let fieldname = self.schema.get_field_name(field).to_string();
                                 Err(QueryParserError::FieldDoesNotHavePositionsIndexed(
@@ -224,8 +241,7 @@ impl QueryParser {
                 }
             }
             FieldType::HierarchicalFacet => {
-                let term = Term::from_field_text(field, phrase);
-                Ok(Some(LogicalLiteral::Term(term)))
+                Ok(vec![Term::from_field_text(field, phrase)])
             }
             FieldType::Bytes => {
                 let field_name = self.schema.get_field_name(field).to_string();
@@ -234,11 +250,49 @@ impl QueryParser {
         }
     }
 
+    fn compute_logical_ast_for_leaf(
+        &self,
+        field: Field,
+        phrase: &str,
+    ) -> Result<Option<LogicalLiteral>, QueryParserError> {
+        let terms = self.compute_terms_for_string(field, phrase)?;
+        match terms.len() {
+            0 => Ok(None),
+            1 => Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap()))),
+            _ => Ok(Some(LogicalLiteral::Phrase(terms))),
+        }
+    }
+
     fn default_occur(&self) -> Occur {
         if self.conjunction_by_default {
             Occur::Must
         } else {
             Occur::Should
+        }
+    }
+
+    fn resolve_bound(&self, field: Field, bound: &UserInputBound) -> Result<Bound<Term>, QueryParserError> {
+        let terms = self.compute_terms_for_string(field, bound.term_str())?;
+        if terms.len() != 1 {
+            return Err(QueryParserError::RangeMustNotHavePhrase)
+        }
+        let term = terms.into_iter().next().unwrap();
+        match *bound {
+            UserInputBound::Inclusive(_) => Ok(Bound::Included(term)),
+            UserInputBound::Exclusive(_) => Ok(Bound::Excluded(term)),
+        }
+    }
+
+    fn resolved_fields(&self, given_field: &Option<String>) -> Result<Cow<[Field]>, QueryParserError> {
+        match *given_field {
+            None => {
+                if self.default_fields.is_empty() {
+                    Err(QueryParserError::NoDefaultFieldDeclared)
+                } else {
+                    Ok(Cow::from(&self.default_fields[..]))
+                }
+            },
+            Some(ref field) => Ok(Cow::from(vec![self.resolve_field_name(&*field)?])),
         }
     }
 
@@ -264,6 +318,28 @@ impl QueryParser {
             UserInputAST::Must(subquery) => {
                 let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
+            }
+            UserInputAST::Range { field, lower, upper } => {
+                let fields = self.resolved_fields(&field)?;
+                let mut clauses = fields.iter().map(|&field| {
+                    let field_entry = self.schema.get_field_entry(field);
+                    let value_type = field_entry.field_type().value_type();
+                    Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                        field,
+                        value_type,
+                        lower: self.resolve_bound(field, &lower)?,
+                        upper: self.resolve_bound(field, &upper)?,
+                    })))
+                }).collect::<Result<Vec<_>, QueryParserError>>()?;
+                let result_ast = if clauses.len() == 1 {
+                    clauses.pop().unwrap()
+                } else {
+                    LogicalAST::Clause(clauses.into_iter().map(|clause| (Occur::Should, clause)).collect())
+                };
+                Ok((Occur::Should, result_ast))
+            }
+            UserInputAST::All => {
+                Ok((Occur::Should, LogicalAST::Leaf(Box::new(LogicalLiteral::All))))
             }
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
@@ -327,6 +403,10 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
         LogicalLiteral::Phrase(terms) => Box::new(PhraseQuery::new(terms)),
+        LogicalLiteral::Range { field, value_type, lower, upper } => {
+            Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper))
+        },
+        LogicalLiteral::All => Box::new(AllQuery),
     }
 }
 
@@ -509,6 +589,31 @@ mod test {
             "title:\"a b\"",
             "\"[Term([0, 0, 0, 0, 97]), \
              Term([0, 0, 0, 0, 98])]\"",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:[a TO b]",
+            "(Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "[a TO b]",
+            "((Included(Term([0, 0, 0, 0, 97])) TO \
+             Included(Term([0, 0, 0, 0, 98]))) \
+             (Included(Term([0, 0, 0, 1, 97])) TO \
+             Included(Term([0, 0, 0, 1, 98]))))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:{titi TO toto}",
+            "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO \
+             Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "*",
+            "*",
             false,
         );
     }
