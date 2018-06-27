@@ -1,29 +1,36 @@
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::*;
+use query::query_parser::user_input_ast::UserInputBound;
+
+fn field<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
+    (letter(), many(satisfy(|c: char| c.is_alphanumeric() || c == '_')))
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+}
+
+fn word<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
+    many1(satisfy(|c: char| c.is_alphanumeric()))
+}
+
+
+fn negative_number<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
+    (char('-'), many1(satisfy(|c: char| c.is_numeric())))
+        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+}
 
 fn literal<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
 {
     let term_val = || {
-        let word = many1(satisfy(|c: char| c.is_alphanumeric()));
         let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
-        phrase.or(word)
+        phrase.or(word())
     };
 
-    let negative_numbers = (char('-'), many1(satisfy(|c: char| c.is_numeric())))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
-
-    let field = (
-        letter(),
-        many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
-    ).map(|(s1, s2): (char, String)| format!("{}{}", s1, s2));
-
-    let term_val_with_field = negative_numbers.or(term_val());
+    let term_val_with_field = negative_number().or(term_val());
 
     let term_query =
-        (field, char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
+        (field(), char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
             field_name: Some(field_name),
             phrase,
         });
@@ -37,6 +44,26 @@ where
         .parse_stream(input)
 }
 
+fn range<I: Stream<Item = char>>(input: I) -> ParseResult<UserInputAST, I> {
+    let term_val = || {
+        word().or(negative_number())
+    };
+    let lower_bound = {
+        let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
+        let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
+        excl.or(incl)
+    };
+    let upper_bound = {
+        let excl = (term_val(), char('}')).map(|(w, _)| UserInputBound::Exclusive(w));
+        let incl = (term_val(), char(']')).map(|(w, _)| UserInputBound::Inclusive(w));
+        // TODO: this backtracking should be unnecessary
+        try(excl).or(incl)
+    };
+    (optional((field(), char(':')).map(|x| x.0)), lower_bound, spaces(), string("TO"), spaces(), upper_bound)
+        .map(|(field, lower, _, _, _, upper)| UserInputAST::Range { field, lower, upper })
+        .parse_stream(input)
+}
+
 fn leaf<I>(input: I) -> ParseResult<UserInputAST, I>
 where
     I: Stream<Item = char>,
@@ -45,6 +72,8 @@ where
         .map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
         .or((char('+'), parser(leaf)).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
         .or((char('('), parser(parse_to_ast), char(')')).map(|(_, expr, _)| expr))
+        .or(char('*').map(|_| UserInputAST::All))
+        .or(try(parser(range)))
         .or(parser(literal))
         .parse_stream(input)
 }
@@ -91,6 +120,10 @@ mod test {
         test_parse_query_to_ast_helper("-abc:toto", "-(abc:\"toto\")");
         test_parse_query_to_ast_helper("abc:a b", "(abc:\"a\" \"b\")");
         test_parse_query_to_ast_helper("abc:\"a b\"", "abc:\"a b\"");
+        test_parse_query_to_ast_helper("foo:[1 TO 5]", "foo:[\"1\" TO \"5\"]");
+        test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
+        test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
+        test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
         test_is_parse_err("abc +    ");
     }
 }
