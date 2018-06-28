@@ -21,7 +21,7 @@ mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
 mod chained_collector;
-pub use self::chained_collector::chain;
+pub use self::chained_collector::{chain, ChainedCollector};
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.

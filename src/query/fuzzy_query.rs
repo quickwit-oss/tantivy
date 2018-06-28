@@ -1,13 +1,7 @@
-use common::BitSet;
-use core::SegmentReader;
-use fst::Automaton;
 use levenshtein_automata::{LevenshteinAutomatonBuilder, DFA};
-use query::BitSetDocSet;
-use query::ConstScorer;
-use query::{Query, Scorer, Weight};
-use schema::{Field, IndexRecordOption, Term};
+use query::{AutomatonWeight, Query, Weight};
+use schema::Term;
 use std::collections::HashMap;
-use termdict::{TermDictionary, TermStreamer};
 use Result;
 use Searcher;
 
@@ -28,6 +22,56 @@ lazy_static! {
 /// A Fuzzy Query matches all of the documents
 /// containing a specific term that is within
 /// Levenshtein distance
+/// ```rust
+/// #[macro_use]
+/// extern crate tantivy;
+/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::{Index, Result, Term};
+/// use tantivy::collector::{CountCollector, TopCollector, chain};
+/// use tantivy::query::FuzzyTermQuery;
+///
+/// # fn main() { example().unwrap(); }
+/// fn example() -> Result<()> {
+///     let mut schema_builder = SchemaBuilder::new();
+///     let title = schema_builder.add_text_field("title", TEXT);
+///     let schema = schema_builder.build();
+///     let index = Index::create_in_ram(schema);
+///     {
+///         let mut index_writer = index.writer(3_000_000)?;
+///         index_writer.add_document(doc!(
+///             title => "The Name of the Wind",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "The Diary of Muadib",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "A Dairy Cow",
+///         ));
+///         index_writer.add_document(doc!(
+///             title => "The Diary of a Young Girl",
+///         ));
+///         index_writer.commit().unwrap();
+///     }
+///
+///     index.load_searchers()?;
+///     let searcher = index.searcher();
+///
+///     {
+///         let mut top_collector = TopCollector::with_limit(2);
+///         let mut count_collector = CountCollector::default();
+///         {
+///             let mut collectors = chain().push(&mut top_collector).push(&mut count_collector);
+///             let term = Term::from_field_text(title, "Diary");
+///             let query = FuzzyTermQuery::new(term, 1, true);
+///             searcher.search(&query, &mut collectors).unwrap();
+///         }
+///         assert_eq!(count_collector.count(), 2);
+///         assert!(top_collector.at_capacity());
+///     }
+///
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug, Clone)]
 pub struct FuzzyTermQuery {
     /// What term are we searching
@@ -51,6 +95,7 @@ impl FuzzyTermQuery {
         }
     }
 
+    /// Creates a new Fuzzy Query that treats transpositions as cost one rather than two
     pub fn new_prefix(term: Term, distance: u8, transposition_cost_one: bool) -> FuzzyTermQuery {
         FuzzyTermQuery {
             term,
@@ -60,66 +105,17 @@ impl FuzzyTermQuery {
         }
     }
 
-    pub fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
+    fn specialized_weight(&self) -> Result<AutomatonWeight<DFA>> {
         let automaton = LEV_BUILDER.get(&(self.distance, false))
             .unwrap() // TODO return an error
             .build_dfa(self.term.text());
-        Ok(AutomatonWeight {
-            term: self.term.clone(),
-            field: self.term.field(),
-            automaton,
-        })
+        Ok(AutomatonWeight::new(self.term.field(), automaton))
     }
 }
 
 impl Query for FuzzyTermQuery {
     fn weight(&self, _searcher: &Searcher, _scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(Box::new(self.specialized_weight()?))
-    }
-}
-
-pub struct AutomatonWeight<A>
-where
-    A: Automaton,
-{
-    term: Term,
-    field: Field,
-    automaton: A,
-}
-
-impl<A> AutomatonWeight<A>
-where
-    A: Automaton,
-{
-    fn automaton_stream<'a>(&'a self, term_dict: &'a TermDictionary) -> TermStreamer<'a, &'a A> {
-        let term_stream_builder = term_dict.search(&self.automaton);
-        term_stream_builder.into_stream()
-    }
-}
-
-impl<A> Weight for AutomatonWeight<A>
-where
-    A: Automaton,
-{
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
-        let max_doc = reader.max_doc();
-        let mut doc_bitset = BitSet::with_max_value(max_doc);
-
-        let inverted_index = reader.inverted_index(self.field);
-        let term_dict = inverted_index.terms();
-        let mut term_stream = self.automaton_stream(term_dict);
-        while term_stream.advance() {
-            let term_info = term_stream.value();
-            let mut block_segment_postings = inverted_index
-                .read_block_postings_from_terminfo(term_info, IndexRecordOption::Basic);
-            while block_segment_postings.advance() {
-                for &doc in block_segment_postings.docs() {
-                    doc_bitset.insert(doc);
-                }
-            }
-        }
-        let doc_bitset = BitSetDocSet::from(doc_bitset);
-        Ok(Box::new(ConstScorer::new(doc_bitset)))
     }
 }
 
@@ -134,7 +130,7 @@ mod test {
     use Term;
 
     #[test]
-    pub fn test_automaton_weight() {
+    pub fn test_fuzzy_term() {
         let mut schema_builder = SchemaBuilder::new();
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
