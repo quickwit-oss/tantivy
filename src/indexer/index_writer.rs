@@ -9,7 +9,6 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use directory::FileProtection;
 use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
 use fastfield::write_delete_bitset;
@@ -216,15 +215,13 @@ pub fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: u64,
-) -> Result<Option<FileProtection>> {
-    let mut file_protect: Option<FileProtection> = None;
+) -> Result<()> {
     {
-        if let Some(previous_opstamp) = segment_entry.meta().delete_opstamp() {
+        if segment_entry.meta().delete_opstamp() == Some(target_opstamp) {
             // We are already up-to-date here.
-            if target_opstamp == previous_opstamp {
-                return Ok(file_protect);
-            }
+            return Ok(());
         }
+
         let segment_reader = SegmentReader::open(&segment)?;
         let max_doc = segment_reader.max_doc();
 
@@ -243,6 +240,7 @@ pub fn advance_deletes(
             target_opstamp,
         )?;
 
+        // TODO optimize
         for doc in 0u32..max_doc {
             if segment_reader.is_deleted(doc) {
                 delete_bitset.insert(doc as usize);
@@ -252,13 +250,12 @@ pub fn advance_deletes(
         let num_deleted_docs = delete_bitset.len();
         if num_deleted_docs > 0 {
             segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
-            file_protect = Some(segment.protect_from_delete(SegmentComponent::DELETE));
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
     }
-    segment_entry.set_meta(segment.meta().clone());
-    Ok(file_protect)
+    segment_entry.set_meta((*segment.meta()).clone());
+    Ok(())
 }
 
 fn index_documents(

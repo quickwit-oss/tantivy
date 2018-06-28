@@ -39,13 +39,6 @@ impl SegmentRegister {
         self.segment_states.len()
     }
 
-    pub fn get_all_segments(&self) -> Vec<SegmentMeta> {
-        self.segment_states
-            .values()
-            .map(|segment_entry| segment_entry.meta().clone())
-            .collect()
-    }
-
     pub fn get_mergeable_segments(&self) -> Vec<SegmentMeta> {
         self.segment_states
             .values()

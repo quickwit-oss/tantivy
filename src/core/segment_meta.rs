@@ -51,8 +51,8 @@ impl<'a> serde::Deserialize<'a> for SegmentMeta {
 
 impl SegmentMeta {
 
-    /// Returns a snapshot of all living `SegmentMeta` object.
-    pub fn all() -> Vec<SegmentMeta> {
+    /// Returns a copy of all living `SegmentMeta` object.
+    pub(crate) fn all() -> Vec<SegmentMeta> {
         INVENTORY.list().into_iter().map(|inner| SegmentMeta {inner}).collect::<Vec<_>>()
     }
 
@@ -129,7 +129,7 @@ impl SegmentMeta {
     pub fn delete_opstamp(&self) -> Option<u64> {
         self.inner
             .deletes
-            .as_ref()
+             .as_ref()
             .map(|delete_meta| delete_meta.opstamp)
     }
 

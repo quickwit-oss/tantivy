@@ -76,19 +76,10 @@ impl SegmentManager {
     }
 
     pub fn list_files(&self) -> HashSet<PathBuf> {
-        let registers_lock = self.read();
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
         files.insert(LOCKFILE_FILEPATH.clone());
-
-        let segment_metas: Vec<SegmentMeta> = registers_lock
-            .committed
-            .get_all_segments()
-            .into_iter()
-            .chain(registers_lock.uncommitted.get_all_segments().into_iter())
-            .chain(registers_lock.writing.iter().cloned().map(SegmentMeta::new))
-            .collect();
-        for segment_meta in segment_metas {
+        for segment_meta in SegmentMeta::all() {
             files.extend(segment_meta.list_files());
         }
         files

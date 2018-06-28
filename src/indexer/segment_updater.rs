@@ -7,7 +7,6 @@ use core::SegmentMeta;
 use core::SerializableSegment;
 use core::META_FILEPATH;
 use directory::Directory;
-use directory::FileProtection;
 use error::{Error, ErrorKind, Result};
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;
@@ -29,12 +28,12 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
-use std::sync::atomic::Ordering;
-use std::sync::atomic::{AtomicBool, AtomicUsize};
+use std::sync::atomic::{Ordering, AtomicBool, AtomicUsize};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
+
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -99,17 +98,11 @@ fn perform_merge(
     let schema = index.schema();
     let mut segment_entries = vec![];
 
-    let mut file_protections: Vec<FileProtection> = vec![];
-
     for segment_id in segment_ids {
         if let Some(mut segment_entry) = segment_updater.0.segment_manager.segment_entry(segment_id)
         {
             let segment = index.segment(segment_entry.meta().clone());
-            if let Some(file_protection) =
-                advance_deletes(segment, &mut segment_entry, target_opstamp)?
-            {
-                file_protections.push(file_protection);
-            }
+            advance_deletes(segment, &mut segment_entry, target_opstamp)?;
             segment_entries.push(segment_entry);
         } else {
             error!("Error, had to abort merge as some of the segment is not managed anymore.");
@@ -382,7 +375,6 @@ impl SegmentUpdater {
         self.run_async(move |segment_updater| {
             info!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
-            let mut _file_protection_opt = None;
             if let Some(delete_operation) = delete_cursor.get() {
                 let committed_opstamp = segment_updater
                     .0
@@ -393,29 +385,23 @@ impl SegmentUpdater {
                 if delete_operation.opstamp < committed_opstamp {
                     let index = &segment_updater.0.index;
                     let segment = index.segment(after_merge_segment_entry.meta().clone());
-                    match advance_deletes(
+                    if let Err(e) = advance_deletes(
                         segment,
                         &mut after_merge_segment_entry,
-                        committed_opstamp,
-                    ) {
-                        Ok(file_protection_opt_res) => {
-                            _file_protection_opt = file_protection_opt_res;
+                        committed_opstamp) {
+                        error!(
+                            "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
+                            before_merge_segment_ids, e
+                        );
+                        // ... cancel merge
+                        if cfg!(test) {
+                            panic!("Merge failed.");
                         }
-                        Err(e) => {
-                            error!(
-                                "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
-                                before_merge_segment_ids, e
-                            );
-                            // ... cancel merge
-                            if cfg!(test) {
-                                panic!("Merge failed.");
-                            }
-                            segment_updater.cancel_merge(
-                                &before_merge_segment_ids,
-                                after_merge_segment_entry.segment_id(),
-                            );
-                            return;
-                        }
+                        segment_updater.cancel_merge(
+                            &before_merge_segment_ids,
+                            after_merge_segment_entry.segment_id(),
+                        );
+                        return;
                     }
                 }
             }

@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
-use std::fmt;
 use std::io;
 use std::path::PathBuf;
+use std::fmt;
 
 /// General IO error with an optional path to the offending file.
 #[derive(Debug)]
@@ -173,9 +173,6 @@ pub enum DeleteError {
     /// Any kind of IO error that happens when
     /// interacting with the underlying IO device.
     IOError(IOError),
-    /// The file may not be deleted because it is
-    /// protected.
-    FileProtected(PathBuf),
 }
 
 impl From<IOError> for DeleteError {
@@ -189,9 +186,6 @@ impl fmt::Display for DeleteError {
         match *self {
             DeleteError::FileDoesNotExist(ref path) => {
                 write!(f, "the file '{:?}' does not exist", path)
-            }
-            DeleteError::FileProtected(ref path) => {
-                write!(f, "the file '{:?}' is protected and can't be deleted", path)
             }
             DeleteError::IOError(ref err) => {
                 write!(f, "an io error occurred while deleting a file: '{}'", err)
@@ -207,7 +201,7 @@ impl StdError for DeleteError {
 
     fn cause(&self) -> Option<&StdError> {
         match *self {
-            DeleteError::FileDoesNotExist(_) | DeleteError::FileProtected(_) => None,
+            DeleteError::FileDoesNotExist(_) => None,
             DeleteError::IOError(ref err) => Some(err),
         }
     }

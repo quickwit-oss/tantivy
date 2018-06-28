@@ -3,9 +3,7 @@ use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use error::{ErrorKind, Result, ResultExt};
 use serde_json;
-use std::collections::HashMap;
 use std::collections::HashSet;
-use std::fmt;
 use std::io;
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -31,39 +29,9 @@ pub struct ManagedDirectory {
 
 #[derive(Debug, Default)]
 struct MetaInformation {
-    managed_paths: HashSet<PathBuf>,
-    protected_files: HashMap<PathBuf, usize>,
+    managed_paths: HashSet<PathBuf>
 }
 
-/// A `FileProtection` prevents the garbage collection of a file.
-///
-/// See `ManagedDirectory.protect_file_from_delete`.
-pub struct FileProtection {
-    directory: ManagedDirectory,
-    path: PathBuf,
-}
-
-fn unprotect_file_from_delete(directory: &ManagedDirectory, path: &Path) {
-    let mut meta_informations_wlock = directory
-        .meta_informations
-        .write()
-        .expect("Managed file lock poisoned");
-    if let Some(counter_ref_mut) = meta_informations_wlock.protected_files.get_mut(path) {
-        (*counter_ref_mut) -= 1;
-    }
-}
-
-impl fmt::Debug for FileProtection {
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> result::Result<(), fmt::Error> {
-        write!(formatter, "FileProtectionFor({:?})", self.path)
-    }
-}
-
-impl Drop for FileProtection {
-    fn drop(&mut self) {
-        unprotect_file_from_delete(&self.directory, &*self.path);
-    }
-}
 
 /// Saves the file containing the list of existing files
 /// that were created by tantivy.
@@ -89,7 +57,6 @@ impl ManagedDirectory {
                     directory: Box::new(directory),
                     meta_informations: Arc::new(RwLock::new(MetaInformation {
                         managed_paths: managed_files,
-                        protected_files: HashMap::default(),
                     })),
                 })
             }
@@ -159,9 +126,6 @@ impl ManagedDirectory {
                                     error!("Failed to delete {:?}", file_to_delete);
                                 }
                             }
-                            DeleteError::FileProtected(_) => {
-                                // this is expected.
-                            }
                         }
                     }
                 }
@@ -184,29 +148,6 @@ impl ManagedDirectory {
             if save_managed_paths(self.directory.as_mut(), &meta_informations_wlock).is_err() {
                 error!("Failed to save the list of managed files.");
             }
-        }
-    }
-
-    /// Protects a file from being garbage collected.
-    ///
-    /// The method returns a `FileProtection` object.
-    /// The file will not be garbage collected as long as the
-    /// `FileProtection` object is kept alive.
-    pub fn protect_file_from_delete(&self, path: &Path) -> FileProtection {
-        let pathbuf = path.to_owned();
-        {
-            let mut meta_informations_wlock = self
-                .meta_informations
-                .write()
-                .expect("Managed file lock poisoned on protect");
-            *meta_informations_wlock
-                .protected_files
-                .entry(pathbuf.clone())
-                .or_insert(0) += 1;
-        }
-        FileProtection {
-            directory: self.clone(),
-            path: pathbuf.clone(),
         }
     }
 
@@ -251,17 +192,6 @@ impl Directory for ManagedDirectory {
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        {
-            let metas_rlock = self
-                .meta_informations
-                .read()
-                .expect("poisoned lock in managed directory meta");
-            if let Some(counter) = metas_rlock.protected_files.get(path) {
-                if *counter > 0 {
-                    return Err(DeleteError::FileProtected(path.to_owned()));
-                }
-            }
-        }
         self.directory.delete(path)
     }
 
@@ -375,30 +305,6 @@ mod tests {
         } else {
             assert!(!managed_directory.exists(*TEST_PATH1));
         }
-    }
-
-    #[test]
-    #[cfg(feature = "mmap")]
-    fn test_managed_directory_protect() {
-        let tempdir = TempDir::new("index").unwrap();
-        let tempdir_path = PathBuf::from(tempdir.path());
-        let living_files = HashSet::new();
-
-        let mmap_directory = MmapDirectory::open(&tempdir_path).unwrap();
-        let mut managed_directory = ManagedDirectory::new(mmap_directory).unwrap();
-        managed_directory
-            .atomic_write(*TEST_PATH1, &vec![0u8, 1u8])
-            .unwrap();
-        assert!(managed_directory.exists(*TEST_PATH1));
-
-        {
-            let _file_protection = managed_directory.protect_file_from_delete(*TEST_PATH1);
-            managed_directory.garbage_collect(|| living_files.clone());
-            assert!(managed_directory.exists(*TEST_PATH1));
-        }
-
-        managed_directory.garbage_collect(|| living_files.clone());
-        assert!(!managed_directory.exists(*TEST_PATH1));
     }
 
 }
