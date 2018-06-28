@@ -66,7 +66,7 @@ impl DeleteBitSet {
 
     /// Summarize total space usage of this bitset.
     pub fn space_usage(&self) -> ByteCount {
-        ByteCount(self.data.len())
+        self.data.len()
     }
 }
 

@@ -11,39 +11,19 @@ under-count actual resultant space usage by up to 4095 bytes per file.
 
 use schema::Field;
 use std::collections::HashMap;
-use std::ops::{Add, AddAssign};
-use serde::Serialize;
-use serde::Serializer;
-use serde::Deserialize;
-use serde::Deserializer;
+use SegmentComponent;
 
 /// Indicates space usage in bytes
-#[derive(Clone, Copy, Debug)]
-pub struct ByteCount(pub usize);
+pub type ByteCount = usize;
 
-impl Serialize for ByteCount {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
-        self.0.serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for ByteCount {
-    fn deserialize<D>(deserializer: D) -> Result<ByteCount, D::Error> where D: Deserializer<'de> {
-        Ok(ByteCount(usize::deserialize(deserializer)?))
-    }
-}
-
-impl Add for ByteCount {
-    type Output = ByteCount;
-    fn add(self, rhs: ByteCount) -> ByteCount {
-        ByteCount(self.0 + rhs.0)
-    }
-}
-
-impl AddAssign for ByteCount {
-    fn add_assign(&mut self, rhs: ByteCount) {
-        self.0 += rhs.0;
-    }
+/// Enum containing any of the possible space usage results for segment components.
+pub enum ComponentSpaceUsage {
+    /// Data is stored per field in a uniform way
+    PerField(PerFieldSpaceUsage),
+    /// Data is stored in separate pieces in the store
+    Store(StoreSpaceUsage),
+    /// Some sort of raw byte count
+    Basic(ByteCount),
 }
 
 /// Represents combined space usage of an entire searcher and its component segments.
@@ -57,7 +37,7 @@ impl SearcherSpaceUsage {
     pub(crate) fn new() -> SearcherSpaceUsage {
         SearcherSpaceUsage {
             segments: Vec::new(),
-            total: ByteCount(0),
+            total: 0,
         }
     }
 
@@ -126,6 +106,24 @@ impl SegmentSpaceUsage {
             store,
             deletes,
             total,
+        }
+    }
+
+    /// Space usage for the given component
+    ///
+    /// Clones the underlying data.
+    /// Use the components directly if this is somehow in performance critical code.
+    pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
+        use SegmentComponent::*;
+        use self::ComponentSpaceUsage::*;
+        match component {
+            POSTINGS => PerField(self.postings().clone()),
+            POSITIONS => PerField(self.positions().clone()),
+            FASTFIELDS => PerField(self.fast_fields().clone()),
+            FIELDNORMS => PerField(self.fieldnorms().clone()),
+            TERMS => PerField(self.termdict().clone()),
+            STORE => Store(self.store().clone()),
+            DELETE => Basic(self.deletes()),
         }
     }
 
@@ -219,7 +217,7 @@ pub struct PerFieldSpaceUsage {
 
 impl PerFieldSpaceUsage {
     pub(crate) fn new(fields: HashMap<Field, FieldUsage>) -> PerFieldSpaceUsage {
-        let total = fields.values().map(|x| x.total()).fold(ByteCount(0), Add::add);
+        let total = fields.values().map(|x| x.total()).sum();
         PerFieldSpaceUsage { fields, total }
     }
 
@@ -241,29 +239,29 @@ impl PerFieldSpaceUsage {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FieldUsage {
     field: Field,
-    weight: ByteCount,
+    num_bytes: ByteCount,
     /// A field can be composed of more than one piece.
     /// These pieces are indexed by arbitrary numbers starting at zero.
-    /// `self.weight` includes all of `self.sub_weights`.
-    sub_weights: Vec<Option<ByteCount>>,
+    /// `self.num_bytes` includes all of `self.sub_num_bytes`.
+    sub_num_bytes: Vec<Option<ByteCount>>,
 }
 
 impl FieldUsage {
     pub(crate) fn empty(field: Field) -> FieldUsage {
         FieldUsage {
             field,
-            weight: ByteCount(0),
-            sub_weights: Vec::new(),
+            num_bytes: 0,
+            sub_num_bytes: Vec::new(),
         }
     }
 
     pub(crate) fn add_field_idx(&mut self, idx: usize, size: ByteCount) {
-        if self.sub_weights.len() < idx + 1{
-            self.sub_weights.resize(idx + 1, None);
+        if self.sub_num_bytes.len() < idx + 1{
+            self.sub_num_bytes.resize(idx + 1, None);
         }
-        assert!(self.sub_weights[idx].is_none());
-        self.sub_weights[idx] = Some(size);
-        self.weight += size
+        assert!(self.sub_num_bytes[idx].is_none());
+        self.sub_num_bytes[idx] = Some(size);
+        self.num_bytes += size
     }
 
     /// Field
@@ -272,12 +270,12 @@ impl FieldUsage {
     }
 
     /// Space usage for each index
-    pub fn sub_weights(&self) -> &[Option<ByteCount>] {
-        &self.sub_weights[..]
+    pub fn sub_num_bytes(&self) -> &[Option<ByteCount>] {
+        &self.sub_num_bytes[..]
     }
 
     /// Total bytes used for this field in this context
     pub fn total(&self) -> ByteCount {
-        self.weight
+        self.num_bytes
     }
 }

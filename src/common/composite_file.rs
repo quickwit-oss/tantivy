@@ -5,7 +5,6 @@ use directory::ReadOnlySource;
 use directory::WritePtr;
 use schema::Field;
 use space_usage::PerFieldSpaceUsage;
-use space_usage::ByteCount;
 use space_usage::FieldUsage;
 use std::collections::HashMap;
 use std::io::Write;
@@ -175,7 +174,7 @@ impl CompositeFile {
         for (&field_addr, &(start, end)) in self.offsets_index.iter() {
             fields.entry(field_addr.field)
                 .or_insert_with(|| FieldUsage::empty(field_addr.field))
-                .add_field_idx(field_addr.idx, ByteCount(end - start));
+                .add_field_idx(field_addr.idx, end - start);
         }
         PerFieldSpaceUsage::new(fields)
     }

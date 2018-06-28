@@ -18,7 +18,6 @@ use schema::Field;
 use schema::FieldType;
 use schema::Schema;
 use space_usage::SegmentSpaceUsage;
-use space_usage::ByteCount;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -370,7 +369,7 @@ impl SegmentReader {
             self.fast_fields_composite.space_usage(),
             self.fieldnorms_composite.space_usage(),
             self.store_reader.space_usage(),
-            self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(ByteCount(0)),
+            self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(0),
         )
     }
 }
