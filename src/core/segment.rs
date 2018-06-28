@@ -49,8 +49,11 @@ impl Segment {
     }
 
     #[doc(hidden)]
-    pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
-        self.meta.set_delete_meta(num_deleted_docs, opstamp);
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> Segment {
+        Segment {
+            index: self.index,
+            meta: self.meta.with_delete_meta(num_deleted_docs, opstamp)
+        }
     }
 
     /// Returns the segment's id.

@@ -251,7 +251,7 @@ pub fn advance_deletes(
 
         let num_deleted_docs = delete_bitset.len();
         if num_deleted_docs > 0 {
-            segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
+            segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
             file_protect = Some(segment.protect_from_delete(SegmentComponent::DELETE));
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
@@ -299,8 +299,7 @@ fn index_documents(
 
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let mut segment_meta = SegmentMeta::new(segment_id);
-    segment_meta.set_max_doc(num_docs);
+    let segment_meta = SegmentMeta::new(segment_id).with_max_doc(num_docs);
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
