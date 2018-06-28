@@ -272,6 +272,9 @@ impl QueryParser {
     }
 
     fn resolve_bound(&self, field: Field, bound: &UserInputBound) -> Result<Bound<Term>, QueryParserError> {
+        if bound.term_str() == "*" {
+            return Ok(Bound::Unbounded);
+        }
         let terms = self.compute_terms_for_string(field, bound.term_str())?;
         if terms.len() != 1 {
             return Err(QueryParserError::RangeMustNotHavePhrase)
@@ -609,6 +612,17 @@ mod test {
             "title:{titi TO toto}",
             "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO \
              Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:{* TO toto}",
+            "(Unbounded TO \
+             Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            "title:{titi TO *}",
+            "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO Unbounded)",
             false,
         );
         test_parse_query_to_logical_ast_helper(
