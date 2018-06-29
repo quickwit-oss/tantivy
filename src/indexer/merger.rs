@@ -737,6 +737,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -980,6 +981,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1076,6 +1078,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1129,6 +1132,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1219,6 +1223,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -1290,6 +1295,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -1392,6 +1398,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();

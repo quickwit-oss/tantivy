@@ -8,6 +8,8 @@ use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::RwLock;
+use error::ErrorKind;
+use error::Result as TantivyResult;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Default)]
@@ -64,8 +66,9 @@ impl SegmentManager {
 
     /// Returns all of the segment entries (committed or uncommitted)
     pub fn segment_entries(&self) -> Vec<SegmentEntry> {
-        let mut segment_entries = self.read().uncommitted.segment_entries();
-        segment_entries.extend(self.read().committed.segment_entries());
+        let registers_lock = self.read();
+        let mut segment_entries = registers_lock.uncommitted.segment_entries();
+        segment_entries.extend(registers_lock.committed.segment_entries());
         segment_entries
     }
 
@@ -83,14 +86,6 @@ impl SegmentManager {
             files.extend(segment_meta.list_files());
         }
         files
-    }
-
-    pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
-        let registers = self.read();
-        registers
-            .committed
-            .segment_entry(segment_id)
-            .or_else(|| registers.uncommitted.segment_entry(segment_id))
     }
 
     // Lock poisoning should never happen :
@@ -117,19 +112,37 @@ impl SegmentManager {
         }
     }
 
-    pub fn start_merge(&self, segment_ids: &[SegmentId]) {
+    /// Marks a list of segments as in merge.
+   ///
+   /// Returns an error if some segments are missing, or if
+   /// the `segment_ids` are not either all committed or all
+   /// uncommitted.
+    pub fn start_merge(&self, segment_ids: &[SegmentId]) -> TantivyResult<Vec<SegmentEntry>> {
         let mut registers_lock = self.write();
+        let mut segment_entries = vec![];
         if registers_lock.uncommitted.contains_all(segment_ids) {
             for segment_id in segment_ids {
-                registers_lock.uncommitted.start_merge(segment_id);
+                let segment_entry = registers_lock.uncommitted
+                    .start_merge(segment_id)
+                    .expect("Segment id not found {}. This should never happen.");
+                segment_entries.push(segment_entry);
             }
         } else if registers_lock.committed.contains_all(segment_ids) {
+            for segment_id in segment_ids {
+                let segment_entry = registers_lock.committed
+                    .start_merge(segment_id)
+                    .expect("Segment id not found {}. This should never happen.");
+                segment_entries.push(segment_entry);
+            }
             for segment_id in segment_ids {
                 registers_lock.committed.start_merge(segment_id);
             }
         } else {
-            error!("Merge operation sent for segments that are not all uncommited or commited.");
+            let error_msg = "Merge operation sent for segments that are not \
+                             all uncommited or commited.".to_string();
+            bail!(ErrorKind::InvalidArgument(error_msg))
         }
+        Ok(segment_entries)
     }
 
     pub fn cancel_merge(

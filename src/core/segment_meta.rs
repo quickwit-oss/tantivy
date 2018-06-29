@@ -56,13 +56,16 @@ impl SegmentMeta {
         INVENTORY.list().into_iter().map(|inner| SegmentMeta {inner}).collect::<Vec<_>>()
     }
 
-    /// Creates a new segment meta for
-    /// a segment with no deletes and no documents.
-    pub fn new(segment_id: SegmentId) -> SegmentMeta {
-        let inner = InnerSegmentMeta::new(segment_id);
-        let tracked = INVENTORY.track(inner);
+    /// Creates a new `SegmentMeta` object.
+    #[doc(hidden)]
+    pub fn new_with_max_doc(segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+        let inner = InnerSegmentMeta {
+            segment_id,
+            max_doc,
+            deletes: None,
+        };
         SegmentMeta {
-            inner: tracked,
+            inner: INVENTORY.track(inner)
         }
     }
 
@@ -140,22 +143,6 @@ impl SegmentMeta {
     }
 
     #[doc(hidden)]
-    pub fn with_max_doc(self, max_doc: u32) -> SegmentMeta {
-        let tracked = self.inner
-            .map(move |inner_meta| {
-                let inner_meta_clone = inner_meta.clone();
-                InnerSegmentMeta {
-                    segment_id: inner_meta_clone.segment_id,
-                    max_doc,
-                    deletes: inner_meta_clone.deletes,
-                }
-            });
-        SegmentMeta {
-            inner: tracked
-        }
-    }
-
-    #[doc(hidden)]
     pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> SegmentMeta {
         let delete_meta = DeleteMeta {
             num_deleted_docs,
@@ -182,12 +169,4 @@ struct InnerSegmentMeta {
     deletes: Option<DeleteMeta>,
 }
 
-impl InnerSegmentMeta {
-    pub fn new(segment_id: SegmentId) -> InnerSegmentMeta {
-        InnerSegmentMeta {
-            segment_id,
-            max_doc: 0,
-            deletes: None,
-        }
-    }
-}
+

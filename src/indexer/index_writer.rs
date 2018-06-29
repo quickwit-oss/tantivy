@@ -296,7 +296,7 @@ fn index_documents(
 
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let segment_meta = SegmentMeta::new(segment_id).with_max_doc(num_docs);
+    let segment_meta = SegmentMeta::new_with_max_doc(segment_id,num_docs);
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
@@ -444,7 +444,9 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Receiver<SegmentMeta> {
+    ///
+    /// `segment_ids` is required to be non-empty.
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
