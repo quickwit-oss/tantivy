@@ -4,7 +4,7 @@
 os: Visual Studio 2015
 environment:
   matrix:
-    - channel: nightly
+    - channel: stable
       target: x86_64-pc-windows-msvc
 
 install:
