@@ -1,6 +1,16 @@
-Tantivy 0.6
+Master (future Tantivy 0.7)
 ==========================
 
+- Added support for parsing AllQuery and RangeQuery via QueryParser
+    - AllQuery: `*`
+    - RangeQuery:
+        - Inclusive `field:[startIncl to endIncl]`
+        - Exclusive `field:{startExcl to endExcl}`
+        - Mixed `field:[startIncl to endExcl}` and vice versa
+        - Unbounded `field:[start to *]`, `field:[* to end]`
+
+Tantivy 0.6
+==========================
 
 Special thanks to @drusellers and @jason-wolfe for their contributions
 to this release!

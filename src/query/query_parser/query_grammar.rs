@@ -46,7 +46,9 @@ where
 }
 
 fn range<I: Stream<Item = char>>(input: I) -> ParseResult<UserInputAST, I> {
-    let term_val = || word().or(negative_number());
+    let term_val = || {
+        word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
+    };
     let lower_bound = {
         let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
         let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
@@ -133,6 +135,8 @@ mod test {
         test_parse_query_to_ast_helper("[1 TO 5]", "[\"1\" TO \"5\"]");
         test_parse_query_to_ast_helper("foo:{a TO z}", "foo:{\"a\" TO \"z\"}");
         test_parse_query_to_ast_helper("foo:[1 TO toto}", "foo:[\"1\" TO \"toto\"}");
+        test_parse_query_to_ast_helper("foo:[* TO toto}", "foo:[\"*\" TO \"toto\"}");
+        test_parse_query_to_ast_helper("foo:[1 TO *}", "foo:[\"1\" TO \"*\"}");
         test_is_parse_err("abc +    ");
     }
 }
