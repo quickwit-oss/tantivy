@@ -117,7 +117,7 @@ mod tests {
     }
 
     fn seg_meta(num_docs: u32) -> SegmentMeta {
-        SegmentMeta::new_with_max_doc(SegmentId::generate_random(), num_docs)
+        SegmentMeta::new(SegmentId::generate_random(), num_docs)
     }
 
     #[test]

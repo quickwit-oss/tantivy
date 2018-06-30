@@ -123,7 +123,7 @@ fn perform_merge(
         .write(segment_serializer)
         .chain_err(|| "Serializing merged index failed")?;
 
-    let segment_meta = SegmentMeta::new_with_max_doc(merged_segment.id(), num_docs);
+    let segment_meta = SegmentMeta::new(merged_segment.id(), num_docs);
 
     let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None);
     Ok(after_merge_segment_entry)

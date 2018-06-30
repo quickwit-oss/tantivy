@@ -205,7 +205,7 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = SegmentMeta::new_with_max_doc(SegmentId::generate_random(), 0);
+        let segment_meta = SegmentMeta::new(SegmentId::generate_random(), 0);
         self.segment(segment_meta)
     }
 

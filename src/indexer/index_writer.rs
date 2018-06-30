@@ -296,7 +296,7 @@ fn index_documents(
 
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let segment_meta = SegmentMeta::new_with_max_doc(segment_id,num_docs);
+    let segment_meta = SegmentMeta::new(segment_id, num_docs);
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 

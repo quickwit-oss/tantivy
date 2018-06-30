@@ -7,7 +7,7 @@ use std::fmt;
 use serde;
 
 lazy_static! {
-    static ref INVENTORY: Inventory<InnerSegmentMeta>  = {
+    static ref INVENTORY: Inventory<InnerSegmentMeta> = {
         Inventory::new()
     };
 }
@@ -24,19 +24,19 @@ struct DeleteMeta {
 /// how many are deleted, etc.
 #[derive(Clone)]
 pub struct SegmentMeta {
-    inner: TrackedObject<InnerSegmentMeta>,
+    tracked: TrackedObject<InnerSegmentMeta>,
 }
 
 impl fmt::Debug for SegmentMeta {
     fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
-        self.inner.fmt(f)
+        self.tracked.fmt(f)
     }
 }
 
 impl serde::Serialize for SegmentMeta {
     fn serialize<S>(&self, serializer: S) -> Result<<S as serde::Serializer>::Ok, <S as serde::Serializer>::Error> where
         S: serde::Serializer {
-        self.inner.serialize(serializer)
+        self.tracked.serialize(serializer)
     }
 }
 
@@ -45,38 +45,38 @@ impl<'a> serde::Deserialize<'a> for SegmentMeta {
         D: serde::Deserializer<'a> {
         let inner = InnerSegmentMeta::deserialize(deserializer)?;
         let tracked = INVENTORY.track(inner);
-        Ok(SegmentMeta { inner: tracked })
+        Ok(SegmentMeta { tracked: tracked })
     }
 }
 
 impl SegmentMeta {
 
-    /// Returns a copy of all living `SegmentMeta` object.
-    pub(crate) fn all() -> Vec<SegmentMeta> {
-        INVENTORY.list().into_iter().map(|inner| SegmentMeta {inner}).collect::<Vec<_>>()
+    /// Lists all living `SegmentMeta` object at the time of the call.
+    pub fn all() -> Vec<SegmentMeta> {
+        INVENTORY.list().into_iter().map(|inner| SegmentMeta { tracked: inner }).collect::<Vec<_>>()
     }
 
     /// Creates a new `SegmentMeta` object.
     #[doc(hidden)]
-    pub fn new_with_max_doc(segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
+    pub fn new(segment_id: SegmentId, max_doc: u32) -> SegmentMeta {
         let inner = InnerSegmentMeta {
             segment_id,
             max_doc,
             deletes: None,
         };
         SegmentMeta {
-            inner: INVENTORY.track(inner)
+            tracked: INVENTORY.track(inner)
         }
     }
 
     /// Returns the segment id.
     pub fn id(&self) -> SegmentId {
-        self.inner.segment_id
+        self.tracked.segment_id
     }
 
     /// Returns the number of deleted documents.
     pub fn num_deleted_docs(&self) -> u32 {
-        self.inner
+        self.tracked
             .deletes
             .as_ref()
             .map(|delete_meta| delete_meta.num_deleted_docs)
@@ -119,7 +119,7 @@ impl SegmentMeta {
     /// and all the doc ids contains in this segment
     /// are exactly (0..max_doc).
     pub fn max_doc(&self) -> u32 {
-        self.inner.max_doc
+        self.tracked.max_doc
     }
 
     /// Return the number of documents in the segment.
@@ -130,7 +130,7 @@ impl SegmentMeta {
     /// Returns the opstamp of the last delete operation
     /// taken in account in this segment.
     pub fn delete_opstamp(&self) -> Option<u64> {
-        self.inner
+        self.tracked
             .deletes
              .as_ref()
             .map(|delete_meta| delete_meta.opstamp)
@@ -148,7 +148,7 @@ impl SegmentMeta {
             num_deleted_docs,
             opstamp,
         };
-        let tracked = self.inner
+        let tracked = self.tracked
             .map(move |inner_meta| {
                 InnerSegmentMeta {
                     segment_id: inner_meta.segment_id,
@@ -156,9 +156,7 @@ impl SegmentMeta {
                     deletes: Some(delete_meta),
                 }
             });
-        SegmentMeta {
-            inner: tracked
-        }
+        SegmentMeta { tracked }
     }
 }
 
