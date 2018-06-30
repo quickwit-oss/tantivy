@@ -399,8 +399,7 @@ impl BlockSegmentPostings {
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
         if self.num_bitpacked_blocks > 0 {
-            let num_consumed_bytes = self
-                .doc_decoder
+            let num_consumed_bytes = self.doc_decoder
                 .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
             self.remaining_data.advance(num_consumed_bytes);
             match self.freq_reading_option {
@@ -410,8 +409,7 @@ impl BlockSegmentPostings {
                     self.remaining_data.advance(num_bytes_to_skip);
                 }
                 FreqReadingOption::ReadFreq => {
-                    let num_consumed_bytes = self
-                        .freq_decoder
+                    let num_consumed_bytes = self.freq_decoder
                         .uncompress_block_unsorted(self.remaining_data.as_ref());
                     self.remaining_data.advance(num_consumed_bytes);
                 }

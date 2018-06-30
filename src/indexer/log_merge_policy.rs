@@ -116,15 +116,17 @@ mod tests {
         assert!(result_list.is_empty());
     }
 
-    fn seg_meta(num_docs: u32) -> SegmentMeta {
-        let mut segment_metas = SegmentMeta::new(SegmentId::generate_random());
-        segment_metas.set_max_doc(num_docs);
-        segment_metas
+    fn create_random_segment_meta(num_docs: u32) -> SegmentMeta {
+        SegmentMeta::new(SegmentId::generate_random(), num_docs)
     }
 
     #[test]
     fn test_log_merge_policy_pair() {
-        let test_input = vec![seg_meta(10), seg_meta(10), seg_meta(10)];
+        let test_input = vec![
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+        ];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);
     }
@@ -137,17 +139,17 @@ mod tests {
         // * one with the 3 * 1000-docs segments
         // no MergeCandidate expected for the 2 * 10_000-docs segments as min_merge_size=3
         let test_input = vec![
-            seg_meta(10),
-            seg_meta(10),
-            seg_meta(10),
-            seg_meta(1000),
-            seg_meta(1000),
-            seg_meta(1000),
-            seg_meta(10000),
-            seg_meta(10000),
-            seg_meta(10),
-            seg_meta(10),
-            seg_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(1000),
+            create_random_segment_meta(1000),
+            create_random_segment_meta(1000),
+            create_random_segment_meta(10000),
+            create_random_segment_meta(10000),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
+            create_random_segment_meta(10),
         ];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
@@ -157,12 +159,12 @@ mod tests {
     fn test_log_merge_policy_within_levels() {
         // multiple levels all get merged correctly
         let test_input = vec![
-            seg_meta(10),   // log2(10) = ~3.32 (> 3.58 - 0.75)
-            seg_meta(11),   // log2(11) = ~3.46
-            seg_meta(12),   // log2(12) = ~3.58
-            seg_meta(800),  // log2(800) = ~9.64 (> 9.97 - 0.75)
-            seg_meta(1000), // log2(1000) = ~9.97
-            seg_meta(1000),
+            create_random_segment_meta(10),   // log2(10) = ~3.32 (> 3.58 - 0.75)
+            create_random_segment_meta(11),   // log2(11) = ~3.46
+            create_random_segment_meta(12),   // log2(12) = ~3.58
+            create_random_segment_meta(800),  // log2(800) = ~9.64 (> 9.97 - 0.75)
+            create_random_segment_meta(1000), // log2(1000) = ~9.97
+            create_random_segment_meta(1000),
         ]; // log2(1000) = ~9.97
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 2);
@@ -171,12 +173,12 @@ mod tests {
     fn test_log_merge_policy_small_segments() {
         // segments under min_layer_size are merged together
         let test_input = vec![
-            seg_meta(1),
-            seg_meta(1),
-            seg_meta(1),
-            seg_meta(2),
-            seg_meta(2),
-            seg_meta(2),
+            create_random_segment_meta(1),
+            create_random_segment_meta(1),
+            create_random_segment_meta(1),
+            create_random_segment_meta(2),
+            create_random_segment_meta(2),
+            create_random_segment_meta(2),
         ];
         let result_list = test_merge_policy().compute_merge_candidates(&test_input);
         assert_eq!(result_list.len(), 1);

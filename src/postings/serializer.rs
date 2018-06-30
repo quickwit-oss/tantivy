@@ -160,8 +160,7 @@ impl<'a> FieldSerializer<'a> {
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let (filepos, offset) = self
-            .positions_serializer_opt
+        let (filepos, offset) = self.positions_serializer_opt
             .as_ref()
             .map(|positions_serializer| positions_serializer.addr())
             .unwrap_or((0u64, 0u8));
@@ -273,8 +272,7 @@ impl<W: Write> PostingsSerializer<W> {
         if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
             {
                 // encode the doc ids
-                let block_encoded: &[u8] = self
-                    .block_encoder
+                let block_encoded: &[u8] = self.block_encoder
                     .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
                 self.postings_write.write_all(block_encoded)?;
@@ -300,16 +298,14 @@ impl<W: Write> PostingsSerializer<W> {
             // In that case, the remaining part is encoded
             // using variable int encoding.
             {
-                let block_encoded = self
-                    .block_encoder
+                let block_encoded = self.block_encoder
                     .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
                 self.postings_write.write_all(block_encoded)?;
                 self.doc_ids.clear();
             }
             // ... Idem for term frequencies
             if self.termfreq_enabled {
-                let block_encoded = self
-                    .block_encoder
+                let block_encoded = self.block_encoder
                     .compress_vint_unsorted(&self.term_freqs[..]);
                 self.postings_write.write_all(block_encoded)?;
                 self.term_freqs.clear();

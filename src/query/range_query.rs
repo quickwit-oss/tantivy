@@ -97,7 +97,7 @@ impl RangeQuery {
         field: Field,
         value_type: Type,
         left_bound: Bound<Term>,
-        right_bound: Bound<Term>
+        right_bound: Bound<Term>,
     ) -> RangeQuery {
         let verify_and_unwrap_term = |val: &Term| {
             assert_eq!(field, val.field());

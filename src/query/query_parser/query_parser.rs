@@ -2,21 +2,21 @@ use super::logical_ast::*;
 use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
 use core::Index;
+use query::AllQuery;
 use query::BooleanQuery;
 use query::Occur;
 use query::PhraseQuery;
 use query::Query;
+use query::RangeQuery;
 use query::TermQuery;
 use schema::IndexRecordOption;
 use schema::{Field, Schema};
 use schema::{FieldType, Term};
+use std::borrow::Cow;
 use std::num::ParseIntError;
+use std::ops::Bound;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
-use std::ops::Bound;
-use query::RangeQuery;
-use query::AllQuery;
-use std::borrow::Cow;
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -177,7 +177,7 @@ impl QueryParser {
     fn compute_terms_for_string(
         &self,
         field: Field,
-        phrase: &str
+        phrase: &str,
     ) -> Result<Vec<Term>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -240,9 +240,7 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet => {
-                Ok(vec![Term::from_field_text(field, phrase)])
-            }
+            FieldType::HierarchicalFacet => Ok(vec![Term::from_field_text(field, phrase)]),
             FieldType::Bytes => {
                 let field_name = self.schema.get_field_name(field).to_string();
                 Err(QueryParserError::FieldNotIndexed(field_name))
@@ -258,7 +256,9 @@ impl QueryParser {
         let terms = self.compute_terms_for_string(field, phrase)?;
         match terms.len() {
             0 => Ok(None),
-            1 => Ok(Some(LogicalLiteral::Term(terms.into_iter().next().unwrap()))),
+            1 => Ok(Some(LogicalLiteral::Term(
+                terms.into_iter().next().unwrap(),
+            ))),
             _ => Ok(Some(LogicalLiteral::Phrase(terms))),
         }
     }
@@ -271,10 +271,14 @@ impl QueryParser {
         }
     }
 
-    fn resolve_bound(&self, field: Field, bound: &UserInputBound) -> Result<Bound<Term>, QueryParserError> {
+    fn resolve_bound(
+        &self,
+        field: Field,
+        bound: &UserInputBound,
+    ) -> Result<Bound<Term>, QueryParserError> {
         let terms = self.compute_terms_for_string(field, bound.term_str())?;
         if terms.len() != 1 {
-            return Err(QueryParserError::RangeMustNotHavePhrase)
+            return Err(QueryParserError::RangeMustNotHavePhrase);
         }
         let term = terms.into_iter().next().unwrap();
         match *bound {
@@ -283,7 +287,10 @@ impl QueryParser {
         }
     }
 
-    fn resolved_fields(&self, given_field: &Option<String>) -> Result<Cow<[Field]>, QueryParserError> {
+    fn resolved_fields(
+        &self,
+        given_field: &Option<String>,
+    ) -> Result<Cow<[Field]>, QueryParserError> {
         match *given_field {
             None => {
                 if self.default_fields.is_empty() {
@@ -291,7 +298,7 @@ impl QueryParser {
                 } else {
                     Ok(Cow::from(&self.default_fields[..]))
                 }
-            },
+            }
             Some(ref field) => Ok(Cow::from(vec![self.resolve_field_name(&*field)?])),
         }
     }
@@ -319,28 +326,41 @@ impl QueryParser {
                 let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
-            UserInputAST::Range { field, lower, upper } => {
+            UserInputAST::Range {
+                field,
+                lower,
+                upper,
+            } => {
                 let fields = self.resolved_fields(&field)?;
-                let mut clauses = fields.iter().map(|&field| {
-                    let field_entry = self.schema.get_field_entry(field);
-                    let value_type = field_entry.field_type().value_type();
-                    Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
-                        field,
-                        value_type,
-                        lower: self.resolve_bound(field, &lower)?,
-                        upper: self.resolve_bound(field, &upper)?,
-                    })))
-                }).collect::<Result<Vec<_>, QueryParserError>>()?;
+                let mut clauses = fields
+                    .iter()
+                    .map(|&field| {
+                        let field_entry = self.schema.get_field_entry(field);
+                        let value_type = field_entry.field_type().value_type();
+                        Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                            field,
+                            value_type,
+                            lower: self.resolve_bound(field, &lower)?,
+                            upper: self.resolve_bound(field, &upper)?,
+                        })))
+                    })
+                    .collect::<Result<Vec<_>, QueryParserError>>()?;
                 let result_ast = if clauses.len() == 1 {
                     clauses.pop().unwrap()
                 } else {
-                    LogicalAST::Clause(clauses.into_iter().map(|clause| (Occur::Should, clause)).collect())
+                    LogicalAST::Clause(
+                        clauses
+                            .into_iter()
+                            .map(|clause| (Occur::Should, clause))
+                            .collect(),
+                    )
                 };
                 Ok((Occur::Should, result_ast))
             }
-            UserInputAST::All => {
-                Ok((Occur::Should, LogicalAST::Leaf(Box::new(LogicalLiteral::All))))
-            }
+            UserInputAST::All => Ok((
+                Occur::Should,
+                LogicalAST::Leaf(Box::new(LogicalLiteral::All)),
+            )),
             UserInputAST::Leaf(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
@@ -403,9 +423,12 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
         LogicalLiteral::Phrase(terms) => Box::new(PhraseQuery::new(terms)),
-        LogicalLiteral::Range { field, value_type, lower, upper } => {
-            Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper))
-        },
+        LogicalLiteral::Range {
+            field,
+            value_type,
+            lower,
+            upper,
+        } => Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper)),
         LogicalLiteral::All => Box::new(AllQuery),
     }
 }
@@ -611,11 +634,7 @@ mod test {
              Excluded(Term([0, 0, 0, 0, 116, 111, 116, 111])))",
             false,
         );
-        test_parse_query_to_logical_ast_helper(
-            "*",
-            "*",
-            false,
-        );
+        test_parse_query_to_logical_ast_helper("*", "*", false);
     }
 
     #[test]

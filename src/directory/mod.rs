@@ -25,7 +25,7 @@ pub use self::read_only_source::ReadOnlySource;
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
-pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
+pub(crate) use self::managed_directory::ManagedDirectory;
 pub(crate) use self::read_only_source::SourceRead;
 
 /// Synonym of Seek + Write

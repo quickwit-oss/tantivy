@@ -46,7 +46,11 @@ pub enum UserInputAST {
     Clause(Vec<Box<UserInputAST>>),
     Not(Box<UserInputAST>),
     Must(Box<UserInputAST>),
-    Range { field: Option<String>, lower: UserInputBound, upper: UserInputBound },
+    Range {
+        field: Option<String>,
+        lower: UserInputBound,
+        upper: UserInputBound,
+    },
     All,
     Leaf(Box<UserInputLiteral>),
 }
@@ -75,7 +79,11 @@ impl fmt::Debug for UserInputAST {
                 Ok(())
             }
             UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
-            UserInputAST::Range { ref field, ref lower, ref upper } => {
+            UserInputAST::Range {
+                ref field,
+                ref lower,
+                ref upper,
+            } => {
                 if let &Some(ref field) = field {
                     write!(formatter, "{}:", field)?;
                 }
@@ -83,7 +91,7 @@ impl fmt::Debug for UserInputAST {
                 write!(formatter, " TO ")?;
                 upper.display_upper(formatter)?;
                 Ok(())
-            },
+            }
             UserInputAST::All => write!(formatter, "*"),
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }

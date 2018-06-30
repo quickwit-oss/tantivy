@@ -94,8 +94,7 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self
-            .term_index
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self.term_index
             .iter()
             .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId))
             .collect();
