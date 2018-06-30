@@ -41,8 +41,7 @@ impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
 
 impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
-        let sub_weights = self
-            .subqueries
+        let sub_weights = self.subqueries
             .iter()
             .map(|&(ref occur, ref subquery)| {
                 Ok((*occur, subquery.weight(searcher, scoring_enabled)?))

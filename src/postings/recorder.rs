@@ -107,8 +107,7 @@ impl Recorder for TermFrequencyRecorder {
     fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
         // the last document has not been closed...
         // its term freq is self.current_tf.
-        let mut doc_iter = self
-            .stack
+        let mut doc_iter = self.stack
             .iter(heap)
             .chain(Some(self.current_tf).into_iter());
 

@@ -9,7 +9,6 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use directory::FileProtection;
 use docset::DocSet;
 use error::{Error, ErrorKind, Result, ResultExt};
 use fastfield::write_delete_bitset;
@@ -216,15 +215,13 @@ pub fn advance_deletes(
     mut segment: Segment,
     segment_entry: &mut SegmentEntry,
     target_opstamp: u64,
-) -> Result<Option<FileProtection>> {
-    let mut file_protect: Option<FileProtection> = None;
+) -> Result<()> {
     {
-        if let Some(previous_opstamp) = segment_entry.meta().delete_opstamp() {
+        if segment_entry.meta().delete_opstamp() == Some(target_opstamp) {
             // We are already up-to-date here.
-            if target_opstamp == previous_opstamp {
-                return Ok(file_protect);
-            }
+            return Ok(());
         }
+
         let segment_reader = SegmentReader::open(&segment)?;
         let max_doc = segment_reader.max_doc();
 
@@ -243,6 +240,7 @@ pub fn advance_deletes(
             target_opstamp,
         )?;
 
+        // TODO optimize
         for doc in 0u32..max_doc {
             if segment_reader.is_deleted(doc) {
                 delete_bitset.insert(doc as usize);
@@ -251,14 +249,13 @@ pub fn advance_deletes(
 
         let num_deleted_docs = delete_bitset.len();
         if num_deleted_docs > 0 {
-            segment.set_delete_meta(num_deleted_docs as u32, target_opstamp);
-            file_protect = Some(segment.protect_from_delete(SegmentComponent::DELETE));
+            segment = segment.with_delete_meta(num_deleted_docs as u32, target_opstamp);
             let mut delete_file = segment.open_write(SegmentComponent::DELETE)?;
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
     }
-    segment_entry.set_meta(segment.meta().clone());
-    Ok(file_protect)
+    segment_entry.set_meta((*segment.meta()).clone());
+    Ok(())
 }
 
 fn index_documents(
@@ -299,8 +296,7 @@ fn index_documents(
 
     let doc_opstamps: Vec<u64> = segment_writer.finalize()?;
 
-    let mut segment_meta = SegmentMeta::new(segment_id);
-    segment_meta.set_max_doc(num_docs);
+    let segment_meta = SegmentMeta::new(segment_id, num_docs);
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
@@ -342,8 +338,7 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        let result = self
-            .segment_updater
+        let result = self.segment_updater
             .wait_merging_thread()
             .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
 
@@ -448,7 +443,9 @@ impl IndexWriter {
     }
 
     /// Merges a given list of segments
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Receiver<SegmentMeta> {
+    ///
+    /// `segment_ids` is required to be non-empty.
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -488,8 +485,7 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self
-            ._directory_lock
+        let directory_lock = self._directory_lock
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 

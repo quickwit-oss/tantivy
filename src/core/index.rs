@@ -191,8 +191,7 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self
-            .searchable_segment_metas()?
+        Ok(self.searchable_segment_metas()?
             .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
@@ -205,8 +204,8 @@ impl Index {
 
     /// Creates a new segment.
     pub fn new_segment(&self) -> Segment {
-        let segment_meta = SegmentMeta::new(SegmentId::generate_random());
-        create_segment(self.clone(), segment_meta)
+        let segment_meta = SegmentMeta::new(SegmentId::generate_random(), 0);
+        self.segment(segment_meta)
     }
 
     /// Return a reference to the index directory.
@@ -227,8 +226,7 @@ impl Index {
 
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        Ok(self
-            .searchable_segment_metas()?
+        Ok(self.searchable_segment_metas()?
             .iter()
             .map(|segment_meta| segment_meta.id())
             .collect())

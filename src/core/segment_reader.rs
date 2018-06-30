@@ -156,13 +156,11 @@ impl SegmentReader {
             &FieldType::Bytes => {}
             _ => return Err(FastFieldNotAvailableError::new(field_entry)),
         }
-        let idx_reader = self
-            .fast_fields_composite
+        let idx_reader = self.fast_fields_composite
             .open_read_with_idx(field, 0)
             .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
             .map(FastFieldReader::open)?;
-        let values = self
-            .fast_fields_composite
+        let values = self.fast_fields_composite
             .open_read_with_idx(field, 1)
             .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
         Ok(BytesFastFieldReader::open(idx_reader, values))
@@ -274,8 +272,7 @@ impl SegmentReader {
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
     pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
-        if let Some(inv_idx_reader) = self
-            .inv_idx_reader_cache
+        if let Some(inv_idx_reader) = self.inv_idx_reader_cache
             .read()
             .expect("Lock poisoned. This should never happen")
             .get(&field)
@@ -304,13 +301,11 @@ impl SegmentReader {
 
         let postings_source = postings_source_opt.unwrap();
 
-        let termdict_source = self
-            .termdict_composite
+        let termdict_source = self.termdict_composite
             .open_read(field)
             .expect("Failed to open field term dictionary in composite file. Is the field indexed");
 
-        let positions_source = self
-            .positions_composite
+        let positions_source = self.positions_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 

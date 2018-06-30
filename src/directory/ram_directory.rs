@@ -170,8 +170,7 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
 
-        let exists = self
-            .fs
+        let exists = self.fs
             .write(path_buf.clone(), &Vec::new())
             .map_err(|err| IOError::with_path(path.to_owned(), err))?;
 

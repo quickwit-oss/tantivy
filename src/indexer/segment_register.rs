@@ -3,8 +3,7 @@ use core::SegmentMeta;
 use indexer::delete_queue::DeleteCursor;
 use indexer::segment_entry::SegmentEntry;
 use std::collections::HashMap;
-use std::fmt;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{self, Debug, Formatter};
 
 /// The segment register keeps track
 /// of the list of segment, their size as well
@@ -39,13 +38,6 @@ impl SegmentRegister {
         self.segment_states.len()
     }
 
-    pub fn get_all_segments(&self) -> Vec<SegmentMeta> {
-        self.segment_states
-            .values()
-            .map(|segment_entry| segment_entry.meta().clone())
-            .collect()
-    }
-
     pub fn get_mergeable_segments(&self) -> Vec<SegmentMeta> {
         self.segment_states
             .values()
@@ -59,17 +51,12 @@ impl SegmentRegister {
     }
 
     pub fn segment_metas(&self) -> Vec<SegmentMeta> {
-        let mut segment_ids: Vec<SegmentMeta> = self
-            .segment_states
+        let mut segment_ids: Vec<SegmentMeta> = self.segment_states
             .values()
             .map(|segment_entry| segment_entry.meta().clone())
             .collect();
         segment_ids.sort_by_key(|meta| meta.id());
         segment_ids
-    }
-
-    pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
-        self.segment_states.get(segment_id).cloned()
     }
 
     pub fn contains_all(&mut self, segment_ids: &[SegmentId]) -> bool {
@@ -94,11 +81,13 @@ impl SegmentRegister {
             .cancel_merge();
     }
 
-    pub fn start_merge(&mut self, segment_id: &SegmentId) {
-        self.segment_states
-            .get_mut(segment_id)
-            .expect("Received a merge notification for a segment that is not registered")
-            .start_merge();
+    pub fn start_merge(&mut self, segment_id: &SegmentId) -> Option<SegmentEntry> {
+        if let Some(segment_entry) = self.segment_states.get_mut(segment_id) {
+            segment_entry.start_merge();
+            Some(segment_entry.clone())
+        } else {
+            None
+        }
     }
 
     pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> SegmentRegister {
@@ -109,6 +98,11 @@ impl SegmentRegister {
             segment_states.insert(segment_id, segment_entry);
         }
         SegmentRegister { segment_states }
+    }
+
+    #[cfg(test)]
+    pub fn segment_entry(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
+        self.segment_states.get(segment_id).cloned()
     }
 }
 
@@ -138,7 +132,7 @@ mod tests {
         let segment_id_merged = SegmentId::generate_random();
 
         {
-            let segment_meta = SegmentMeta::new(segment_id_a);
+            let segment_meta = SegmentMeta::new(segment_id_a, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
@@ -151,7 +145,7 @@ mod tests {
         );
         assert_eq!(segment_ids(&segment_register), vec![segment_id_a]);
         {
-            let segment_meta = SegmentMeta::new(segment_id_b);
+            let segment_meta = SegmentMeta::new(segment_id_b, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }
@@ -181,7 +175,7 @@ mod tests {
         segment_register.remove_segment(&segment_id_a);
         segment_register.remove_segment(&segment_id_b);
         {
-            let segment_meta_merged = SegmentMeta::new(segment_id_merged);
+            let segment_meta_merged = SegmentMeta::new(segment_id_merged, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta_merged, delete_queue.cursor(), None);
             segment_register.add_segment_entry(segment_entry);
         }

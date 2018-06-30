@@ -52,8 +52,7 @@ impl DeleteQueue {
     //
     // Past delete operations are not accessible.
     pub fn cursor(&self) -> DeleteCursor {
-        let last_block = self
-            .inner
+        let last_block = self.inner
             .read()
             .expect("Read lock poisoned when opening delete queue cursor")
             .last_block
@@ -93,8 +92,7 @@ impl DeleteQueue {
     // be some unflushed operations.
     //
     fn flush(&self) -> Option<Arc<Block>> {
-        let mut self_wlock = self
-            .inner
+        let mut self_wlock = self.inner
             .write()
             .expect("Failed to acquire write lock on delete queue writer");
 
@@ -134,8 +132,7 @@ impl From<DeleteQueue> for NextBlock {
 impl NextBlock {
     fn next_block(&self) -> Option<Arc<Block>> {
         {
-            let next_read_lock = self
-                .0
+            let next_read_lock = self.0
                 .read()
                 .expect("Failed to acquire write lock in delete queue");
             if let InnerNextBlock::Closed(ref block) = *next_read_lock {
@@ -144,8 +141,7 @@ impl NextBlock {
         }
         let next_block;
         {
-            let mut next_write_lock = self
-                .0
+            let mut next_write_lock = self.0
                 .write()
                 .expect("Failed to acquire write lock in delete queue");
             match *next_write_lock {
