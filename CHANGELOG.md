@@ -1,4 +1,4 @@
-Tantivy 0.???
+Master (future Tantivy 0.7)
 ==========================
 
 - Added support for parsing AllQuery and RangeQuery via QueryParser
