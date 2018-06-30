@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
+use std::fmt;
 use std::io;
 use std::path::PathBuf;
-use std::fmt;
 
 /// General IO error with an optional path to the offending file.
 #[derive(Debug)]

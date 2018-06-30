@@ -32,8 +32,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadE
         }
     })?;
 
-    let meta_data = file
-        .metadata()
+    let meta_data = file.metadata()
         .map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
@@ -310,8 +309,7 @@ impl Directory for MmapDirectory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => self
-                .sync_directory()
+            Ok(_) => self.sync_directory()
                 .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {

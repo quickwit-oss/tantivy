@@ -56,8 +56,7 @@ impl FacetReader {
 
     /// Given a term ordinal returns the term associated to it.
     pub fn facet_from_ord(&self, facet_ord: TermOrdinal, output: &mut Facet) {
-        let found_term = self
-            .term_dict
+        let found_term = self.term_dict
             .ord_to_term(facet_ord as u64, output.inner_buffer_mut());
         assert!(found_term, "Term ordinal {} no found.", facet_ord);
     }

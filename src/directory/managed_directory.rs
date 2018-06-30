@@ -29,9 +29,8 @@ pub struct ManagedDirectory {
 
 #[derive(Debug, Default)]
 struct MetaInformation {
-    managed_paths: HashSet<PathBuf>
+    managed_paths: HashSet<PathBuf>,
 }
-
 
 /// Saves the file containing the list of existing files
 /// that were created by tantivy.
@@ -84,8 +83,7 @@ impl ManagedDirectory {
         let mut files_to_delete = vec![];
         {
             // releasing the lock as .delete() will use it too.
-            let meta_informations_rlock = self
-                .meta_informations
+            let meta_informations_rlock = self.meta_informations
                 .read()
                 .expect("Managed directory rlock poisoned in garbage collect.");
 
@@ -135,8 +133,7 @@ impl ManagedDirectory {
         if !deleted_files.is_empty() {
             // update the list of managed files by removing
             // the file that were removed.
-            let mut meta_informations_wlock = self
-                .meta_informations
+            let mut meta_informations_wlock = self.meta_informations
                 .write()
                 .expect("Managed directory wlock poisoned (2).");
             {
@@ -159,8 +156,7 @@ impl ManagedDirectory {
     /// will not lead to garbage files that will
     /// never get removed.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
-        let mut meta_wlock = self
-            .meta_informations
+        let mut meta_wlock = self.meta_informations
             .write()
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());

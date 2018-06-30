@@ -42,8 +42,7 @@ impl CompressedIntStream {
             // no need to read.
             self.cached_next_addr
         } else {
-            let next_addr = addr + self
-                .block_decoder
+            let next_addr = addr + self.block_decoder
                 .uncompress_block_unsorted(self.buffer.slice_from(addr));
             self.cached_addr = addr;
             self.cached_next_addr = next_addr;

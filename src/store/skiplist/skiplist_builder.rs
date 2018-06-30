@@ -72,8 +72,7 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         let mut skip_pointer = self.data_layer.insert(key, dest)?;
         loop {
             skip_pointer = match skip_pointer {
-                Some((skip_doc_id, skip_offset)) => self
-                    .get_skip_layer(layer_id)
+                Some((skip_doc_id, skip_offset)) => self.get_skip_layer(layer_id)
                     .insert(skip_doc_id, &skip_offset)?,
                 None => {
                     return Ok(());

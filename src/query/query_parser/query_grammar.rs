@@ -4,14 +4,15 @@ use combine::*;
 use query::query_parser::user_input_ast::UserInputBound;
 
 fn field<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
-    (letter(), many(satisfy(|c: char| c.is_alphanumeric() || c == '_')))
-        .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
+    (
+        letter(),
+        many(satisfy(|c: char| c.is_alphanumeric() || c == '_')),
+    ).map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
 }
 
 fn word<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
     many1(satisfy(|c: char| c.is_alphanumeric()))
 }
-
 
 fn negative_number<I: Stream<Item = char>>() -> impl Parser<Input = I, Output = String> {
     (char('-'), many1(satisfy(|c: char| c.is_numeric())))
@@ -45,9 +46,7 @@ where
 }
 
 fn range<I: Stream<Item = char>>(input: I) -> ParseResult<UserInputAST, I> {
-    let term_val = || {
-        word().or(negative_number())
-    };
+    let term_val = || word().or(negative_number());
     let lower_bound = {
         let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
         let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
@@ -59,8 +58,18 @@ fn range<I: Stream<Item = char>>(input: I) -> ParseResult<UserInputAST, I> {
         // TODO: this backtracking should be unnecessary
         try(excl).or(incl)
     };
-    (optional((field(), char(':')).map(|x| x.0)), lower_bound, spaces(), string("TO"), spaces(), upper_bound)
-        .map(|(field, lower, _, _, _, upper)| UserInputAST::Range { field, lower, upper })
+    (
+        optional((field(), char(':')).map(|x| x.0)),
+        lower_bound,
+        spaces(),
+        string("TO"),
+        spaces(),
+        upper_bound,
+    ).map(|(field, lower, _, _, _, upper)| UserInputAST::Range {
+            field,
+            lower,
+            upper,
+        })
         .parse_stream(input)
 }
 

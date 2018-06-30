@@ -338,8 +338,7 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        let result = self
-            .segment_updater
+        let result = self.segment_updater
             .wait_merging_thread()
             .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
 
@@ -486,8 +485,7 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self
-            ._directory_lock
+        let directory_lock = self._directory_lock
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 

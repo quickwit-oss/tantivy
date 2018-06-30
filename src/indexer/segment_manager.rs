@@ -2,14 +2,14 @@ use super::segment_register::SegmentRegister;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::{LOCKFILE_FILEPATH, META_FILEPATH};
+use error::ErrorKind;
+use error::Result as TantivyResult;
 use indexer::delete_queue::DeleteCursor;
 use indexer::SegmentEntry;
 use std::collections::hash_set::HashSet;
 use std::fmt::{self, Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::RwLock;
-use error::ErrorKind;
-use error::Result as TantivyResult;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 #[derive(Default)]
@@ -113,10 +113,10 @@ impl SegmentManager {
     }
 
     /// Marks a list of segments as in merge.
-   ///
-   /// Returns an error if some segments are missing, or if
-   /// the `segment_ids` are not either all committed or all
-   /// uncommitted.
+    ///
+    /// Returns an error if some segments are missing, or if
+    /// the `segment_ids` are not either all committed or all
+    /// uncommitted.
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> TantivyResult<Vec<SegmentEntry>> {
         let mut registers_lock = self.write();
         let mut segment_entries = vec![];
@@ -124,14 +124,14 @@ impl SegmentManager {
             for segment_id in segment_ids {
                 let segment_entry = registers_lock.uncommitted
                     .start_merge(segment_id)
-                    .expect("Segment id not found {}. This should never happen.");
+                    .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
                 segment_entries.push(segment_entry);
             }
         } else if registers_lock.committed.contains_all(segment_ids) {
             for segment_id in segment_ids {
                 let segment_entry = registers_lock.committed
                     .start_merge(segment_id)
-                    .expect("Segment id not found {}. This should never happen.");
+                    .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
                 segment_entries.push(segment_entry);
             }
             for segment_id in segment_ids {
@@ -139,7 +139,8 @@ impl SegmentManager {
             }
         } else {
             let error_msg = "Merge operation sent for segments that are not \
-                             all uncommited or commited.".to_string();
+                             all uncommited or commited."
+                .to_string();
             bail!(ErrorKind::InvalidArgument(error_msg))
         }
         Ok(segment_entries)

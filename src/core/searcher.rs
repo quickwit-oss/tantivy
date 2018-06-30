@@ -78,8 +78,7 @@ impl Searcher {
 
     /// Return the field searcher associated to a `Field`.
     pub fn field(&self, field: Field) -> FieldSearcher {
-        let inv_index_readers = self
-            .segment_readers
+        let inv_index_readers = self.segment_readers
             .iter()
             .map(|segment_reader| segment_reader.inverted_index(field))
             .collect::<Vec<_>>();
@@ -99,8 +98,7 @@ impl FieldSearcher {
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
     pub fn terms(&self) -> TermMerger {
-        let term_streamers: Vec<_> = self
-            .inv_index_readers
+        let term_streamers: Vec<_> = self.inv_index_readers
             .iter()
             .map(|inverted_index| inverted_index.terms().stream())
             .collect();
@@ -110,8 +108,7 @@ impl FieldSearcher {
 
 impl fmt::Debug for Searcher {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let segment_ids = self
-            .segment_readers
+        let segment_ids = self.segment_readers
             .iter()
             .map(|segment_reader| segment_reader.segment_id())
             .collect::<Vec<_>>();

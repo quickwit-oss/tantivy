@@ -11,9 +11,9 @@ use error::{Error, ErrorKind, Result, ResultExt};
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;
 use futures::Future;
+use futures_cpupool::Builder as CpuPoolBuilder;
 use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
-use futures_cpupool::Builder as CpuPoolBuilder;
 use indexer::delete_queue::DeleteCursor;
 use indexer::index_writer::advance_deletes;
 use indexer::merger::IndexMerger;
@@ -29,12 +29,11 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
-use std::sync::atomic::{Ordering, AtomicBool, AtomicUsize};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
-
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -101,7 +100,6 @@ fn perform_merge(
         let segment = index.segment(segment_entry.meta().clone());
         advance_deletes(segment, segment_entry, target_opstamp)?;
     }
-
 
     let delete_cursor = segment_entries[0].delete_cursor().clone();
 
@@ -269,7 +267,6 @@ impl SegmentUpdater {
         }).wait()
     }
 
-
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
         //let future_merged_segment = */
         let segment_ids_vec = segment_ids.to_vec();
@@ -288,7 +285,10 @@ impl SegmentUpdater {
         let segment_ids_vec = segment_ids.to_vec();
 
         let merging_thread_id = self.get_merging_thread_id();
-        info!("Starting merge thread #{} - {:?}", merging_thread_id, segment_ids);
+        info!(
+            "Starting merge thread #{} - {:?}",
+            merging_thread_id, segment_ids
+        );
         let (merging_future_send, merging_future_recv) = oneshot();
 
         let target_opstamp = self.0.stamper.stamp();
@@ -365,7 +365,10 @@ impl SegmentUpdater {
                     }
                 }
                 Err(err) => {
-                    warn!("Starting the merge failed for the following reason. This is not fatal. {}", err);
+                    warn!(
+                        "Starting the merge failed for the following reason. This is not fatal. {}",
+                        err
+                    );
                 }
             }
         }
@@ -399,10 +402,9 @@ impl SegmentUpdater {
                 if delete_operation.opstamp < committed_opstamp {
                     let index = &segment_updater.0.index;
                     let segment = index.segment(after_merge_segment_entry.meta().clone());
-                    if let Err(e) = advance_deletes(
-                        segment,
-                        &mut after_merge_segment_entry,
-                        committed_opstamp) {
+                    if let Err(e) =
+                        advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp)
+                    {
                         error!(
                             "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
                             before_merge_segment_ids, e

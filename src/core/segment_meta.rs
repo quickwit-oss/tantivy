@@ -1,15 +1,13 @@
 use super::SegmentComponent;
+use census::{Inventory, TrackedObject};
 use core::SegmentId;
-use std::collections::HashSet;
-use std::path::PathBuf;
-use census::{TrackedObject, Inventory};
-use std::fmt;
 use serde;
+use std::collections::HashSet;
+use std::fmt;
+use std::path::PathBuf;
 
 lazy_static! {
-    static ref INVENTORY: Inventory<InnerSegmentMeta> = {
-        Inventory::new()
-    };
+    static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -34,15 +32,22 @@ impl fmt::Debug for SegmentMeta {
 }
 
 impl serde::Serialize for SegmentMeta {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as serde::Serializer>::Ok, <S as serde::Serializer>::Error> where
-        S: serde::Serializer {
+    fn serialize<S>(
+        &self,
+        serializer: S,
+    ) -> Result<<S as serde::Serializer>::Ok, <S as serde::Serializer>::Error>
+    where
+        S: serde::Serializer,
+    {
         self.tracked.serialize(serializer)
     }
 }
 
 impl<'a> serde::Deserialize<'a> for SegmentMeta {
-    fn deserialize<D>(deserializer: D) -> Result<Self, <D as serde::Deserializer<'a>>::Error> where
-        D: serde::Deserializer<'a> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, <D as serde::Deserializer<'a>>::Error>
+    where
+        D: serde::Deserializer<'a>,
+    {
         let inner = InnerSegmentMeta::deserialize(deserializer)?;
         let tracked = INVENTORY.track(inner);
         Ok(SegmentMeta { tracked: tracked })
@@ -50,10 +55,13 @@ impl<'a> serde::Deserialize<'a> for SegmentMeta {
 }
 
 impl SegmentMeta {
-
     /// Lists all living `SegmentMeta` object at the time of the call.
     pub fn all() -> Vec<SegmentMeta> {
-        INVENTORY.list().into_iter().map(|inner| SegmentMeta { tracked: inner }).collect::<Vec<_>>()
+        INVENTORY
+            .list()
+            .into_iter()
+            .map(|inner| SegmentMeta { tracked: inner })
+            .collect::<Vec<_>>()
     }
 
     /// Creates a new `SegmentMeta` object.
@@ -65,7 +73,7 @@ impl SegmentMeta {
             deletes: None,
         };
         SegmentMeta {
-            tracked: INVENTORY.track(inner)
+            tracked: INVENTORY.track(inner),
         }
     }
 
@@ -132,7 +140,7 @@ impl SegmentMeta {
     pub fn delete_opstamp(&self) -> Option<u64> {
         self.tracked
             .deletes
-             .as_ref()
+            .as_ref()
             .map(|delete_meta| delete_meta.opstamp)
     }
 
@@ -148,14 +156,11 @@ impl SegmentMeta {
             num_deleted_docs,
             opstamp,
         };
-        let tracked = self.tracked
-            .map(move |inner_meta| {
-                InnerSegmentMeta {
-                    segment_id: inner_meta.segment_id,
-                    max_doc: inner_meta.max_doc,
-                    deletes: Some(delete_meta),
-                }
-            });
+        let tracked = self.tracked.map(move |inner_meta| InnerSegmentMeta {
+            segment_id: inner_meta.segment_id,
+            max_doc: inner_meta.max_doc,
+            deletes: Some(delete_meta),
+        });
         SegmentMeta { tracked }
     }
 }
@@ -166,5 +171,3 @@ struct InnerSegmentMeta {
     max_doc: u32,
     deletes: Option<DeleteMeta>,
 }
-
-
