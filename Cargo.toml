@@ -1,5 +1,5 @@
 [package]
-name = "tantivy "
+name = "tantivy"
 version = "0.7.0-dev"
 authors = ["Paul Masurel <paul.masurel@gmail.com>"]
 license = "MIT"
