@@ -47,6 +47,7 @@ matches = "0.1"
 bitpacking = "0.5"
 census = "0.1"
 fnv = "1.0.6"
+owned-read = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"

@@ -26,7 +26,6 @@ pub use self::read_only_source::ReadOnlySource;
 pub use self::mmap_directory::MmapDirectory;
 
 pub(crate) use self::managed_directory::ManagedDirectory;
-pub(crate) use self::read_only_source::SourceRead;
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}

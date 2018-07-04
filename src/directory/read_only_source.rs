@@ -3,9 +3,8 @@ use common::HasLen;
 #[cfg(feature = "mmap")]
 use fst::raw::MmapReadOnly;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
-use std::io::{self, Read};
 use std::ops::Deref;
-use std::slice;
+
 
 /// Read object that represents files in tantivy.
 ///
@@ -118,51 +117,5 @@ impl From<Vec<u8>> for ReadOnlySource {
     fn from(data: Vec<u8>) -> ReadOnlySource {
         let shared_data = SharedVecSlice::from(data);
         ReadOnlySource::Anonymous(shared_data)
-    }
-}
-
-/// Acts as a owning cursor over the data backed up by a `ReadOnlySource`
-pub(crate) struct SourceRead {
-    _data_owner: ReadOnlySource,
-    cursor: &'static [u8],
-}
-
-impl SourceRead {
-    // Advance the cursor by a given number of bytes.
-    pub fn advance(&mut self, len: usize) {
-        self.cursor = &self.cursor[len..];
-    }
-
-    pub fn slice_from(&self, start: usize) -> &[u8] {
-        &self.cursor[start..]
-    }
-
-    pub fn get(&self, idx: usize) -> u8 {
-        self.cursor[idx]
-    }
-}
-
-impl AsRef<[u8]> for SourceRead {
-    fn as_ref(&self) -> &[u8] {
-        self.cursor
-    }
-}
-
-impl From<ReadOnlySource> for SourceRead {
-    // Creates a new `SourceRead` from a given `ReadOnlySource`
-    fn from(source: ReadOnlySource) -> SourceRead {
-        let len = source.len();
-        let slice_ptr = source.as_slice().as_ptr();
-        let static_slice = unsafe { slice::from_raw_parts(slice_ptr, len) };
-        SourceRead {
-            _data_owner: source,
-            cursor: static_slice,
-        }
-    }
-}
-
-impl Read for SourceRead {
-    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.cursor.read(buf)
     }
 }
