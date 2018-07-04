@@ -1,6 +1,6 @@
 use common::BinarySerializable;
 use compression::CompressedIntStream;
-use directory::{ReadOnlySource, SourceRead};
+use directory::ReadOnlySource;
 use postings::FreqReadingOption;
 use postings::TermInfo;
 use postings::{BlockSegmentPostings, SegmentPostings};
@@ -8,6 +8,7 @@ use schema::FieldType;
 use schema::IndexRecordOption;
 use schema::Term;
 use termdict::TermDictionary;
+use owned_read::OwnedRead;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -92,7 +93,7 @@ impl InvertedIndexReader {
         let offset = term_info.postings_offset as usize;
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
-        let postings_reader = SourceRead::from(postings_slice);
+        let postings_reader = OwnedRead::new(postings_slice);
         block_postings.reset(term_info.doc_freq as usize, postings_reader);
     }
 
@@ -114,7 +115,7 @@ impl InvertedIndexReader {
         };
         BlockSegmentPostings::from_data(
             term_info.doc_freq as usize,
-            SourceRead::from(postings_data),
+            OwnedRead::new(postings_data),
             freq_reading_option,
         )
     }

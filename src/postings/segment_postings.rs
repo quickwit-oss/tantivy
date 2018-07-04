@@ -5,12 +5,13 @@ use common::BitSet;
 use common::CountingWriter;
 use common::HasLen;
 use compression::compressed_block_size;
-use directory::{ReadOnlySource, SourceRead};
+use directory::ReadOnlySource;
 use docset::{DocSet, SkipResult};
 use fst::Streamer;
 use postings::serializer::PostingsSerializer;
 use postings::FreqReadingOption;
 use postings::Postings;
+use owned_read::OwnedRead;
 
 struct PositionComputer {
     // store the amount of position int
@@ -94,7 +95,7 @@ impl SegmentPostings {
         let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),
-            SourceRead::from(data),
+            OwnedRead::new(data),
             FreqReadingOption::NoFreq,
         );
         SegmentPostings::from_block_postings(block_segment_postings, None)
@@ -306,13 +307,13 @@ pub struct BlockSegmentPostings {
     doc_offset: DocId,
     num_bitpacked_blocks: usize,
     num_vint_docs: usize,
-    remaining_data: SourceRead,
+    remaining_data: OwnedRead,
 }
 
 impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: usize,
-        data: SourceRead,
+        data: OwnedRead,
         freq_reading_option: FreqReadingOption,
     ) -> BlockSegmentPostings {
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
@@ -339,7 +340,7 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: SourceRead) {
+    pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: OwnedRead) {
         let num_binpacked_blocks: usize = doc_freq / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = doc_freq & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_bitpacked_blocks = num_binpacked_blocks;
@@ -449,7 +450,7 @@ impl BlockSegmentPostings {
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
 
-            remaining_data: From::from(ReadOnlySource::empty()),
+            remaining_data: OwnedRead::new(ReadOnlySource::empty()),
             doc_offset: 0,
             doc_freq: 0,
         }

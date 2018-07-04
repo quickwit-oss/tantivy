@@ -181,6 +181,7 @@ mod macros;
 pub use error::{Error, ErrorKind, ResultExt};
 
 extern crate census;
+extern crate owned_read;
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, Error>;

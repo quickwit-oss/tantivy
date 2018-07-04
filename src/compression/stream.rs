@@ -1,7 +1,8 @@
 use compression::compressed_block_size;
 use compression::BlockDecoder;
 use compression::COMPRESSION_BLOCK_SIZE;
-use directory::{ReadOnlySource, SourceRead};
+use directory::ReadOnlySource;
+use owned_read::OwnedRead;
 
 /// Reads a stream of compressed ints.
 ///
@@ -10,7 +11,7 @@ use directory::{ReadOnlySource, SourceRead};
 /// The `.skip(...)` makes it possible to avoid
 /// decompressing blocks that are not required.
 pub struct CompressedIntStream {
-    buffer: SourceRead,
+    buffer: OwnedRead,
 
     block_decoder: BlockDecoder,
     cached_addr: usize,      // address of the currently decoded block
@@ -24,7 +25,7 @@ impl CompressedIntStream {
     /// Opens a compressed int stream.
     pub(crate) fn wrap(source: ReadOnlySource) -> CompressedIntStream {
         CompressedIntStream {
-            buffer: SourceRead::from(source),
+            buffer: OwnedRead::new(source),
             block_decoder: BlockDecoder::new(),
             cached_addr: usize::max_value(),
             cached_next_addr: usize::max_value(),
