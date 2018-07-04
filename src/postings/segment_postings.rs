@@ -2,7 +2,6 @@ use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BL
 use DocId;
 
 use common::BitSet;
-use common::CountingWriter;
 use common::HasLen;
 use compression::compressed_block_size;
 use directory::ReadOnlySource;
@@ -79,9 +78,9 @@ impl SegmentPostings {
     /// and returns a `SegmentPostings` object that embeds a
     /// buffer with the serialized data.
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
-        let mut counting_writer = CountingWriter::wrap(Vec::new());
+        let mut buffer = Vec::new();
         {
-            let mut postings_serializer = PostingsSerializer::new(&mut counting_writer, false);
+            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
@@ -89,9 +88,7 @@ impl SegmentPostings {
                 .close_term()
                 .expect("In memory Serialization should never fail.");
         }
-        let (buffer, _) = counting_writer
-            .finish()
-            .expect("Serializing in a buffer should never fail.");
+
         let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),
