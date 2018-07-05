@@ -239,13 +239,60 @@ impl<'a> FieldSerializer<'a> {
     }
 }
 
+struct Block {
+    doc_ids: [DocId; COMPRESSION_BLOCK_SIZE],
+    term_freqs: [u32; COMPRESSION_BLOCK_SIZE],
+    len: usize
+}
+
+impl Block {
+    fn new() -> Self {
+        Block {
+            doc_ids: [0u32; COMPRESSION_BLOCK_SIZE],
+            term_freqs: [0u32; COMPRESSION_BLOCK_SIZE],
+            len: 0
+        }
+    }
+
+    fn doc_ids(&self) -> &[DocId] {
+        &self.doc_ids[..self.len]
+    }
+
+    fn term_freqs(&self) -> &[u32] {
+        &self.term_freqs[..self.len]
+    }
+
+    fn clear(&mut self) {
+        self.len = 0;
+    }
+
+    fn append_doc(&mut self, doc: DocId, term_freq: u32) {
+        let len = self.len;
+        self.doc_ids[len] = doc;
+        self.term_freqs[len] = term_freq;
+        self.len = len + 1;
+    }
+
+    fn is_full(&self) -> bool {
+        self.len == COMPRESSION_BLOCK_SIZE
+    }
+
+    fn is_empty(&self) -> bool {
+        self.len == 0
+    }
+
+    fn last_doc(&self) -> DocId {
+        assert_eq!(self.len, COMPRESSION_BLOCK_SIZE);
+        self.doc_ids[COMPRESSION_BLOCK_SIZE - 1]
+    }
+}
+
 pub struct PostingsSerializer<W: Write> {
     postings_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
-    doc_ids: Vec<DocId>,
-    term_freqs: Vec<u32>,
+    block: Box<Block>,
 
     termfreq_enabled: bool,
 }
@@ -256,41 +303,41 @@ impl<W: Write> PostingsSerializer<W> {
             postings_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),
-            doc_ids: vec![],
-            term_freqs: vec![],
+            block: Box::new(Block::new()),
 
             last_doc_id_encoded: 0u32,
             termfreq_enabled,
         }
     }
 
-    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
-        self.doc_ids.push(doc_id);
-        if self.termfreq_enabled {
-            self.term_freqs.push(term_freq as u32);
+    fn write_block(&mut self) -> io::Result<()> {
+        {
+            // encode the doc ids
+            let block_encoded: &[u8] = self.block_encoder
+                .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
+            self.last_doc_id_encoded = self.block.last_doc();
+            self.postings_write.write_all(block_encoded)?;
         }
-        if self.doc_ids.len() == COMPRESSION_BLOCK_SIZE {
-            {
-                // encode the doc ids
-                let block_encoded: &[u8] = self.block_encoder
-                    .compress_block_sorted(&self.doc_ids, self.last_doc_id_encoded);
-                self.last_doc_id_encoded = self.doc_ids[self.doc_ids.len() - 1];
-                self.postings_write.write_all(block_encoded)?;
-            }
-            if self.termfreq_enabled {
-                // encode the term_freqs
-                let block_encoded: &[u8] =
-                    self.block_encoder.compress_block_unsorted(&self.term_freqs);
-                self.postings_write.write_all(block_encoded)?;
-                self.term_freqs.clear();
-            }
-            self.doc_ids.clear();
+        if self.termfreq_enabled {
+            // encode the term_freqs
+            let block_encoded: &[u8] =
+                self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
+            self.postings_write.write_all(block_encoded)?;
+        }
+        self.block.clear();
+        Ok(())
+    }
+
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
+        self.block.append_doc(doc_id, term_freq);
+        if self.block.is_full() {
+            self.write_block()?;
         }
         Ok(())
     }
 
     pub fn close_term(&mut self) -> io::Result<()> {
-        if !self.doc_ids.is_empty() {
+        if !self.block.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is
             // not a perfect multiple of our block size.
@@ -299,17 +346,16 @@ impl<W: Write> PostingsSerializer<W> {
             // using variable int encoding.
             {
                 let block_encoded = self.block_encoder
-                    .compress_vint_sorted(&self.doc_ids, self.last_doc_id_encoded);
+                    .compress_vint_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
                 self.postings_write.write_all(block_encoded)?;
-                self.doc_ids.clear();
             }
             // ... Idem for term frequencies
             if self.termfreq_enabled {
                 let block_encoded = self.block_encoder
-                    .compress_vint_unsorted(&self.term_freqs[..]);
+                    .compress_vint_unsorted(self.block.term_freqs());
                 self.postings_write.write_all(block_encoded)?;
-                self.term_freqs.clear();
             }
+            self.block.clear();
         }
         Ok(())
     }
@@ -323,8 +369,7 @@ impl<W: Write> PostingsSerializer<W> {
     }
 
     fn clear(&mut self) {
-        self.doc_ids.clear();
-        self.term_freqs.clear();
+        self.block.clear();
         self.last_doc_id_encoded = 0;
     }
 }

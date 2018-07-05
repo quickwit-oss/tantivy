@@ -4,7 +4,6 @@ use DocId;
 use common::BitSet;
 use common::HasLen;
 use compression::compressed_block_size;
-use directory::ReadOnlySource;
 use docset::{DocSet, SkipResult};
 use fst::Streamer;
 use postings::serializer::PostingsSerializer;
@@ -88,11 +87,9 @@ impl SegmentPostings {
                 .close_term()
                 .expect("In memory Serialization should never fail.");
         }
-
-        let data = ReadOnlySource::from(buffer);
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len(),
-            OwnedRead::new(data),
+            OwnedRead::new(buffer),
             FreqReadingOption::NoFreq,
         );
         SegmentPostings::from_block_postings(block_segment_postings, None)
@@ -447,7 +444,7 @@ impl BlockSegmentPostings {
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
 
-            remaining_data: OwnedRead::new(ReadOnlySource::empty()),
+            remaining_data: OwnedRead::new(vec![]),
             doc_offset: 0,
             doc_freq: 0,
         }
