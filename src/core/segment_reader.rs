@@ -447,7 +447,9 @@ mod test {
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
+        let docs: Vec<DocId> = searcher.segment_reader(0)
+            .doc_ids_alive()
+            .collect();
         assert_eq!(vec![0u32, 2u32], docs);
     }
 }

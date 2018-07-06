@@ -1,5 +1,5 @@
 use super::TermInfo;
-use common::BinarySerializable;
+use common::{VInt, BinarySerializable};
 use common::{CompositeWrite, CountingWriter};
 use compression::VIntEncoder;
 use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
@@ -11,6 +11,7 @@ use std::io::{self, Write};
 use termdict::{TermDictionaryBuilder, TermOrdinal};
 use DocId;
 use Result;
+use postings::USE_SKIP_INFO_LIMIT;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -221,7 +222,8 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
-            self.postings_serializer.close_term()?;
+            self.postings_serializer
+                .close_term(self.current_term_info.doc_freq)?;
             self.term_open = false;
         }
         Ok(())
@@ -288,11 +290,14 @@ impl Block {
 }
 
 pub struct PostingsSerializer<W: Write> {
-    postings_write: CountingWriter<W>,
+    output_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
     block: Box<Block>,
+
+    postings_write: Vec<u8>,
+    skip_write: Vec<u8>,
 
     termfreq_enabled: bool,
 }
@@ -300,17 +305,25 @@ pub struct PostingsSerializer<W: Write> {
 impl<W: Write> PostingsSerializer<W> {
     pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
-            postings_write: CountingWriter::wrap(write),
+            output_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),
             block: Box::new(Block::new()),
+
+            postings_write: Vec::new(),
+            skip_write: Vec::new(),
 
             last_doc_id_encoded: 0u32,
             termfreq_enabled,
         }
     }
 
+    fn write_skip_info(&mut self) {
+        //self
+    }
+
     fn write_block(&mut self) -> io::Result<()> {
+        self.write_skip_info();
         {
             // encode the doc ids
             let block_encoded: &[u8] = self.block_encoder
@@ -336,7 +349,7 @@ impl<W: Write> PostingsSerializer<W> {
         Ok(())
     }
 
-    pub fn close_term(&mut self) -> io::Result<()> {
+    pub fn close_term(&mut self, doc_freq: u32) -> io::Result<()> {
         if !self.block.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is
@@ -357,6 +370,14 @@ impl<W: Write> PostingsSerializer<W> {
             }
             self.block.clear();
         }
+        if doc_freq >= USE_SKIP_INFO_LIMIT {
+            VInt(self.skip_write.len() as u64).serialize(&mut self.output_write)?;
+            self.output_write.write_all(&self.skip_write[..])?;
+            self.output_write.write_all(&self.postings_write[..])?;
+        } else {
+            self.output_write.write_all(&self.postings_write[..])?;
+        }
+        self.postings_write.clear();
         Ok(())
     }
 
@@ -365,7 +386,7 @@ impl<W: Write> PostingsSerializer<W> {
     }
 
     fn addr(&self) -> u64 {
-        self.postings_write.written_bytes() as u64
+        self.output_write.written_bytes() as u64
     }
 
     fn clear(&mut self) {

@@ -10,6 +10,9 @@ use postings::serializer::PostingsSerializer;
 use postings::FreqReadingOption;
 use postings::Postings;
 use owned_read::OwnedRead;
+use common::{VInt, BinarySerializable};
+use postings::USE_SKIP_INFO_LIMIT;
+
 
 struct PositionComputer {
     // store the amount of position int
@@ -84,11 +87,11 @@ impl SegmentPostings {
                 postings_serializer.write_doc(doc, 1u32).unwrap();
             }
             postings_serializer
-                .close_term()
+                .close_term(docs.len() as u32)
                 .expect("In memory Serialization should never fail.");
         }
         let block_segment_postings = BlockSegmentPostings::from_data(
-            docs.len(),
+            docs.len() as u32,
             OwnedRead::new(buffer),
             FreqReadingOption::NoFreq,
         );
@@ -301,15 +304,31 @@ pub struct BlockSegmentPostings {
     doc_offset: DocId,
     num_bitpacked_blocks: usize,
     num_vint_docs: usize,
+
     remaining_data: OwnedRead,
+    skip_data: OwnedRead,
+}
+
+const EMPTY_ARR: [u8; 0] = [];
+
+fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (OwnedRead, OwnedRead) {
+    if doc_freq >= USE_SKIP_INFO_LIMIT {
+        let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0;
+        let mut postings_data = data.clone();
+        postings_data.advance(skip_len as usize);
+        (data, postings_data)
+    } else {
+        (OwnedRead::new(&EMPTY_ARR[.. ]), data)
+    }
 }
 
 impl BlockSegmentPostings {
     pub(crate) fn from_data(
-        doc_freq: usize,
+        doc_freq: u32,
         data: OwnedRead,
         freq_reading_option: FreqReadingOption,
     ) -> BlockSegmentPostings {
+        let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
         BlockSegmentPostings {
@@ -318,9 +337,12 @@ impl BlockSegmentPostings {
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
-            remaining_data: data,
+
             doc_offset: 0,
-            doc_freq,
+            doc_freq: doc_freq as usize,
+
+            remaining_data: postings_data,
+            skip_data,
         }
     }
 
@@ -334,14 +356,16 @@ impl BlockSegmentPostings {
     // # Warning
     //
     // This does not reset the positions list.
-    pub(crate) fn reset(&mut self, doc_freq: usize, postings_data: OwnedRead) {
-        let num_binpacked_blocks: usize = doc_freq / COMPRESSION_BLOCK_SIZE;
-        let num_vint_docs = doc_freq & (COMPRESSION_BLOCK_SIZE - 1);
+    pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedRead) {
+        let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
+        let num_binpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
+        let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_bitpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
+        self.skip_data = skip_data;
         self.doc_offset = 0;
-        self.doc_freq = doc_freq;
+        self.doc_freq = doc_freq as usize;
     }
 
     /// Returns the document frequency associated to this block postings.
@@ -444,9 +468,12 @@ impl BlockSegmentPostings {
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option: FreqReadingOption::NoFreq,
 
-            remaining_data: OwnedRead::new(vec![]),
             doc_offset: 0,
             doc_freq: 0,
+
+
+            remaining_data: OwnedRead::new(vec![]),
+            skip_data: OwnedRead::new(vec![]),
         }
     }
 }

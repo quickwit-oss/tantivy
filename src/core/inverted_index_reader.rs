@@ -94,7 +94,7 @@ impl InvertedIndexReader {
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
         let postings_reader = OwnedRead::new(postings_slice);
-        block_postings.reset(term_info.doc_freq as usize, postings_reader);
+        block_postings.reset(term_info.doc_freq, postings_reader);
     }
 
     /// Returns a block postings given a `term_info`.
@@ -114,7 +114,7 @@ impl InvertedIndexReader {
             (_, _) => FreqReadingOption::ReadFreq,
         };
         BlockSegmentPostings::from_data(
-            term_info.doc_freq as usize,
+            term_info.doc_freq,
             OwnedRead::new(postings_data),
             freq_reading_option,
         )
