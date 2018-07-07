@@ -33,7 +33,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     fn insert(&mut self, key: u64, value: &T) -> io::Result<Option<(u64, u64)>> {
         self.len += 1;
         let offset = self.written_size() as u64;
-        VInt(key).serialize(&mut self.buffer)?;
+        VInt(key).serialize_into_vec(&mut self.buffer);
         value.serialize(&mut self.buffer)?;
         let emit_skip_info = (self.period_mask & self.len) == 0;
         if emit_skip_info {

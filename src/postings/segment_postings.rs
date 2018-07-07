@@ -84,7 +84,7 @@ impl SegmentPostings {
         {
             let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
             for &doc in docs {
-                postings_serializer.write_doc(doc, 1u32).unwrap();
+                postings_serializer.write_doc(doc, 1u32);
             }
             postings_serializer
                 .close_term(docs.len() as u32)

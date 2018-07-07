@@ -207,7 +207,7 @@ impl<'a> FieldSerializer<'a> {
         position_deltas: &[u32],
     ) -> io::Result<()> {
         self.current_term_info.doc_freq += 1;
-        self.postings_serializer.write_doc(doc_id, term_freq)?;
+        self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
             positions_serializer.write(position_deltas)?;
         }
@@ -302,6 +302,11 @@ pub struct PostingsSerializer<W: Write> {
     termfreq_enabled: bool,
 }
 
+fn write_skip(skip_write: &mut Vec<u8>, last_doc: u32, block_num_bytes: u8) {
+    VInt(last_doc as u64).serialize_into_vec(skip_write);
+    skip_write.push(block_num_bytes);
+}
+
 impl<W: Write> PostingsSerializer<W> {
     pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
@@ -318,35 +323,33 @@ impl<W: Write> PostingsSerializer<W> {
         }
     }
 
-    fn write_skip_info(&mut self) {
-        //self
-    }
-
-    fn write_block(&mut self) -> io::Result<()> {
-        self.write_skip_info();
+    fn write_block(&mut self) {
         {
             // encode the doc ids
             let block_encoded: &[u8] = self.block_encoder
                 .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
             self.last_doc_id_encoded = self.block.last_doc();
-            self.postings_write.write_all(block_encoded)?;
+            let block_len = block_encoded.len();
+            let block_num_bytes = (block_len / 16) as u8;
+            write_skip(&mut self.skip_write, self.last_doc_id_encoded, block_num_bytes);
+
+            // last el block 0, offset block 1,
+            self.postings_write.extend(block_encoded);
         }
         if self.termfreq_enabled {
             // encode the term_freqs
             let block_encoded: &[u8] =
                 self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
-            self.postings_write.write_all(block_encoded)?;
+            self.postings_write.extend(block_encoded);
         }
         self.block.clear();
-        Ok(())
     }
 
-    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) {
         self.block.append_doc(doc_id, term_freq);
         if self.block.is_full() {
-            self.write_block()?;
+            self.write_block();
         }
-        Ok(())
     }
 
     pub fn close_term(&mut self, doc_freq: u32) -> io::Result<()> {
@@ -374,9 +377,11 @@ impl<W: Write> PostingsSerializer<W> {
             VInt(self.skip_write.len() as u64).serialize(&mut self.output_write)?;
             self.output_write.write_all(&self.skip_write[..])?;
             self.output_write.write_all(&self.postings_write[..])?;
+
         } else {
             self.output_write.write_all(&self.postings_write[..])?;
         }
+        self.skip_write.clear();
         self.postings_write.clear();
         Ok(())
     }
