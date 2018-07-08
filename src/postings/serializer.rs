@@ -302,10 +302,6 @@ pub struct PostingsSerializer<W: Write> {
     termfreq_enabled: bool,
 }
 
-fn write_skip(skip_write: &mut Vec<u8>, last_doc: u32, block_num_bytes: u8) {
-    VInt(last_doc as u64).serialize_into_vec(skip_write);
-    skip_write.push(block_num_bytes);
-}
 
 impl<W: Write> PostingsSerializer<W> {
     pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
@@ -326,21 +322,25 @@ impl<W: Write> PostingsSerializer<W> {
     fn write_block(&mut self) {
         {
             // encode the doc ids
-            let block_encoded: &[u8] = self.block_encoder
+            let (num_bits, block_encoded): (u8, &[u8]) = self
+                .block_encoder
                 .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
-            self.last_doc_id_encoded = self.block.last_doc();
-            let block_len = block_encoded.len();
-            let block_num_bytes = (block_len / 16) as u8;
-            write_skip(&mut self.skip_write, self.last_doc_id_encoded, block_num_bytes);
+            let new_last_doc_id_encoded = self.block.last_doc();
+            let last_doc_delta = new_last_doc_id_encoded - self.last_doc_id_encoded;
+            self.last_doc_id_encoded = new_last_doc_id_encoded;
+
+            VInt(last_doc_delta as u64).serialize_into_vec(&mut self.skip_write);
+            self.skip_write.push(num_bits);
 
             // last el block 0, offset block 1,
             self.postings_write.extend(block_encoded);
         }
         if self.termfreq_enabled {
             // encode the term_freqs
-            let block_encoded: &[u8] =
+            let (num_bits, block_encoded): (u8, &[u8]) =
                 self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
             self.postings_write.extend(block_encoded);
+            self.skip_write.push(num_bits);
         }
         self.block.clear();
     }
@@ -421,7 +421,8 @@ impl<W: Write> PositionSerializer<W> {
 
     fn write_block(&mut self) -> io::Result<()> {
         assert_eq!(self.buffer.len(), COMPRESSION_BLOCK_SIZE);
-        let block_compressed: &[u8] = self.block_encoder.compress_block_unsorted(&self.buffer);
+        let (_, block_compressed): (u8, &[u8]) =
+            self.block_encoder.compress_block_unsorted(&self.buffer);
         self.write.write_all(block_compressed)?;
         self.buffer.clear();
         Ok(())

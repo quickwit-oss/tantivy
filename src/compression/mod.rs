@@ -30,21 +30,21 @@ impl BlockEncoder {
         }
     }
 
-    pub fn compress_block_sorted(&mut self, block: &[u32], offset: u32) -> &[u8] {
+    pub fn compress_block_sorted(&mut self, block: &[u32], offset: u32) -> (u8, &[u8]) {
         let num_bits = self.bitpacker.num_bits_sorted(offset, block);
         self.output[0] = num_bits;
         let written_size =
             1 + self.bitpacker
                 .compress_sorted(offset, block, &mut self.output[1..], num_bits);
-        &self.output[..written_size]
+        (num_bits, &self.output[..written_size])
     }
 
-    pub fn compress_block_unsorted(&mut self, block: &[u32]) -> &[u8] {
+    pub fn compress_block_unsorted(&mut self, block: &[u32]) -> (u8, &[u8]) {
         let num_bits = self.bitpacker.num_bits(block);
         self.output[0] = num_bits;
         let written_size = 1 + self.bitpacker
             .compress(block, &mut self.output[1..], num_bits);
-        &self.output[..written_size]
+        (num_bits, &self.output[..written_size])
     }
 }
 
@@ -102,7 +102,7 @@ mod vint;
 
 pub trait VIntEncoder {
     /// Compresses an array of `u32` integers,
-    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_encoding)
+    /// using [delta-encoding](https://en.wikipedia.org/wiki/Delta_ encoding)
     /// and variable bytes encoding.
     ///
     /// The method takes an array of ints to compress, and returns
@@ -185,7 +185,7 @@ pub mod tests {
     fn test_encode_sorted_block() {
         let vals: Vec<u32> = (0u32..128u32).map(|i| i * 7).collect();
         let mut encoder = BlockEncoder::new();
-        let compressed_data = encoder.compress_block_sorted(&vals, 0);
+        let (_, compressed_data) = encoder.compress_block_sorted(&vals, 0);
         let mut decoder = BlockDecoder::new();
         {
             let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 0);
@@ -200,7 +200,7 @@ pub mod tests {
     fn test_encode_sorted_block_with_offset() {
         let vals: Vec<u32> = (0u32..128u32).map(|i| 11 + i * 7).collect();
         let mut encoder = BlockEncoder::new();
-        let compressed_data = encoder.compress_block_sorted(&vals, 10);
+        let (_, compressed_data) = encoder.compress_block_sorted(&vals, 10);
         let mut decoder = BlockDecoder::new();
         {
             let consumed_num_bytes = decoder.uncompress_block_sorted(compressed_data, 10);
@@ -217,7 +217,7 @@ pub mod tests {
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32).collect();
         let mut encoder = BlockEncoder::new();
-        let compressed_data = encoder.compress_block_sorted(&vals, 10);
+        let (_, compressed_data) = encoder.compress_block_sorted(&vals, 10);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
@@ -237,7 +237,7 @@ pub mod tests {
         let n = 128;
         let vals: Vec<u32> = (0..n).map(|i| 11u32 + (i as u32) * 7u32 % 12).collect();
         let mut encoder = BlockEncoder::new();
-        let compressed_data = encoder.compress_block_unsorted(&vals);
+        let (_, compressed_data) = encoder.compress_block_unsorted(&vals);
         compressed.extend_from_slice(compressed_data);
         compressed.push(173u8);
         let mut decoder = BlockDecoder::new();
@@ -305,7 +305,7 @@ mod bench {
     fn bench_uncompress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
         let data = generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
-        let compressed = encoder.compress_block_sorted(&data, 0u32);
+        let (_, compressed) = encoder.compress_block_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::new();
         b.iter(|| {
             decoder.uncompress_block_sorted(compressed, 0u32);

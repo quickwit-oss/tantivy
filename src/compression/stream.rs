@@ -112,7 +112,7 @@ pub mod tests {
         let mut encoder = BlockEncoder::new();
         let vals: Vec<u32> = (0u32..1152u32).collect();
         for chunk in vals.chunks(COMPRESSION_BLOCK_SIZE) {
-            let compressed_block = encoder.compress_block_unsorted(chunk);
+            let (_, compressed_block) = encoder.compress_block_unsorted(chunk);
             let num_bits = compressed_block[0];
             assert_eq!(compressed_block_size(num_bits), compressed_block.len());
             buffer.extend_from_slice(compressed_block);
