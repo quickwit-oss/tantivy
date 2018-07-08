@@ -13,6 +13,7 @@ mod segment_postings;
 mod serializer;
 mod stacker;
 mod term_info;
+mod skip;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};

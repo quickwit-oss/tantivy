@@ -12,6 +12,7 @@ use termdict::{TermDictionaryBuilder, TermOrdinal};
 use DocId;
 use Result;
 use postings::USE_SKIP_INFO_LIMIT;
+use postings::skip::SkipSerializer;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -297,7 +298,7 @@ pub struct PostingsSerializer<W: Write> {
     block: Box<Block>,
 
     postings_write: Vec<u8>,
-    skip_write: Vec<u8>,
+    skip_write: SkipSerializer,
 
     termfreq_enabled: bool,
 }
@@ -312,7 +313,7 @@ impl<W: Write> PostingsSerializer<W> {
             block: Box::new(Block::new()),
 
             postings_write: Vec::new(),
-            skip_write: Vec::new(),
+            skip_write: SkipSerializer::new(),
 
             last_doc_id_encoded: 0u32,
             termfreq_enabled,
@@ -325,13 +326,8 @@ impl<W: Write> PostingsSerializer<W> {
             let (num_bits, block_encoded): (u8, &[u8]) = self
                 .block_encoder
                 .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
-            let new_last_doc_id_encoded = self.block.last_doc();
-            let last_doc_delta = new_last_doc_id_encoded - self.last_doc_id_encoded;
-            self.last_doc_id_encoded = new_last_doc_id_encoded;
-
-            VInt(last_doc_delta as u64).serialize_into_vec(&mut self.skip_write);
-            self.skip_write.push(num_bits);
-
+            self.last_doc_id_encoded = self.block.last_doc();
+            self.skip_write.write_doc(self.last_doc_id_encoded, num_bits);
             // last el block 0, offset block 1,
             self.postings_write.extend(block_encoded);
         }
@@ -340,7 +336,7 @@ impl<W: Write> PostingsSerializer<W> {
             let (num_bits, block_encoded): (u8, &[u8]) =
                 self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
             self.postings_write.extend(block_encoded);
-            self.skip_write.push(num_bits);
+            self.skip_write.write_term_freq(num_bits);
         }
         self.block.clear();
     }
@@ -350,6 +346,10 @@ impl<W: Write> PostingsSerializer<W> {
         if self.block.is_full() {
             self.write_block();
         }
+    }
+
+    fn close(mut self) -> io::Result<()> {
+        self.postings_write.flush()
     }
 
     pub fn close_term(&mut self, doc_freq: u32) -> io::Result<()> {
@@ -374,8 +374,9 @@ impl<W: Write> PostingsSerializer<W> {
             self.block.clear();
         }
         if doc_freq >= USE_SKIP_INFO_LIMIT {
-            VInt(self.skip_write.len() as u64).serialize(&mut self.output_write)?;
-            self.output_write.write_all(&self.skip_write[..])?;
+            let skip_data = self.skip_write.data();
+            VInt(skip_data.len() as u64).serialize(&mut self.output_write)?;
+            self.output_write.write_all(skip_data)?;
             self.output_write.write_all(&self.postings_write[..])?;
 
         } else {
@@ -384,10 +385,6 @@ impl<W: Write> PostingsSerializer<W> {
         self.skip_write.clear();
         self.postings_write.clear();
         Ok(())
-    }
-
-    fn close(mut self) -> io::Result<()> {
-        self.postings_write.flush()
     }
 
     fn addr(&self) -> u64 {
