@@ -1,5 +1,5 @@
 use DocId;
-use common::{BinarySerializable, VInt};
+use common::BinarySerializable;
 use owned_read::OwnedRead;
 use compression::COMPRESSION_BLOCK_SIZE;
 
@@ -21,7 +21,7 @@ impl SkipSerializer {
                 Did you forget to call clear maybe?");
         let delta_doc = last_doc - self.prev_doc;
         self.prev_doc = last_doc;
-        VInt(delta_doc as u64).serialize_into_vec(&mut self.buffer);
+        delta_doc.serialize(&mut self.buffer).unwrap();
         self.buffer.push(doc_num_bits);
     }
 
@@ -81,8 +81,8 @@ impl SkipReader {
         if self.owned_read.as_ref().is_empty() {
             false
         } else {
-            let doc_delta = VInt::deserialize(&mut self.owned_read).expect("Skip data corrupted");
-            self.doc += doc_delta.0 as DocId;
+            let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
+            self.doc += doc_delta as DocId;
             self.doc_num_bits =  self.owned_read.get(0);
             if self.termfreq_enabled {
                 self.tf_num_bits = self.owned_read.get(1);

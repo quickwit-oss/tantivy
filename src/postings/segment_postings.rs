@@ -151,43 +151,56 @@ impl DocSet for SegmentPostings {
         // to skip every doc_freq we cross.
 
         // skip blocks until one that might contain the target
-        loop {
-            // check if we need to go to the next block
-            let (current_doc, last_doc_in_block) = {
-                let block_docs = self.block_cursor.docs();
-                (block_docs[self.cur], block_docs[block_docs.len() - 1])
-            };
-            if target > last_doc_in_block {
-                // we add skip for the current term independantly,
-                // so that position_add_skip will decide if it should
-                // just set itself to Some(0) or effectively
-                // add the term freq.
-                if self.position_computer.is_some() {
-                    let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
-                    let sum_freq: u32 = freqs_skipped.iter().sum();
-                    self.position_computer
-                        .as_mut()
-                        .unwrap()
-                        .add_skip(sum_freq as usize);
-                }
-                if !self.block_cursor.advance() {
+        // check if we need to go to the next block
+
+        assert!(self.position_computer.is_none());
+
+        {
+            if !self.block_cursor
+                   .docs()
+                   .last()
+                   .map(|doc| *doc >= target)
+                   .unwrap_or(false) {
+                self.cur = 0;
+                if !self.block_cursor.skip_to(target) {
                     return SkipResult::End;
                 }
-                self.cur = 0;
-            } else {
-                if target < current_doc {
-                    // We've passed the target after the first `advance` call
-                    // or we're at the beginning of a block.
-                    // Either way, we're on the first `DocId` greater than `target`
-                    return SkipResult::OverStep;
-                }
-                break;
             }
         }
 
+        /*
+        if target > last_doc_in_block {
+            // we add skip for the current term independently,
+            // so that position_add_skip will decide if it should
+            // just set itself to Some(0) or effectively
+            // add the term freq.
+            if self.position_computer.is_some() {
+                let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
+                let sum_freq: u32 = freqs_skipped.iter().sum();
+                self.position_computer
+                    .as_mut()
+                    .unwrap()
+                    .add_skip(sum_freq as usize);
+            }
+            if !self.block_cursor.advance() {
+                return SkipResult::End;
+            }
+            self.cur = 0;
+        } else {
+            if target < current_doc {
+                // We've passed the target after the first `advance` call
+                // or we're at the beginning of a block.
+                // Either way, we're on the first `DocId` greater than `target`
+                return SkipResult::OverStep;
+            }
+            break;
+        }
+        */
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
-
+        if target < block_docs[self.cur] {
+            return SkipResult::OverStep;
+        }
         let (mut start, end) = exponential_search(target, self.cur, block_docs);
 
         start += block_docs[start..end]
@@ -198,6 +211,7 @@ impl DocSet for SegmentPostings {
         let doc = block_docs[start];
         debug_assert!(doc >= target);
 
+        /*
         if self.position_computer.is_some() {
             let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
             let sum_freqs: u32 = freqs_skipped.iter().sum();
@@ -206,6 +220,7 @@ impl DocSet for SegmentPostings {
                 .unwrap()
                 .add_skip(sum_freqs as usize);
         }
+        */
 
         self.cur = start;
         if doc == target {
@@ -303,7 +318,7 @@ pub struct BlockSegmentPostings {
 
     doc_freq: usize,
     doc_offset: DocId,
-    num_bitpacked_blocks: usize,
+
     num_vint_docs: usize,
 
     remaining_data: OwnedRead,
@@ -335,7 +350,6 @@ impl BlockSegmentPostings {
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
         BlockSegmentPostings {
-            num_bitpacked_blocks,
             num_vint_docs,
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
@@ -361,9 +375,7 @@ impl BlockSegmentPostings {
     // This does not reset the positions list.
     pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedRead) {
         let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
-        let num_binpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
-        self.num_bitpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
         self.skip_reader = SkipReader::new(skip_data, self.freq_reading_option != FreqReadingOption::NoFreq);
@@ -489,8 +501,7 @@ impl BlockSegmentPostings {
     ///
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
-        if self.num_bitpacked_blocks > 0 {
-            assert!(self.skip_reader.advance());
+        if self.skip_reader.advance() {
             let num_bits = self.skip_reader.doc_num_bits();
             let num_consumed_bytes = self.doc_decoder
                 .uncompress_block_sorted_with_num_bits(
@@ -514,7 +525,6 @@ impl BlockSegmentPostings {
             }
             // it will be used as the next offset.
             self.doc_offset = self.doc_decoder.output(COMPRESSION_BLOCK_SIZE - 1);
-            self.num_bitpacked_blocks -= 1;
             true
         } else if self.num_vint_docs > 0 {
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
@@ -540,7 +550,6 @@ impl BlockSegmentPostings {
     /// Returns an empty segment postings object
     pub fn empty() -> BlockSegmentPostings {
         BlockSegmentPostings {
-            num_bitpacked_blocks: 0,
             num_vint_docs: 0,
 
             doc_decoder: BlockDecoder::new(),
