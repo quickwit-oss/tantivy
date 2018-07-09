@@ -20,6 +20,7 @@ pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
 pub use self::postings::Postings;
 pub use self::term_info::TermInfo;
+pub use self::skip::SkipReader;
 use compression::COMPRESSION_BLOCK_SIZE;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
@@ -28,11 +29,12 @@ pub(crate) use self::stacker::compute_table_size;
 
 pub use common::HasLen;
 
-pub(crate) const USE_SKIP_INFO_LIMIT: u32 = (COMPRESSION_BLOCK_SIZE as u32) * 4;
+pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
 
 pub(crate) type UnorderedTermId = u64;
 
 #[allow(enum_variant_names)]
+#[derive(Debug, PartialEq, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
     SkipFreq,

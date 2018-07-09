@@ -1,8 +1,6 @@
 use DocId;
 use common::{BinarySerializable, VInt};
 use owned_read::OwnedRead;
-use stable_deref_trait::StableDeref;
-use std::ops::Deref;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -49,30 +47,30 @@ pub struct SkipReader {
 }
 
 impl SkipReader {
-    fn new<T: StableDeref + Deref<Target=[u8]> + 'static>(data: T, termfreq_enabled: bool) -> SkipReader {
+    pub fn new(data: OwnedRead, termfreq_enabled: bool) -> SkipReader {
         SkipReader {
             doc: 0u32,
-            owned_read: OwnedRead::new(data),
+            owned_read: data,
             termfreq_enabled,
             doc_num_bits: 0u8,
             tf_num_bits: 0u8,
         }
     }
 
-    fn doc(&self) -> DocId {
+    pub fn doc(&self) -> DocId {
         self.doc
     }
 
-    fn doc_num_bits(&self) -> u8 {
+    pub fn doc_num_bits(&self) -> u8 {
         self.doc_num_bits
     }
 
-    fn tf_num_bits(&self) -> u8 {
+    pub fn tf_num_bits(&self) -> u8 {
         self.tf_num_bits
     }
 
-    fn advance(&mut self) -> bool {
-        if self.owned_read.is_empty() {
+    pub fn advance(&mut self) -> bool {
+        if self.owned_read.as_ref().is_empty() {
             false
         } else {
             let doc_delta = VInt::deserialize(&mut self.owned_read).expect("Skip data corrupted");
@@ -80,8 +78,10 @@ impl SkipReader {
             self.doc_num_bits =  self.owned_read.get(0);
             if self.termfreq_enabled {
                 self.tf_num_bits = self.owned_read.get(1);
+                self.owned_read.advance(2);
+            } else {
+                self.owned_read.advance(1);
             }
-            self.owned_read.advance(2);
             true
         }
 
@@ -92,9 +92,10 @@ impl SkipReader {
 mod tests {
 
     use super::{SkipReader, SkipSerializer};
+    use owned_read::OwnedRead;
 
     #[test]
-    fn test_skip() {
+    fn test_skip_with_freq() {
         let buf = {
             let mut skip_serializer = SkipSerializer::new();
             skip_serializer.write_doc(1u32, 2u8);
@@ -103,7 +104,7 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(buf, true);
+        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), true);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
@@ -112,6 +113,24 @@ mod tests {
         assert_eq!(skip_reader.doc(), 5u32);
         assert_eq!(skip_reader.doc_num_bits(), 5u8);
         assert_eq!(skip_reader.tf_num_bits(), 2u8);
+        assert!(!skip_reader.advance());
+    }
+
+    #[test]
+    fn test_skip_no_freq() {
+        let buf = {
+            let mut skip_serializer = SkipSerializer::new();
+            skip_serializer.write_doc(1u32, 2u8);
+            skip_serializer.write_doc(5u32, 5u8);
+            skip_serializer.data().to_owned()
+        };
+        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), false);
+        assert!(skip_reader.advance());
+        assert_eq!(skip_reader.doc(), 1u32);
+        assert_eq!(skip_reader.doc_num_bits(), 2u8);
+        assert!(skip_reader.advance());
+        assert_eq!(skip_reader.doc(), 5u32);
+        assert_eq!(skip_reader.doc_num_bits(), 5u8);
         assert!(!skip_reader.advance());
     }
 }

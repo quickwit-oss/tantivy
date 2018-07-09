@@ -3,6 +3,7 @@ use common::{VInt, BinarySerializable};
 use common::{CompositeWrite, CountingWriter};
 use compression::VIntEncoder;
 use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
+use bitpacking::{BitPacker, BitPacker4x};
 use core::Segment;
 use directory::WritePtr;
 use schema::Schema;
@@ -400,7 +401,8 @@ impl<W: Write> PostingsSerializer<W> {
 struct PositionSerializer<W: Write> {
     buffer: Vec<u32>,
     write: CountingWriter<W>, // See if we can offset the original counting writer.
-    block_encoder: BlockEncoder,
+    bitpacker: BitPacker4x,
+    compress_buffer: Vec<u8>,
 }
 
 impl<W: Write> PositionSerializer<W> {
@@ -408,7 +410,8 @@ impl<W: Write> PositionSerializer<W> {
         PositionSerializer {
             buffer: Vec::with_capacity(COMPRESSION_BLOCK_SIZE),
             write: CountingWriter::wrap(write),
-            block_encoder: BlockEncoder::new(),
+            bitpacker: BitPacker4x::new(),
+            compress_buffer: vec![0u8; 1 + COMPRESSION_BLOCK_SIZE * 4]
         }
     }
 
@@ -418,9 +421,13 @@ impl<W: Write> PositionSerializer<W> {
 
     fn write_block(&mut self) -> io::Result<()> {
         assert_eq!(self.buffer.len(), COMPRESSION_BLOCK_SIZE);
-        let (_, block_compressed): (u8, &[u8]) =
-            self.block_encoder.compress_block_unsorted(&self.buffer);
-        self.write.write_all(block_compressed)?;
+
+        let num_bits = self.bitpacker.num_bits(&self.buffer[..]);
+        self.compress_buffer[0] = num_bits;
+        let written_size = 1 + self.bitpacker
+            .compress(&self.buffer[..], &mut self.compress_buffer[1..], num_bits);
+
+        self.write.write_all(&self.compress_buffer[..written_size])?;
         self.buffer.clear();
         Ok(())
     }

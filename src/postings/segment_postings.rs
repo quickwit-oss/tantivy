@@ -12,6 +12,7 @@ use postings::Postings;
 use owned_read::OwnedRead;
 use common::{VInt, BinarySerializable};
 use postings::USE_SKIP_INFO_LIMIT;
+use postings::SkipReader;
 
 
 struct PositionComputer {
@@ -306,16 +307,17 @@ pub struct BlockSegmentPostings {
     num_vint_docs: usize,
 
     remaining_data: OwnedRead,
-    skip_data: OwnedRead,
+    skip_reader: SkipReader,
 }
 
 const EMPTY_ARR: [u8; 0] = [];
 
 fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (OwnedRead, OwnedRead) {
     if doc_freq >= USE_SKIP_INFO_LIMIT {
-        let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0;
+        let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0 as usize;
         let mut postings_data = data.clone();
-        postings_data.advance(skip_len as usize);
+        postings_data.advance(skip_len);
+        data.clip(skip_len);
         (data, postings_data)
     } else {
         (OwnedRead::new(&EMPTY_ARR[.. ]), data)
@@ -329,6 +331,7 @@ impl BlockSegmentPostings {
         freq_reading_option: FreqReadingOption,
     ) -> BlockSegmentPostings {
         let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, data);
+        let skip_reader = SkipReader::new(skip_data, freq_reading_option != FreqReadingOption::NoFreq);
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
         BlockSegmentPostings {
@@ -342,7 +345,7 @@ impl BlockSegmentPostings {
             doc_freq: doc_freq as usize,
 
             remaining_data: postings_data,
-            skip_data,
+            skip_reader,
         }
     }
 
@@ -363,7 +366,7 @@ impl BlockSegmentPostings {
         self.num_bitpacked_blocks = num_binpacked_blocks;
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
-        self.skip_data = skip_data;
+        self.skip_reader = SkipReader::new(skip_data, self.freq_reading_option != FreqReadingOption::NoFreq);
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
     }
@@ -418,18 +421,26 @@ impl BlockSegmentPostings {
     /// Returns false iff there was no remaining blocks.
     pub fn advance(&mut self) -> bool {
         if self.num_bitpacked_blocks > 0 {
+            assert!(self.skip_reader.advance());
+            let num_bits = self.skip_reader.doc_num_bits();
             let num_consumed_bytes = self.doc_decoder
-                .uncompress_block_sorted(self.remaining_data.as_ref(), self.doc_offset);
+                .uncompress_block_sorted_with_num_bits(
+                    self.remaining_data.as_ref(),
+                        self.doc_offset,
+                        num_bits);
+
             self.remaining_data.advance(num_consumed_bytes);
+            let tf_num_bits = self.skip_reader.tf_num_bits();
             match self.freq_reading_option {
                 FreqReadingOption::NoFreq => {}
                 FreqReadingOption::SkipFreq => {
-                    let num_bytes_to_skip = compressed_block_size(self.remaining_data.as_ref()[0]);
+                    let num_bytes_to_skip = compressed_block_size(tf_num_bits);
                     self.remaining_data.advance(num_bytes_to_skip);
                 }
                 FreqReadingOption::ReadFreq => {
                     let num_consumed_bytes = self.freq_decoder
-                        .uncompress_block_unsorted(self.remaining_data.as_ref());
+                        .uncompress_block_unsorted_with_num_bits(self.remaining_data.as_ref(),
+                                                                 tf_num_bits);
                     self.remaining_data.advance(num_consumed_bytes);
                 }
             }
@@ -473,7 +484,7 @@ impl BlockSegmentPostings {
 
 
             remaining_data: OwnedRead::new(vec![]),
-            skip_data: OwnedRead::new(vec![]),
+            skip_reader: SkipReader::new(OwnedRead::new(vec![]), false),
         }
     }
 }
@@ -545,7 +556,7 @@ mod tests {
         // checking that the `doc_freq` is correct
         assert_eq!(block_segments.doc_freq(), 100_000);
         while let Some(block) = block_segments.next() {
-            for (i, doc) in block.iter().cloned().enumerate() {
+                for (i, doc) in block.iter().cloned().enumerate() {
                 assert_eq!(offset + (i as u32), doc);
             }
             offset += block.len() as u32;
