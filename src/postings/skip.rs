@@ -1,6 +1,7 @@
 use DocId;
 use common::{BinarySerializable, VInt};
 use owned_read::OwnedRead;
+use compression::COMPRESSION_BLOCK_SIZE;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -57,6 +58,10 @@ impl SkipReader {
         }
     }
 
+    pub fn total_block_len(&self) -> usize {
+        (self.doc_num_bits + self.tf_num_bits) as usize * COMPRESSION_BLOCK_SIZE / 8
+    }
+
     pub fn doc(&self) -> DocId {
         self.doc
     }
@@ -65,6 +70,9 @@ impl SkipReader {
         self.doc_num_bits
     }
 
+    /// Number of bits used to encode term frequencies
+    ///
+    /// 0 if term frequencies are not enabled.
     pub fn tf_num_bits(&self) -> u8 {
         self.tf_num_bits
     }

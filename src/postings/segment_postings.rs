@@ -416,6 +416,75 @@ impl BlockSegmentPostings {
         self.doc_decoder.output_len
     }
 
+
+    /// position on a block that may contains `doc_id`.
+    ///
+    /// Returns true if a block that has an element greater or equal to the target is found.
+    /// Returning true does not guarantee that the smallest element of the block is smaller
+    /// than the target. It only guarantees that the last element is greater or equal.
+    ///
+    /// Returns false iff all of the document remaining are smaller than
+    /// `doc_id`. In that case, all of these document are consumed.
+    ///
+    pub fn skip_to(&mut self, target_doc: DocId) -> bool {
+        if self.docs().last().map(|val| *val >= target_doc).unwrap_or(false) {
+            return true;
+        }
+        while self.skip_reader.advance() {
+            if self.skip_reader.doc() >= target_doc {
+                let num_bits = self.skip_reader.doc_num_bits();
+                let num_consumed_bytes = self.doc_decoder
+                    .uncompress_block_sorted_with_num_bits(
+                        self.remaining_data.as_ref(),
+                        self.doc_offset,
+                        num_bits);
+                self.remaining_data.advance(num_consumed_bytes);
+                let tf_num_bits = self.skip_reader.tf_num_bits();
+                match self.freq_reading_option {
+                    FreqReadingOption::NoFreq => {}
+                    FreqReadingOption::SkipFreq => {
+                        let num_bytes_to_skip = compressed_block_size(tf_num_bits);
+                        self.remaining_data.advance(num_bytes_to_skip);
+                    }
+                    FreqReadingOption::ReadFreq => {
+                        let num_consumed_bytes = self.freq_decoder
+                            .uncompress_block_unsorted_with_num_bits(self.remaining_data.as_ref(),
+                                                                     tf_num_bits);
+                        self.remaining_data.advance(num_consumed_bytes);
+                    }
+                }
+                self.doc_offset = self.skip_reader.doc();
+                return true;
+            } else {
+                let advance_len = self.skip_reader.total_block_len();
+                self.doc_offset = self.skip_reader.doc();
+                self.remaining_data.advance(advance_len);
+            }
+        }
+        if self.num_vint_docs > 0 {
+            let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
+                self.remaining_data.as_ref(),
+                self.doc_offset,
+                self.num_vint_docs,
+            );
+            self.remaining_data.advance(num_compressed_bytes);
+            match self.freq_reading_option {
+                FreqReadingOption::NoFreq | FreqReadingOption::SkipFreq => {}
+                FreqReadingOption::ReadFreq => {
+                    self.freq_decoder
+                        .uncompress_vint_unsorted(self.remaining_data.as_ref(), self.num_vint_docs);
+                }
+            }
+            self.num_vint_docs = 0;
+            return self.docs()
+                .last()
+                .map(|last_doc| {
+                    *last_doc >= target_doc
+                }).unwrap_or(false);
+        }
+        false
+    }
+
     /// Advance to the next block.
     ///
     /// Returns false iff there was no remaining blocks.
@@ -428,7 +497,6 @@ impl BlockSegmentPostings {
                     self.remaining_data.as_ref(),
                         self.doc_offset,
                         num_bits);
-
             self.remaining_data.advance(num_consumed_bytes);
             let tf_num_bits = self.skip_reader.tf_num_bits();
             match self.freq_reading_option {
@@ -514,6 +582,7 @@ mod tests {
     use schema::SchemaBuilder;
     use schema::Term;
     use schema::INT_INDEXED;
+    use DocId;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -532,14 +601,33 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings() {
+        let mut block_segments = build_block_postings((0..100_000).collect::<Vec<u32>>());
+        let mut offset: u32 = 0u32;
+        // checking that the block before calling advance is empty
+        assert!(block_segments.docs().is_empty());
+        // checking that the `doc_freq` is correct
+        assert_eq!(block_segments.doc_freq(), 100_000);
+        while let Some(block) = block_segments.next() {
+            for (i, doc) in block.iter().cloned().enumerate() {
+                assert_eq!(offset + (i as u32), doc);
+            }
+            offset += block.len() as u32;
+        }
+    }
+
+    fn build_block_postings(docs: Vec<DocId>) -> BlockSegmentPostings {
         let mut schema_builder = SchemaBuilder::default();
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-        for _ in 0..100_000 {
-            let doc = doc!(int_field=>0u64);
-            index_writer.add_document(doc);
+        let mut last_doc = 0u32;
+        for doc in docs {
+            for _ in last_doc..doc {
+                index_writer.add_document(doc!(int_field=>1u64));
+            }
+            index_writer.add_document(doc!(int_field=>0u64));
+            last_doc = doc + 1;
         }
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
@@ -548,19 +636,34 @@ mod tests {
         let inverted_index = segment_reader.inverted_index(int_field);
         let term = Term::from_field_u64(int_field, 0u64);
         let term_info = inverted_index.get_term_info(&term).unwrap();
-        let mut block_segments =
-            inverted_index.read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic);
-        let mut offset: u32 = 0u32;
-        // checking that the block before calling advance is empty
-        assert!(block_segments.docs().is_empty());
-        // checking that the `doc_freq` is correct
-        assert_eq!(block_segments.doc_freq(), 100_000);
-        while let Some(block) = block_segments.next() {
-                for (i, doc) in block.iter().cloned().enumerate() {
-                assert_eq!(offset + (i as u32), doc);
-            }
-            offset += block.len() as u32;
+        inverted_index.read_block_postings_from_terminfo(&term_info, IndexRecordOption::Basic)
+    }
+
+    #[test]
+    fn test_block_segment_postings_skip() {
+        let mut block_postings = build_block_postings(vec![3]);
+        assert!(block_postings.skip_to(0u32));
+        assert!(block_postings.skip_to(1u32));
+        assert!(block_postings.skip_to(3u32));
+        assert!(!block_postings.skip_to(4u32));
+    }
+
+
+    #[test]
+    fn test_block_segment_postings_skip2() {
+        let mut docs = vec![0];
+        for i in 0..1300 {
+            docs.push((i * i / 100) + i);
         }
+        let mut block_postings = build_block_postings(docs.clone());
+        for i in vec![0, 10, 90, 144, 10000, 10001, 15000] {
+            assert!(block_postings.skip_to(i));
+            let docs = block_postings.docs();
+            assert!(docs[0] <= i);
+            assert!(docs.last().cloned().unwrap_or(0u32) >= i);
+        }
+        assert!(!block_postings.skip_to(100_000));
+        assert!(!block_postings.skip_to(101_000));
     }
 
     #[test]
