@@ -35,19 +35,15 @@ matrix:
     #- env: TARGET=i686-linux-android DISABLE_TESTS=1
     #- env: TARGET=x86_64-linux-android DISABLE_TESTS=1
 
-    # iOS
-    - env: TARGET=x86_64-apple-ios DISABLE_TESTS=1
-      os: osx
-
     # Linux
     #- env: TARGET=aarch64-unknown-linux-gnu
     #- env: TARGET=i686-unknown-linux-gnu
-    #- env: TARGET=x86_64-unknown-linux-gnu
-    - env: TARGET=x86_64-unknown-linux-musl CODECOV=1
+    - env: TARGET=x86_64-unknown-linux-gnu CODECOV=1
+    # - env: TARGET=x86_64-unknown-linux-musl CODECOV=1
 
     # OSX
-    #- env: TARGET=x86_64-apple-darwin
-    #  os: osx
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
 
 before_install:
   - set -e
@@ -62,13 +58,8 @@ before_script:
   - cargo install cargo-update || echo "cargo-update already installed"
   - cargo install cargo-travis || echo "cargo-travis already installed"
 
-#script:
-#  - bash ci/script.sh
 script:
   - bash ci/script.sh
-
-after_script: set +e
-  - cargo coveralls --exclude-pattern src/functional_test.rs
 
 before_deploy:
   - sh ci/before_deploy.sh
