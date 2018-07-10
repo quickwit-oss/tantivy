@@ -10,6 +10,10 @@ main() {
         return
     fi
 
+    if [-z $CODECOV ]; then
+        cargo build --verbose && cargo coverage --verbose && bash <(curl -s https://codecov.io/bash) -s target/kcov
+    fi
+
     cross test --target $TARGET
     # cross test --target $TARGET --release
 
