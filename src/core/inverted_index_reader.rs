@@ -1,7 +1,6 @@
 use common::BinarySerializable;
 use compression::CompressedIntStream;
 use directory::ReadOnlySource;
-use postings::FreqReadingOption;
 use postings::TermInfo;
 use postings::{BlockSegmentPostings, SegmentPostings};
 use schema::FieldType;
@@ -108,15 +107,11 @@ impl InvertedIndexReader {
     ) -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = self.postings_source.slice_from(offset);
-        let freq_reading_option = match (self.record_option, requested_option) {
-            (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
-            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
-            (_, _) => FreqReadingOption::ReadFreq,
-        };
         BlockSegmentPostings::from_data(
             term_info.doc_freq,
             OwnedRead::new(postings_data),
-            freq_reading_option,
+            self.record_option,
+            requested_option,
         )
     }
 

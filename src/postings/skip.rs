@@ -2,6 +2,7 @@ use DocId;
 use common::BinarySerializable;
 use owned_read::OwnedRead;
 use compression::COMPRESSION_BLOCK_SIZE;
+use schema::IndexRecordOption;
 
 pub struct SkipSerializer {
     buffer: Vec<u8>,
@@ -29,6 +30,11 @@ impl SkipSerializer {
         self.buffer.push(tf_num_bits);
     }
 
+
+    pub fn write_total_term_freq(&mut self, tf_sum: u32) {
+        tf_sum.serialize(&mut self.buffer).expect("Should never fail");
+    }
+
     pub fn data(&self) -> &[u8] {
         &self.buffer[..]
     }
@@ -39,23 +45,33 @@ impl SkipSerializer {
     }
 }
 
-pub struct SkipReader {
+pub(crate) struct SkipReader {
     doc: DocId,
     owned_read: OwnedRead,
-    termfreq_enabled: bool,
     doc_num_bits: u8,
     tf_num_bits: u8,
+    tf_sum: u32,
+    skip_info: IndexRecordOption,
 }
 
 impl SkipReader {
-    pub fn new(data: OwnedRead, termfreq_enabled: bool) -> SkipReader {
+    pub fn new(data: OwnedRead, skip_info: IndexRecordOption) -> SkipReader {
         SkipReader {
             doc: 0u32,
             owned_read: data,
-            termfreq_enabled,
+            skip_info,
             doc_num_bits: 0u8,
             tf_num_bits: 0u8,
+            tf_sum: 0u32,
         }
+    }
+
+    pub fn reset(&mut self, data: OwnedRead) {
+        self.doc = 0u32;
+        self.owned_read = data;
+        self.doc_num_bits = 0u8;
+        self.tf_num_bits = 0u8;
+        self.tf_sum = 0u32;
     }
 
     pub fn total_block_len(&self) -> usize {
@@ -77,6 +93,10 @@ impl SkipReader {
         self.tf_num_bits
     }
 
+    pub fn tf_sum(&self) -> u32 {
+        self.tf_sum
+    }
+
     pub fn advance(&mut self) -> bool {
         if self.owned_read.as_ref().is_empty() {
             false
@@ -84,11 +104,20 @@ impl SkipReader {
             let doc_delta = u32::deserialize(&mut self.owned_read).expect("Skip data corrupted");
             self.doc += doc_delta as DocId;
             self.doc_num_bits =  self.owned_read.get(0);
-            if self.termfreq_enabled {
-                self.tf_num_bits = self.owned_read.get(1);
-                self.owned_read.advance(2);
-            } else {
-                self.owned_read.advance(1);
+            match self.skip_info {
+                IndexRecordOption::Basic => {
+                    self.owned_read.advance(1);
+                }
+                IndexRecordOption::WithFreqs=> {
+                    self.tf_num_bits = self.owned_read.get(1);
+                    self.owned_read.advance(2);
+                }
+                IndexRecordOption::WithFreqsAndPositions => {
+                    self.tf_num_bits = self.owned_read.get(1);
+                    self.owned_read.advance(2);
+                    self.tf_sum = u32::deserialize(&mut self.owned_read)
+                        .expect("Failed reading tf_sum");
+                }
             }
             true
         }
@@ -100,6 +129,7 @@ impl SkipReader {
 mod tests {
 
     use super::{SkipReader, SkipSerializer};
+    use super::IndexRecordOption;
     use owned_read::OwnedRead;
 
     #[test]
@@ -112,7 +142,7 @@ mod tests {
             skip_serializer.write_term_freq(2u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), true);
+        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::WithFreqs);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);
@@ -132,7 +162,7 @@ mod tests {
             skip_serializer.write_doc(5u32, 5u8);
             skip_serializer.data().to_owned()
         };
-        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), false);
+        let mut skip_reader = SkipReader::new(OwnedRead::new(buf), IndexRecordOption::Basic);
         assert!(skip_reader.advance());
         assert_eq!(skip_reader.doc(), 1u32);
         assert_eq!(skip_reader.doc_num_bits(), 2u8);

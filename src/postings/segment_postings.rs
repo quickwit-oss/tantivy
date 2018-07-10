@@ -13,6 +13,7 @@ use owned_read::OwnedRead;
 use common::{VInt, BinarySerializable};
 use postings::USE_SKIP_INFO_LIMIT;
 use postings::SkipReader;
+use schema::IndexRecordOption;
 
 
 struct PositionComputer {
@@ -83,7 +84,7 @@ impl SegmentPostings {
     pub fn create_from_docs(docs: &[u32]) -> SegmentPostings {
         let mut buffer = Vec::new();
         {
-            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false);
+            let mut postings_serializer = PostingsSerializer::new(&mut buffer, false, false);
             for &doc in docs {
                 postings_serializer.write_doc(doc, 1u32);
             }
@@ -94,7 +95,8 @@ impl SegmentPostings {
         let block_segment_postings = BlockSegmentPostings::from_data(
             docs.len() as u32,
             OwnedRead::new(buffer),
-            FreqReadingOption::NoFreq,
+            IndexRecordOption::Basic,
+            IndexRecordOption::Basic
         );
         SegmentPostings::from_block_postings(block_segment_postings, None)
     }
@@ -107,7 +109,7 @@ impl SegmentPostings {
     /// * `data` - data array. The complete data is not necessarily used.
     /// * `freq_handler` - the freq handler is in charge of decoding
     ///   frequencies and/or positions
-    pub fn from_block_postings(
+    pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
         positions_stream_opt: Option<CompressedIntStream>,
     ) -> SegmentPostings {
@@ -152,50 +154,43 @@ impl DocSet for SegmentPostings {
 
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
-
-        assert!(self.position_computer.is_none());
-
         {
             if !self.block_cursor
                    .docs()
                    .last()
                    .map(|doc| *doc >= target)
                    .unwrap_or(false) {
+
+                // we are not in the right block.
+                //
+                // First compute all of the freqs skipped from the current block.
+                let mut sum_freq: u32 = {
+                    let freqs = self
+                        .block_cursor
+                        .freqs();
+                    if freqs.is_empty() {
+                        0u32
+                    } else {
+                        freqs[self.cur..].iter().sum()
+                    }
+                };
+
                 self.cur = 0;
-                if !self.block_cursor.skip_to(target) {
-                    return SkipResult::End;
+                match self.block_cursor.skip_to(target) {
+                    BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
+                        sum_freq += block_skip_freqs;
+                    }
+                    BlockSegmentPostingsSkipResult::Terminated => {
+                        return SkipResult::End;
+                    }
+                }
+
+                if let Some(position_computer) = self.position_computer.as_mut() {
+                    position_computer.add_skip(sum_freq as usize);
                 }
             }
         }
 
-        /*
-        if target > last_doc_in_block {
-            // we add skip for the current term independently,
-            // so that position_add_skip will decide if it should
-            // just set itself to Some(0) or effectively
-            // add the term freq.
-            if self.position_computer.is_some() {
-                let freqs_skipped = &self.block_cursor.freqs()[self.cur..];
-                let sum_freq: u32 = freqs_skipped.iter().sum();
-                self.position_computer
-                    .as_mut()
-                    .unwrap()
-                    .add_skip(sum_freq as usize);
-            }
-            if !self.block_cursor.advance() {
-                return SkipResult::End;
-            }
-            self.cur = 0;
-        } else {
-            if target < current_doc {
-                // We've passed the target after the first `advance` call
-                // or we're at the beginning of a block.
-                // Either way, we're on the first `DocId` greater than `target`
-                return SkipResult::OverStep;
-            }
-            break;
-        }
-        */
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
         if target < block_docs[self.cur] {
@@ -211,7 +206,6 @@ impl DocSet for SegmentPostings {
         let doc = block_docs[start];
         debug_assert!(doc >= target);
 
-        /*
         if self.position_computer.is_some() {
             let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
             let sum_freqs: u32 = freqs_skipped.iter().sum();
@@ -220,7 +214,6 @@ impl DocSet for SegmentPostings {
                 .unwrap()
                 .add_skip(sum_freqs as usize);
         }
-        */
 
         self.cur = start;
         if doc == target {
@@ -339,14 +332,27 @@ fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (OwnedRe
     }
 }
 
+#[derive(Debug, Eq, PartialEq)]
+pub enum BlockSegmentPostingsSkipResult {
+    Terminated,
+    Success(u32) //< number of term freqs to skip
+}
+
 impl BlockSegmentPostings {
     pub(crate) fn from_data(
         doc_freq: u32,
         data: OwnedRead,
-        freq_reading_option: FreqReadingOption,
+        record_option: IndexRecordOption,
+        requested_option: IndexRecordOption
     ) -> BlockSegmentPostings {
+        let freq_reading_option = match (record_option, requested_option) {
+            (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
+            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
+            (_, _) => FreqReadingOption::ReadFreq,
+        };
+
         let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, data);
-        let skip_reader = SkipReader::new(skip_data, freq_reading_option != FreqReadingOption::NoFreq);
+        let skip_reader = SkipReader::new(skip_data, record_option);
         let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
         let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
         BlockSegmentPostings {
@@ -378,7 +384,7 @@ impl BlockSegmentPostings {
         let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
-        self.skip_reader = SkipReader::new(skip_data, self.freq_reading_option != FreqReadingOption::NoFreq);
+        self.skip_reader.reset(skip_data);
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
     }
@@ -430,6 +436,7 @@ impl BlockSegmentPostings {
 
 
     /// position on a block that may contains `doc_id`.
+    /// Always advance the current block.
     ///
     /// Returns true if a block that has an element greater or equal to the target is found.
     /// Returning true does not guarantee that the smallest element of the block is smaller
@@ -438,10 +445,12 @@ impl BlockSegmentPostings {
     /// Returns false iff all of the document remaining are smaller than
     /// `doc_id`. In that case, all of these document are consumed.
     ///
-    pub fn skip_to(&mut self, target_doc: DocId) -> bool {
-        if self.docs().last().map(|val| *val >= target_doc).unwrap_or(false) {
-            return true;
-        }
+    pub fn skip_to(&mut self,
+                   target_doc: DocId) -> BlockSegmentPostingsSkipResult {
+//        if self.docs().last().map(|val| *val >= target_doc).unwrap_or(false) {
+//            return true;
+//        }
+        let mut skip_freqs = 0u32;
         while self.skip_reader.advance() {
             if self.skip_reader.doc() >= target_doc {
                 let num_bits = self.skip_reader.doc_num_bits();
@@ -466,8 +475,9 @@ impl BlockSegmentPostings {
                     }
                 }
                 self.doc_offset = self.skip_reader.doc();
-                return true;
+                return BlockSegmentPostingsSkipResult::Success(skip_freqs);
             } else {
+                skip_freqs += self.skip_reader.tf_sum();
                 let advance_len = self.skip_reader.total_block_len();
                 self.doc_offset = self.skip_reader.doc();
                 self.remaining_data.advance(advance_len);
@@ -491,10 +501,15 @@ impl BlockSegmentPostings {
             return self.docs()
                 .last()
                 .map(|last_doc| {
-                    *last_doc >= target_doc
-                }).unwrap_or(false);
+                    if *last_doc >= target_doc {
+                        BlockSegmentPostingsSkipResult::Success(skip_freqs)
+                    } else {
+                        BlockSegmentPostingsSkipResult::Terminated
+                    }
+                })
+                .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
         }
-        false
+        BlockSegmentPostingsSkipResult::Terminated
     }
 
     /// Advance to the next block.
@@ -561,7 +576,7 @@ impl BlockSegmentPostings {
 
 
             remaining_data: OwnedRead::new(vec![]),
-            skip_reader: SkipReader::new(OwnedRead::new(vec![]), false),
+            skip_reader: SkipReader::new(OwnedRead::new(vec![]), IndexRecordOption::Basic),
         }
     }
 }
@@ -591,6 +606,7 @@ mod tests {
     use schema::SchemaBuilder;
     use schema::Term;
     use schema::INT_INDEXED;
+    use super::BlockSegmentPostingsSkipResult;
     use DocId;
 
     #[test]
@@ -650,11 +666,13 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings_skip() {
+        for i in 0..4 {
+            let mut block_postings = build_block_postings(vec![3]);
+            assert_eq!(block_postings.skip_to(i), BlockSegmentPostingsSkipResult::Success(0u32));
+            assert_eq!(block_postings.skip_to(i), BlockSegmentPostingsSkipResult::Terminated);
+        }
         let mut block_postings = build_block_postings(vec![3]);
-        assert!(block_postings.skip_to(0u32));
-        assert!(block_postings.skip_to(1u32));
-        assert!(block_postings.skip_to(3u32));
-        assert!(!block_postings.skip_to(4u32));
+        assert_eq!(block_postings.skip_to(4u32), BlockSegmentPostingsSkipResult::Terminated);
     }
 
 
@@ -665,14 +683,14 @@ mod tests {
             docs.push((i * i / 100) + i);
         }
         let mut block_postings = build_block_postings(docs.clone());
-        for i in vec![0, 10, 90, 144, 10000, 10001, 15000] {
-            assert!(block_postings.skip_to(i));
+        for i in vec![0,  424, 10000] {
+            assert_eq!(block_postings.skip_to(i), BlockSegmentPostingsSkipResult::Success(0u32));
             let docs = block_postings.docs();
             assert!(docs[0] <= i);
             assert!(docs.last().cloned().unwrap_or(0u32) >= i);
         }
-        assert!(!block_postings.skip_to(100_000));
-        assert!(!block_postings.skip_to(101_000));
+        assert_eq!(block_postings.skip_to(100_000), BlockSegmentPostingsSkipResult::Terminated);
+        assert_eq!(block_postings.skip_to(101_000), BlockSegmentPostingsSkipResult::Terminated);
     }
 
     #[test]

@@ -145,7 +145,7 @@ impl<'a> FieldSerializer<'a> {
         };
         let term_dictionary_builder =
             TermDictionaryBuilder::new(term_dictionary_write, field_type)?;
-        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
+        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled);
         let positions_serializer_opt = if position_enabled {
             Some(PositionSerializer::new(positions_write))
         } else {
@@ -302,11 +302,12 @@ pub struct PostingsSerializer<W: Write> {
     skip_write: SkipSerializer,
 
     termfreq_enabled: bool,
+    termfreq_sum_enabled: bool,
 }
 
 
 impl<W: Write> PostingsSerializer<W> {
-    pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
+    pub fn new(write: W, termfreq_enabled: bool, termfreq_sum_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
             output_write: CountingWriter::wrap(write),
 
@@ -318,6 +319,7 @@ impl<W: Write> PostingsSerializer<W> {
 
             last_doc_id_encoded: 0u32,
             termfreq_enabled,
+            termfreq_sum_enabled,
         }
     }
 
@@ -338,6 +340,10 @@ impl<W: Write> PostingsSerializer<W> {
                 self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
             self.postings_write.extend(block_encoded);
             self.skip_write.write_term_freq(num_bits);
+            if self.termfreq_sum_enabled {
+                let sum_freq = self.block.term_freqs().iter().cloned().sum();
+                self.skip_write.write_total_term_freq(sum_freq);
+            }
         }
         self.block.clear();
     }
