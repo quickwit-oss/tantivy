@@ -10,7 +10,8 @@ main() {
         return
     fi
 
-    if [ -z $CODECOV ]; then
+    if [ ! -z $CODECOV ]; then
+        echo "Codecov"
         cargo build --verbose && cargo coverage --verbose && bash <(curl -s https://codecov.io/bash) -s target/kcov
     fi
 
