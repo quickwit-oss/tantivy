@@ -66,10 +66,6 @@ before_script:
 #  - bash ci/script.sh
 script:
   - bash ci/script.sh
-  - |
-    cargo build --verbose &&
-    cargo coverage --verbose &&
-    bash <(curl -s https://codecov.io/bash) -s target/kcov
 
 after_script: set +e
   - cargo coveralls --exclude-pattern src/functional_test.rs
