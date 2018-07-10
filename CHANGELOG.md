@@ -1,6 +1,6 @@
-Master (future Tantivy 0.7)
-==========================
-
+Tantivy 0.6.1
+=========================
+- Bugfix #324. GC removing was removing file that were still in useful
 - Added support for parsing AllQuery and RangeQuery via QueryParser
     - AllQuery: `*`
     - RangeQuery:
@@ -8,6 +8,7 @@ Master (future Tantivy 0.7)
         - Exclusive `field:{startExcl to endExcl}`
         - Mixed `field:[startIncl to endExcl}` and vice versa
         - Unbounded `field:[start to *]`, `field:[* to end]`
+ 
 
 Tantivy 0.6
 ==========================
