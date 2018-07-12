@@ -1,6 +1,5 @@
-use compression::{BlockDecoder, CompressedIntStream, VIntDecoder, COMPRESSION_BLOCK_SIZE};
+use compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
-
 use common::BitSet;
 use common::HasLen;
 use compression::compressed_block_size;
@@ -14,6 +13,7 @@ use common::{VInt, BinarySerializable};
 use postings::USE_SKIP_INFO_LIMIT;
 use postings::SkipReader;
 use schema::IndexRecordOption;
+use compression::stream::PositionReader;
 
 
 struct PositionComputer {
@@ -23,14 +23,14 @@ struct PositionComputer {
     // if none, position are already loaded in
     // the positions vec.
     position_to_skip: usize,
-    positions_stream: CompressedIntStream,
+    position_reader: PositionReader,
 }
 
 impl PositionComputer {
-    pub fn new(positions_stream: CompressedIntStream) -> PositionComputer {
+    pub fn new(position_reader: PositionReader) -> PositionComputer {
         PositionComputer {
             position_to_skip: 0,
-            positions_stream,
+            position_reader,
         }
     }
 
@@ -40,9 +40,9 @@ impl PositionComputer {
 
     // Positions can only be read once.
     pub fn positions_with_offset(&mut self, offset: u32, output: &mut [u32]) {
-        self.positions_stream.skip(self.position_to_skip);
+        self.position_reader.skip(self.position_to_skip);
         self.position_to_skip = 0;
-        self.positions_stream.read(output);
+        self.position_reader.read(output);
         let mut cum = offset;
         for output_mut in output.iter_mut() {
             cum += *output_mut;
@@ -111,7 +111,7 @@ impl SegmentPostings {
     ///   frequencies and/or positions
     pub(crate) fn from_block_postings(
         segment_block_postings: BlockSegmentPostings,
-        positions_stream_opt: Option<CompressedIntStream>,
+        positions_stream_opt: Option<PositionReader>,
     ) -> SegmentPostings {
         SegmentPostings {
             block_cursor: segment_block_postings,

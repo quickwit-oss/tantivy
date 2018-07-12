@@ -2,7 +2,7 @@ mod reader;
 mod serializer;
 
 pub use self::reader::CompressedIntStream;
-pub use self::serializer::PositionSerializer;
+pub use self::serializer::{PositionReader, PositionSerializer};
 
 #[cfg(test)]
 pub mod tests {

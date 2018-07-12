@@ -1,5 +1,4 @@
 use common::BinarySerializable;
-use compression::CompressedIntStream;
 use directory::ReadOnlySource;
 use postings::TermInfo;
 use postings::{BlockSegmentPostings, SegmentPostings};
@@ -8,6 +7,7 @@ use schema::IndexRecordOption;
 use schema::Term;
 use termdict::TermDictionary;
 use owned_read::OwnedRead;
+use compression::stream::PositionReader;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -26,6 +26,7 @@ pub struct InvertedIndexReader {
     termdict: TermDictionary,
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
+    positions_idx_source: ReadOnlySource,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
 }
@@ -35,6 +36,7 @@ impl InvertedIndexReader {
         termdict: TermDictionary,
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
+        positions_idx_source: ReadOnlySource,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
         let total_num_tokens_data = postings_source.slice(0, 8);
@@ -44,6 +46,7 @@ impl InvertedIndexReader {
             termdict,
             postings_source: postings_source.slice_from(8),
             positions_source,
+            positions_idx_source,
             record_option,
             total_num_tokens,
         }
@@ -59,6 +62,7 @@ impl InvertedIndexReader {
             termdict: TermDictionary::empty(field_type),
             postings_source: ReadOnlySource::empty(),
             positions_source: ReadOnlySource::empty(),
+            positions_idx_source: ReadOnlySource::empty(),
             record_option,
             total_num_tokens: 0u64,
         }
@@ -127,11 +131,11 @@ impl InvertedIndexReader {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
         let position_stream = {
             if option.has_positions() {
-                let position_offset = term_info.positions_offset;
-                let positions_source = self.positions_source.slice_from(position_offset as usize);
-                let mut stream = CompressedIntStream::wrap(positions_source);
-                stream.skip(term_info.positions_inner_offset as usize);
-                Some(stream)
+                let position_reader = OwnedRead::new(self.positions_source.clone());
+                let skip_reader = OwnedRead::new(self.positions_idx_source.clone());
+                let mut position_reader = PositionReader::new(position_reader, skip_reader);
+                position_reader.skip(term_info.positions_idx as usize);
+                Some(position_reader)
             } else {
                 None
             }

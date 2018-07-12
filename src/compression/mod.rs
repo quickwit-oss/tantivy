@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 
-
-mod stream;
+pub mod stream;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
 const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;

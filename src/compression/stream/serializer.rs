@@ -17,7 +17,7 @@ pub struct PositionSerializer<W: io::Write> {
 }
 
 impl<W: io::Write> PositionSerializer<W> {
-    fn new(write_stream: W, write_skiplist: W) -> PositionSerializer<W> {
+    pub fn new(write_stream: W, write_skiplist: W) -> PositionSerializer<W> {
         PositionSerializer {
             write_stream,
             write_skiplist,
@@ -28,15 +28,23 @@ impl<W: io::Write> PositionSerializer<W> {
         }
     }
 
-    fn offset(&self) -> u64 {
+    pub fn positions_idx(&self) -> u64 {
         self.num_ints
     }
 
-    fn write(&mut self, val: u32) -> io::Result<()> {
+    pub fn write(&mut self, val: u32) -> io::Result<()> {
         self.block.push(val);
         self.num_ints += 1;
         if self.block.len() == COMPRESSION_BLOCK_SIZE {
             self.flush_block()?;
+        }
+        Ok(())
+    }
+
+    pub fn write_all(&mut self, vals: &[u32]) -> io::Result<()> {
+        // TODO optimize
+        for &val in vals {
+            self.write(val)?;
         }
         Ok(())
     }
@@ -50,7 +58,7 @@ impl<W: io::Write> PositionSerializer<W> {
         Ok(())
     }
 
-    fn close(&mut self) -> io::Result<()> {
+    pub fn close(mut self) -> io::Result<()> {
         if !self.block.is_empty() {
             self.block.resize(COMPRESSION_BLOCK_SIZE, 0u32);
             self.flush_block()?;
@@ -101,7 +109,7 @@ fn read_impl(
 
 
 impl PositionReader {
-    fn new(position_read: OwnedRead, skip_read: OwnedRead) -> PositionReader {
+    pub fn new(position_read: OwnedRead, skip_read: OwnedRead) -> PositionReader {
         PositionReader {
             skip_read,
             position_read,
@@ -174,7 +182,7 @@ pub mod tests {
         {
             let mut serializer = PositionSerializer::new(&mut stream_buffer, &mut skip_buffer);
             for &i in vals {
-                assert_eq!(serializer.offset(), i as u64);
+                assert_eq!(serializer.positions_idx(), i as u64);
                 serializer.write(i).unwrap();
             }
             serializer.close().unwrap();
