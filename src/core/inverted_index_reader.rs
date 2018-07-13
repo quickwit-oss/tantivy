@@ -131,9 +131,9 @@ impl InvertedIndexReader {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
         let position_stream = {
             if option.has_positions() {
-                let position_reader = OwnedRead::new(self.positions_source.clone());
-                let skip_reader = OwnedRead::new(self.positions_idx_source.clone());
-                let mut position_reader = PositionReader::new(position_reader, skip_reader);
+                let position_reader = self.positions_source.clone();
+                let skip_reader = self.positions_idx_source.clone();
+                let mut position_reader = PositionReader::new(position_reader, skip_reader, 0u64);
                 position_reader.skip(term_info.positions_idx as usize);
                 Some(position_reader)
             } else {
