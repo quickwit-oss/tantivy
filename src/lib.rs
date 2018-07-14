@@ -200,6 +200,7 @@ pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
 pub mod postings;
+pub(crate) mod positions;
 pub mod query;
 pub mod schema;
 pub mod store;

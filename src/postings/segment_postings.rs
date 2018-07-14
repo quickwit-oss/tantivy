@@ -13,8 +13,9 @@ use common::{VInt, BinarySerializable};
 use postings::USE_SKIP_INFO_LIMIT;
 use postings::SkipReader;
 use schema::IndexRecordOption;
-use compression::stream::PositionReader;
+use positions::PositionReader;
 
+const EMPTY_ARR: [u8; 0] = [];
 
 struct PositionComputer {
     // store the amount of position int
@@ -317,8 +318,6 @@ pub struct BlockSegmentPostings {
     remaining_data: OwnedRead,
     skip_reader: SkipReader,
 }
-
-const EMPTY_ARR: [u8; 0] = [];
 
 fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (OwnedRead, OwnedRead) {
     if doc_freq >= USE_SKIP_INFO_LIMIT {

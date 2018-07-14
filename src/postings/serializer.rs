@@ -13,7 +13,7 @@ use DocId;
 use Result;
 use postings::USE_SKIP_INFO_LIMIT;
 use postings::skip::SkipSerializer;
-use compression::stream::PositionSerializer;
+use positions::PositionSerializer;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the

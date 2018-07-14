@@ -1,11 +1,8 @@
 #![allow(dead_code)]
 
-pub mod stream;
 
 pub const COMPRESSION_BLOCK_SIZE: usize = 128;
-const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4 + 1;
-
-pub use self::stream::CompressedIntStream;
+const COMPRESSED_BLOCK_MAX_SIZE: usize = COMPRESSION_BLOCK_SIZE * 4;
 
 use bitpacking::{BitPacker, BitPacker4x};
 

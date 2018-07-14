@@ -7,7 +7,7 @@ use schema::IndexRecordOption;
 use schema::Term;
 use termdict::TermDictionary;
 use owned_read::OwnedRead;
-use compression::stream::PositionReader;
+use positions::PositionReader;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
