@@ -6,10 +6,7 @@ use directory::ReadOnlySource;
 use positions::COMPRESSION_BLOCK_SIZE;
 use positions::LONG_SKIP_IN_BLOCKS;
 use positions::LONG_SKIP_INTERVAL;
-
-lazy_static! {
-    static ref BIT_PACKER: BitPacker4x = BitPacker4x::new();
-}
+use super::BIT_PACKER;
 
 pub struct PositionReader {
     skip_read: OwnedRead,

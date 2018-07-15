@@ -3,10 +3,15 @@ mod serializer;
 
 pub use self::reader::PositionReader;
 pub use self::serializer::PositionSerializer;
+use bitpacking::{BitPacker4x, BitPacker};
 
-const COMPRESSION_BLOCK_SIZE: usize = 128;
+const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const LONG_SKIP_IN_BLOCKS: usize = 1_024;
 const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) as u64;
+
+lazy_static! {
+    static ref BIT_PACKER: BitPacker4x = BitPacker4x::new();
+}
 
 #[cfg(test)]
 pub mod tests {
@@ -47,14 +52,14 @@ pub mod tests {
 
     #[test]
     fn test_position_skip() {
-        let v: Vec<u32> = (0..1000).collect();
+        let v: Vec<u32> = (0..1_000).collect();
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
 
         let mut position_reader = PositionReader::new(stream, skip, 0u64);
         position_reader.skip(10);
-        for &n in &[127] { //, 10, 127, 128, 130, 312] {
+        for &n in &[127] { //, 10, 127, COMPRESSION_BLOCK_SIZE128, 130, 312] {
             let mut v = vec![0u32; n];
             position_reader.read(&mut v[..n]);
             for i in 0..n {
@@ -64,8 +69,8 @@ pub mod tests {
     }
 
     #[test]
-    fn test_position_read_skip() {
-        let v: Vec<u32> = (0..1000).collect();
+    fn test_position_read_after_skip() {
+        let v: Vec<u32> = (0..1_000).collect();
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);

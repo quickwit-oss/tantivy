@@ -1,11 +1,8 @@
 use std::io;
-use bitpacking::{BitPacker4x, BitPacker};
+use bitpacking::BitPacker;
 use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
 use common::BinarySerializable;
-
-lazy_static! {
-    static ref BIT_PACKER: BitPacker4x = BitPacker4x::new();
-}
+use super::BIT_PACKER;
 
 pub struct PositionSerializer<W: io::Write> {
     write_stream: W,
