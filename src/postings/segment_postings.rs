@@ -1,8 +1,8 @@
-use compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
+use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use DocId;
 use common::BitSet;
 use common::HasLen;
-use compression::compressed_block_size;
+use postings::compression::compressed_block_size;
 use docset::{DocSet, SkipResult};
 use fst::Streamer;
 use postings::serializer::PostingsSerializer;
@@ -454,7 +454,7 @@ impl BlockSegmentPostings {
             if self.skip_reader.doc() >= target_doc {
                 let num_bits = self.skip_reader.doc_num_bits();
                 let num_consumed_bytes = self.doc_decoder
-                    .uncompress_block_sorted_with_num_bits(
+                    .uncompress_block_sorted(
                         self.remaining_data.as_ref(),
                         self.doc_offset,
                         num_bits);
@@ -468,8 +468,8 @@ impl BlockSegmentPostings {
                     }
                     FreqReadingOption::ReadFreq => {
                         let num_consumed_bytes = self.freq_decoder
-                            .uncompress_block_unsorted_with_num_bits(self.remaining_data.as_ref(),
-                                                                     tf_num_bits);
+                            .uncompress_block_unsorted(self.remaining_data.as_ref(),
+                                                       tf_num_bits);
                         self.remaining_data.advance(num_consumed_bytes);
                     }
                 }
@@ -518,7 +518,7 @@ impl BlockSegmentPostings {
         if self.skip_reader.advance() {
             let num_bits = self.skip_reader.doc_num_bits();
             let num_consumed_bytes = self.doc_decoder
-                .uncompress_block_sorted_with_num_bits(
+                .uncompress_block_sorted(
                     self.remaining_data.as_ref(),
                         self.doc_offset,
                         num_bits);
@@ -532,8 +532,8 @@ impl BlockSegmentPostings {
                 }
                 FreqReadingOption::ReadFreq => {
                     let num_consumed_bytes = self.freq_decoder
-                        .uncompress_block_unsorted_with_num_bits(self.remaining_data.as_ref(),
-                                                                 tf_num_bits);
+                        .uncompress_block_unsorted(self.remaining_data.as_ref(),
+                                                   tf_num_bits);
                     self.remaining_data.advance(num_consumed_bytes);
                 }
             }

@@ -1,7 +1,7 @@
 use DocId;
 use common::BinarySerializable;
 use owned_read::OwnedRead;
-use compression::COMPRESSION_BLOCK_SIZE;
+use postings::compression::COMPRESSION_BLOCK_SIZE;
 use schema::IndexRecordOption;
 
 pub struct SkipSerializer {

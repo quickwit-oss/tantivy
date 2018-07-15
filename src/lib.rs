@@ -187,7 +187,6 @@ extern crate owned_read;
 pub type Result<T> = std::result::Result<T, Error>;
 
 mod common;
-mod compression;
 mod core;
 mod indexer;
 

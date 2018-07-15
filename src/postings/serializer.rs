@@ -1,8 +1,7 @@
 use super::TermInfo;
 use common::{VInt, BinarySerializable};
 use common::{CompositeWrite, CountingWriter};
-use compression::VIntEncoder;
-use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
+use postings::compression::{VIntEncoder, BlockEncoder, COMPRESSION_BLOCK_SIZE};
 use core::Segment;
 use directory::WritePtr;
 use schema::Schema;

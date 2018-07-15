@@ -11,6 +11,7 @@ mod postings_writer;
 mod recorder;
 mod segment_postings;
 mod serializer;
+pub(crate) mod compression;
 mod stacker;
 mod term_info;
 mod skip;
@@ -21,7 +22,7 @@ pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 pub use self::postings::Postings;
 pub use self::term_info::TermInfo;
 pub(crate) use self::skip::SkipReader;
-use compression::COMPRESSION_BLOCK_SIZE;
+use self::compression::{COMPRESSION_BLOCK_SIZE};
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 

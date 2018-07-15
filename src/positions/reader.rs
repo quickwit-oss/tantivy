@@ -1,7 +1,7 @@
 use bitpacking::{BitPacker4x, BitPacker};
 use owned_read::OwnedRead;
 use common::{BinarySerializable, FixedSize};
-use compression::compressed_block_size;
+use postings::compression::compressed_block_size;
 use directory::ReadOnlySource;
 use positions::COMPRESSION_BLOCK_SIZE;
 use positions::LONG_SKIP_IN_BLOCKS;
