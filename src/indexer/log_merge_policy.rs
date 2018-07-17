@@ -80,10 +80,6 @@ impl MergePolicy for LogMergePolicy {
             .map(|ind_vec| MergeCandidate(ind_vec.iter().map(|&ind| segments[ind].id()).collect()))
             .collect()
     }
-
-    fn box_clone(&self) -> Box<MergePolicy> {
-        Box::new(self.clone())
-    }
 }
 
 impl Default for LogMergePolicy {

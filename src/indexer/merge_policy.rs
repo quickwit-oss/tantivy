@@ -11,18 +11,31 @@ pub struct MergeCandidate(pub Vec<SegmentId>);
 ///
 /// Every time a the list of segments changes, the segment updater
 /// asks the merge policy if some segments should be merged.
-pub trait MergePolicy: marker::Send + marker::Sync + Debug {
+pub trait MergePolicy: MergePolicyClone + marker::Send + marker::Sync + Debug {
     /// Given the list of segment metas, returns the list of merge candidates.
     ///
     /// This call happens on the segment updater thread, and will block
     /// other segment updates, so all implementations should happen rapidly.
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate>;
-    /// Returns a boxed clone of the MergePolicy.
-    fn box_clone(&self) -> Box<MergePolicy>;
+}
+
+/// MergePolicyClone
+pub trait MergePolicyClone {
+  /// Returns a boxed clone of the MergePolicy.
+  fn box_clone(&self) -> Box<MergePolicy>;
+}
+
+impl<T> MergePolicyClone for T
+where
+  T: 'static + MergePolicy + Clone,
+{
+  fn box_clone(&self) -> Box<MergePolicy> {
+    Box::new(self.clone())
+  }
 }
 
 /// Never merge segments.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NoMergePolicy;
 
 impl Default for NoMergePolicy {
@@ -34,10 +47,6 @@ impl Default for NoMergePolicy {
 impl MergePolicy for NoMergePolicy {
     fn compute_merge_candidates(&self, _segments: &[SegmentMeta]) -> Vec<MergeCandidate> {
         Vec::new()
-    }
-
-    fn box_clone(&self) -> Box<MergePolicy> {
-        Box::new(NoMergePolicy)
     }
 }
 
@@ -52,7 +61,7 @@ pub mod tests {
     ///
     /// Everytime there is more than one segment,
     /// it will suggest to merge them.
-    #[derive(Debug)]
+    #[derive(Debug, Clone)]
     pub struct MergeWheneverPossible;
 
     impl MergePolicy for MergeWheneverPossible {
@@ -66,10 +75,6 @@ pub mod tests {
             } else {
                 vec![]
             }
-        }
-
-        fn box_clone(&self) -> Box<MergePolicy> {
-            Box::new(MergeWheneverPossible)
         }
     }
 }

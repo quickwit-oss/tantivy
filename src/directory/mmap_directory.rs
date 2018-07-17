@@ -352,10 +352,6 @@ impl Directory for MmapDirectory {
         meta_file.write(|f| f.write_all(data))?;
         Ok(())
     }
-
-    fn box_clone(&self) -> Box<Directory> {
-        Box::new(self.clone())
-    }
 }
 
 #[cfg(test)]

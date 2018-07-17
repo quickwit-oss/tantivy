@@ -16,7 +16,7 @@ use core::IndexMeta;
 use core::SegmentMeta;
 use core::SegmentReader;
 use core::META_FILEPATH;
-use directory::ManagedDirectory;
+use directory::{ManagedDirectory, DirectoryClone};
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};

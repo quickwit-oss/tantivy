@@ -194,10 +194,6 @@ impl Directory for ManagedDirectory {
     fn exists(&self, path: &Path) -> bool {
         self.directory.exists(path)
     }
-
-    fn box_clone(&self) -> Box<Directory> {
-        Box::new(self.clone())
-    }
 }
 
 impl Clone for ManagedDirectory {
