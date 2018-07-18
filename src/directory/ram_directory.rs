@@ -203,8 +203,4 @@ impl Directory for RAMDirectory {
         vec_writer.flush()?;
         Ok(())
     }
-
-    fn box_clone(&self) -> Box<Directory> {
-        Box::new(self.clone())
-    }
 }

@@ -6,7 +6,7 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::SerializableSegment;
 use core::META_FILEPATH;
-use directory::Directory;
+use directory::{Directory, DirectoryClone};
 use error::{Error, ErrorKind, Result, ResultExt};
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;

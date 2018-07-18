@@ -17,7 +17,7 @@ use std::result;
 /// - The [`RAMDirectory`](struct.RAMDirectory.html), which
 /// should be used mostly for tests.
 ///
-pub trait Directory: fmt::Debug + Send + Sync + 'static {
+pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// Opens a virtual file for read.
     ///
     /// Once a virtual file is open, its data may not
@@ -73,7 +73,19 @@ pub trait Directory: fmt::Debug + Send + Sync + 'static {
     ///
     /// The file may or may not previously exist.
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
+}
 
-    /// Clones the directory and boxes the clone
-    fn box_clone(&self) -> Box<Directory>;
+/// DirectoryClone
+pub trait DirectoryClone {
+  /// Clones the directory and boxes the clone
+  fn box_clone(&self) -> Box<Directory>;
+}
+
+impl<T> DirectoryClone for T
+where
+  T: 'static + Directory + Clone,
+{
+  fn box_clone(&self) -> Box<Directory> {
+    Box::new(self.clone())
+  }
 }
