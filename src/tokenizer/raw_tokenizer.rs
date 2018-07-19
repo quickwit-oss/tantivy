@@ -18,6 +18,7 @@ impl<'a> Tokenizer<'a> for RawTokenizer {
             offset_to: text.len(),
             position: 0,
             text: text.to_string(),
+            position_length: 1
         };
         RawTokenStream {
             token,

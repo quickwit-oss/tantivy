@@ -33,6 +33,7 @@ impl<'a> Tokenizer<'a> for JapaneseTokenizer {
                     offset_to,
                     position: pos,
                     text: term,
+                    position_length: 1
                 });
             }
         }
