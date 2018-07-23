@@ -24,7 +24,7 @@ use Result;
 #[derive(Clone, Debug)]
 pub struct PhraseQuery {
     field: Field,
-    phrase_terms: Vec<Term>,
+    phrase_terms: Vec<(usize, Term)>,
 }
 
 impl PhraseQuery {
@@ -42,9 +42,10 @@ impl PhraseQuery {
             terms[1..].iter().all(|term| term.field() == field),
             "All terms from a phrase query must belong to the same field"
         );
+        let terms_with_offset = terms.into_iter().enumerate().collect();
         PhraseQuery {
             field,
-            phrase_terms: terms,
+            phrase_terms: terms_with_offset,
         }
     }
 
@@ -53,10 +54,11 @@ impl PhraseQuery {
         self.field
     }
 
-    /// The `Term`s in the phrase making up this `PhraseQuery`.
-    pub fn phrase_terms(&self) -> &[Term] {
-        &self.phrase_terms[..]
-    }
+    /// `Term`s in the phrase without the associated offsets.
+    pub fn phrase_terms_without_offsets(&self) -> Vec<Term> {
+        self.phrase_terms.iter().map(|(_, term)| term.clone()).collect::<Vec<Term>>()
+   }
+
 }
 
 impl Query for PhraseQuery {
@@ -78,13 +80,13 @@ impl Query for PhraseQuery {
                 field_name
             )))
         }
-        let terms = self.phrase_terms.clone();
         if scoring_enabled {
+            let terms = self.phrase_terms_without_offsets();
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(Box::new(PhraseWeight::new(terms, bm25_weight, true)))
+            Ok(Box::new(PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)))
         } else {
             Ok(Box::new(PhraseWeight::new(
-                terms,
+                self.phrase_terms.clone(),
                 BM25Weight::null(),
                 false,
             )))
