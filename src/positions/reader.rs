@@ -13,7 +13,9 @@ pub struct PositionReader {
     position_read: OwnedRead,
     inner_offset: usize,
     buffer: Box<[u32; 128]>,
-    ahead: usize,
+    ahead: Option<usize>, // if None, no block is loaded.
+                          // if Some(num_blocks), the block currently loaded is num_blocks ahead
+                          // of the block of the next int to read.
 }
 
 fn read_impl(
@@ -74,7 +76,7 @@ impl PositionReader {
             position_read,
             inner_offset: 0,
             buffer: Box::new([0u32; 128]),
-            ahead: usize::max_value(),
+            ahead: None,
         };
         position_reader.skip(small_skip);
         position_reader
@@ -86,18 +88,18 @@ impl PositionReader {
         let skip_data = self.skip_read.as_ref();
         let position_data = self.position_read.as_ref();
         let num_bits = self.skip_read.get(0);
-        if self.ahead != 0 {
+        if self.ahead != Some(0) {
             // the block currently available is not the block
             // for the current position
             BIT_PACKER.decompress(position_data, self.buffer.as_mut(), num_bits);
         }
         let block_len = compressed_block_size(num_bits);
-        self.ahead = read_impl(
+        self.ahead = Some(read_impl(
             &position_data[block_len..],
             self.buffer.as_mut(),
             self.inner_offset,
             &skip_data[1..],
-            output);
+            output));
     }
 
     /// Skip the next `skip_len` integer.
@@ -111,12 +113,14 @@ impl PositionReader {
         let num_blocks_to_advance = (skip_len + self.inner_offset) / COMPRESSION_BLOCK_SIZE;
         self.inner_offset = (self.inner_offset + skip_len) % COMPRESSION_BLOCK_SIZE;
 
-        // TODO use an Option?
-        if self.ahead < num_blocks_to_advance {
-            self.ahead = usize::max_value();
-        } else {
-            self.ahead -= num_blocks_to_advance;
-        }
+        self.ahead = self.ahead
+            .and_then(|num_blocks| {
+                if num_blocks >= num_blocks_to_advance {
+                    Some(num_blocks_to_advance - num_blocks_to_advance)
+                } else {
+                    None
+                }
+            });
 
         let skip_len = self.skip_read
             .as_ref()[..num_blocks_to_advance]
