@@ -102,7 +102,7 @@ mod tests {
         let mut vals = Vec::new();
         {
             facet_reader.facet_ords(0, &mut vals);
-            assert_eq!(&vals[..], &[3, 2]);
+            assert_eq!(&vals[..], &[2, 3]);
         }
         {
             facet_reader.facet_ords(1, &mut vals);
