@@ -90,10 +90,10 @@ impl MultiValueIntFastFieldWriter {
 
     /// Serializes fast field values by pushing them to the `FastFieldSerializer`.
     ///
-    /// HashMap makes it possible to remap them before serializing.
-    /// Specifically, string terms are first stored in the writer as their
-    /// position in the `IndexWriter`'s `HashMap`. This value is called
-    /// an `UnorderedTermId`.
+    /// If a mapping is given, the values are remapped *and sorted* before serialization.
+    /// This is used when serializing `facets`. Specifically their terms are
+    /// first stored in the writer as their position in the `IndexWriter`'s `HashMap`.
+    /// This value is called an `UnorderedTermId`.
     ///
     /// During the serialization of the segment, terms gets sorted and
     /// `tantivy` builds a mapping to convert this `UnorderedTermId` into
@@ -125,10 +125,30 @@ impl MultiValueIntFastFieldWriter {
                         mapping.len() as u64,
                         1,
                     )?;
-                    for val in &self.vals {
-                        let remapped_val = *mapping.get(val).expect("Missing term ordinal");
-                        value_serializer.add_val(remapped_val)?;
+
+                    let last_interval = (
+                        self.doc_index.last().cloned().unwrap(),
+                        self.vals.len() as u64,
+                    );
+
+                    let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
+                    for (start, stop) in self.doc_index
+                        .windows(2)
+                        .map(|interval| (interval[0], interval[1]))
+                        .chain(Some(last_interval).into_iter())
+                        .map(|(start, stop)| (start as usize, stop as usize))
+                    {
+                        doc_vals.clear();
+                        let remapped_vals = self.vals[start..stop]
+                            .iter()
+                            .map(|val| *mapping.get(val).expect("Missing term ordinal"));
+                        doc_vals.extend(remapped_vals);
+                        doc_vals.sort();
+                        for &val in &doc_vals {
+                            value_serializer.add_val(val)?;
+                        }
                     }
+
                 }
                 None => {
                     let val_min_max = self.vals.iter().cloned().minmax();

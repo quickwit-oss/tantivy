@@ -564,6 +564,31 @@ mod tests {
     }
 
     #[test]
+    fn test_doc_unsorted_multifacet() {
+        let mut schema_builder = SchemaBuilder::new();
+        let facet_field = schema_builder.add_facet_field("facets");
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/subjects/A/a"),
+            facet_field => Facet::from_text(&"/subjects/B/a"),
+            facet_field => Facet::from_text(&"/subjects/A/b"),
+            facet_field => Facet::from_text(&"/subjects/B/b"),
+        ));
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 1);
+        let mut facet_collector = FacetCollector::for_field(facet_field);
+        facet_collector.add_facet("/subjects");
+        searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts = facet_collector.harvest();
+        let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
+        assert_eq!(facets[0].1, 1);
+    }
+
+    #[test]
     fn test_non_used_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field(0));
         facet_collector.add_facet(Facet::from("/country"));
