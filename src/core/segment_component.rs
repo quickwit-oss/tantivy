@@ -11,7 +11,7 @@ pub enum SegmentComponent {
     /// Positions of terms in each document.
     POSITIONS,
     /// Index to seek within the position file
-    POSITIONSIDX,
+    POSITIONS_SKIP,
     /// Column-oriented random-access storage of fields.
     FASTFIELDS,
     /// Stores the sum  of the length (in terms) of each field for each document.
@@ -34,7 +34,7 @@ impl SegmentComponent {
         static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,
-            SegmentComponent::POSITIONSIDX,
+            SegmentComponent::POSITIONS_SKIP,
             SegmentComponent::FASTFIELDS,
             SegmentComponent::FIELDNORMS,
             SegmentComponent::TERMS,

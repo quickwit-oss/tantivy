@@ -237,7 +237,7 @@ impl SegmentReader {
         };
 
         let positions_idx_composite = {
-            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSIDX) {
+            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONS_SKIP) {
                 CompositeFile::open(&source)?
             } else {
                 CompositeFile::empty()

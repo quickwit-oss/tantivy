@@ -12,13 +12,13 @@
 /// If the last block is incomplete, it is simply padded with zeros.
 ///
 ///
-/// The `SegmentComponent::POSITIONSIDX` file contains the number of bits used in each block in `u8`
+/// The `SegmentComponent::POSITIONS_SKIP` file contains the number of bits used in each block in `u8`
 /// stream.
 ///
 /// This makes it possible to rapidly skip over `n positions`.
 ///
-/// For every block #n where n = k * `LONG_SKIP_INTERVAL` blocks (k>=1), we also store the sum of
-/// number of bits used for all of the previous block (blocks `[0, n[`).
+/// For every block #n where n = k * `LONG_SKIP_INTERVAL` blocks (k>=1), we also store
+/// in this file the sum of number of bits used for all of the previous block (blocks `[0, n[`).
 /// That is useful to start reading the positions for a given term: The TermInfo contains
 /// an address in the positions stream, expressed in "number of positions".
 /// The long skip structure makes it possible to skip rapidly to the a checkpoint close to this
