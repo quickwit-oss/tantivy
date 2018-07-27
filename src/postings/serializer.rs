@@ -73,12 +73,12 @@ impl InvertedIndexSerializer {
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
-        use SegmentComponent::{POSITIONS, POSITIONS_SKIP, POSTINGS, TERMS};
+        use SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
         InvertedIndexSerializer::new(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONS)?),
-            CompositeWrite::wrap(segment.open_write(POSITIONS_SKIP)?),
+            CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
             segment.schema(),
         )
     }

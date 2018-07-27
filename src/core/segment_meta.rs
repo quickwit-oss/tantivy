@@ -112,7 +112,7 @@ impl SegmentMeta {
         path.push_str(&*match component {
             SegmentComponent::POSTINGS => ".idx".to_string(),
             SegmentComponent::POSITIONS => ".pos".to_string(),
-            SegmentComponent::POSITIONS_SKIP => ".posidx".to_string(),
+            SegmentComponent::POSITIONSSKIP => ".posidx".to_string(),
             SegmentComponent::TERMS => ".term".to_string(),
             SegmentComponent::STORE => ".store".to_string(),
             SegmentComponent::FASTFIELDS => ".fast".to_string(),

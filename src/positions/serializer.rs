@@ -31,19 +31,21 @@ impl<W: io::Write> PositionSerializer<W> {
         self.num_ints
     }
 
-    pub fn write(&mut self, val: u32) -> io::Result<()> {
-        self.block.push(val);
-        self.num_ints += 1;
-        if self.block.len() == COMPRESSION_BLOCK_SIZE {
-            self.flush_block()?;
-        }
-        Ok(())
+
+    fn remaining_block_len(&self) -> usize {
+        COMPRESSION_BLOCK_SIZE - self.block.len()
     }
 
-    pub fn write_all(&mut self, vals: &[u32]) -> io::Result<()> {
-        // TODO optimize
-        for &val in vals {
-            self.write(val)?;
+    pub fn write_all(&mut self, mut vals: &[u32]) -> io::Result<()> {
+        while !vals.is_empty() {
+            let remaining_block_len = self.remaining_block_len();
+            let num_to_write = remaining_block_len.min(vals.len());
+            self.block.extend(&vals[..num_to_write]);
+            self.num_ints += num_to_write as u64;
+            vals = &vals[num_to_write..];
+            if self.remaining_block_len() == 0 {
+                self.flush_block()?;
+            }
         }
         Ok(())
     }

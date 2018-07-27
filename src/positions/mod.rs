@@ -12,7 +12,7 @@
 /// If the last block is incomplete, it is simply padded with zeros.
 ///
 ///
-/// The `SegmentComponent::POSITIONS_SKIP` file contains the number of bits used in each block in `u8`
+/// The `SegmentComponent::POSITIONSSKIP` file contains the number of bits used in each block in `u8`
 /// stream.
 ///
 /// This makes it possible to rapidly skip over `n positions`.
@@ -54,7 +54,7 @@ pub mod tests {
             let mut serializer = PositionSerializer::new(&mut stream_buffer, &mut skip_buffer);
             for (i, &val) in vals.iter().enumerate() {
                 assert_eq!(serializer.positions_idx(), i as u64);
-                serializer.write(val).unwrap();
+                serializer.write_all(&[val]).unwrap();
             }
             serializer.close().unwrap();
         }
