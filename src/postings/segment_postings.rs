@@ -14,6 +14,7 @@ use postings::USE_SKIP_INFO_LIMIT;
 use postings::SkipReader;
 use schema::IndexRecordOption;
 use positions::PositionReader;
+use std::cmp::Ordering;
 
 const EMPTY_ARR: [u8; 0] = [];
 
@@ -122,7 +123,8 @@ impl SegmentPostings {
     }
 }
 
-fn exponential_search(target: u32, mut start: usize, arr: &[u32]) -> (usize, usize) {
+fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
+    let mut start = 0;
     let end = arr.len();
     debug_assert!(target >= arr[start]);
     debug_assert!(target <= arr[end - 1]);
@@ -140,83 +142,85 @@ fn exponential_search(target: u32, mut start: usize, arr: &[u32]) -> (usize, usi
     }
 }
 
+fn search_within_block(target: u32, block_docs: &[u32]) -> usize {
+    let (start, end) = exponential_search(target, block_docs);
+    start.wrapping_add(block_docs[start..end].binary_search(&target).unwrap_or_else(|e| e))
+}
+
 impl DocSet for SegmentPostings {
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
         }
-        if self.doc() == target {
-            return SkipResult::Reached;
+        match self.doc().cmp(&target) {
+            Ordering::Equal => {
+                return SkipResult::Reached;
+            }
+            Ordering::Greater => {
+                return SkipResult::OverStep;
+            }
+            _ => {
+                // ...
+            }
         }
 
-        // in the following, thanks to the call to advance above,
+        // In the following, thanks to the call to advance above,
         // we know that the position is not loaded and we need
         // to skip every doc_freq we cross.
 
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
+        let need_positions = self.position_computer.is_some();
+        let mut sum_freqs_skipped: u32 = 0;
+        if !self.block_cursor
+               .docs()
+               .last()
+               .map(|doc| *doc >= target)
+               .unwrap_or(false)  // there should always be at least a document in the block
+                                       // since advance returned.
         {
-            if !self.block_cursor
-                   .docs()
-                   .last()
-                   .map(|doc| *doc >= target)
-                   .unwrap_or(false) {
-
-                // we are not in the right block.
-                //
-                // First compute all of the freqs skipped from the current block.
-                let mut sum_freq: u32 = {
-                    let freqs = self
-                        .block_cursor
-                        .freqs();
-                    if freqs.is_empty() {
-                        0u32
-                    } else {
-                        freqs[self.cur..].iter().sum()
-                    }
-                };
-
-                self.cur = 0;
+            // we are not in the right block.
+            //
+            // First compute all of the freqs skipped from the current block.
+            if need_positions {
+                sum_freqs_skipped = self.block_cursor
+                    .freqs()[self.cur..]
+                    .iter()
+                    .sum();
                 match self.block_cursor.skip_to(target) {
                     BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
-                        sum_freq += block_skip_freqs;
+                        sum_freqs_skipped += block_skip_freqs;
                     }
                     BlockSegmentPostingsSkipResult::Terminated => {
                         return SkipResult::End;
                     }
                 }
-
-                if let Some(position_computer) = self.position_computer.as_mut() {
-                    position_computer.add_skip(sum_freq as usize);
+            } else {
+                // no positions needed. no need to sum freqs.
+                if self.block_cursor.skip_to(target) == BlockSegmentPostingsSkipResult::Terminated {
+                    return SkipResult::End;
                 }
             }
+            self.cur = 0;
         }
 
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
-        if target < block_docs[self.cur] {
-            return SkipResult::OverStep;
-        }
-        let (mut start, end) = exponential_search(target, self.cur, block_docs);
 
-        start += block_docs[start..end]
-            .binary_search(&target)
-            .unwrap_or_else(|e| e);
-
-        // `doc` is now the first element >= `target`
-        let doc = block_docs[start];
-        debug_assert!(doc >= target);
-
-        if self.position_computer.is_some() {
-            let freqs_skipped = &self.block_cursor.freqs()[self.cur..start];
-            let sum_freqs: u32 = freqs_skipped.iter().sum();
+        debug_assert!(target >= self.doc());
+        let new_cur = self.cur.wrapping_add(search_within_block(target, &block_docs[self.cur..]));
+        if need_positions {
+            sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur].iter().sum::<u32>();
             self.position_computer
                 .as_mut()
                 .unwrap()
-                .add_skip(sum_freqs as usize);
+                .add_skip(sum_freqs_skipped as usize);
         }
+        self.cur = new_cur;
 
-        self.cur = start;
+        // `doc` is now the first element >= `target`
+        let doc = block_docs[new_cur];
+        debug_assert!(doc >= target);
         if doc == target {
             return SkipResult::Reached;
         } else {
@@ -446,12 +450,14 @@ impl BlockSegmentPostings {
     ///
     pub fn skip_to(&mut self,
                    target_doc: DocId) -> BlockSegmentPostingsSkipResult {
-//        if self.docs().last().map(|val| *val >= target_doc).unwrap_or(false) {
-//            return true;
-//        }
+
         let mut skip_freqs = 0u32;
         while self.skip_reader.advance() {
             if self.skip_reader.doc() >= target_doc {
+                // the last document of the current block is larger
+                // than the target.
+                //
+                // We found our block!
                 let num_bits = self.skip_reader.doc_num_bits();
                 let num_consumed_bytes = self.doc_decoder
                     .uncompress_block_sorted(
@@ -482,6 +488,8 @@ impl BlockSegmentPostings {
                 self.remaining_data.advance(advance_len);
             }
         }
+
+        // we are now on the last, incomplete, variable encoded block.
         if self.num_vint_docs > 0 {
             let num_compressed_bytes = self.doc_decoder.uncompress_vint_sorted(
                 self.remaining_data.as_ref(),
