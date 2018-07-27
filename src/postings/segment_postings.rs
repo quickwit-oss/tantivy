@@ -142,7 +142,14 @@ fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
     }
 }
 
-fn search_within_block(target: u32, block_docs: &[u32]) -> usize {
+/// Search the first index containing an element greater or equal to the target.
+///
+/// # Assumption
+///
+/// The array is assumed non empty.
+/// The target is assumed greater or equal to the first element.
+/// The target is assumed smaller or equal to the last element.
+fn search_within_block(block_docs: &[u32], target: u32) -> usize {
     let (start, end) = exponential_search(target, block_docs);
     start.wrapping_add(block_docs[start..end].binary_search(&target).unwrap_or_else(|e| e))
 }
@@ -208,7 +215,7 @@ impl DocSet for SegmentPostings {
         let block_docs = self.block_cursor.docs();
 
         debug_assert!(target >= self.doc());
-        let new_cur = self.cur.wrapping_add(search_within_block(target, &block_docs[self.cur..]));
+        let new_cur = self.cur.wrapping_add(search_within_block(&block_docs[self.cur..], target));
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur].iter().sum::<u32>();
             self.position_computer
@@ -615,6 +622,7 @@ mod tests {
     use schema::INT_INDEXED;
     use super::BlockSegmentPostingsSkipResult;
     use DocId;
+    use super::search_within_block;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -629,6 +637,43 @@ mod tests {
         let mut postings = BlockSegmentPostings::empty();
         assert!(!postings.advance());
         assert_eq!(postings.doc_freq(), 0);
+    }
+
+
+    fn search_within_block_trivial_but_slow(block: &[u32], target: u32) -> usize {
+        block
+            .iter()
+            .cloned()
+            .enumerate()
+            .filter(|&(_, ref val)| *val >= target)
+            .next()
+            .unwrap().0
+    }
+
+    fn util_test_search_within_block(block: &[u32], target: u32) {
+        assert_eq!(search_within_block(block, target), search_within_block_trivial_but_slow(block, target));
+    }
+
+    fn util_test_search_within_block_all(block: &[u32]) {
+        use std::collections::HashSet;
+        let mut targets = HashSet::new();
+        for (i, val) in block.iter().cloned().enumerate() {
+            if i > 0 {
+                targets.insert(val - 1);
+            }
+            targets.insert(val);
+        }
+        for target in targets {
+            util_test_search_within_block(block, target);
+        }
+    }
+
+    #[test]
+    fn test_search_within_block() {
+        for len in 1u32..128u32 {
+            let v: Vec<u32> = (0..len).map(|i| i*2).collect();
+            util_test_search_within_block_all(&v[..]);
+        }
     }
 
     #[test]

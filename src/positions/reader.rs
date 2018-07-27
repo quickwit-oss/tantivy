@@ -109,12 +109,12 @@ impl PositionReader {
     ///
     /// May panic if the end of the stream is reached.
     pub fn skip(&mut self, skip_len: usize) {
-        // let residual_skip_len = skip_len - self.inner_offset;
         let num_blocks_to_advance = (skip_len + self.inner_offset) / COMPRESSION_BLOCK_SIZE;
         self.inner_offset = (self.inner_offset + skip_len) % COMPRESSION_BLOCK_SIZE;
 
         self.ahead = self.ahead
             .and_then(|num_blocks| {
+
                 if num_blocks >= num_blocks_to_advance {
                     Some(num_blocks_to_advance - num_blocks_to_advance)
                 } else {
