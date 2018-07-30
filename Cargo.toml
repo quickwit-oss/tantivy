@@ -22,7 +22,7 @@ fst-regex = { version="0.2" }
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
 atomicwrites = {version="0.2.2", optional=true}
-tempfile = "2.1"
+tempfile = "3.0"
 log = "0.3.6"
 combine = "2.2"
 tempdir = "0.3"
