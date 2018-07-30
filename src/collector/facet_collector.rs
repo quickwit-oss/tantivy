@@ -470,16 +470,24 @@ impl FacetCounts {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
+        // push the first k elements to first bring the heap
+        // to capacity
         for (facet, count) in (&mut it).take(k) {
             heap.push(Hit { count, facet });
         }
 
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count)
+            .unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
+                                  // is never used in that case.
+
         for (facet, count) in it {
-            let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN);
             if count > lowest_count {
-                // lowest_count = count;
                 if let Some(mut head) = heap.peek_mut() {
                     *head = Hit { count, facet };
+                }
+                // the heap gets reconstructed at this point
+                if let Some(head) = heap.peek() {
+                    lowest_count = head.count;
                 }
             }
         }
