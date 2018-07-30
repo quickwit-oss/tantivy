@@ -133,8 +133,7 @@ impl InvertedIndexReader {
             if option.has_positions() {
                 let position_reader = self.positions_source.clone();
                 let skip_reader = self.positions_idx_source.clone();
-                let mut position_reader = PositionReader::new(position_reader, skip_reader, 0u64);
-                position_reader.skip(term_info.positions_idx as usize);
+                let position_reader = PositionReader::new(position_reader, skip_reader, term_info.positions_idx);
                 Some(position_reader)
             } else {
                 None
