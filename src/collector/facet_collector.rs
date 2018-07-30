@@ -470,16 +470,24 @@ impl FacetCounts {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
+        // push the first k elements to first bring the heap
+        // to capacity
         for (facet, count) in (&mut it).take(k) {
             heap.push(Hit { count, facet });
         }
 
-        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN);
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count)
+            .unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
+                                  // is never used in that case.
+
         for (facet, count) in it {
             if count > lowest_count {
-                lowest_count = count;
                 if let Some(mut head) = heap.peek_mut() {
                     *head = Hit { count, facet };
+                }
+                // the heap gets reconstructed at this point
+                if let Some(head) = heap.peek() {
+                    lowest_count = head.count;
                 }
             }
         }
@@ -605,10 +613,11 @@ mod tests {
         let mut docs: Vec<Document> = vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
             .into_iter()
             .flat_map(|(c, count)| {
-                let facet = Facet::from(&format!("/facet_{}", c));
+                let facet = Facet::from(&format!("/facet/{}", c));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
             })
+            .map(|mut doc| { doc.add_facet(facet_field, &format!("/facet/{}", thread_rng().next_u32())); doc})
             .collect();
         thread_rng().shuffle(&mut docs[..]);
 
@@ -622,18 +631,18 @@ mod tests {
         let searcher = index.searcher();
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
-        facet_collector.add_facet("/");
+        facet_collector.add_facet("/facet");
         searcher.search(&AllQuery, &mut facet_collector).unwrap();
 
         let counts: FacetCounts = facet_collector.harvest();
         {
-            let facets: Vec<(&Facet, u64)> = counts.top_k("/", 3);
+            let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 3);
             assert_eq!(
                 facets,
                 vec![
-                    (&Facet::from("/facet_b"), 100),
-                    (&Facet::from("/facet_e"), 21),
-                    (&Facet::from("/facet_d"), 12),
+                    (&Facet::from("/facet/b"), 100),
+                    (&Facet::from("/facet/e"), 21),
+                    (&Facet::from("/facet/d"), 12),
                 ]
             );
         }
