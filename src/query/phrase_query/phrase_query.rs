@@ -64,7 +64,7 @@ impl PhraseQuery {
     }
 
     /// `Term`s in the phrase without the associated offsets.
-    pub fn phrase_terms_without_offsets(&self) -> Vec<Term> {
+    pub fn phrase_terms(&self) -> Vec<Term> {
         self.phrase_terms.iter().map(|(_, term)| term.clone()).collect::<Vec<Term>>()
    }
 
@@ -90,7 +90,7 @@ impl Query for PhraseQuery {
             )))
         }
         if scoring_enabled {
-            let terms = self.phrase_terms_without_offsets();
+            let terms = self.phrase_terms();
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
             Ok(Box::new(PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)))
         } else {
