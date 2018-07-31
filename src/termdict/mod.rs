@@ -44,9 +44,8 @@ mod tests {
     fn make_term_info(val: u64) -> TermInfo {
         TermInfo {
             doc_freq: val as u32,
-            positions_offset: val * 2u64,
+            positions_idx: val * 2u64,
             postings_offset: val * 3u64,
-            positions_inner_offset: 5u8,
         }
     }
 

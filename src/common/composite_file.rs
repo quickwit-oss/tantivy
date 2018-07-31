@@ -64,7 +64,7 @@ impl<W: Write> CompositeWrite<W> {
         &mut self.write
     }
 
-    /// Close the composite file.
+    /// Close the composite file
     ///
     /// An index of the different field offsets
     /// will be written as a footer.
@@ -112,7 +112,6 @@ impl CompositeFile {
         let end = data.len();
         let footer_len_data = data.slice_from(end - 4);
         let footer_len = u32::deserialize(&mut footer_len_data.as_slice())? as usize;
-
         let footer_start = end - 4 - footer_len;
         let footer_data = data.slice(footer_start, footer_start + footer_len);
         let mut footer_buffer = footer_data.as_slice();

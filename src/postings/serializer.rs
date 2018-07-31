@@ -1,8 +1,7 @@
 use super::TermInfo;
-use common::BinarySerializable;
+use common::{VInt, BinarySerializable};
 use common::{CompositeWrite, CountingWriter};
-use compression::VIntEncoder;
-use compression::{BlockEncoder, COMPRESSION_BLOCK_SIZE};
+use postings::compression::{VIntEncoder, BlockEncoder, COMPRESSION_BLOCK_SIZE};
 use core::Segment;
 use directory::WritePtr;
 use schema::Schema;
@@ -11,6 +10,9 @@ use std::io::{self, Write};
 use termdict::{TermDictionaryBuilder, TermOrdinal};
 use DocId;
 use Result;
+use postings::USE_SKIP_INFO_LIMIT;
+use postings::skip::SkipSerializer;
+use positions::PositionSerializer;
 
 /// `PostingsSerializer` is in charge of serializing
 /// postings on disk, in the
@@ -47,6 +49,7 @@ pub struct InvertedIndexSerializer {
     terms_write: CompositeWrite<WritePtr>,
     postings_write: CompositeWrite<WritePtr>,
     positions_write: CompositeWrite<WritePtr>,
+    positionsidx_write: CompositeWrite<WritePtr>,
     schema: Schema,
 }
 
@@ -56,23 +59,26 @@ impl InvertedIndexSerializer {
         terms_write: CompositeWrite<WritePtr>,
         postings_write: CompositeWrite<WritePtr>,
         positions_write: CompositeWrite<WritePtr>,
+        positionsidx_write: CompositeWrite<WritePtr>,
         schema: Schema,
     ) -> Result<InvertedIndexSerializer> {
         Ok(InvertedIndexSerializer {
             terms_write,
             postings_write,
             positions_write,
+            positionsidx_write,
             schema,
         })
     }
 
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
-        use SegmentComponent::{POSITIONS, POSTINGS, TERMS};
+        use SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
         InvertedIndexSerializer::new(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONS)?),
+            CompositeWrite::wrap(segment.open_write(POSITIONSSKIP)?),
             segment.schema(),
         )
     }
@@ -91,11 +97,14 @@ impl InvertedIndexSerializer {
         let postings_write = self.postings_write.for_field(field);
         total_num_tokens.serialize(postings_write)?;
         let positions_write = self.positions_write.for_field(field);
+        let positionsidx_write = self.positionsidx_write.for_field(field);
+        let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::new(
-            field_entry.field_type().clone(),
+            field_type,
             term_dictionary_write,
             postings_write,
             positions_write,
+            positionsidx_write
         )
     }
 
@@ -104,6 +113,7 @@ impl InvertedIndexSerializer {
         self.terms_write.close()?;
         self.postings_write.close()?;
         self.positions_write.close()?;
+        self.positionsidx_write.close()?;
         Ok(())
     }
 }
@@ -125,6 +135,7 @@ impl<'a> FieldSerializer<'a> {
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
+        positionsidx_write: &'a mut CountingWriter<WritePtr>
     ) -> io::Result<FieldSerializer<'a>> {
         let (term_freq_enabled, position_enabled): (bool, bool) = match field_type {
             FieldType::Str(ref text_options) => {
@@ -142,9 +153,9 @@ impl<'a> FieldSerializer<'a> {
         };
         let term_dictionary_builder =
             TermDictionaryBuilder::new(term_dictionary_write, field_type)?;
-        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled);
+        let postings_serializer = PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled);
         let positions_serializer_opt = if position_enabled {
-            Some(PositionSerializer::new(positions_write))
+            Some(PositionSerializer::new(positions_write, positionsidx_write))
         } else {
             None
         };
@@ -160,15 +171,14 @@ impl<'a> FieldSerializer<'a> {
     }
 
     fn current_term_info(&self) -> TermInfo {
-        let (filepos, offset) = self.positions_serializer_opt
+        let positions_idx = self.positions_serializer_opt
             .as_ref()
-            .map(|positions_serializer| positions_serializer.addr())
-            .unwrap_or((0u64, 0u8));
+            .map(|positions_serializer| positions_serializer.positions_idx())
+            .unwrap_or(0u64);
         TermInfo {
             doc_freq: 0,
             postings_offset: self.postings_serializer.addr(),
-            positions_offset: filepos,
-            positions_inner_offset: offset,
+            positions_idx
         }
     }
 
@@ -206,9 +216,9 @@ impl<'a> FieldSerializer<'a> {
         position_deltas: &[u32],
     ) -> io::Result<()> {
         self.current_term_info.doc_freq += 1;
-        self.postings_serializer.write_doc(doc_id, term_freq)?;
+        self.postings_serializer.write_doc(doc_id, term_freq);
         if let Some(ref mut positions_serializer) = self.positions_serializer_opt.as_mut() {
-            positions_serializer.write(position_deltas)?;
+            positions_serializer.write_all(position_deltas)?;
         }
         Ok(())
     }
@@ -221,7 +231,8 @@ impl<'a> FieldSerializer<'a> {
         if self.term_open {
             self.term_dictionary_builder
                 .insert_value(&self.current_term_info)?;
-            self.postings_serializer.close_term()?;
+            self.postings_serializer
+                .close_term(self.current_term_info.doc_freq)?;
             self.term_open = false;
         }
         Ok(())
@@ -288,55 +299,74 @@ impl Block {
 }
 
 pub struct PostingsSerializer<W: Write> {
-    postings_write: CountingWriter<W>,
+    output_write: CountingWriter<W>,
     last_doc_id_encoded: u32,
 
     block_encoder: BlockEncoder,
     block: Box<Block>,
 
+    postings_write: Vec<u8>,
+    skip_write: SkipSerializer,
+
     termfreq_enabled: bool,
+    termfreq_sum_enabled: bool,
 }
 
+
 impl<W: Write> PostingsSerializer<W> {
-    pub fn new(write: W, termfreq_enabled: bool) -> PostingsSerializer<W> {
+    pub fn new(write: W, termfreq_enabled: bool, termfreq_sum_enabled: bool) -> PostingsSerializer<W> {
         PostingsSerializer {
-            postings_write: CountingWriter::wrap(write),
+            output_write: CountingWriter::wrap(write),
 
             block_encoder: BlockEncoder::new(),
             block: Box::new(Block::new()),
 
+            postings_write: Vec::new(),
+            skip_write: SkipSerializer::new(),
+
             last_doc_id_encoded: 0u32,
             termfreq_enabled,
+            termfreq_sum_enabled,
         }
     }
 
-    fn write_block(&mut self) -> io::Result<()> {
+    fn write_block(&mut self) {
         {
             // encode the doc ids
-            let block_encoded: &[u8] = self.block_encoder
+            let (num_bits, block_encoded): (u8, &[u8]) = self
+                .block_encoder
                 .compress_block_sorted(&self.block.doc_ids(), self.last_doc_id_encoded);
             self.last_doc_id_encoded = self.block.last_doc();
-            self.postings_write.write_all(block_encoded)?;
+            self.skip_write.write_doc(self.last_doc_id_encoded, num_bits);
+            // last el block 0, offset block 1,
+            self.postings_write.extend(block_encoded);
         }
         if self.termfreq_enabled {
             // encode the term_freqs
-            let block_encoded: &[u8] =
+            let (num_bits, block_encoded): (u8, &[u8]) =
                 self.block_encoder.compress_block_unsorted(&self.block.term_freqs());
-            self.postings_write.write_all(block_encoded)?;
+            self.postings_write.extend(block_encoded);
+            self.skip_write.write_term_freq(num_bits);
+            if self.termfreq_sum_enabled {
+                let sum_freq = self.block.term_freqs().iter().cloned().sum();
+                self.skip_write.write_total_term_freq(sum_freq);
+            }
         }
         self.block.clear();
-        Ok(())
     }
 
-    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) -> io::Result<()> {
+    pub fn write_doc(&mut self, doc_id: DocId, term_freq: u32) {
         self.block.append_doc(doc_id, term_freq);
         if self.block.is_full() {
-            self.write_block()?;
+            self.write_block();
         }
-        Ok(())
     }
 
-    pub fn close_term(&mut self) -> io::Result<()> {
+    fn close(mut self) -> io::Result<()> {
+        self.postings_write.flush()
+    }
+
+    pub fn close_term(&mut self, doc_freq: u32) -> io::Result<()> {
         if !self.block.is_empty() {
             // we have doc ids waiting to be written
             // this happens when the number of doc ids is
@@ -357,66 +387,26 @@ impl<W: Write> PostingsSerializer<W> {
             }
             self.block.clear();
         }
+        if doc_freq >= USE_SKIP_INFO_LIMIT {
+            let skip_data = self.skip_write.data();
+            VInt(skip_data.len() as u64).serialize(&mut self.output_write)?;
+            self.output_write.write_all(skip_data)?;
+            self.output_write.write_all(&self.postings_write[..])?;
+
+        } else {
+            self.output_write.write_all(&self.postings_write[..])?;
+        }
+        self.skip_write.clear();
+        self.postings_write.clear();
         Ok(())
     }
 
-    fn close(mut self) -> io::Result<()> {
-        self.postings_write.flush()
-    }
-
     fn addr(&self) -> u64 {
-        self.postings_write.written_bytes() as u64
+        self.output_write.written_bytes() as u64
     }
 
     fn clear(&mut self) {
         self.block.clear();
         self.last_doc_id_encoded = 0;
-    }
-}
-
-struct PositionSerializer<W: Write> {
-    buffer: Vec<u32>,
-    write: CountingWriter<W>, // See if we can offset the original counting writer.
-    block_encoder: BlockEncoder,
-}
-
-impl<W: Write> PositionSerializer<W> {
-    fn new(write: W) -> PositionSerializer<W> {
-        PositionSerializer {
-            buffer: Vec::with_capacity(COMPRESSION_BLOCK_SIZE),
-            write: CountingWriter::wrap(write),
-            block_encoder: BlockEncoder::new(),
-        }
-    }
-
-    fn addr(&self) -> (u64, u8) {
-        (self.write.written_bytes() as u64, self.buffer.len() as u8)
-    }
-
-    fn write_block(&mut self) -> io::Result<()> {
-        assert_eq!(self.buffer.len(), COMPRESSION_BLOCK_SIZE);
-        let block_compressed: &[u8] = self.block_encoder.compress_block_unsorted(&self.buffer);
-        self.write.write_all(block_compressed)?;
-        self.buffer.clear();
-        Ok(())
-    }
-
-    fn write(&mut self, mut vals: &[u32]) -> io::Result<()> {
-        let mut buffer_len = self.buffer.len();
-        while vals.len() + buffer_len >= COMPRESSION_BLOCK_SIZE {
-            let len_to_completion = COMPRESSION_BLOCK_SIZE - buffer_len;
-            self.buffer.extend_from_slice(&vals[..len_to_completion]);
-            self.write_block()?;
-            vals = &vals[len_to_completion..];
-            buffer_len = self.buffer.len();
-        }
-        self.buffer.extend_from_slice(vals);
-        Ok(())
-    }
-
-    fn close(mut self) -> io::Result<()> {
-        self.buffer.resize(COMPRESSION_BLOCK_SIZE, 0u32);
-        self.write_block()?;
-        self.write.flush()
     }
 }

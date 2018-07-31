@@ -1,5 +1,5 @@
 #[inline(always)]
-pub(crate) fn compress_sorted<'a>(
+pub fn compress_sorted<'a>(
     input: &[u32],
     output: &'a mut [u8],
     mut offset: u32,
@@ -46,7 +46,7 @@ pub(crate) fn compress_unsorted<'a>(input: &[u32], output: &'a mut [u8]) -> &'a 
 }
 
 #[inline(always)]
-pub(crate) fn uncompress_sorted<'a>(
+pub fn uncompress_sorted<'a>(
     compressed_data: &'a [u8],
     output: &mut [u32],
     offset: u32,

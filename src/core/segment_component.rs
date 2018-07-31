@@ -10,6 +10,8 @@ pub enum SegmentComponent {
     POSTINGS,
     /// Positions of terms in each document.
     POSITIONS,
+    /// Index to seek within the position file
+    POSITIONSSKIP,
     /// Column-oriented random-access storage of fields.
     FASTFIELDS,
     /// Stores the sum  of the length (in terms) of each field for each document.
@@ -29,9 +31,10 @@ pub enum SegmentComponent {
 impl SegmentComponent {
     /// Iterates through the components.
     pub fn iterator() -> slice::Iter<'static, SegmentComponent> {
-        static SEGMENT_COMPONENTS: [SegmentComponent; 7] = [
+        static SEGMENT_COMPONENTS: [SegmentComponent; 8] = [
             SegmentComponent::POSTINGS,
             SegmentComponent::POSITIONS,
+            SegmentComponent::POSITIONSSKIP,
             SegmentComponent::FASTFIELDS,
             SegmentComponent::FIELDNORMS,
             SegmentComponent::TERMS,

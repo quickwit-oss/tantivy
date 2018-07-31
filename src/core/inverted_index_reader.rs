@@ -1,7 +1,5 @@
 use common::BinarySerializable;
-use compression::CompressedIntStream;
 use directory::ReadOnlySource;
-use postings::FreqReadingOption;
 use postings::TermInfo;
 use postings::{BlockSegmentPostings, SegmentPostings};
 use schema::FieldType;
@@ -9,6 +7,7 @@ use schema::IndexRecordOption;
 use schema::Term;
 use termdict::TermDictionary;
 use owned_read::OwnedRead;
+use positions::PositionReader;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -27,6 +26,7 @@ pub struct InvertedIndexReader {
     termdict: TermDictionary,
     postings_source: ReadOnlySource,
     positions_source: ReadOnlySource,
+    positions_idx_source: ReadOnlySource,
     record_option: IndexRecordOption,
     total_num_tokens: u64,
 }
@@ -36,6 +36,7 @@ impl InvertedIndexReader {
         termdict: TermDictionary,
         postings_source: ReadOnlySource,
         positions_source: ReadOnlySource,
+        positions_idx_source: ReadOnlySource,
         record_option: IndexRecordOption,
     ) -> InvertedIndexReader {
         let total_num_tokens_data = postings_source.slice(0, 8);
@@ -45,6 +46,7 @@ impl InvertedIndexReader {
             termdict,
             postings_source: postings_source.slice_from(8),
             positions_source,
+            positions_idx_source,
             record_option,
             total_num_tokens,
         }
@@ -60,6 +62,7 @@ impl InvertedIndexReader {
             termdict: TermDictionary::empty(field_type),
             postings_source: ReadOnlySource::empty(),
             positions_source: ReadOnlySource::empty(),
+            positions_idx_source: ReadOnlySource::empty(),
             record_option,
             total_num_tokens: 0u64,
         }
@@ -94,7 +97,7 @@ impl InvertedIndexReader {
         let end_source = self.postings_source.len();
         let postings_slice = self.postings_source.slice(offset, end_source);
         let postings_reader = OwnedRead::new(postings_slice);
-        block_postings.reset(term_info.doc_freq as usize, postings_reader);
+        block_postings.reset(term_info.doc_freq, postings_reader);
     }
 
     /// Returns a block postings given a `term_info`.
@@ -108,15 +111,11 @@ impl InvertedIndexReader {
     ) -> BlockSegmentPostings {
         let offset = term_info.postings_offset as usize;
         let postings_data = self.postings_source.slice_from(offset);
-        let freq_reading_option = match (self.record_option, requested_option) {
-            (IndexRecordOption::Basic, _) => FreqReadingOption::NoFreq,
-            (_, IndexRecordOption::Basic) => FreqReadingOption::SkipFreq,
-            (_, _) => FreqReadingOption::ReadFreq,
-        };
         BlockSegmentPostings::from_data(
-            term_info.doc_freq as usize,
+            term_info.doc_freq,
             OwnedRead::new(postings_data),
-            freq_reading_option,
+            self.record_option,
+            requested_option,
         )
     }
 
@@ -132,11 +131,10 @@ impl InvertedIndexReader {
         let block_postings = self.read_block_postings_from_terminfo(term_info, option);
         let position_stream = {
             if option.has_positions() {
-                let position_offset = term_info.positions_offset;
-                let positions_source = self.positions_source.slice_from(position_offset as usize);
-                let mut stream = CompressedIntStream::wrap(positions_source);
-                stream.skip(term_info.positions_inner_offset as usize);
-                Some(stream)
+                let position_reader = self.positions_source.clone();
+                let skip_reader = self.positions_idx_source.clone();
+                let position_reader = PositionReader::new(position_reader, skip_reader, term_info.positions_idx);
+                Some(position_reader)
             } else {
                 None
             }

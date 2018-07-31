@@ -11,14 +11,18 @@ mod postings_writer;
 mod recorder;
 mod segment_postings;
 mod serializer;
+pub(crate) mod compression;
 mod stacker;
 mod term_info;
+mod skip;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
 pub use self::postings::Postings;
 pub use self::term_info::TermInfo;
+pub(crate) use self::skip::SkipReader;
+use self::compression::{COMPRESSION_BLOCK_SIZE};
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
@@ -26,9 +30,12 @@ pub(crate) use self::stacker::compute_table_size;
 
 pub use common::HasLen;
 
+pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
+
 pub(crate) type UnorderedTermId = u64;
 
 #[allow(enum_variant_names)]
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
     SkipFreq,
@@ -64,7 +71,8 @@ pub mod tests {
         let mut segment = index.new_segment();
         let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
         {
-            let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4).unwrap();
+            let mut field_serializer = posting_serializer
+                .new_field(text_field, 120 * 4).unwrap();
             field_serializer.new_term("abc".as_bytes()).unwrap();
             for doc_id in 0u32..120u32 {
                 let delta_positions = vec![1, 2, 3, 2];
@@ -327,7 +335,6 @@ pub mod tests {
                 assert!(index_writer.commit().is_ok());
             }
             index.load_searchers().unwrap();
-
             index
         };
         let searcher = index.searcher();

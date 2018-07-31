@@ -49,6 +49,7 @@ pub struct SegmentReader {
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
+    positions_idx_composite: CompositeFile,
     fast_fields_composite: CompositeFile,
     fieldnorms_composite: CompositeFile,
 
@@ -235,6 +236,14 @@ impl SegmentReader {
             }
         };
 
+        let positions_idx_composite = {
+            if let Ok(source) = segment.open_read(SegmentComponent::POSITIONSSKIP) {
+                CompositeFile::open(&source)?
+            } else {
+                CompositeFile::empty()
+            }
+        };
+
         let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
 
@@ -260,6 +269,7 @@ impl SegmentReader {
             store_reader,
             delete_bitset_opt,
             positions_composite,
+            positions_idx_composite,
             schema,
         })
     }
@@ -309,10 +319,15 @@ impl SegmentReader {
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
+        let positions_idx_source = self.positions_idx_composite
+            .open_read(field)
+            .expect("Index corrupted. Failed to open field positions in composite file.");
+
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
             TermDictionary::from_source(termdict_source),
             postings_source,
             positions_source,
+            positions_idx_source,
             record_option,
         ));
 
@@ -447,7 +462,9 @@ mod test {
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
+        let docs: Vec<DocId> = searcher.segment_reader(0)
+            .doc_ids_alive()
+            .collect();
         assert_eq!(vec![0u32, 2u32], docs);
     }
 }
