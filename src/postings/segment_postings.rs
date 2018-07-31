@@ -330,15 +330,15 @@ pub struct BlockSegmentPostings {
     skip_reader: SkipReader,
 }
 
-fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (OwnedRead, OwnedRead) {
+fn split_into_skips_and_postings(doc_freq: u32, mut data: OwnedRead) -> (Option<OwnedRead>, OwnedRead) {
     if doc_freq >= USE_SKIP_INFO_LIMIT {
         let skip_len = VInt::deserialize(&mut data).expect("Data corrupted").0 as usize;
         let mut postings_data = data.clone();
         postings_data.advance(skip_len);
         data.clip(skip_len);
-        (data, postings_data)
+        (Some(data), postings_data)
     } else {
-        (OwnedRead::new(&EMPTY_ARR[.. ]), data)
+        (None, data)
     }
 }
 
@@ -361,19 +361,21 @@ impl BlockSegmentPostings {
             (_, _) => FreqReadingOption::ReadFreq,
         };
 
-        let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, data);
-        let skip_reader = SkipReader::new(skip_data, record_option);
-        let num_bitpacked_blocks: usize = (doc_freq as usize) / COMPRESSION_BLOCK_SIZE;
-        let num_vint_docs = (doc_freq as usize) - COMPRESSION_BLOCK_SIZE * num_bitpacked_blocks;
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
+        let skip_reader =
+            match skip_data_opt {
+                Some(skip_data) => SkipReader::new(skip_data, record_option),
+                None => SkipReader::new(OwnedRead::new(&EMPTY_ARR[..]), record_option)
+            };
+        let doc_freq = doc_freq as usize;
+        let num_vint_docs = doc_freq % COMPRESSION_BLOCK_SIZE;
         BlockSegmentPostings {
             num_vint_docs,
             doc_decoder: BlockDecoder::new(),
             freq_decoder: BlockDecoder::with_val(1),
             freq_reading_option,
-
             doc_offset: 0,
-            doc_freq: doc_freq as usize,
-
+            doc_freq,
             remaining_data: postings_data,
             skip_reader,
         }
@@ -390,11 +392,15 @@ impl BlockSegmentPostings {
     //
     // This does not reset the positions list.
     pub(crate) fn reset(&mut self, doc_freq: u32, postings_data: OwnedRead) {
-        let (skip_data, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
+        let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, postings_data);
         let num_vint_docs = (doc_freq as usize) & (COMPRESSION_BLOCK_SIZE - 1);
         self.num_vint_docs = num_vint_docs;
         self.remaining_data = postings_data;
-        self.skip_reader.reset(skip_data);
+        if let Some(skip_data) = skip_data_opt {
+            self.skip_reader.reset(skip_data);
+        } else {
+            self.skip_reader.reset(OwnedRead::new(&EMPTY_ARR[..]))
+        }
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
     }
