@@ -46,6 +46,7 @@ pub mod tests {
     use std::iter;
     use super::{PositionSerializer, PositionReader};
     use directory::ReadOnlySource;
+    use positions::COMPRESSION_BLOCK_SIZE;
 
     fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {
         let mut skip_buffer = vec![];
@@ -86,7 +87,7 @@ pub mod tests {
 
         let mut position_reader = PositionReader::new(stream, skip, 0u64);
         position_reader.skip(10);
-        for &n in &[127] { //, 10, 127, COMPRESSION_BLOCK_SIZE128, 130, 312] {
+        for &n in &[10, 127, COMPRESSION_BLOCK_SIZE, 130, 312] {
             let mut v = vec![0u32; n];
             position_reader.read(&mut v[..n]);
             for i in 0..n {

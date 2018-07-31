@@ -23,7 +23,7 @@ impl<W: io::Write> PositionSerializer<W> {
             buffer: vec![0u8; 128 * 4],
             num_ints: 0u64,
             long_skips: Vec::new(),
-            cumulated_num_bits: 0u64,
+            cumulated_num_bits: 0u64
         }
     }
 

@@ -76,7 +76,7 @@ impl PositionReader {
             position_read,
             inner_offset: 0,
             buffer: Box::new([0u32; 128]),
-            ahead: None,
+            ahead: None
         };
         position_reader.skip(small_skip);
         position_reader
