@@ -23,7 +23,7 @@ lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
 atomicwrites = {version="0.2.2", optional=true}
 tempfile = "3.0"
-log = "0.3.6"
+log = "0.4"
 combine = "2.2"
 tempdir = "0.3"
 serde = "1.0"
