@@ -642,7 +642,6 @@ impl IndexWriter {
 mod tests {
 
     use super::initial_table_size;
-    use env_logger;
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
@@ -726,7 +725,6 @@ mod tests {
 
     #[test]
     fn test_with_merges() {
-        let _ = env_logger::init();
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -764,7 +762,6 @@ mod tests {
 
     #[test]
     fn test_prepare_with_commit_message() {
-        let _ = env_logger::init();
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -799,7 +796,6 @@ mod tests {
 
     #[test]
     fn test_prepare_but_rollback() {
-        let _ = env_logger::init();
         let mut schema_builder = schema::SchemaBuilder::default();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());

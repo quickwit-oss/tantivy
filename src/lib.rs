@@ -158,9 +158,6 @@ extern crate uuid;
 #[macro_use]
 extern crate matches;
 
-#[cfg(test)]
-extern crate env_logger;
-
 #[cfg(windows)]
 extern crate winapi;
 
