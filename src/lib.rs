@@ -288,12 +288,13 @@ mod tests {
     use core::SegmentReader;
     use docset::DocSet;
     use query::BooleanQuery;
-    use rand::distributions::{IndependentSample, Range};
+    use rand::distributions::Range;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use schema::*;
     use Index;
     use IndexWriter;
     use Postings;
+    use rand::distributions::Bernoulli;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(
@@ -309,21 +310,30 @@ mod tests {
     }
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, 4];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        let between = Range::new(0u32, max_value);
-        (0..n_elems)
-            .map(|_| between.ind_sample(&mut rng))
+        let seed: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        XorShiftRng::from_seed(seed)
+            .sample_iter(&Range::new(0u32, max_value))
+            .take(n_elems)
             .collect::<Vec<u32>>()
     }
 
-    pub fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0..n).filter(|_| rng.next_f32() < ratio).collect()
+    pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {
+        let seed: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, seed_val];
+        XorShiftRng::from_seed(seed)
+            .sample_iter(&Bernoulli::new(ratio))
+            .take(n as usize)
+            .enumerate()
+            .filter_map(|(val, keep)| {
+                if keep {
+                    Some(val as u32)
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
-    pub fn sample(n: u32, ratio: f32) -> Vec<u32> {
+    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
         sample_with_seed(n, ratio, 4)
     }
 

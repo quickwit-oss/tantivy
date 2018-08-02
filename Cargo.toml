@@ -53,7 +53,7 @@ owned-read = "0.4"
 winapi = "0.2"
 
 [dev-dependencies]
-rand = "0.3"
+rand = "0.5"
 env_logger = "0.4"
 
 [profile.release]

@@ -503,8 +503,8 @@ pub mod tests {
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
 
-            let seed: &[u32; 4] = &[1, 2, 3, 4];
-            let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+            let seed: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+            let mut rng: XorShiftRng = XorShiftRng::from_seed(seed);
 
             let index = Index::create_in_ram(schema);
             let posting_list_size = 1_000_000;
@@ -512,18 +512,16 @@ pub mod tests {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
                 for _ in 0..posting_list_size {
                     let mut doc = Document::default();
-                    if rng.gen_weighted_bool(15) {
+                    if rng.gen_bool(1f64/ 15f64) {
                         doc.add_text(text_field, "a");
                     }
-                    if rng.gen_weighted_bool(10) {
+                    if rng.gen_bool(1f64/ 10f64) {
                         doc.add_text(text_field, "b");
                     }
-                    if rng.gen_weighted_bool(5) {
+                    if rng.gen_bool(1f64/ 5f64) {
                         doc.add_text(text_field, "c");
                     }
-                    if rng.gen_weighted_bool(1) {
-                        doc.add_text(text_field, "d");
-                    }
+                    doc.add_text(text_field, "d");
                     index_writer.add_document(doc);
                 }
                 assert!(index_writer.commit().is_ok());
