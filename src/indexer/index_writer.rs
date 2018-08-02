@@ -2,7 +2,7 @@ use super::operation::AddOperation;
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use bit_set::BitSet;
-use chan;
+use crossbeam_channel as channel;
 use core::Index;
 use core::Segment;
 use core::SegmentComponent;
@@ -42,8 +42,8 @@ pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-type DocumentSender = chan::Sender<AddOperation>;
-type DocumentReceiver = chan::Receiver<AddOperation>;
+type DocumentSender = channel::Sender<AddOperation>;
+type DocumentReceiver = channel::Receiver<AddOperation>;
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -129,7 +129,7 @@ pub fn open_index_writer(
         bail!(ErrorKind::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
-        chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+        channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
     let delete_queue = DeleteQueue::new();
 
@@ -461,7 +461,7 @@ impl IndexWriter {
         let (mut document_sender, mut document_receiver): (
             DocumentSender,
             DocumentReceiver,
-        ) = chan::sync(PIPELINE_MAX_SIZE_IN_DOCS);
+        ) = channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
         swap(&mut self.document_sender, &mut document_sender);
         swap(&mut self.document_receiver, &mut document_receiver);
         document_receiver
