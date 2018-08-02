@@ -131,7 +131,10 @@ extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
+
+#[macro_use]
 extern crate combine;
+
 extern crate crossbeam;
 extern crate crossbeam_channel;
 extern crate fnv;
