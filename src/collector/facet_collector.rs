@@ -503,6 +503,7 @@ mod tests {
     use super::{FacetCollector, FacetCounts};
     use core::Index;
     use query::AllQuery;
+    use rand::distributions::Uniform;
     use rand::{thread_rng, Rng};
     use schema::Field;
     use schema::{Document, Facet, SchemaBuilder};
@@ -610,6 +611,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
+        let uniform = Uniform::new_inclusive(1, 100_000);
         let mut docs: Vec<Document> = vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
             .into_iter()
             .flat_map(|(c, count)| {
@@ -617,7 +619,7 @@ mod tests {
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
             })
-            .map(|mut doc| { doc.add_facet(facet_field, &format!("/facet/{}", thread_rng().next_u32())); doc})
+            .map(|mut doc| { doc.add_facet(facet_field, &format!("/facet/{}", thread_rng().sample(&uniform) )); doc})
             .collect();
         thread_rng().shuffle(&mut docs[..]);
 

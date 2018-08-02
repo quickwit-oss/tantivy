@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_bitset_clear() {
         let mut bitset = BitSet::with_max_value(1_000);
-        let els = tests::sample(1_000, 0.01f32);
+        let els = tests::sample(1_000, 0.01f64);
         for &el in &els {
             bitset.insert(el);
         }
