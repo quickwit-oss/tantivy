@@ -34,8 +34,8 @@ itertools = "0.7"
 levenshtein_automata = {version="0.1", features=["fst_automaton"]}
 bit-set = "0.5"
 uuid = { version = "0.6", features = ["v4", "serde"] }
-chan = "0.1"
 crossbeam = "0.3"
+crossbeam-channel = "0.2"
 futures = "0.1"
 futures-cpupool = "0.1"
 error-chain = "0.8"
