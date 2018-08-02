@@ -1,4 +1,4 @@
-use crossbeam::sync::MsQueue;
+use crossbeam::queue::MsQueue;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
