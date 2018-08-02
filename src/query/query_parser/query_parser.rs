@@ -17,6 +17,8 @@ use std::num::ParseIntError;
 use std::ops::Bound;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
+use combine::Parser;
+
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -153,7 +155,7 @@ impl QueryParser {
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
         let (user_input_ast, _remaining) =
-            parse_to_ast(query).map_err(|_| QueryParserError::SyntaxError)?;
+            parse_to_ast().parse(query).map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
     }
 

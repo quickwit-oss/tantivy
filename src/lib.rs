@@ -132,7 +132,10 @@ extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
 extern crate chan;
+
+#[macro_use]
 extern crate combine;
+
 extern crate crossbeam;
 extern crate fnv;
 extern crate fst;
