@@ -44,7 +44,7 @@ where
                 return true;
             } else {
                 self.stream_idx += 1;
-                self.position_shift = self.token.position + 2;
+                self.position_shift = self.token.position.wrapping_add(2);
             }
         }
         false
@@ -65,4 +65,20 @@ where
         );
         &mut self.token
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::TokenStreamChain;
+    use super::super::{Tokenizer, TokenStream, SimpleTokenizer};
+
+    #[test]
+    fn test_chain_first_emits_no_tokens() {
+        let token_streams = vec![SimpleTokenizer.token_stream(""), SimpleTokenizer.token_stream("hello world")];
+        let mut token_chain = TokenStreamChain::new(vec![0, 0], token_streams);
+        assert!(token_chain.advance());
+        assert!(token_chain.advance());
+        assert!(!token_chain.advance());
+    }
+
 }
