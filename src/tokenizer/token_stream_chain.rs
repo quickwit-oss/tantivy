@@ -1,5 +1,7 @@
 use tokenizer::{Token, TokenStream};
 
+const POSITION_GAP: usize = 2;
+
 pub(crate) struct TokenStreamChain<TTokenStream: TokenStream> {
     offsets: Vec<usize>,
     token_streams: Vec<TTokenStream>,
@@ -37,14 +39,14 @@ where
                 let token = token_stream.token();
                 let offset_offset = self.offsets[self.stream_idx];
                 self.token.offset_from = token.offset_from + offset_offset;
-                self.token.offset_from = token.offset_from + offset_offset;
+                self.token.offset_to = token.offset_to + offset_offset;
                 self.token.position = token.position + self.position_shift;
                 self.token.text.clear();
                 self.token.text.push_str(token.text.as_str());
                 return true;
             } else {
                 self.stream_idx += 1;
-                self.position_shift = self.token.position + 2;
+                self.position_shift = self.token.position.wrapping_add(POSITION_GAP);
             }
         }
         false
@@ -65,4 +67,32 @@ where
         );
         &mut self.token
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::POSITION_GAP;
+    use super::TokenStreamChain;
+    use super::super::{Tokenizer, TokenStream, SimpleTokenizer};
+
+    #[test]
+    fn test_chain_first_emits_no_tokens() {
+        let token_streams = vec![SimpleTokenizer.token_stream(""), SimpleTokenizer.token_stream("hello world")];
+        let mut token_chain = TokenStreamChain::new(vec![0, 0], token_streams);
+
+        assert!(token_chain.advance());
+        assert_eq!(token_chain.token().text, "hello");
+        assert_eq!(token_chain.token().offset_from, 0);
+        assert_eq!(token_chain.token().offset_to, 5);
+        assert_eq!(token_chain.token().position, POSITION_GAP - 1);
+
+        assert!(token_chain.advance());
+        assert_eq!(token_chain.token().text, "world");
+        assert_eq!(token_chain.token().offset_from, 6);
+        assert_eq!(token_chain.token().offset_to, 11);
+        assert_eq!(token_chain.token().position, POSITION_GAP);
+        
+        assert!(!token_chain.advance());
+    }
+
 }

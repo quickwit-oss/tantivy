@@ -7,6 +7,7 @@
 #![allow(new_without_default)]
 #![allow(decimal_literal_representation)]
 #![warn(missing_docs)]
+#![recursion_limit="80"]
 
 //! # `tantivy`
 //!
