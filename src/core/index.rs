@@ -29,8 +29,6 @@ use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 
-const NUM_SEARCHERS: usize = 12;
-
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
@@ -239,6 +237,7 @@ impl Index {
     /// This needs to be called when a new segment has been
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
+        let NUM_SEARCHERS: usize = num_cpus::get();
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
             .iter()
@@ -256,7 +255,7 @@ impl Index {
     ///
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searchers are taken from a pool of `NUM_SEARCHERS` searchers.
+    /// The searchers are taken from a pool of `num_searchers` searchers.
     /// If no searcher is available
     /// this may block.
     ///
