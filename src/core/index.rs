@@ -237,14 +237,14 @@ impl Index {
     /// This needs to be called when a new segment has been
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
-        let NUM_SEARCHERS: usize = num_cpus::get();
+        let num_searchers: usize = num_cpus::get();
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
             .iter()
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let schema = self.schema();
-        let searchers = (0..NUM_SEARCHERS)
+        let searchers = (0..num_searchers)
             .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
