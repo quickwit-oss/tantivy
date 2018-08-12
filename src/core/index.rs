@@ -4,6 +4,7 @@ use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use Result;
 
@@ -29,8 +30,6 @@ use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 
-const NUM_SEARCHERS: usize = 12;
-
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
@@ -41,6 +40,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
+    num_searchers: Arc<AtomicUsize>,
     searcher_pool: Arc<Pool<Searcher>>,
     tokenizers: TokenizerManager,
 }
@@ -95,9 +95,11 @@ impl Index {
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
+        let n_cpus = num_cpus::get();
         let index = Index {
             directory,
             schema,
+            num_searchers: Arc::new(AtomicUsize::new(n_cpus)),
             searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
         };
@@ -232,6 +234,13 @@ impl Index {
             .collect())
     }
 
+    /// Sets the number of searchers to use
+
+    /// Only works after the next call to `load_searchers`
+    pub fn set_num_searchers(&mut self, num_searchers: usize) {
+        self.num_searchers = Arc::new(AtomicUsize::new(num_searchers));
+    }
+
     /// Creates a new generation of searchers after
 
     /// a change of the set of searchable indexes.
@@ -245,7 +254,8 @@ impl Index {
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let schema = self.schema();
-        let searchers = (0..NUM_SEARCHERS)
+        let num_searchers: usize = self.num_searchers.load(Ordering::Relaxed);
+        let searchers = (0..num_searchers)
             .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
@@ -256,7 +266,7 @@ impl Index {
     ///
     /// This method should be called every single time a search
     /// query is performed.
-    /// The searchers are taken from a pool of `NUM_SEARCHERS` searchers.
+    /// The searchers are taken from a pool of `num_searchers` searchers.
     /// If no searcher is available
     /// this may block.
     ///
@@ -278,6 +288,7 @@ impl Clone for Index {
         Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
+            num_searchers: Arc::clone(&self.num_searchers),
             searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
         }
