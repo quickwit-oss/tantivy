@@ -238,7 +238,7 @@ impl Index {
 
     /// Only works after the next call to `load_searchers`
     pub fn set_num_searchers(&mut self, num_searchers: usize) {
-        self.num_searchers = Arc::new(AtomicUsize::new(num_searchers));
+        self.num_searchers.store(num_searchers, Ordering::Release);
     }
 
     /// Creates a new generation of searchers after
