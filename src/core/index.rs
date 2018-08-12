@@ -238,7 +238,7 @@ impl Index {
 
     /// Only works after the next call to `load_searchers`
     pub fn set_num_searchers(&mut self, num_searchers: usize) {
-        self.num_searchers = Arc::new(AtomicUsize::new(num_searchers));
+        self.num_searchers.store(num_searchers, Ordering::Release);
     }
 
     /// Creates a new generation of searchers after
@@ -254,7 +254,7 @@ impl Index {
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let schema = self.schema();
-        let num_searchers: usize = self.num_searchers.load(Ordering::Relaxed);
+        let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
         let searchers = (0..num_searchers)
             .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
