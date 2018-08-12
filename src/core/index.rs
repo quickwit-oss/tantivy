@@ -254,7 +254,7 @@ impl Index {
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let schema = self.schema();
-        let num_searchers: usize = self.num_searchers.load(Ordering::Relaxed);
+        let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
         let searchers = (0..num_searchers)
             .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
