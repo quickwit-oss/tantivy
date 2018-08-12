@@ -39,6 +39,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
+    num_searchers: usize,
     searcher_pool: Arc<Pool<Searcher>>,
     tokenizers: TokenizerManager,
 }
@@ -87,15 +88,25 @@ impl Index {
     fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
-        Index::create_from_metas(directory, &metas)
+        Index::create_from_metas(directory, &metas, None)
     }
 
     /// Creates a new index given a directory and an `IndexMeta`.
-    fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
+    fn create_from_metas(
+        directory: ManagedDirectory,
+        metas: &IndexMeta,
+        logical_cores: Option<usize>,
+    ) -> Result<Index> {
         let schema = metas.schema.clone();
         let index = Index {
             directory,
             schema,
+            num_searchers: match logical_cores {
+                None => {
+                    num_cpus::get()
+                }
+                Some(num) => num,
+            },
             searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
         };
@@ -119,7 +130,7 @@ impl Index {
     pub fn open<D: Directory>(directory: D) -> Result<Index> {
         let directory = ManagedDirectory::new(directory)?;
         let metas = load_metas(&directory)?;
-        Index::create_from_metas(directory, &metas)
+        Index::create_from_metas(directory, &metas, None)
     }
 
     /// Reads the index meta file from the directory.
@@ -237,14 +248,13 @@ impl Index {
     /// This needs to be called when a new segment has been
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
-        let num_searchers: usize = num_cpus::get();
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
             .iter()
             .map(SegmentReader::open)
             .collect::<Result<_>>()?;
         let schema = self.schema();
-        let searchers = (0..num_searchers)
+        let searchers = (0..self.num_searchers)
             .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
@@ -277,6 +287,7 @@ impl Clone for Index {
         Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
+            num_searchers: self.num_searchers,
             searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
         }
