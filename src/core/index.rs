@@ -102,9 +102,7 @@ impl Index {
             directory,
             schema,
             num_searchers: match logical_cores {
-                None => {
-                    num_cpus::get()
-                }
+                None => num_cpus::get(),
                 Some(num) => num,
             },
             searcher_pool: Arc::new(Pool::new()),
