@@ -235,7 +235,7 @@ impl Index {
     }
 
     /// Sets the number of searchers to use
-
+    ///
     /// Only works after the next call to `load_searchers`
     pub fn set_num_searchers(&mut self, num_searchers: usize) {
         self.num_searchers.store(num_searchers, Ordering::Release);
