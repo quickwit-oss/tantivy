@@ -1,5 +1,14 @@
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
 
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/0)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/0)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/1)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/1)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/2)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/2)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/3)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/3)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/4)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/4)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/5)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/5)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/6)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/6)
+[![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/7)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/7)
+
 [![Build Status](https://travis-ci.org/tantivy-search/tantivy.svg?branch=master)](https://travis-ci.org/tantivy-search/tantivy)
 [![codecov](https://codecov.io/gh/tantivy-search/tantivy/branch/master/graph/badge.svg)](https://codecov.io/gh/tantivy-search/tantivy)
 [![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
