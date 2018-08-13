@@ -24,7 +24,7 @@ use Result;
 #[derive(Clone, Debug)]
 pub struct PhraseQuery {
     field: Field,
-    phrase_terms: Vec<Term>,
+    phrase_terms: Vec<(usize, Term)>,
 }
 
 impl PhraseQuery {
@@ -32,14 +32,25 @@ impl PhraseQuery {
     ///
     /// There must be at least two terms, and all terms
     /// must belong to the same field.
+    /// Offset for each term will be same as index in the Vector
     pub fn new(terms: Vec<Term>) -> PhraseQuery {
+        let terms_with_offset = terms.into_iter().enumerate().collect();
+        PhraseQuery::new_with_offset(terms_with_offset)
+    }
+
+
+    /// Creates a new `PhraseQuery` given a list of terms and there offsets.
+    ///
+    /// Can be used to provide custom offset for each term.
+    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) ->PhraseQuery {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
         );
-        let field = terms[0].field();
+        terms.sort_by_key(|&(offset, _)| offset);
+        let field = terms[0].1.field();
         assert!(
-            terms[1..].iter().all(|term| term.field() == field),
+            terms[1..].iter().all(|term| term.1.field() == field),
             "All terms from a phrase query must belong to the same field"
         );
         PhraseQuery {
@@ -53,10 +64,11 @@ impl PhraseQuery {
         self.field
     }
 
-    /// The `Term`s in the phrase making up this `PhraseQuery`.
-    pub fn phrase_terms(&self) -> &[Term] {
-        &self.phrase_terms[..]
-    }
+    /// `Term`s in the phrase without the associated offsets.
+    pub fn phrase_terms(&self) -> Vec<Term> {
+        self.phrase_terms.iter().map(|(_, term)| term.clone()).collect::<Vec<Term>>()
+   }
+
 }
 
 impl Query for PhraseQuery {
@@ -78,13 +90,13 @@ impl Query for PhraseQuery {
                 field_name
             )))
         }
-        let terms = self.phrase_terms.clone();
         if scoring_enabled {
+            let terms = self.phrase_terms();
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(Box::new(PhraseWeight::new(terms, bm25_weight, true)))
+            Ok(Box::new(PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)))
         } else {
             Ok(Box::new(PhraseWeight::new(
-                terms,
+                self.phrase_terms.clone(),
                 BM25Weight::null(),
                 false,
             )))

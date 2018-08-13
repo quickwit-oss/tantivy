@@ -17,6 +17,8 @@ pub struct Token {
     pub position: usize,
     /// Actual text content of the token.
     pub text: String,
+    /// Is the length expressed in term of number of original tokens.
+    pub position_length: usize,
 }
 
 impl Default for Token {
@@ -26,6 +28,7 @@ impl Default for Token {
             offset_to: 0,
             position: usize::max_value(),
             text: String::with_capacity(200),
+            position_length: 1,
         }
     }
 }
@@ -273,6 +276,7 @@ mod test {
             offset_from: 2,
             offset_to: 3,
             text: "abc".to_string(),
+            position_length: 1
         };
         let t2 = t1.clone();
 

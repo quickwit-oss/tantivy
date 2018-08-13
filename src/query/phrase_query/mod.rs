@@ -173,4 +173,40 @@ mod tests {
         assert_eq!(test_query(vec!["a", "b"]), vec![1]);
         assert_eq!(test_query(vec!["b", "a"]), vec![2]);
     }
+
+    #[test] // motivated by #234
+    pub fn test_phrase_query_non_trivial_offsets() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.add_document(doc!(text_field=>"a b c d e f g h"));
+            assert!(index_writer.commit().is_ok());
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let test_query = |texts: Vec<(usize, &str)>| {
+            let mut test_collector = TestCollector::default();
+            let terms: Vec<(usize, Term)> = texts
+                .iter()
+                .map(|(offset, text)| (*offset, Term::from_field_text(text_field, text)) )
+                .collect();
+            let phrase_query = PhraseQuery::new_with_offset(terms);
+            searcher
+                .search(&phrase_query, &mut test_collector)
+                .expect("search should succeed");
+            test_collector.docs()
+        };
+        assert_eq!(test_query(vec![(0, "a"), (1, "b")]), vec![0]);
+        assert_eq!(test_query(vec![(1, "b"), (0, "a")]), vec![0]);
+        assert!(test_query(vec![(0, "a"), (2, "b")]).is_empty());
+        assert_eq!(test_query(vec![(0, "a"), (2, "c")]), vec![0]);
+        assert_eq!(test_query(vec![(0, "a"), (2, "c"), (3, "d")]), vec![0]);
+        assert_eq!(test_query(vec![(0, "a"), (2, "c"), (4, "e")]), vec![0]);
+        assert_eq!(test_query(vec![(4, "e"), (0, "a"), (2, "c")]), vec![0]);
+        assert!(test_query(vec![(0, "a"), (2, "d")]).is_empty());
+        assert_eq!(test_query(vec![(1, "a"), (3, "c")]), vec![0]);
+    }
 }

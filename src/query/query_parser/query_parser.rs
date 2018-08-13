@@ -180,7 +180,7 @@ impl QueryParser {
         &self,
         field: Field,
         phrase: &str,
-    ) -> Result<Vec<Term>, QueryParserError> {
+    ) -> Result<Vec<(usize, Term)>, QueryParserError> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         if !field_type.is_indexed() {
@@ -191,12 +191,12 @@ impl QueryParser {
             FieldType::I64(_) => {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
-                Ok(vec![term])
+                Ok(vec![(0, term)])
             }
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);
-                Ok(vec![term])
+                Ok(vec![(0, term)])
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
@@ -208,11 +208,11 @@ impl QueryParser {
                             )
                         },
                     )?;
-                    let mut terms: Vec<Term> = Vec::new();
+                    let mut terms: Vec<(usize, Term)> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
                         let term = Term::from_field_text(field, &token.text);
-                        terms.push(term);
+                        terms.push((token.position, term));
                     });
                     if terms.is_empty() {
                         Ok(vec![])
@@ -242,7 +242,7 @@ impl QueryParser {
                     ))
                 }
             }
-            FieldType::HierarchicalFacet => Ok(vec![Term::from_field_text(field, phrase)]),
+            FieldType::HierarchicalFacet => Ok(vec![(0, Term::from_field_text(field, phrase))]),
             FieldType::Bytes => {
                 let field_name = self.schema.get_field_name(field).to_string();
                 Err(QueryParserError::FieldNotIndexed(field_name))
@@ -256,12 +256,13 @@ impl QueryParser {
         phrase: &str,
     ) -> Result<Option<LogicalLiteral>, QueryParserError> {
         let terms = self.compute_terms_for_string(field, phrase)?;
-        match terms.len() {
-            0 => Ok(None),
-            1 => Ok(Some(LogicalLiteral::Term(
-                terms.into_iter().next().unwrap(),
-            ))),
-            _ => Ok(Some(LogicalLiteral::Phrase(terms))),
+        match &terms[..] {
+            [] =>
+                Ok(None),
+            [(_, term)] =>
+                Ok(Some(LogicalLiteral::Term(term.clone()))),
+            _ =>
+                Ok(Some(LogicalLiteral::Phrase(terms.clone()))),
         }
     }
 
@@ -281,7 +282,7 @@ impl QueryParser {
         if terms.len() != 1 {
             return Err(QueryParserError::RangeMustNotHavePhrase);
         }
-        let term = terms.into_iter().next().unwrap();
+        let (_, term) = terms.into_iter().next().unwrap();
         match *bound {
             UserInputBound::Inclusive(_) => Ok(Bound::Included(term)),
             UserInputBound::Exclusive(_) => Ok(Bound::Excluded(term)),
@@ -423,7 +424,7 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
-        LogicalLiteral::Phrase(terms) => Box::new(PhraseQuery::new(terms)),
+        LogicalLiteral::Phrase(term_with_offsets) => Box::new(PhraseQuery::new_with_offset(term_with_offsets)),
         LogicalLiteral::Range {
             field,
             value_type,
@@ -611,8 +612,8 @@ mod test {
         );
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
-            "\"[Term([0, 0, 0, 0, 97]), \
-             Term([0, 0, 0, 0, 98])]\"",
+            "\"[(0, Term([0, 0, 0, 0, 97])), \
+             (1, Term([0, 0, 0, 0, 98]))]\"",
             false,
         );
         test_parse_query_to_logical_ast_helper(
@@ -757,8 +758,8 @@ mod test {
         );
         test_parse_query_to_logical_ast_helper(
             "title:\"a b\"",
-            "\"[Term([0, 0, 0, 0, 97]), \
-             Term([0, 0, 0, 0, 98])]\"",
+            "\"[(0, Term([0, 0, 0, 0, 97])), \
+             (1, Term([0, 0, 0, 0, 98]))]\"",
             true,
         );
     }

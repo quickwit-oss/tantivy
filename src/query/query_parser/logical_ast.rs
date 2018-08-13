@@ -8,7 +8,7 @@ use std::ops::Bound;
 #[derive(Clone)]
 pub enum LogicalLiteral {
     Term(Term),
-    Phrase(Vec<Term>),
+    Phrase(Vec<(usize, Term)>),
     Range {
         field: Field,
         value_type: Type,
