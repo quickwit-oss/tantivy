@@ -119,17 +119,20 @@ fn intersection(left: &mut [u32], right: &[u32]) -> usize {
 
 impl<TPostings: Postings> PhraseScorer<TPostings> {
     pub fn new(
-        term_postings: Vec<TPostings>,
+        term_postings: Vec<(usize, TPostings)>,
         similarity_weight: BM25Weight,
         fieldnorm_reader: FieldNormReader,
         score_needed: bool,
     ) -> PhraseScorer<TPostings> {
+        let max_offset = term_postings.iter()
+            .map(|&(offset, _)| offset)
+            .max()
+            .unwrap_or(0);
         let num_docsets = term_postings.len();
         let postings_with_offsets = term_postings
             .into_iter()
-            .enumerate()
             .map(|(offset, postings)| {
-                PostingsWithOffset::new(postings, (num_docsets - offset) as u32)
+                PostingsWithOffset::new(postings, (max_offset - offset) as u32)
             })
             .collect::<Vec<_>>();
         PhraseScorer {

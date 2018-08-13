@@ -42,11 +42,12 @@ impl PhraseQuery {
     /// Creates a new `PhraseQuery` given a list of terms and there offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(terms: Vec<(usize, Term)>) ->PhraseQuery {
+    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) ->PhraseQuery {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
         );
+        terms.sort_by_key(|&(offset, _)| offset);
         let field = terms[0].1.field();
         assert!(
             terms[1..].iter().all(|term| term.1.field() == field),

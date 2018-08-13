@@ -36,12 +36,12 @@ impl Weight for PhraseWeight {
         let fieldnorm_reader = reader.get_fieldnorms_reader(field);
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
-            for term in &self.phrase_terms {
+            for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
-                    .inverted_index(term.1.field())
-                    .read_postings(&term.1, IndexRecordOption::WithFreqsAndPositions)
+                    .inverted_index(term.field())
+                    .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
                 {
-                    term_postings_list.push(postings);
+                    term_postings_list.push((offset, postings));
                 } else {
                     return Ok(Box::new(EmptyScorer));
                 }
@@ -54,12 +54,12 @@ impl Weight for PhraseWeight {
             )))
         } else {
             let mut term_postings_list = Vec::new();
-            for term in &self.phrase_terms {
+            for &(offset, ref term) in &self.phrase_terms {
                 if let Some(postings) = reader
-                    .inverted_index(term.1.field())
-                    .read_postings_no_deletes(&term.1, IndexRecordOption::WithFreqsAndPositions)
+                    .inverted_index(term.field())
+                    .read_postings_no_deletes(&term, IndexRecordOption::WithFreqsAndPositions)
                 {
-                    term_postings_list.push(postings);
+                    term_postings_list.push((offset, postings));
                 } else {
                     return Ok(Box::new(EmptyScorer));
                 }
