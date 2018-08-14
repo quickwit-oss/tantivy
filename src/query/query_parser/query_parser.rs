@@ -13,6 +13,8 @@ use schema::IndexRecordOption;
 use schema::{Field, Schema};
 use schema::{FieldType, Term};
 use std::borrow::Cow;
+use std::error::Error;
+use std::fmt;
 use std::num::ParseIntError;
 use std::ops::Bound;
 use std::str::FromStr;
@@ -49,6 +51,14 @@ pub enum QueryParserError {
     /// Only terms can be used as bounds.
     RangeMustNotHavePhrase,
 }
+
+impl fmt::Display for QueryParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Error for QueryParserError { }
 
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
