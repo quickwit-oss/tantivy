@@ -121,7 +121,6 @@ mod test {
         let searcher = index.searcher();
         {
             let mut collector = TopCollector::with_limit(2);
-
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             searcher.search(&regex_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
@@ -129,11 +128,8 @@ mod test {
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
         }
-
-        let searcher = index.searcher();
         {
             let mut collector = TopCollector::with_limit(2);
-
             let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
             searcher.search(&regex_query, &mut collector).unwrap();
             let scored_docs = collector.score_docs();
