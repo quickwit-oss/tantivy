@@ -1,26 +1,32 @@
-extern crate tantivy;
+// # Basic Example
+//
+// This example covers the basic functionalities of
+// tantivy.
+//
+// We will :
+// - define our schema
+// = create an index in a directory
+// - index few documents in our index
+// - search for the best document matchings "sea whale"
+// - retrieve the best document original content.
+
+
 extern crate tempdir;
 
+// ---
+// Importing tantivy...
 #[macro_use]
-extern crate serde_json;
-
-use std::path::Path;
+extern crate tantivy;
 use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
-use tempdir::TempDir;
 
-fn main() {
+fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
     // sake of this example
-    if let Ok(dir) = TempDir::new("tantivy_example_dir") {
-        run_example(dir.path()).unwrap();
-        dir.close().unwrap();
-    }
-}
+    let index_path = TempDir::new("tantivy_example_dir")?;
 
-fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // # Defining the schema
     //
     // The Tantivy index requires a very strict schema.
@@ -35,7 +41,7 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // We want full-text search for it, and we also want
     // to be able to retrieve the document after the search.
     //
-    // TEXT | STORED is some syntactic sugar to describe
+    // `TEXT | STORED` is some syntactic sugar to describe
     // that.
     //
     // `TEXT` means the field should be tokenized and indexed,
@@ -64,21 +70,22 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     //
     // This will actually just save a meta.json
     // with our schema in the directory.
-    let index = Index::create_in_dir(index_path, schema.clone())?;
+    let index = Index::create_in_dir(&index_path, schema.clone())?;
 
     // To insert document we need an index writer.
     // There must be only one writer at a time.
     // This single `IndexWriter` is already
     // multithreaded.
     //
-    // Here we use a buffer of 50MB per thread. Using a bigger
-    // heap for the indexer can increase its throughput.
+    // Here we give tantivy a budget of `50MB`.
+    // Using a bigger heap for the indexer may increase
+    // throughput, but 50 MB is already plenty.
     let mut index_writer = index.writer(50_000_000)?;
 
     // Let's index our documents!
     // We first need a handle on the title and the body field.
 
-    // ### Create a document "manually".
+    // ### Adding documents
     //
     // We can create a document manually, by setting the fields
     // one by one in a Document object.
@@ -96,15 +103,11 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
     // ... and add it to the `IndexWriter`.
     index_writer.add_document(old_man_doc);
 
-    // ### Create a document directly from json.
-    //
-    // Alternatively, we can use our schema to parse a
-    // document object directly from json.
-    // The document is a string, but we use the `json` macro
-    // from `serde_json` for the convenience of multi-line support.
-    let json = json!({
-       "title": "Of Mice and Men",
-       "body": "A few miles south of Soledad, the Salinas River drops in close to the hillside \
+    // For convenience, tantivy also comes with a macro to
+    // reduce the boilerplate above.
+    index_writer.add_document(doc!(
+        title => "Of Mice and Men",
+        body => "A few miles south of Soledad, the Salinas River drops in close to the hillside \
                 bank and runs deep and green. The water is warm too, for it has slipped twinkling \
                 over the yellow sands in the sunlight before reaching the narrow pool. On one \
                 side of the river the golden foothill slopes curve up to the strong and rocky \
@@ -112,30 +115,35 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
                 fresh and green with every spring, carrying in their lower leaf junctures the \
                 debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
                 limbs and branches that arch over the pool"
-    });
-    let mice_and_men_doc = schema.parse_document(&json.to_string())?;
+    ));
 
-    index_writer.add_document(mice_and_men_doc);
+    index_writer.add_document(doc!(
+        title => "Of Mice and Men",
+        body => "A few miles south of Soledad, the Salinas River drops in close to the hillside \
+                bank and runs deep and green. The water is warm too, for it has slipped twinkling \
+                over the yellow sands in the sunlight before reaching the narrow pool. On one \
+                side of the river the golden foothill slopes curve up to the strong and rocky \
+                Gabilan Mountains, but on the valley side the water is lined with trees—willows \
+                fresh and green with every spring, carrying in their lower leaf junctures the \
+                debris of the winter’s flooding; and sycamores with mottled, white, recumbent \
+                limbs and branches that arch over the pool"
+    ));
 
-    // Multi-valued field are allowed, they are
-    // expressed in JSON by an array.
-    // The following document has two titles.
-    let json = json!({
-       "title": ["Frankenstein", "The Modern Prometheus"],
-       "body": "You will rejoice to hear that no disaster has accompanied the commencement of an \
+    // Multivalued field just need to be repeated.
+    index_writer.add_document(doc!(
+       title => "Frankenstein",
+       title => "The Modern Prometheus",
+       body => "You will rejoice to hear that no disaster has accompanied the commencement of an \
                 enterprise which you have regarded with such evil forebodings.  I arrived here \
                 yesterday, and my first task is to assure my dear sister of my welfare and \
                 increasing confidence in the success of my undertaking."
-    });
-    let frankenstein_doc = schema.parse_document(&json.to_string())?;
-
-    index_writer.add_document(frankenstein_doc);
+    ));
 
     // This is an example, so we will only index 3 documents
     // here. You can check out tantivy's tutorial to index
     // the English wikipedia. Tantivy's indexing is rather fast.
     // Indexing 5 million articles of the English wikipedia takes
-    // around 4 minutes on my computer!
+    // around 3 minutes on my computer!
 
     // ### Committing
     //
@@ -160,16 +168,28 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
 
     // # Searching
     //
+    // ### Searcher
+    //
     // Let's search our index. Start by reloading
     // searchers in the index. This should be done
-    // after every commit().
+    // after every `commit()`.
     index.load_searchers()?;
 
-    // Afterwards create one (or more) searchers.
+    // We now need to acquire a searcher.
+    // Some search experience might require more than
+    // one query.
     //
-    // You should create a searcher
-    // every time you start a "search query".
+    // The searcher ensure that we get to work
+    // with a consistent version of the index.
+    //
+    // Acquiring a `searcher` is very cheap.
+    //
+    // You should acquire a searcher every time you
+    // start processing a request and
+    // and release it right after your query is finished.
     let searcher = index.searcher();
+
+    // ### Query
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which
@@ -215,11 +235,9 @@ fn run_example(index_path: &Path) -> tantivy::Result<()> {
         println!("{}", schema.to_json(&retrieved_doc));
     }
 
-    // Wait for indexing and merging threads to shut down.
-    // Usually this isn't needed, but in `main` we try to
-    // delete the temporary directory and that fails on
-    // Windows if the files are still open.
-    index_writer.wait_merging_threads()?;
 
     Ok(())
 }
+
+
+use tempdir::TempDir;

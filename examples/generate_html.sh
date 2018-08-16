@@ -1,2 +1,6 @@
 #!/bin/bash
-docco simple_search.rs -o html
+
+for example in $(ls *.rs)
+do
+    docco $example -o html
+done
