@@ -1,7 +1,7 @@
 use common::BitSet;
 use core::Searcher;
 use core::SegmentReader;
-use error::ErrorKind;
+use error::TantivyError;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Query, Scorer, Weight};
@@ -239,7 +239,7 @@ impl Query for RangeQuery {
                 "Create a range query of the type {:?}, when the field given was of type {:?}",
                 self.value_type, value_type
             );
-            bail!(ErrorKind::SchemaError(err_msg))
+            return Err(TantivyError::SchemaError(err_msg));
         }
         Ok(Box::new(RangeWeight {
             field: self.field,

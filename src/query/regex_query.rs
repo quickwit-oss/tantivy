@@ -1,4 +1,4 @@
-use error::ErrorKind;
+use error::TantivyError;
 use fst_regex::Regex;
 use query::{AutomatonWeight, Query, Weight};
 use schema::Field;
@@ -80,7 +80,7 @@ impl RegexQuery {
 
     fn specialized_weight(&self) -> Result<AutomatonWeight<Regex>> {
         let automaton = Regex::new(&self.regex_pattern)
-            .map_err(|_| ErrorKind::InvalidArgument(self.regex_pattern.clone()))?;
+            .map_err(|_| TantivyError::InvalidArgument(self.regex_pattern.clone()))?;
 
         Ok(AutomatonWeight::new(self.field.clone(), automaton))
     }

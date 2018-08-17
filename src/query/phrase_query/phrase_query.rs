@@ -1,6 +1,6 @@
 use super::PhraseWeight;
 use core::searcher::Searcher;
-use error::ErrorKind;
+use error::TantivyError;
 use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
@@ -38,11 +38,10 @@ impl PhraseQuery {
         PhraseQuery::new_with_offset(terms_with_offset)
     }
 
-
     /// Creates a new `PhraseQuery` given a list of terms and there offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) ->PhraseQuery {
+    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhraseQuery {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
@@ -66,9 +65,11 @@ impl PhraseQuery {
 
     /// `Term`s in the phrase without the associated offsets.
     pub fn phrase_terms(&self) -> Vec<Term> {
-        self.phrase_terms.iter().map(|(_, term)| term.clone()).collect::<Vec<Term>>()
-   }
-
+        self.phrase_terms
+            .iter()
+            .map(|(_, term)| term.clone())
+            .collect::<Vec<Term>>()
+    }
 }
 
 impl Query for PhraseQuery {
@@ -85,15 +86,19 @@ impl Query for PhraseQuery {
             .unwrap_or(false);
         if !has_positions {
             let field_name = field_entry.name();
-            bail!(ErrorKind::SchemaError(format!(
+            return Err(TantivyError::SchemaError(format!(
                 "Applied phrase query on field {:?}, which does not have positions indexed",
                 field_name
-            )))
+            )));
         }
         if scoring_enabled {
             let terms = self.phrase_terms();
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(Box::new(PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)))
+            Ok(Box::new(PhraseWeight::new(
+                self.phrase_terms.clone(),
+                bm25_weight,
+                true,
+            )))
         } else {
             Ok(Box::new(PhraseWeight::new(
                 self.phrase_terms.clone(),
