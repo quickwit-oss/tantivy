@@ -2,15 +2,15 @@ use super::operation::AddOperation;
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use bit_set::BitSet;
-use crossbeam_channel as channel;
 use core::Index;
 use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
+use crossbeam_channel as channel;
 use docset::DocSet;
-use error::{Error, ErrorKind, Result, ResultExt};
+use error::TantivyError;
 use fastfield::write_delete_bitset;
 use futures::sync::oneshot::Receiver;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
@@ -29,6 +29,7 @@ use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
+use Result;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -122,11 +123,11 @@ pub fn open_index_writer(
             "The heap size per thread needs to be at least {}.",
             HEAP_SIZE_MIN
         );
-        bail!(ErrorKind::InvalidArgument(err_msg));
+        return Err(TantivyError::InvalidArgument(err_msg));
     }
     if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
         let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
-        bail!(ErrorKind::InvalidArgument(err_msg));
+        return Err(TantivyError::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
         channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -334,13 +335,15 @@ impl IndexWriter {
             join_handle
                 .join()
                 .expect("Indexing Worker thread panicked")
-                .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
+                .map_err(|_| {
+                    TantivyError::ErrorInThread("Error in indexing worker thread.".into())
+                })?;
         }
         drop(self.workers_join_handle);
 
         let result = self.segment_updater
             .wait_merging_thread()
-            .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
+            .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -559,7 +562,7 @@ impl IndexWriter {
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
-                .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+                .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.
@@ -654,7 +657,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
-            Err(Error(ErrorKind::FileAlreadyExists(_), _)) => {}
+            Err(TantivyError::FileAlreadyExists(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
         }
     }
