@@ -18,6 +18,10 @@ main() {
         echo "Test"
         cross test --target $TARGET
     fi
+    for example in $(ls examples/*.rs)
+    do
+        cargo run --example  $(basename $example .rs)
+    done
 }
 
 # we don't run the "test phase" when doing deploys
