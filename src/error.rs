@@ -10,129 +10,114 @@ use serde_json;
 use std::path::PathBuf;
 use std::sync::PoisonError;
 
-error_chain!(
-    errors {
-        /// Path does not exist.
-        PathDoesNotExist(buf: PathBuf) {
-            description("path does not exist")
-            display("path does not exist: '{:?}'", buf)
-        }
-        /// File already exists, this is a problem when we try to write into a new file.
-        FileAlreadyExists(buf: PathBuf) {
-            description("file already exists")
-            display("file already exists: '{:?}'", buf)
-        }
-        /// IO Error.
-        IOError(err: IOError) {
-            description("an IO error occurred")
-            display("an IO error occurred: '{}'", err)
-        }
-        /// The data within is corrupted.
-        ///
-        /// For instance, it contains invalid JSON.
-        CorruptedFile(buf: PathBuf) {
-            description("file contains corrupted data")
-            display("file contains corrupted data: '{:?}'", buf)
-        }
-        /// A thread holding the locked panicked and poisoned the lock.
-        Poisoned {
-            description("a thread holding the locked panicked and poisoned the lock")
-        }
-        /// Invalid argument was passed by the user.
-        InvalidArgument(arg: String) {
-            description("an invalid argument was passed")
-            display("an invalid argument was passed: '{}'", arg)
-        }
-        /// An Error happened in one of the thread.
-        ErrorInThread(err: String) {
-            description("an error occurred in a thread")
-            display("an error occurred in a thread: '{}'", err)
-        }
-        /// An Error appeared related to the schema.
-        SchemaError(message: String) {
-            description("the schema is not matching expectations.")
-            display("Schema error: '{}'", message)
-        }
-        /// Tried to access a fastfield reader for a field not configured accordingly.
-        FastFieldError(err: FastFieldNotAvailableError) {
-            description("fast field not available")
-            display("fast field not available: '{:?}'", err)
-        }
-    }
-);
+/// The library's failure based error enum
+#[derive(Debug, Fail)]
+pub enum TantivyError {
+    /// Path does not exist.
+    #[fail(display = "path does not exist: '{:?}'", _0)]
+    PathDoesNotExist(PathBuf),
+    /// File already exists, this is a problem when we try to write into a new file.
+    #[fail(display = "file already exists: '{:?}'", _0)]
+    FileAlreadyExists(PathBuf),
+    /// IO Error.
+    #[fail(display = "an IO error occurred: '{}'", _0)]
+    IOError(#[cause] IOError),
+    /// The data within is corrupted.
+    ///
+    /// For instance, it contains invalid JSON.
+    #[fail(display = "file contains corrupted data: '{:?}'", _0)]
+    CorruptedFile(PathBuf),
+    /// A thread holding the locked panicked and poisoned the lock.
+    #[fail(display = "a thread holding the locked panicked and poisoned the lock")]
+    Poisoned,
+    /// Invalid argument was passed by the user.
+    #[fail(display = "an invalid argument was passed: '{}'", _0)]
+    InvalidArgument(String),
+    /// An Error happened in one of the thread.
+    #[fail(display = "an error occurred in a thread: '{}'", _0)]
+    ErrorInThread(String),
+    /// An Error appeared related to the schema.
+    #[fail(display = "Schema error: '{}'", _0)]
+    SchemaError(String),
+    /// Tried to access a fastfield reader for a field not configured accordingly.
+    #[fail(display = "fast field not available: '{:?}'", _0)]
+    FastFieldError(#[cause] FastFieldNotAvailableError),
+}
 
-impl From<FastFieldNotAvailableError> for Error {
-    fn from(fastfield_error: FastFieldNotAvailableError) -> Error {
-        ErrorKind::FastFieldError(fastfield_error).into()
+impl From<FastFieldNotAvailableError> for TantivyError {
+    fn from(fastfield_error: FastFieldNotAvailableError) -> TantivyError {
+        TantivyError::FastFieldError(fastfield_error).into()
     }
 }
 
-impl From<IOError> for Error {
-    fn from(io_error: IOError) -> Error {
-        ErrorKind::IOError(io_error).into()
+impl From<IOError> for TantivyError {
+    fn from(io_error: IOError) -> TantivyError {
+        TantivyError::IOError(io_error).into()
     }
 }
 
-impl From<io::Error> for Error {
-    fn from(io_error: io::Error) -> Error {
-        ErrorKind::IOError(io_error.into()).into()
+impl From<io::Error> for TantivyError {
+    fn from(io_error: io::Error) -> TantivyError {
+        TantivyError::IOError(io_error.into()).into()
     }
 }
 
-impl From<query::QueryParserError> for Error {
-    fn from(parsing_error: query::QueryParserError) -> Error {
-        ErrorKind::InvalidArgument(format!("Query is invalid. {:?}", parsing_error)).into()
+impl From<query::QueryParserError> for TantivyError {
+    fn from(parsing_error: query::QueryParserError) -> TantivyError {
+        TantivyError::InvalidArgument(format!("Query is invalid. {:?}", parsing_error)).into()
     }
 }
 
-impl<Guard> From<PoisonError<Guard>> for Error {
-    fn from(_: PoisonError<Guard>) -> Error {
-        ErrorKind::Poisoned.into()
+impl<Guard> From<PoisonError<Guard>> for TantivyError {
+    fn from(_: PoisonError<Guard>) -> TantivyError {
+        TantivyError::Poisoned.into()
     }
 }
 
-impl From<OpenReadError> for Error {
-    fn from(error: OpenReadError) -> Error {
+impl From<OpenReadError> for TantivyError {
+    fn from(error: OpenReadError) -> TantivyError {
         match error {
             OpenReadError::FileDoesNotExist(filepath) => {
-                ErrorKind::PathDoesNotExist(filepath).into()
+                TantivyError::PathDoesNotExist(filepath).into()
             }
-            OpenReadError::IOError(io_error) => ErrorKind::IOError(io_error).into(),
+            OpenReadError::IOError(io_error) => TantivyError::IOError(io_error).into(),
         }
     }
 }
 
-impl From<schema::DocParsingError> for Error {
-    fn from(error: schema::DocParsingError) -> Error {
-        ErrorKind::InvalidArgument(format!("Failed to parse document {:?}", error)).into()
+impl From<schema::DocParsingError> for TantivyError {
+    fn from(error: schema::DocParsingError) -> TantivyError {
+        TantivyError::InvalidArgument(format!("Failed to parse document {:?}", error)).into()
     }
 }
 
-impl From<OpenWriteError> for Error {
-    fn from(error: OpenWriteError) -> Error {
+impl From<OpenWriteError> for TantivyError {
+    fn from(error: OpenWriteError) -> TantivyError {
         match error {
-            OpenWriteError::FileAlreadyExists(filepath) => ErrorKind::FileAlreadyExists(filepath),
-            OpenWriteError::IOError(io_error) => ErrorKind::IOError(io_error),
+            OpenWriteError::FileAlreadyExists(filepath) => {
+                TantivyError::FileAlreadyExists(filepath)
+            }
+            OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
         }.into()
     }
 }
 
-impl From<OpenDirectoryError> for Error {
-    fn from(error: OpenDirectoryError) -> Error {
+impl From<OpenDirectoryError> for TantivyError {
+    fn from(error: OpenDirectoryError) -> TantivyError {
         match error {
             OpenDirectoryError::DoesNotExist(directory_path) => {
-                ErrorKind::PathDoesNotExist(directory_path).into()
+                TantivyError::PathDoesNotExist(directory_path).into()
             }
-            OpenDirectoryError::NotADirectory(directory_path) => ErrorKind::InvalidArgument(
+            OpenDirectoryError::NotADirectory(directory_path) => TantivyError::InvalidArgument(
                 format!("{:?} is not a directory", directory_path),
             ).into(),
         }
     }
 }
 
-impl From<serde_json::Error> for Error {
-    fn from(error: serde_json::Error) -> Error {
+impl From<serde_json::Error> for TantivyError {
+    fn from(error: serde_json::Error) -> TantivyError {
         let io_err = io::Error::from(error);
-        ErrorKind::IOError(io_err.into()).into()
+        TantivyError::IOError(io_err.into()).into()
     }
 }

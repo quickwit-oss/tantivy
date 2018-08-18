@@ -7,7 +7,7 @@
 #![allow(new_without_default)]
 #![allow(decimal_literal_representation)]
 #![warn(missing_docs)]
-#![recursion_limit="80"]
+#![recursion_limit = "80"]
 
 //! # `tantivy`
 //!
@@ -124,7 +124,7 @@ extern crate serde_json;
 extern crate log;
 
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 
 #[cfg(feature = "mmap")]
 extern crate atomicwrites;
@@ -179,13 +179,13 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use error::{Error, ErrorKind, ResultExt};
+pub use error::TantivyError;
 
 extern crate census;
 extern crate owned_read;
 
 /// Tantivy result.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, error::TantivyError>;
 
 mod common;
 mod core;
@@ -199,8 +199,8 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
-pub mod postings;
 pub(crate) mod positions;
+pub mod postings;
 pub mod query;
 pub mod schema;
 pub mod store;
@@ -286,13 +286,13 @@ mod tests {
     use core::SegmentReader;
     use docset::DocSet;
     use query::BooleanQuery;
+    use rand::distributions::Bernoulli;
     use rand::distributions::Range;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use schema::*;
     use Index;
     use IndexWriter;
     use Postings;
-    use rand::distributions::Bernoulli;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(
@@ -321,13 +321,7 @@ mod tests {
             .sample_iter(&Bernoulli::new(ratio))
             .take(n as usize)
             .enumerate()
-            .filter_map(|(val, keep)| {
-                if keep {
-                    Some(val as u32)
-                } else {
-                    None
-                }
-            })
+            .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
             .collect()
     }
 

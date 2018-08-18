@@ -12,7 +12,7 @@ mod tests {
     use super::*;
     use collector::tests::TestCollector;
     use core::Index;
-    use error::ErrorKind;
+    use error::TantivyError;
     use schema::{SchemaBuilder, Term, TEXT};
     use tests::assert_nearly_equals;
 
@@ -92,10 +92,9 @@ mod tests {
             Term::from_field_text(text_field, "b"),
         ]);
         let mut test_collector = TestCollector::default();
-        if let &ErrorKind::SchemaError(ref msg) = searcher
+        if let TantivyError::SchemaError(ref msg) = searcher
             .search(&phrase_query, &mut test_collector)
             .unwrap_err()
-            .kind()
         {
             assert_eq!(
                 "Applied phrase query on field \"text\", which does not have positions indexed",
@@ -191,7 +190,7 @@ mod tests {
             let mut test_collector = TestCollector::default();
             let terms: Vec<(usize, Term)> = texts
                 .iter()
-                .map(|(offset, text)| (*offset, Term::from_field_text(text_field, text)) )
+                .map(|(offset, text)| (*offset, Term::from_field_text(text_field, text)))
                 .collect();
             let phrase_query = PhraseQuery::new_with_offset(terms);
             searcher

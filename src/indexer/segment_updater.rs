@@ -7,7 +7,7 @@ use core::SegmentMeta;
 use core::SerializableSegment;
 use core::META_FILEPATH;
 use directory::{Directory, DirectoryClone};
-use error::{Error, ErrorKind, Result, ResultExt};
+use error::TantivyError;
 use futures::oneshot;
 use futures::sync::oneshot::Receiver;
 use futures::Future;
@@ -34,6 +34,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
+use Result;
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -114,12 +115,9 @@ fn perform_merge(
     // ... we just serialize this index merger in our new segment
     // to merge the two segments.
 
-    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)
-        .chain_err(|| "Creating index serializer failed")?;
+    let segment_serializer = SegmentSerializer::for_segment(&mut merged_segment)?;
 
-    let num_docs = merger
-        .write(segment_serializer)
-        .chain_err(|| "Serializing merged index failed")?;
+    let num_docs = merger.write(segment_serializer)?;
 
     let segment_meta = SegmentMeta::new(merged_segment.id(), num_docs);
 
@@ -186,7 +184,7 @@ impl SegmentUpdater {
     fn run_async<T: 'static + Send, F: 'static + Send + FnOnce(SegmentUpdater) -> T>(
         &self,
         f: F,
-    ) -> CpuFuture<T, Error> {
+    ) -> CpuFuture<T, TantivyError> {
         let me_clone = self.clone();
         self.0.pool.spawn_fn(move || Ok(f(me_clone)))
     }
@@ -463,7 +461,7 @@ impl SegmentUpdater {
                 merging_thread_handle
                     .join()
                     .map(|_| ())
-                    .map_err(|_| ErrorKind::ErrorInThread("Merging thread failed.".into()))?;
+                    .map_err(|_| TantivyError::ErrorInThread("Merging thread failed.".into()))?;
             }
             // Our merging thread may have queued their completed
             self.run_async(move |_| {}).wait()?;

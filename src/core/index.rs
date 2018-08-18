@@ -1,5 +1,5 @@
 use core::SegmentId;
-use error::{ErrorKind, ResultExt};
+use error::TantivyError;
 use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
@@ -17,10 +17,10 @@ use core::IndexMeta;
 use core::SegmentMeta;
 use core::SegmentReader;
 use core::META_FILEPATH;
-use directory::{ManagedDirectory, DirectoryClone};
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
+use directory::{DirectoryClone, ManagedDirectory};
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
@@ -33,7 +33,8 @@ use IndexWriter;
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
-    serde_json::from_str(&meta_string).chain_err(|| ErrorKind::CorruptedFile(META_FILEPATH.clone()))
+    serde_json::from_str(&meta_string)
+        .map_err(|_| TantivyError::CorruptedFile(META_FILEPATH.clone()))
 }
 
 /// Search Index

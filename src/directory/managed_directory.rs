@@ -1,7 +1,7 @@
 use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
-use error::{ErrorKind, Result, ResultExt};
+use error::TantivyError;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
@@ -11,6 +11,7 @@ use std::result;
 use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 use Directory;
+use Result;
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
@@ -51,7 +52,7 @@ impl ManagedDirectory {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
                 let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
-                    .chain_err(|| ErrorKind::CorruptedFile(MANAGED_FILEPATH.clone()))?;
+                    .map_err(|_| TantivyError::CorruptedFile(MANAGED_FILEPATH.clone()))?;
                 Ok(ManagedDirectory {
                     directory: Box::new(directory),
                     meta_informations: Arc::new(RwLock::new(MetaInformation {

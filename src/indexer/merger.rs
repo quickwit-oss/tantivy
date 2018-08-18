@@ -2,7 +2,6 @@ use core::Segment;
 use core::SegmentReader;
 use core::SerializableSegment;
 use docset::DocSet;
-use error::Result;
 use fastfield::DeleteBitSet;
 use fastfield::FastFieldReader;
 use fastfield::FastFieldSerializer;
@@ -23,6 +22,7 @@ use store::StoreWriter;
 use termdict::TermMerger;
 use termdict::TermOrdinal;
 use DocId;
+use Result;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
