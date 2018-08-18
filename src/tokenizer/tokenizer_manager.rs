@@ -8,6 +8,7 @@ use tokenizer::RawTokenizer;
 use tokenizer::RemoveLongFilter;
 use tokenizer::SimpleTokenizer;
 use tokenizer::Stemmer;
+use tokenizer::StopWordFilter;
 use tokenizer::Tokenizer;
 
 /// The tokenizer manager serves as a store for
@@ -64,12 +65,14 @@ impl Default for TokenizerManager {
         manager.register(
             "default",
             SimpleTokenizer
+                .filter(StopWordFilter::default())
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser),
         );
         manager.register(
             "en_stem",
             SimpleTokenizer
+                .filter(StopWordFilter::default())
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new()),
