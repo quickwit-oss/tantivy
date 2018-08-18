@@ -161,8 +161,8 @@ impl QueryParser {
     /// Note that `parse_query_lenient` will NOT return an error
     /// if the input is not a valid query.
     ///
-    /// It will instead make a best attempt at performing the quer ynad return
-    /// the results
+    /// It will instead escape all special characters in the query body
+    /// retry to process the query, if it still fails will return the AllQuery
     pub fn parse_query_lenient(&self, query: &str) -> Box<Query> {
         if let Ok(logical_ast) = self.parse_query_to_logical_ast(query) {
             return convert_to_query(logical_ast);
@@ -576,7 +576,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_parse_query_leient_empty_maps_to_all() {
+    pub fn test_parse_query_leient_escapes_bad_queries() {
         let query_parser = make_query_parser();
 
         let query = query_parser
