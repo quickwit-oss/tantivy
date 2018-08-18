@@ -1,6 +1,7 @@
 use super::logical_ast::*;
 use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
+use combine::Parser;
 use core::Index;
 use query::AllQuery;
 use query::BooleanQuery;
@@ -17,8 +18,6 @@ use std::num::ParseIntError;
 use std::ops::Bound;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
-use combine::Parser;
-
 
 /// Possible error that may happen when parsing a query.
 #[derive(Debug, PartialEq, Eq)]
@@ -144,18 +143,31 @@ impl QueryParser {
     ///
     /// There is currently no lenient mode for the query parser
     /// which makes it a bad choice for a public/broad user search engine.
-    ///
-    /// Implementing a lenient mode for this query parser is tracked
-    /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
         Ok(convert_to_query(logical_ast))
     }
 
+    /// Parse a query
+    ///
+    /// Note that `parse_query_lenient` will NOT return an error
+    /// if the input is not a valid query.
+    ///
+    /// It will instead make a best attempt at performing the quer ynad return
+    /// the results
+    pub fn parse_query_lenient(&self, query: &str) -> Box<Query> {
+        if let Ok(logical_ast) = self.parse_query_to_logical_ast(query) {
+            convert_to_query(logical_ast)
+        } else {
+            Box::new(AllQuery)
+        }
+    }
+
     /// Parse the user query into an AST.
     fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
-        let (user_input_ast, _remaining) =
-            parse_to_ast().parse(query).map_err(|_| QueryParserError::SyntaxError)?;
+        let (user_input_ast, _remaining) = parse_to_ast()
+            .parse(query)
+            .map_err(|_| QueryParserError::SyntaxError)?;
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -200,14 +212,15 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let mut tokenizer = self.tokenizer_manager.get(option.tokenizer()).ok_or_else(
-                        || {
-                            QueryParserError::UnknownTokenizer(
-                                field_entry.name().to_string(),
-                                option.tokenizer().to_string(),
-                            )
-                        },
-                    )?;
+                    let mut tokenizer =
+                        self.tokenizer_manager
+                            .get(option.tokenizer())
+                            .ok_or_else(|| {
+                                QueryParserError::UnknownTokenizer(
+                                    field_entry.name().to_string(),
+                                    option.tokenizer().to_string(),
+                                )
+                            })?;
                     let mut terms: Vec<(usize, Term)> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
@@ -257,12 +270,9 @@ impl QueryParser {
     ) -> Result<Option<LogicalLiteral>, QueryParserError> {
         let terms = self.compute_terms_for_string(field, phrase)?;
         match &terms[..] {
-            [] =>
-                Ok(None),
-            [(_, term)] =>
-                Ok(Some(LogicalLiteral::Term(term.clone()))),
-            _ =>
-                Ok(Some(LogicalLiteral::Phrase(terms.clone()))),
+            [] => Ok(None),
+            [(_, term)] => Ok(Some(LogicalLiteral::Term(term.clone()))),
+            _ => Ok(Some(LogicalLiteral::Phrase(terms.clone()))),
         }
     }
 
@@ -274,7 +284,11 @@ impl QueryParser {
         }
     }
 
-    fn resolve_bound(&self, field: Field, bound: &UserInputBound) -> Result<Bound<Term>, QueryParserError> {
+    fn resolve_bound(
+        &self,
+        field: Field,
+        bound: &UserInputBound,
+    ) -> Result<Bound<Term>, QueryParserError> {
         if bound.term_str() == "*" {
             return Ok(Bound::Unbounded);
         }
@@ -321,11 +335,13 @@ impl QueryParser {
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
             UserInputAST::Not(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
+                let (occur, logical_sub_queries) =
+                    self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
             }
             UserInputAST::Must(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
+                let (occur, logical_sub_queries) =
+                    self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
             UserInputAST::Range {
@@ -345,8 +361,7 @@ impl QueryParser {
                             lower: self.resolve_bound(field, &lower)?,
                             upper: self.resolve_bound(field, &upper)?,
                         })))
-                    })
-                    .collect::<Result<Vec<_>, QueryParserError>>()?;
+                    }).collect::<Result<Vec<_>, QueryParserError>>()?;
                 let result_ast = if clauses.len() == 1 {
                     clauses.pop().unwrap()
                 } else {
@@ -424,7 +439,9 @@ fn compose_occur(left: Occur, right: Occur) -> Occur {
 fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     match logical_literal {
         LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
-        LogicalLiteral::Phrase(term_with_offsets) => Box::new(PhraseQuery::new_with_offset(term_with_offsets)),
+        LogicalLiteral::Phrase(term_with_offsets) => {
+            Box::new(PhraseQuery::new_with_offset(term_with_offsets))
+        }
         LogicalLiteral::Range {
             field,
             value_type,
@@ -647,11 +664,7 @@ mod test {
             "(Excluded(Term([0, 0, 0, 0, 116, 105, 116, 105])) TO Unbounded)",
             false,
         );
-        test_parse_query_to_logical_ast_helper(
-            "*",
-            "*",
-            false,
-        );
+        test_parse_query_to_logical_ast_helper("*", "*", false);
     }
 
     #[test]
