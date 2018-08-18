@@ -148,6 +148,14 @@ impl QueryParser {
         Ok(convert_to_query(logical_ast))
     }
 
+    /// Parse the user query into an AST.
+    fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
+        let (user_input_ast, _remaining) = parse_to_ast()
+            .parse(query)
+            .map_err(|_| QueryParserError::SyntaxError)?;
+        self.compute_logical_ast(user_input_ast)
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query_lenient` will NOT return an error
@@ -157,17 +165,54 @@ impl QueryParser {
     /// the results
     pub fn parse_query_lenient(&self, query: &str) -> Box<Query> {
         if let Ok(logical_ast) = self.parse_query_to_logical_ast(query) {
-            convert_to_query(logical_ast)
-        } else {
-            Box::new(AllQuery)
+            return convert_to_query(logical_ast);
         }
+
+        // try to clean up the query
+        if let Ok(logical_ast) = self.parse_lenient_query_to_logical_ast(query) {
+            return convert_to_query(logical_ast);
+        }
+
+        // we have no idea what you want, so here's everything
+        Box::new(AllQuery)
     }
 
     /// Parse the user query into an AST.
-    fn parse_query_to_logical_ast(&self, query: &str) -> Result<LogicalAST, QueryParserError> {
+    fn parse_lenient_query_to_logical_ast(
+        &self,
+        query: &str,
+    ) -> Result<LogicalAST, QueryParserError> {
+        // if we are here, we know we have a poorly formed
+        // query input
+
+        //  # Escape special characters: \\+-&|!(){}[]^~*?:\/
+        let special_chars = vec![
+            "\\", "+", "-", "&", "|", "!", "(", ")", "{", "}", "[", "]", "^", "~", "*", "?", ":",
+            "/",
+        ];
+
+        let mut scrubbed_query = query.to_string();
+        for c in special_chars.iter() {
+            scrubbed_query = scrubbed_query.replace(c, &format!("{}", c));
+        }
+
+        // AND, OR and NOT are used by tantivy as logical operators. We need
+        // to escape them
+        let special_words = vec!["AND", "OR", "NOT"];
+        for word in special_words.iter() {
+            scrubbed_query = scrubbed_query.replace(word, &format!("{}", word));
+        }
+
+        // Escape odd quotes
+        let quote_count = scrubbed_query.chars().filter(|&c| c == '\"').count();
+        if quote_count % 2 == 1 {
+            scrubbed_query = scrubbed_query.replace("\"", "\\\"");
+        }
+
         let (user_input_ast, _remaining) = parse_to_ast()
-            .parse(query)
+            .parse(scrubbed_query.as_str())
             .map_err(|_| QueryParserError::SyntaxError)?;
+
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -519,6 +564,26 @@ mod test {
     pub fn test_parse_query_simple() {
         let query_parser = make_query_parser();
         assert!(query_parser.parse_query("toto").is_ok());
+    }
+
+    #[test]
+    pub fn test_parse_query_leient_no_panics() {
+        let query_parser = make_query_parser();
+
+        query_parser.parse_query_lenient("toto");
+        query_parser.parse_query_lenient("");
+        query_parser.parse_query_lenient("+(happy");
+    }
+
+    #[test]
+    pub fn test_parse_query_leient_empty_maps_to_all() {
+        let query_parser = make_query_parser();
+
+        let query = query_parser
+            .parse_lenient_query_to_logical_ast("+(happy")
+            .unwrap();
+        let query_str = format!("{:?}", query);
+        assert_eq!(query_str, "(Term([0, 0, 0, 0, 104, 97, 112, 112, 121]) Term([0, 0, 0, 1, 104, 97, 112, 112, 121]))");
     }
 
     #[test]
