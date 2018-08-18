@@ -98,3 +98,15 @@ where
         false
     }
 }
+
+impl Default for StopWordFilter {
+    fn default() -> StopWordFilter {
+        let words = vec![
+            "a", "an", "and", "are", "as", "at", "be", "but", "by", "for", "if", "in", "into",
+            "is", "it", "no", "not", "of", "on", "or", "such", "that", "the", "their", "then",
+            "there", "these", "they", "this", "to", "was", "will", "with",
+        ];
+
+        StopWordFilter::remove(words.iter().map(|s| s.to_string()).collect())
+    }
+}
