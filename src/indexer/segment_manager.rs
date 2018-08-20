@@ -2,8 +2,7 @@ use super::segment_register::SegmentRegister;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::{LOCKFILE_FILEPATH, META_FILEPATH};
-use error::ErrorKind;
-use error::Result as TantivyResult;
+use error::TantivyError;
 use indexer::delete_queue::DeleteCursor;
 use indexer::SegmentEntry;
 use std::collections::hash_set::HashSet;
@@ -11,6 +10,7 @@ use std::fmt::{self, Debug, Formatter};
 use std::path::PathBuf;
 use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
+use Result as TantivyResult;
 
 #[derive(Default)]
 struct SegmentRegisters {
@@ -141,7 +141,7 @@ impl SegmentManager {
             let error_msg = "Merge operation sent for segments that are not \
                              all uncommited or commited."
                 .to_string();
-            bail!(ErrorKind::InvalidArgument(error_msg))
+            return Err(TantivyError::InvalidArgument(error_msg));
         }
         Ok(segment_entries)
     }

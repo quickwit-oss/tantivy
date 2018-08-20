@@ -5,7 +5,7 @@ use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
-use error::ErrorKind;
+use error::TantivyError;
 use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
@@ -171,7 +171,7 @@ impl SegmentReader {
     pub fn facet_reader(&self, field: Field) -> Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
         if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(ErrorKind::InvalidArgument(format!(
+            return Err(TantivyError::InvalidArgument(format!(
                 "The field {:?} is not a \
                  hierarchical facet.",
                 field_entry
@@ -179,7 +179,7 @@ impl SegmentReader {
         }
         let term_ords_reader = self.multi_fast_field_reader(field)?;
         let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
-            ErrorKind::InvalidArgument(format!(
+            TantivyError::InvalidArgument(format!(
                 "The field \"{}\" is a hierarchical \
                  but this segment does not seem to have the field term \
                  dictionary.",
@@ -462,9 +462,7 @@ mod test {
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let docs: Vec<DocId> = searcher.segment_reader(0)
-            .doc_ids_alive()
-            .collect();
+        let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
         assert_eq!(vec![0u32, 2u32], docs);
     }
 }
