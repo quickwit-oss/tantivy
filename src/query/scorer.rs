@@ -50,33 +50,6 @@ impl Scorer for Box<Scorer> {
     }
 }
 
-/// `EmptyScorer` is a dummy `Scorer` in which no document matches.
-///
-/// It is useful for tests and handling edge cases.
-pub struct EmptyScorer;
-
-impl DocSet for EmptyScorer {
-    fn advance(&mut self) -> bool {
-        false
-    }
-
-    fn doc(&self) -> DocId {
-        panic!(
-            "You may not call .doc() on a scorer \
-             where the last call to advance() did not return true."
-        );
-    }
-
-    fn size_hint(&self) -> u32 {
-        0
-    }
-}
-
-impl Scorer for EmptyScorer {
-    fn score(&mut self) -> Score {
-        0f32
-    }
-}
 
 /// Wraps a `DocSet` and simply returns a constant `Scorer`.
 /// The `ConstScorer` is useful if you have a `DocSet` where
@@ -133,23 +106,5 @@ impl<TDocSet: DocSet> DocSet for ConstScorer<TDocSet> {
 impl<TDocSet: DocSet + 'static> Scorer for ConstScorer<TDocSet> {
     fn score(&mut self) -> Score {
         1f32
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::EmptyScorer;
-    use DocSet;
-
-    #[test]
-    fn test_empty_scorer() {
-        let mut empty_scorer = EmptyScorer;
-        assert!(!empty_scorer.advance());
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_empty_scorer_panic_on_doc_call() {
-        EmptyScorer.doc();
     }
 }

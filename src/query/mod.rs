@@ -3,6 +3,7 @@ Query
 */
 
 mod all_query;
+mod empty_query;
 mod automaton_weight;
 mod bitset;
 mod bm25;
@@ -34,6 +35,7 @@ pub use self::union::Union;
 pub use self::vec_docset::VecDocSet;
 
 pub use self::all_query::{AllQuery, AllScorer, AllWeight};
+pub use self::empty_query::{EmptyQuery, EmptyWeight, EmptyScorer};
 pub use self::automaton_weight::AutomatonWeight;
 pub use self::bitset::BitSetDocSet;
 pub use self::boolean_query::BooleanQuery;
@@ -49,7 +51,6 @@ pub use self::range_query::RangeQuery;
 pub use self::regex_query::RegexQuery;
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::scorer::ConstScorer;
-pub use self::scorer::EmptyScorer;
 pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
