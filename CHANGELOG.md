@@ -1,3 +1,11 @@
+
+Tantivy 0.7
+=====================
+- Skip data for doc ids and positions (@fulmicoton),
+  greatly improving performance
+- Tantivy error now rely on the failure crate (@drusellers)
+
+
 Tantivy 0.6.1
 =========================
 - Bugfix #324. GC removing was removing file that were still in useful
