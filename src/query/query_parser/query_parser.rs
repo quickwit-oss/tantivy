@@ -18,6 +18,7 @@ use std::ops::Bound;
 use std::str::FromStr;
 use tokenizer::TokenizerManager;
 use combine::Parser;
+use query::EmptyQuery;
 
 
 /// Possible error that may happen when parsing a query.
@@ -438,11 +439,15 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
 fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
     match logical_ast {
         LogicalAST::Clause(clause) => {
-            let occur_subqueries = clause
-                .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
-                .collect::<Vec<_>>();
-            Box::new(BooleanQuery::from(occur_subqueries))
+            if clause.is_empty() {
+                Box::new(EmptyQuery)
+            } else {
+                let occur_subqueries = clause
+                    .into_iter()
+                    .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                    .collect::<Vec<_>>();
+                Box::new(BooleanQuery::from(occur_subqueries))
+            }
         }
         LogicalAST::Leaf(logical_literal) => convert_literal_to_query(*logical_literal),
     }
@@ -539,6 +544,24 @@ mod test {
              101, 32, 119, 111, 114, 100, 116, 119, 111])",
             false,
         );
+    }
+
+    #[test]
+    pub fn test_parse_query_empty() {
+        test_parse_query_to_logical_ast_helper(
+            "",
+            "<emptyclause>",
+            false,
+        );
+        test_parse_query_to_logical_ast_helper(
+            " ",
+            "<emptyclause>",
+            false,
+        );
+        let query_parser = make_query_parser();
+        let query_result = query_parser.parse_query("");
+        let query = query_result.unwrap();
+        assert_eq!(format!("{:?}", query), "EmptyQuery");
     }
 
     #[test]

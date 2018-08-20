@@ -38,7 +38,7 @@ crossbeam = "0.4"
 crossbeam-channel = "0.2"
 futures = "0.1"
 futures-cpupool = "0.1"
-owning_ref = "0.3"
+owning_ref = "0.4"
 stable_deref_trait = "1.0.0"
 rust-stemmers = "1"
 downcast = { version="0.9" }
