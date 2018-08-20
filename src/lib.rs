@@ -181,6 +181,9 @@ mod macros;
 
 pub use error::TantivyError;
 
+#[deprecated(since="0.7.0", note="please use `tantivy::TantivyError` instead")]
+pub use error::TantivyError as Error;
+
 extern crate census;
 extern crate owned_read;
 
