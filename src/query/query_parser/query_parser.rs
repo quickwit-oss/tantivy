@@ -462,12 +462,17 @@ mod test {
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
-    use tokenizer::SimpleTokenizer;
-    use tokenizer::TokenizerManager;
+    use tokenizer::{Tokenizer, SimpleTokenizer, LowerCaser, StopWordFilter, TokenizerManager};
     use Index;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("en_with_stop_words")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
         schema_builder.add_i64_field("signed", INT_INDEXED);
@@ -476,9 +481,14 @@ mod test {
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);
         schema_builder.add_text_field("nottokenized", STRING);
+        schema_builder.add_text_field("with_stop_words", text_options);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register("en_with_stop_words", SimpleTokenizer
+            .filter(LowerCaser)
+            .filter(StopWordFilter::remove(vec!["the".to_string()]))
+        );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
 
@@ -745,6 +755,13 @@ mod test {
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_not_empty_but_no_tokens() {
+        let query_parser = make_query_parser();
+        assert!(query_parser.parse_query(" !, ").is_ok());
+        assert!(query_parser.parse_query("with_stop_words:the").is_ok());
     }
 
     #[test]
