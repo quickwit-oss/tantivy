@@ -29,7 +29,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 # Features
 
 - Full-text search
-- Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/)) :sparkles:
+- Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command line tools
 - BM25 scoring (the same as lucene)
 - Basic query language (`+michael +jackson`)
