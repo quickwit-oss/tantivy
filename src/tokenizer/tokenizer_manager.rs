@@ -8,6 +8,7 @@ use tokenizer::RawTokenizer;
 use tokenizer::RemoveLongFilter;
 use tokenizer::SimpleTokenizer;
 use tokenizer::Stemmer;
+use tokenizer::StopWordFilter;
 use tokenizer::Tokenizer;
 
 /// The tokenizer manager serves as a store for
