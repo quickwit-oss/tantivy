@@ -65,14 +65,12 @@ impl Default for TokenizerManager {
         manager.register(
             "default",
             SimpleTokenizer
-                .filter(StopWordFilter::default())
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser),
         );
         manager.register(
             "en_stem",
             SimpleTokenizer
-                .filter(StopWordFilter::default())
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
                 .filter(Stemmer::new()),
