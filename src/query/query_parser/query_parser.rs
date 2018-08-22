@@ -19,6 +19,7 @@ use std::str::FromStr;
 use tokenizer::TokenizerManager;
 use combine::Parser;
 use query::EmptyQuery;
+use query::query_parser::logical_ast::LogicalAST;
 
 
 /// Possible error that may happen when parsing a query.
@@ -54,6 +55,27 @@ pub enum QueryParserError {
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
         QueryParserError::ExpectedInt(err)
+    }
+}
+
+
+/// Recursively remove empty clause from the AST
+///
+/// Returns `None` iff the `logical_ast` ended up being empty.
+fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
+    match logical_ast {
+        LogicalAST::Clause(children) => {
+            let trimmed_children = children.into_iter()
+                .flat_map(|(occur, child)|
+                    trim_ast(child).map(|trimmed_child| (occur, trimmed_child)) )
+                .collect::<Vec<_>>();
+            if trimmed_children.is_empty() {
+                None
+            } else {
+                Some(LogicalAST::Clause(trimmed_children))
+            }
+        },
+        _ => Some(logical_ast),
     }
 }
 
@@ -387,14 +409,18 @@ impl QueryParser {
                         asts.push(LogicalAST::Leaf(Box::new(ast)));
                     }
                 }
-                let result_ast = if asts.is_empty() {
-                    // this should never happen
-                    return Err(QueryParserError::SyntaxError);
-                } else if asts.len() == 1 {
-                    asts[0].clone()
-                } else {
-                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
-                };
+                let result_ast =
+                    match asts.len() {
+                        0 => {
+                            LogicalAST::Clause(vec![])
+                        }
+                        1 => {
+                            asts[0].clone()
+                        }
+                        _ => {
+                            LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
+                        }
+                    };
                 Ok((Occur::Should, result_ast))
             }
         }
@@ -437,19 +463,17 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
 }
 
 fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
-    match logical_ast {
-        LogicalAST::Clause(clause) => {
-            if clause.is_empty() {
-                Box::new(EmptyQuery)
-            } else {
-                let occur_subqueries = clause
-                    .into_iter()
-                    .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
-                    .collect::<Vec<_>>();
-                Box::new(BooleanQuery::from(occur_subqueries))
-            }
-        }
-        LogicalAST::Leaf(logical_literal) => convert_literal_to_query(*logical_literal),
+    match trim_ast(logical_ast) {
+        Some(LogicalAST::Clause(trimmed_clause)) => {
+            let occur_subqueries = trimmed_clause
+                .into_iter()
+                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .collect::<Vec<_>>();
+            assert!(!occur_subqueries.is_empty(), "Should not be empty after trimming");
+            Box::new(BooleanQuery::from(occur_subqueries))
+        },
+        Some(LogicalAST::Leaf(trimmed_logical_literal)) => convert_literal_to_query(*trimmed_logical_literal),
+        None => Box::new(EmptyQuery)
     }
 }
 
