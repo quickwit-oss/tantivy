@@ -12,3 +12,25 @@ pub enum Occur {
     /// search.
     MustNot,
 }
+
+
+/// Compose two occur values.
+pub fn compose_occur(left: Occur, right: Occur) -> Occur {
+    match left {
+        Occur::Should => right,
+        Occur::Must => {
+            if right == Occur::MustNot {
+                Occur::MustNot
+            } else {
+                Occur::Must
+            }
+        }
+        Occur::MustNot => {
+            if right == Occur::MustNot {
+                Occur::Must
+            } else {
+                Occur::MustNot
+            }
+        }
+    }
+}

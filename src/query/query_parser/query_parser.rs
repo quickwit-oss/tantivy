@@ -5,6 +5,7 @@ use core::Index;
 use query::AllQuery;
 use query::BooleanQuery;
 use query::Occur;
+use query::occur::compose_occur;
 use query::PhraseQuery;
 use query::Query;
 use query::RangeQuery;
@@ -315,7 +316,7 @@ impl QueryParser {
                 let default_occur = self.default_occur();
                 let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
                 for sub_query in sub_queries {
-                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(*sub_query)?;
+                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(sub_query)?;
                     let new_occur = compose_occur(default_occur, occur);
                     logical_sub_queries.push((new_occur, sub_ast));
                 }
@@ -328,6 +329,10 @@ impl QueryParser {
             UserInputAST::Must(subquery) => {
                 let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
+            }
+            UserInputAST::Should(subquery) => {
+                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
+                Ok((compose_occur(Occur::Should, occur), logical_sub_queries))
             }
             UserInputAST::Leaf(leaf) =>  {
                 let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
@@ -404,29 +409,6 @@ impl QueryParser {
             }
         }
 
-    }
-}
-
-
-
-/// Compose two occur values.
-fn compose_occur(left: Occur, right: Occur) -> Occur {
-    match left {
-        Occur::Should => right,
-        Occur::Must => {
-            if right == Occur::MustNot {
-                Occur::MustNot
-            } else {
-                Occur::Must
-            }
-        }
-        Occur::MustNot => {
-            if right == Occur::MustNot {
-                Occur::Must
-            } else {
-                Occur::MustNot
-            }
-        }
     }
 }
 

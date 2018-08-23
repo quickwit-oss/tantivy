@@ -1,6 +1,9 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 
+use query::Occur;
+use query::occur::compose_occur;
+
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
     All,
@@ -78,11 +81,47 @@ impl UserInputBound {
 }
 
 pub enum UserInputAST {
-    Clause(Vec<Box<UserInputAST>>),
+    Clause(Vec<UserInputAST>),
     Not(Box<UserInputAST>),
+    Should(Box<UserInputAST>),
     Must(Box<UserInputAST>),
     Leaf(Box<UserInputLeaf>),
 }
+/*
+impl UserInputAST {
+
+    fn compose_occur(self, occur: Occur) -> UserInputAST {
+        match self {
+            UserInputAST::Not(other) => {
+                let new_occur = compose_occur(Occur::MustNot, occur);
+                other.simplify()
+            }
+            _ => {
+                self
+            }
+        }
+    }
+
+    pub fn simplify(self) -> UserInputAST {
+        match self {
+            UserInputAST::Clause(els) => {
+                if els.len() == 1 {
+                    return els.into_iter().next().unwrap();
+                } else {
+                    return self;
+                }
+            }
+            UserInputAST::Not(els) => {
+                if els.len() == 1 {
+                    return els.into_iter().next().unwrap();
+                } else {
+                    return self;
+                }
+            }
+        }
+    }
+}
+*/
 
 impl From<UserInputLiteral> for UserInputLeaf {
     fn from(literal: UserInputLiteral) -> UserInputLeaf {
@@ -100,6 +139,7 @@ impl fmt::Debug for UserInputAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
             UserInputAST::Must(ref subquery) => write!(formatter, "+({:?})", subquery),
+            UserInputAST::Should(ref subquery) => write!(formatter, "?({:?})", subquery),
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;

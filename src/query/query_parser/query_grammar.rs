@@ -55,6 +55,13 @@ parser! {
 }
 
 parser! {
+    fn spaces1[I]()(I) -> ()
+    where [I: Stream<Item = char>] {
+        skip_many1(space())
+    }
+}
+
+parser! {
     fn range[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>] {
         let term_val = || {
@@ -88,8 +95,7 @@ parser! {
 parser! {
     fn leaf[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>] {
-         (char('-'), leaf())
-        .map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
+         (char('-'), leaf()).map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
         .or((char('+'), leaf()).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
         .or(char('*').map(|_| UserInputAST::Leaf(Box::new(UserInputLeaf::All)) ))
@@ -103,18 +109,98 @@ parser! {
     }
 }
 
+enum BinaryOperand {
+    Or, And
+}
+
+parser! {
+    fn binary_operand[I]()(I) -> BinaryOperand
+    where [I: Stream<Item = char>] {
+        (spaces1(),
+         (
+            string("AND").map(|_| BinaryOperand::And)
+           .or(string("OR").map(|_| BinaryOperand::Or))
+         ),
+         spaces1()).map(|(_, op,_)| op)
+    }
+}
+
+
+enum Element {
+    SingleEl(UserInputAST),
+    NormalDisjunctive(Vec<Vec<UserInputAST>>)
+}
+
+impl Element {
+    pub fn into_dnf(self) -> Vec<Vec<UserInputAST>> {
+        match self {
+            Element::NormalDisjunctive(conjunctions) =>
+                conjunctions,
+            Element::SingleEl(el) =>
+                vec!(vec!(el)),
+        }
+    }
+}
+
 parser! {
     pub fn parse_to_ast[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>]
     {
-        sep_by(leaf(), spaces())
-        .map(|subqueries: Vec<UserInputAST>| {
-            if subqueries.len() == 1 {
-                subqueries.into_iter().next().unwrap()
-            } else {
-                UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
-            }
-        })
+        (
+            try(
+                chainl1(
+                    leaf().map(|el| Element::SingleEl(el)),
+                    binary_operand().map(|op: BinaryOperand|
+                        move |left: Element, right: Element| {
+                            let mut dnf = left.into_dnf();
+                            if let Element::SingleEl(el) = right {
+                                match op {
+                                    BinaryOperand::And => {
+                                        if let Some(last) = dnf.last_mut() {
+                                            last.push(el);
+                                        }
+                                    }
+                                    BinaryOperand::Or => {
+                                        dnf.push(vec!(el));
+                                    }
+                                }
+                            } else {
+                                unreachable!("Please report.")
+                            }
+                            Element::NormalDisjunctive(dnf)
+                        }
+                    )
+                )
+                .map(|el| el.into_dnf())
+                .map(|fnd| {
+                    let conjunctions = fnd
+                        .into_iter()
+                        .map(|conjunction| {
+                            UserInputAST::Clause(conjunction
+                                .into_iter()
+                                .map(|ast: UserInputAST| {
+                                    UserInputAST::Must(Box::new(ast))
+                                })
+                                .collect::<Vec<_>>()
+                           )
+                        })
+                        .map(|conjunction_ast| UserInputAST::Should(Box::new(conjunction_ast)))
+                        .collect();
+                    UserInputAST::Clause(conjunctions)
+                })
+            )
+            .or(
+                sep_by(leaf(), spaces())
+                .map(|subqueries: Vec<UserInputAST>| {
+                    if subqueries.len() == 1 {
+                        subqueries.into_iter().next().unwrap()
+                    } else {
+                        UserInputAST::Clause(subqueries.into_iter().collect())
+                    }
+                })
+            )
+        )
+
     }
 }
 
