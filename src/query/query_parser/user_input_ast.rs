@@ -1,4 +1,39 @@
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+
+pub enum UserInputLeaf {
+    Literal(UserInputLiteral),
+    All,
+    Range {
+        field: Option<String>,
+        lower: UserInputBound,
+        upper: UserInputBound,
+    },
+}
+
+impl Debug for UserInputLeaf {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
+        match self {
+            UserInputLeaf::Literal(literal) => {
+                literal.fmt(formatter)
+            }
+            UserInputLeaf::Range {
+                ref field,
+                ref lower,
+                ref upper,
+            } => {
+                if let &Some(ref field) = field {
+                    write!(formatter, "{}:", field)?;
+                }
+                lower.display_lower(formatter)?;
+                write!(formatter, " TO ")?;
+                upper.display_upper(formatter)?;
+                Ok(())
+            }
+            UserInputLeaf::All => write!(formatter, "*"),
+        }
+    }
+}
 
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
@@ -46,18 +81,18 @@ pub enum UserInputAST {
     Clause(Vec<Box<UserInputAST>>),
     Not(Box<UserInputAST>),
     Must(Box<UserInputAST>),
-    Range {
-        field: Option<String>,
-        lower: UserInputBound,
-        upper: UserInputBound,
-    },
-    All,
-    Leaf(Box<UserInputLiteral>),
+    Leaf(Box<UserInputLeaf>),
 }
 
-impl From<UserInputLiteral> for UserInputAST {
-    fn from(literal: UserInputLiteral) -> UserInputAST {
-        UserInputAST::Leaf(Box::new(literal))
+impl From<UserInputLiteral> for UserInputLeaf {
+    fn from(literal: UserInputLiteral) -> UserInputLeaf {
+        UserInputLeaf::Literal(literal)
+    }
+}
+
+impl From<UserInputLeaf> for UserInputAST {
+    fn from(leaf: UserInputLeaf) -> UserInputAST {
+        UserInputAST::Leaf(Box::new(leaf))
     }
 }
 
@@ -79,20 +114,6 @@ impl fmt::Debug for UserInputAST {
                 Ok(())
             }
             UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
-            UserInputAST::Range {
-                ref field,
-                ref lower,
-                ref upper,
-            } => {
-                if let &Some(ref field) = field {
-                    write!(formatter, "{}:", field)?;
-                }
-                lower.display_lower(formatter)?;
-                write!(formatter, " TO ")?;
-                upper.display_upper(formatter)?;
-                Ok(())
-            }
-            UserInputAST::All => write!(formatter, "*"),
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }

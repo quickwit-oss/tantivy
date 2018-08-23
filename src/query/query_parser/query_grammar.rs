@@ -21,7 +21,7 @@ parser! {
 }
 
 parser! {
-    fn literal[I]()(I) -> UserInputAST
+    fn literal[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>]
     {
         let term_val = || {
@@ -41,7 +41,7 @@ parser! {
         });
         try(term_query)
             .or(term_default_field)
-            .map(UserInputAST::from)
+            .map(UserInputLeaf::from)
     }
 }
 
@@ -55,7 +55,7 @@ parser! {
 }
 
 parser! {
-    fn range[I]()(I) -> UserInputAST
+    fn range[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>] {
         let term_val = || {
             word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
@@ -77,7 +77,7 @@ parser! {
             string("TO"),
             spaces(),
             upper_bound,
-        ).map(|(field, lower, _, _, _, upper)| UserInputAST::Range {
+        ).map(|(field, lower, _, _, _, upper)| UserInputLeaf::Range {
                 field,
                 lower,
                 upper
@@ -92,9 +92,14 @@ parser! {
         .map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
         .or((char('+'), leaf()).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
-        .or(char('*').map(|_| UserInputAST::All))
-        .or(try(range()))
-        .or(literal())
+        .or(char('*').map(|_| UserInputAST::Leaf(Box::new(UserInputLeaf::All)) ))
+        .or(
+            try(
+                range()
+                .map(|leaf| UserInputAST::Leaf(Box::new(leaf)))
+            )
+        )
+        .or(literal().map(|leaf| UserInputAST::Leaf(Box::new(leaf))))
     }
 }
 

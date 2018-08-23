@@ -329,42 +329,17 @@ impl QueryParser {
                 let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
                 Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
             }
-            UserInputAST::Range {
-                field,
-                lower,
-                upper,
-            } => {
-                let fields = self.resolved_fields(&field)?;
-                let mut clauses = fields
-                    .iter()
-                    .map(|&field| {
-                        let field_entry = self.schema.get_field_entry(field);
-                        let value_type = field_entry.field_type().value_type();
-                        Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
-                            field,
-                            value_type,
-                            lower: self.resolve_bound(field, &lower)?,
-                            upper: self.resolve_bound(field, &upper)?,
-                        })))
-                    })
-                    .collect::<Result<Vec<_>, QueryParserError>>()?;
-                let result_ast = if clauses.len() == 1 {
-                    clauses.pop().unwrap()
-                } else {
-                    LogicalAST::Clause(
-                        clauses
-                            .into_iter()
-                            .map(|clause| (Occur::Should, clause))
-                            .collect(),
-                    )
-                };
+            UserInputAST::Leaf(leaf) =>  {
+                let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
                 Ok((Occur::Should, result_ast))
             }
-            UserInputAST::All => Ok((
-                Occur::Should,
-                LogicalAST::Leaf(Box::new(LogicalLiteral::All)),
-            )),
-            UserInputAST::Leaf(literal) => {
+        }
+    }
+
+
+    fn compute_logical_ast_from_leaf(&self, leaf: UserInputLeaf) -> Result<LogicalAST, QueryParserError> {
+        match leaf {
+            UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
                         let field = self.resolve_field_name(field_name)?;
@@ -395,11 +370,44 @@ impl QueryParser {
                 } else {
                     LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
                 };
-                Ok((Occur::Should, result_ast))
+                Ok(result_ast)
+            }
+            UserInputLeaf::All => {
+                Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::All)))
+            }
+            UserInputLeaf::Range { field, lower, upper } => {
+                let fields = self.resolved_fields(&field)?;
+                let mut clauses = fields
+                    .iter()
+                    .map(|&field| {
+                        let field_entry = self.schema.get_field_entry(field);
+                        let value_type = field_entry.field_type().value_type();
+                        Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                            field,
+                            value_type,
+                            lower: self.resolve_bound(field, &lower)?,
+                            upper: self.resolve_bound(field, &upper)?,
+                        })))
+                    })
+                    .collect::<Result<Vec<_>, QueryParserError>>()?;
+                let result_ast = if clauses.len() == 1 {
+                    clauses.pop().unwrap()
+                } else {
+                    LogicalAST::Clause(
+                        clauses
+                            .into_iter()
+                            .map(|clause| (Occur::Should, clause))
+                            .collect(),
+                    )
+                };
+                Ok(result_ast)
             }
         }
+
     }
 }
+
+
 
 /// Compose two occur values.
 fn compose_occur(left: Occur, right: Occur) -> Occur {
