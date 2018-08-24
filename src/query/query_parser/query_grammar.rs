@@ -1,6 +1,8 @@
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::*;
+use combine::stream::StreamErrorFor;
+use combine::error::StreamError;
 use query::occur::Occur;
 use query::query_parser::user_input_ast::UserInputBound;
 
@@ -18,6 +20,13 @@ parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
         many1(satisfy(|c: char| c.is_alphanumeric()))
+               .and_then(|s: String| {
+                   match s.as_str() {
+                     "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
+                     "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
+                     _ => Ok(s)
+                   }
+               })
     }
 }
 
@@ -29,7 +38,6 @@ parser! {
             let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
             phrase.or(word())
         };
-
         let term_val_with_field = negative_number().or(term_val());
         let term_query =
             (field(), char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
@@ -213,6 +221,18 @@ mod test {
 
     fn test_is_parse_err(query: &str) {
         assert!(parse_to_ast().parse(query).is_err());
+    }
+
+    #[test]
+    fn test_parse_query_to_ast_binary_op() {
+        test_parse_query_to_ast_helper("a AND b", "(+(\"a\") +(\"b\"))");
+        test_parse_query_to_ast_helper("a OR b", "(?(\"a\") ?(\"b\"))");
+        test_parse_query_to_ast_helper("a OR b AND c", "(?(\"a\") ?((+(\"b\") +(\"c\"))))");
+        test_parse_query_to_ast_helper("a AND b         AND c", "(+(\"a\") +(\"b\") +(\"c\"))");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("a OR b aaa")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("a AND b aaa")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa a OR b ")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")), "Err(UnexpectedParse)");
     }
 
     #[test]

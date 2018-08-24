@@ -14,6 +14,10 @@ pub enum Occur {
 }
 
 impl Occur {
+    /// Returns the one-char prefix symbol for this `Occur`.
+    /// - `Should` => '?',
+    /// - `Must` => '+'
+    /// - `Not` => '-'
     pub fn to_char(&self) -> char {
         match *self {
             Occur::Should => '?',

@@ -60,7 +60,6 @@ mod tests {
         let (index, text_field) = aux_test_helper();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("(+a +b) d").unwrap();
-        println!("{:?}", query);
         assert_eq!(query.count(&*index.searcher()).unwrap(), 3);
     }
 

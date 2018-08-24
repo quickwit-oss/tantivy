@@ -2,7 +2,6 @@ use std::fmt;
 use std::fmt::{Debug, Formatter};
 
 use query::Occur;
-use query::occur::compose_occur;
 
 pub enum UserInputLeaf {
     Literal(UserInputLiteral),
