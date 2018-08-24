@@ -13,6 +13,15 @@ pub enum Occur {
     MustNot,
 }
 
+impl Occur {
+    pub fn to_char(&self) -> char {
+        match *self {
+            Occur::Should => '?',
+            Occur::Must => '+',
+            Occur::MustNot => '-',
+        }
+    }
+}
 
 /// Compose two occur values.
 pub fn compose_occur(left: Occur, right: Occur) -> Occur {

@@ -82,11 +82,47 @@ impl UserInputBound {
 
 pub enum UserInputAST {
     Clause(Vec<UserInputAST>),
-    Not(Box<UserInputAST>),
-    Should(Box<UserInputAST>),
-    Must(Box<UserInputAST>),
+    Unary(Occur, Box<UserInputAST>),
+//    Not(Box<UserInputAST>),
+//    Should(Box<UserInputAST>),
+//    Must(Box<UserInputAST>),
     Leaf(Box<UserInputLeaf>),
 }
+
+
+impl UserInputAST {
+    pub fn unary(self, occur: Occur) -> UserInputAST {
+        UserInputAST::Unary(occur, Box::new(self))
+    }
+
+    fn compose(occur: Occur, asts: Vec<UserInputAST>) -> UserInputAST {
+        assert!(occur != Occur::MustNot);
+        assert!(!asts.is_empty());
+        if asts.len() == 1 {
+            asts.into_iter().next().unwrap() //< safe
+        } else {
+            UserInputAST::Clause(asts
+                .into_iter()
+                .map(|ast: UserInputAST|
+                    ast.unary(occur)
+                )
+                .collect::<Vec<_>>()
+            )
+        }
+    }
+
+    pub fn and(asts: Vec<UserInputAST>) -> UserInputAST {
+        UserInputAST::compose(Occur::Must, asts)
+    }
+
+    pub fn or(asts: Vec<UserInputAST>) -> UserInputAST {
+        UserInputAST::compose(Occur::Should, asts)
+    }
+
+}
+
+
+
 /*
 impl UserInputAST {
 
@@ -138,8 +174,6 @@ impl From<UserInputLeaf> for UserInputAST {
 impl fmt::Debug for UserInputAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            UserInputAST::Must(ref subquery) => write!(formatter, "+({:?})", subquery),
-            UserInputAST::Should(ref subquery) => write!(formatter, "?({:?})", subquery),
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;
@@ -153,7 +187,9 @@ impl fmt::Debug for UserInputAST {
                 }
                 Ok(())
             }
-            UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
+            UserInputAST::Unary(ref occur, ref subquery) => {
+                write!(formatter, "{}({:?})", occur.to_char(), subquery)
+            }
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }

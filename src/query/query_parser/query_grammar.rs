@@ -1,6 +1,7 @@
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::*;
+use query::occur::Occur;
 use query::query_parser::user_input_ast::UserInputBound;
 
 parser! {
@@ -95,14 +96,14 @@ parser! {
 parser! {
     fn leaf[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>] {
-         (char('-'), leaf()).map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
-        .or((char('+'), leaf()).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
+         (char('-'), leaf()).map(|(_, expr)| expr.unary(Occur::MustNot) )
+        .or((char('+'), leaf()).map(|(_, expr)| expr.unary(Occur::Must) ))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
-        .or(char('*').map(|_| UserInputAST::Leaf(Box::new(UserInputLeaf::All)) ))
+        .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All) ))
         .or(
             try(
                 range()
-                .map(|leaf| UserInputAST::Leaf(Box::new(leaf)))
+                .map(|leaf| UserInputAST::from(leaf))
             )
         )
         .or(literal().map(|leaf| UserInputAST::Leaf(Box::new(leaf))))
@@ -173,20 +174,15 @@ parser! {
                 )
                 .map(|el| el.into_dnf())
                 .map(|fnd| {
-                    let conjunctions = fnd
+                    if fnd.len() == 1 {
+                        UserInputAST::and(fnd.into_iter().next().unwrap()) //< safe
+                    } else {
+                        let conjunctions = fnd
                         .into_iter()
-                        .map(|conjunction| {
-                            UserInputAST::Clause(conjunction
-                                .into_iter()
-                                .map(|ast: UserInputAST| {
-                                    UserInputAST::Must(Box::new(ast))
-                                })
-                                .collect::<Vec<_>>()
-                           )
-                        })
-                        .map(|conjunction_ast| UserInputAST::Should(Box::new(conjunction_ast)))
+                        .map(|conjunction| UserInputAST::and(conjunction))
                         .collect();
-                    UserInputAST::Clause(conjunctions)
+                        UserInputAST::or(conjunctions)
+                    }
                 })
             )
             .or(

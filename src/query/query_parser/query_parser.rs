@@ -322,17 +322,9 @@ impl QueryParser {
                 }
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
-            UserInputAST::Not(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
-            }
-            UserInputAST::Must(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
-            }
-            UserInputAST::Should(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::Should, occur), logical_sub_queries))
+            UserInputAST::Unary(left_occur, subquery) => {
+                let (right_occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
+                Ok((compose_occur(left_occur, right_occur), logical_sub_queries))
             }
             UserInputAST::Leaf(leaf) =>  {
                 let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
