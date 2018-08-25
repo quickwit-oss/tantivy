@@ -80,11 +80,21 @@ impl From<ParseIntError> for QueryParserError {
 ///
 ///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
+///
+/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is interpreted
+/// as `(a AND b) OR c`.
+///
+/// * In addition to the boolean operators, the `-`, `+` can help define. These operators
+///   are sufficient to axpress all queries using boolean operators. For instance `x AND y OR z` can
+///   be written (`(+x +y) z`). In addition, these operators can help define "required optional"
+///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.
+///
 /// * negative terms: By prepending a term by a `-`, a term can be excluded
 ///   from the search. This is useful for disambiguating a query.
 ///   e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///
 ///
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
 ///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed

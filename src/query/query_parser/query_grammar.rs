@@ -24,6 +24,7 @@ parser! {
                    match s.as_str() {
                      "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
                      "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
+                     "NOT" => Err(StreamErrorFor::<I>::unexpected_static_message("NOT")),
                      _ => Ok(s)
                    }
                })
@@ -108,6 +109,9 @@ parser! {
         .or((char('+'), leaf()).map(|(_, expr)| expr.unary(Occur::Must) ))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
         .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All) ))
+        .or(try(
+            (string("NOT"), spaces1(), leaf()).map(|(_, _, expr)| expr.unary(Occur::MustNot)))
+         )
         .or(
             try(
                 range()
@@ -221,6 +225,14 @@ mod test {
 
     fn test_is_parse_err(query: &str) {
         assert!(parse_to_ast().parse(query).is_err());
+    }
+
+
+    #[test]
+    fn test_parse_query_to_ast_not_op() {
+        assert_eq!(format!("{:?}", parse_to_ast().parse("NOT")), "Err(UnexpectedParse)");
+        test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
+        test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
     }
 
     #[test]
