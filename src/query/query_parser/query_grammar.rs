@@ -162,7 +162,7 @@ parser! {
         (
             try(
                 chainl1(
-                    leaf().map(|el| Element::SingleEl(el)),
+                    leaf().map(Element::SingleEl),
                     binary_operand().map(|op: BinaryOperand|
                         move |left: Element, right: Element| {
                             let mut dnf = left.into_dnf();
