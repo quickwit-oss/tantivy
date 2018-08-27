@@ -143,7 +143,7 @@ fn select_best_fragment_combination<'a>(fragments: Vec<FragmentCandidate>,
                                         text: &'a str,) -> Snippet {
     if let Some(init) = fragments.iter().nth(0) {
         let fragment = fragments.iter().skip(1).fold(init, |acc, item| {
-            if item.score > init.score { item } else { init }
+            if item.score > acc.score { item } else { acc }
         });
         let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
         let highlighted = fragment.highlighted.iter().map(|item| {
