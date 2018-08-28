@@ -1,6 +1,9 @@
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::*;
+use combine::stream::StreamErrorFor;
+use combine::error::StreamError;
+use query::occur::Occur;
 use query::query_parser::user_input_ast::UserInputBound;
 
 parser! {
@@ -17,18 +20,25 @@ parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
         many1(satisfy(|c: char| c.is_alphanumeric()))
+               .and_then(|s: String| {
+                   match s.as_str() {
+                     "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
+                     "AND" => Err(StreamErrorFor::<I>::unexpected_static_message("AND")),
+                     "NOT" => Err(StreamErrorFor::<I>::unexpected_static_message("NOT")),
+                     _ => Ok(s)
+                   }
+               })
     }
 }
 
 parser! {
-    fn literal[I]()(I) -> UserInputAST
+    fn literal[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>]
     {
         let term_val = || {
             let phrase = (char('"'), many1(satisfy(|c| c != '"')), char('"')).map(|(_, s, _)| s);
             phrase.or(word())
         };
-
         let term_val_with_field = negative_number().or(term_val());
         let term_query =
             (field(), char(':'), term_val_with_field).map(|(field_name, _, phrase)| UserInputLiteral {
@@ -41,7 +51,7 @@ parser! {
         });
         try(term_query)
             .or(term_default_field)
-            .map(UserInputAST::from)
+            .map(UserInputLeaf::from)
     }
 }
 
@@ -55,7 +65,14 @@ parser! {
 }
 
 parser! {
-    fn range[I]()(I) -> UserInputAST
+    fn spaces1[I]()(I) -> ()
+    where [I: Stream<Item = char>] {
+        skip_many1(space())
+    }
+}
+
+parser! {
+    fn range[I]()(I) -> UserInputLeaf
     where [I: Stream<Item = char>] {
         let term_val = || {
             word().or(negative_number()).or(char('*').map(|_| "*".to_string()))
@@ -77,7 +94,7 @@ parser! {
             string("TO"),
             spaces(),
             upper_bound,
-        ).map(|(field, lower, _, _, _, upper)| UserInputAST::Range {
+        ).map(|(field, lower, _, _, _, upper)| UserInputLeaf::Range {
                 field,
                 lower,
                 upper
@@ -88,13 +105,53 @@ parser! {
 parser! {
     fn leaf[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>] {
-         (char('-'), leaf())
-        .map(|(_, expr)| UserInputAST::Not(Box::new(expr)))
-        .or((char('+'), leaf()).map(|(_, expr)| UserInputAST::Must(Box::new(expr))))
+         (char('-'), leaf()).map(|(_, expr)| expr.unary(Occur::MustNot) )
+        .or((char('+'), leaf()).map(|(_, expr)| expr.unary(Occur::Must) ))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
-        .or(char('*').map(|_| UserInputAST::All))
-        .or(try(range()))
-        .or(literal())
+        .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All) ))
+        .or(try(
+            (string("NOT"), spaces1(), leaf()).map(|(_, _, expr)| expr.unary(Occur::MustNot)))
+         )
+        .or(
+            try(
+                range()
+                .map(|leaf| UserInputAST::from(leaf))
+            )
+        )
+        .or(literal().map(|leaf| UserInputAST::Leaf(Box::new(leaf))))
+    }
+}
+
+enum BinaryOperand {
+    Or, And
+}
+
+parser! {
+    fn binary_operand[I]()(I) -> BinaryOperand
+    where [I: Stream<Item = char>] {
+        (spaces1(),
+         (
+            string("AND").map(|_| BinaryOperand::And)
+           .or(string("OR").map(|_| BinaryOperand::Or))
+         ),
+         spaces1()).map(|(_, op,_)| op)
+    }
+}
+
+
+enum Element {
+    SingleEl(UserInputAST),
+    NormalDisjunctive(Vec<Vec<UserInputAST>>)
+}
+
+impl Element {
+    pub fn into_dnf(self) -> Vec<Vec<UserInputAST>> {
+        match self {
+            Element::NormalDisjunctive(conjunctions) =>
+                conjunctions,
+            Element::SingleEl(el) =>
+                vec!(vec!(el)),
+        }
     }
 }
 
@@ -102,14 +159,56 @@ parser! {
     pub fn parse_to_ast[I]()(I) -> UserInputAST
     where [I: Stream<Item = char>]
     {
-        sep_by(leaf(), spaces())
-        .map(|subqueries: Vec<UserInputAST>| {
-            if subqueries.len() == 1 {
-                subqueries.into_iter().next().unwrap()
-            } else {
-                UserInputAST::Clause(subqueries.into_iter().map(Box::new).collect())
-            }
-        })
+        (
+            try(
+                chainl1(
+                    leaf().map(Element::SingleEl),
+                    binary_operand().map(|op: BinaryOperand|
+                        move |left: Element, right: Element| {
+                            let mut dnf = left.into_dnf();
+                            if let Element::SingleEl(el) = right {
+                                match op {
+                                    BinaryOperand::And => {
+                                        if let Some(last) = dnf.last_mut() {
+                                            last.push(el);
+                                        }
+                                    }
+                                    BinaryOperand::Or => {
+                                        dnf.push(vec!(el));
+                                    }
+                                }
+                            } else {
+                                unreachable!("Please report.")
+                            }
+                            Element::NormalDisjunctive(dnf)
+                        }
+                    )
+                )
+                .map(|el| el.into_dnf())
+                .map(|fnd| {
+                    if fnd.len() == 1 {
+                        UserInputAST::and(fnd.into_iter().next().unwrap()) //< safe
+                    } else {
+                        let conjunctions = fnd
+                        .into_iter()
+                        .map(|conjunction| UserInputAST::and(conjunction))
+                        .collect();
+                        UserInputAST::or(conjunctions)
+                    }
+                })
+            )
+            .or(
+                sep_by(leaf(), spaces())
+                .map(|subqueries: Vec<UserInputAST>| {
+                    if subqueries.len() == 1 {
+                        subqueries.into_iter().next().unwrap()
+                    } else {
+                        UserInputAST::Clause(subqueries.into_iter().collect())
+                    }
+                })
+            )
+        )
+
     }
 }
 
@@ -126,6 +225,26 @@ mod test {
 
     fn test_is_parse_err(query: &str) {
         assert!(parse_to_ast().parse(query).is_err());
+    }
+
+
+    #[test]
+    fn test_parse_query_to_ast_not_op() {
+        assert_eq!(format!("{:?}", parse_to_ast().parse("NOT")), "Err(UnexpectedParse)");
+        test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
+        test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
+    }
+
+    #[test]
+    fn test_parse_query_to_ast_binary_op() {
+        test_parse_query_to_ast_helper("a AND b", "(+(\"a\") +(\"b\"))");
+        test_parse_query_to_ast_helper("a OR b", "(?(\"a\") ?(\"b\"))");
+        test_parse_query_to_ast_helper("a OR b AND c", "(?(\"a\") ?((+(\"b\") +(\"c\"))))");
+        test_parse_query_to_ast_helper("a AND b         AND c", "(+(\"a\") +(\"b\") +(\"c\"))");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("a OR b aaa")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("a AND b aaa")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa a OR b ")), "Err(UnexpectedParse)");
+        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")), "Err(UnexpectedParse)");
     }
 
     #[test]

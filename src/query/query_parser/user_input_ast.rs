@@ -1,4 +1,41 @@
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+
+use query::Occur;
+
+pub enum UserInputLeaf {
+    Literal(UserInputLiteral),
+    All,
+    Range {
+        field: Option<String>,
+        lower: UserInputBound,
+        upper: UserInputBound,
+    },
+}
+
+impl Debug for UserInputLeaf {
+    fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
+        match self {
+            UserInputLeaf::Literal(literal) => {
+                literal.fmt(formatter)
+            }
+            UserInputLeaf::Range {
+                ref field,
+                ref lower,
+                ref upper,
+            } => {
+                if let &Some(ref field) = field {
+                    write!(formatter, "{}:", field)?;
+                }
+                lower.display_lower(formatter)?;
+                write!(formatter, " TO ")?;
+                upper.display_upper(formatter)?;
+                Ok(())
+            }
+            UserInputLeaf::All => write!(formatter, "*"),
+        }
+    }
+}
 
 pub struct UserInputLiteral {
     pub field_name: Option<String>,
@@ -43,28 +80,99 @@ impl UserInputBound {
 }
 
 pub enum UserInputAST {
-    Clause(Vec<Box<UserInputAST>>),
-    Not(Box<UserInputAST>),
-    Must(Box<UserInputAST>),
-    Range {
-        field: Option<String>,
-        lower: UserInputBound,
-        upper: UserInputBound,
-    },
-    All,
-    Leaf(Box<UserInputLiteral>),
+    Clause(Vec<UserInputAST>),
+    Unary(Occur, Box<UserInputAST>),
+//    Not(Box<UserInputAST>),
+//    Should(Box<UserInputAST>),
+//    Must(Box<UserInputAST>),
+    Leaf(Box<UserInputLeaf>),
 }
 
-impl From<UserInputLiteral> for UserInputAST {
-    fn from(literal: UserInputLiteral) -> UserInputAST {
-        UserInputAST::Leaf(Box::new(literal))
+
+impl UserInputAST {
+    pub fn unary(self, occur: Occur) -> UserInputAST {
+        UserInputAST::Unary(occur, Box::new(self))
+    }
+
+    fn compose(occur: Occur, asts: Vec<UserInputAST>) -> UserInputAST {
+        assert!(occur != Occur::MustNot);
+        assert!(!asts.is_empty());
+        if asts.len() == 1 {
+            asts.into_iter().next().unwrap() //< safe
+        } else {
+            UserInputAST::Clause(asts
+                .into_iter()
+                .map(|ast: UserInputAST|
+                    ast.unary(occur)
+                )
+                .collect::<Vec<_>>()
+            )
+        }
+    }
+
+    pub fn and(asts: Vec<UserInputAST>) -> UserInputAST {
+        UserInputAST::compose(Occur::Must, asts)
+    }
+
+    pub fn or(asts: Vec<UserInputAST>) -> UserInputAST {
+        UserInputAST::compose(Occur::Should, asts)
+    }
+
+}
+
+
+
+/*
+impl UserInputAST {
+
+    fn compose_occur(self, occur: Occur) -> UserInputAST {
+        match self {
+            UserInputAST::Not(other) => {
+                let new_occur = compose_occur(Occur::MustNot, occur);
+                other.simplify()
+            }
+            _ => {
+                self
+            }
+        }
+    }
+
+    pub fn simplify(self) -> UserInputAST {
+        match self {
+            UserInputAST::Clause(els) => {
+                if els.len() == 1 {
+                    return els.into_iter().next().unwrap();
+                } else {
+                    return self;
+                }
+            }
+            UserInputAST::Not(els) => {
+                if els.len() == 1 {
+                    return els.into_iter().next().unwrap();
+                } else {
+                    return self;
+                }
+            }
+        }
+    }
+}
+*/
+
+impl From<UserInputLiteral> for UserInputLeaf {
+    fn from(literal: UserInputLiteral) -> UserInputLeaf {
+        UserInputLeaf::Literal(literal)
+    }
+}
+
+impl From<UserInputLeaf> for UserInputAST {
+    fn from(leaf: UserInputLeaf) -> UserInputAST {
+        UserInputAST::Leaf(Box::new(leaf))
     }
 }
 
 impl fmt::Debug for UserInputAST {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
         match *self {
-            UserInputAST::Must(ref subquery) => write!(formatter, "+({:?})", subquery),
             UserInputAST::Clause(ref subqueries) => {
                 if subqueries.is_empty() {
                     write!(formatter, "<emptyclause>")?;
@@ -78,21 +186,9 @@ impl fmt::Debug for UserInputAST {
                 }
                 Ok(())
             }
-            UserInputAST::Not(ref subquery) => write!(formatter, "-({:?})", subquery),
-            UserInputAST::Range {
-                ref field,
-                ref lower,
-                ref upper,
-            } => {
-                if let &Some(ref field) = field {
-                    write!(formatter, "{}:", field)?;
-                }
-                lower.display_lower(formatter)?;
-                write!(formatter, " TO ")?;
-                upper.display_upper(formatter)?;
-                Ok(())
+            UserInputAST::Unary(ref occur, ref subquery) => {
+                write!(formatter, "{}({:?})", occur.to_char(), subquery)
             }
-            UserInputAST::All => write!(formatter, "*"),
             UserInputAST::Leaf(ref subquery) => write!(formatter, "{:?}", subquery),
         }
     }
