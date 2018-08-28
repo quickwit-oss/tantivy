@@ -34,18 +34,27 @@ pub struct FragmentCandidate {
 
 impl FragmentCandidate {
 
-    fn new(start_offset: usize, end_offset: usize) -> FragmentCandidate {
+    /// Create a basic `FragmentCandidate`
+    ///
+    /// `score`, `num_chars` are set to 0
+    /// and `highlighted` is set to empty vec
+    /// stop_offset is set to start_offset, which is taken as a param.
+    fn new(start_offset: usize) -> FragmentCandidate {
         FragmentCandidate{score: 0.0,
                           start_offset: start_offset,
-                          stop_offset: end_offset,
+                          stop_offset: start_offset,
                           num_chars: 0,
                           highlighted: vec![]}
     }
 
     /// Updates `score` and `highlighted` fields of the objects.
     ///
-    ///
-    fn calculate_score(&mut self, token: &Token, terms: &BTreeMap<String, f32>) {
+    /// taking the token and terms, the token is added to the fragment.
+    /// if the token is one of the terms, the score
+    /// and highlighted fields are updated in the fragment.
+    fn try_add_token(&mut self, token: &Token, terms: &BTreeMap<String, f32>) {
+        self.stop_offset = token.offset_to;
+
         if let Some(score) = terms.get(&token.text.to_lowercase()) {
             self.score += score;
             self.highlighted.push(HighlightSection{start: token.offset_from,
@@ -109,7 +118,7 @@ fn search_fragments<'a>(
     terms: BTreeMap<String, f32>,
     max_num_chars: usize) -> Vec<FragmentCandidate> {
     let mut token_stream = tokenizer.token_stream(text);
-    let mut fragment = FragmentCandidate::new(0, 0);
+    let mut fragment = FragmentCandidate::new(0);
     let mut fragments:Vec<FragmentCandidate> = vec![];
 
     while let Some(next) = token_stream.next() {
@@ -117,10 +126,9 @@ fn search_fragments<'a>(
             if fragment.score > 0.0 {
                 fragments.push(fragment)
             };
-            fragment = FragmentCandidate::new(next.offset_from, next.offset_to);
+            fragment = FragmentCandidate::new(next.offset_from);
         } else {
-            fragment.calculate_score(next, &terms);
-            fragment.stop_offset = next.offset_to;
+            fragment.try_add_token(next, &terms);
         }
     }
     if fragment.score > 0.0 {
