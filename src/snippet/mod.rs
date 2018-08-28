@@ -178,11 +178,11 @@ mod tests {
     use std::collections::BTreeMap;
     use super::{search_fragments, select_best_fragment_combination};
 
+    const TOKENIZER:SimpleTokenizer = SimpleTokenizer;
+
     #[test]
     fn test_snippet() {
-        let tokenizer = SimpleTokenizer;
-
-        let boxed_tokenizer = box_tokenizer(tokenizer);
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
 
         let text = "Rust is a systems programming language sponsored by Mozilla which describes it as a \"safe, concurrent, practical language\", supporting functional and imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?], but its designers intend it to provide better memory safety while still maintaining performance.
 
@@ -209,9 +209,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
     #[test]
     fn test_snippet_in_second_fragment() {
-        let tokenizer = SimpleTokenizer;
-
-        let boxed_tokenizer = box_tokenizer(tokenizer);
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
 
         let text = "a b c d e f g";
 
@@ -225,11 +223,67 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
             let first = fragments.iter().nth(0).unwrap();
             assert_eq!(first.score, 1.0);
             assert_eq!(first.start_offset, 4);
-            assert_eq!(first.stop_offset, 6);
+            assert_eq!(first.stop_offset, 7);
         }
 
         let snippet = select_best_fragment_combination(fragments, &text);
         assert_eq!(snippet.fragments, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
+    }
+
+    #[test]
+    fn test_snippet_with_term_at_the_end_of_fragment() {
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+
+        let text = "a b c d e f f g";
+
+        let mut terms = BTreeMap::new();
+        terms.insert(String::from("f"), 1.0);
+
+        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+
+        assert_eq!(fragments.len(), 2);
+        {
+            let first = fragments.iter().nth(0).unwrap();
+            assert_eq!(first.score, 1.0);
+            assert_eq!(first.stop_offset, 11);
+            assert_eq!(first.start_offset, 8);
+        }
+
+        let snippet = select_best_fragment_combination(fragments, &text);
+        assert_eq!(snippet.fragments, "e f");
+        assert_eq!(snippet.to_html(), "e <b>f</b>");
+    }
+
+    #[test]
+    fn test_snippet_with_term_not_in_text() {
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+
+        let text = "a b c d";
+
+        let mut terms = BTreeMap::new();
+        terms.insert(String::from("z"), 1.0);
+
+        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+
+        assert_eq!(fragments.len(), 0);
+
+        let snippet = select_best_fragment_combination(fragments, &text);
+        assert_eq!(snippet.fragments, "");
+        assert_eq!(snippet.to_html(), "");
+    }
+
+    fn test_snippet_with_no_terms() {
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+
+        let text = "a b c d";
+
+        let mut terms = BTreeMap::new();
+        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+        assert_eq!(fragments.len(), 0);
+
+        let snippet = select_best_fragment_combination(fragments, &text);
+        assert_eq!(snippet.fragments, "");
+        assert_eq!(snippet.to_html(), "");
     }
 }
