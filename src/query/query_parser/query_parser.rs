@@ -5,6 +5,7 @@ use core::Index;
 use query::AllQuery;
 use query::BooleanQuery;
 use query::Occur;
+use query::occur::compose_occur;
 use query::PhraseQuery;
 use query::Query;
 use query::RangeQuery;
@@ -79,11 +80,21 @@ impl From<ParseIntError> for QueryParserError {
 ///
 ///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
+///
+/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is interpreted
+/// as `(a AND b) OR c`.
+///
+/// * In addition to the boolean operators, the `-`, `+` can help define. These operators
+///   are sufficient to axpress all queries using boolean operators. For instance `x AND y OR z` can
+///   be written (`(+x +y) z`). In addition, these operators can help define "required optional"
+///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.
+///
 /// * negative terms: By prepending a term by a `-`, a term can be excluded
 ///   from the search. This is useful for disambiguating a query.
 ///   e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///
 ///
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
 ///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed
@@ -315,56 +326,27 @@ impl QueryParser {
                 let default_occur = self.default_occur();
                 let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
                 for sub_query in sub_queries {
-                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(*sub_query)?;
+                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(sub_query)?;
                     let new_occur = compose_occur(default_occur, occur);
                     logical_sub_queries.push((new_occur, sub_ast));
                 }
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
-            UserInputAST::Not(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
+            UserInputAST::Unary(left_occur, subquery) => {
+                let (right_occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
+                Ok((compose_occur(left_occur, right_occur), logical_sub_queries))
             }
-            UserInputAST::Must(subquery) => {
-                let (occur, logical_sub_queries) = self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
-            }
-            UserInputAST::Range {
-                field,
-                lower,
-                upper,
-            } => {
-                let fields = self.resolved_fields(&field)?;
-                let mut clauses = fields
-                    .iter()
-                    .map(|&field| {
-                        let field_entry = self.schema.get_field_entry(field);
-                        let value_type = field_entry.field_type().value_type();
-                        Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
-                            field,
-                            value_type,
-                            lower: self.resolve_bound(field, &lower)?,
-                            upper: self.resolve_bound(field, &upper)?,
-                        })))
-                    })
-                    .collect::<Result<Vec<_>, QueryParserError>>()?;
-                let result_ast = if clauses.len() == 1 {
-                    clauses.pop().unwrap()
-                } else {
-                    LogicalAST::Clause(
-                        clauses
-                            .into_iter()
-                            .map(|clause| (Occur::Should, clause))
-                            .collect(),
-                    )
-                };
+            UserInputAST::Leaf(leaf) =>  {
+                let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
                 Ok((Occur::Should, result_ast))
             }
-            UserInputAST::All => Ok((
-                Occur::Should,
-                LogicalAST::Leaf(Box::new(LogicalLiteral::All)),
-            )),
-            UserInputAST::Leaf(literal) => {
+        }
+    }
+
+
+    fn compute_logical_ast_from_leaf(&self, leaf: UserInputLeaf) -> Result<LogicalAST, QueryParserError> {
+        match leaf {
+            UserInputLeaf::Literal(literal) => {
                 let term_phrases: Vec<(Field, String)> = match literal.field_name {
                     Some(ref field_name) => {
                         let field = self.resolve_field_name(field_name)?;
@@ -395,30 +377,40 @@ impl QueryParser {
                 } else {
                     LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
                 };
-                Ok((Occur::Should, result_ast))
+                Ok(result_ast)
+            }
+            UserInputLeaf::All => {
+                Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::All)))
+            }
+            UserInputLeaf::Range { field, lower, upper } => {
+                let fields = self.resolved_fields(&field)?;
+                let mut clauses = fields
+                    .iter()
+                    .map(|&field| {
+                        let field_entry = self.schema.get_field_entry(field);
+                        let value_type = field_entry.field_type().value_type();
+                        Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::Range {
+                            field,
+                            value_type,
+                            lower: self.resolve_bound(field, &lower)?,
+                            upper: self.resolve_bound(field, &upper)?,
+                        })))
+                    })
+                    .collect::<Result<Vec<_>, QueryParserError>>()?;
+                let result_ast = if clauses.len() == 1 {
+                    clauses.pop().unwrap()
+                } else {
+                    LogicalAST::Clause(
+                        clauses
+                            .into_iter()
+                            .map(|clause| (Occur::Should, clause))
+                            .collect(),
+                    )
+                };
+                Ok(result_ast)
             }
         }
-    }
-}
 
-/// Compose two occur values.
-fn compose_occur(left: Occur, right: Occur) -> Occur {
-    match left {
-        Occur::Should => right,
-        Occur::Must => {
-            if right == Occur::MustNot {
-                Occur::MustNot
-            } else {
-                Occur::Must
-            }
-        }
-        Occur::MustNot => {
-            if right == Occur::MustNot {
-                Occur::Must
-            } else {
-                Occur::MustNot
-            }
-        }
     }
 }
 
