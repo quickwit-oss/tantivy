@@ -112,25 +112,19 @@ fn search_fragments<'a>(
     let mut fragment = FragmentCandidate::new(0, 0);
     let mut fragments:Vec<FragmentCandidate> = vec![];
 
-    loop {
-        if let Some(next) = token_stream.next() {
-            if (next.offset_to - fragment.start_offset) > max_num_chars {
-                let txt = &text[fragment.start_offset..fragment.stop_offset];
-                if fragment.score > 0.0 {
-                    fragments.push(fragment)
-                };
-                fragment = FragmentCandidate::new(next.offset_from, next.offset_to);
-            } else {
-                fragment.calculate_score(next, &terms);
-                fragment.stop_offset = next.offset_to;
-            }
-        } else {
-            let txt = &text[fragment.start_offset..fragment.stop_offset];
+    while let Some(next) = token_stream.next() {
+        if (next.offset_to - fragment.start_offset) > max_num_chars {
             if fragment.score > 0.0 {
                 fragments.push(fragment)
             };
-            break;
+            fragment = FragmentCandidate::new(next.offset_from, next.offset_to);
+        } else {
+            fragment.calculate_score(next, &terms);
+            fragment.stop_offset = next.offset_to;
         }
+    }
+    if fragment.score > 0.0 {
+        fragments.push(fragment)
     }
 
     fragments
