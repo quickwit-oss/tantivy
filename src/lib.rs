@@ -154,6 +154,7 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
+extern crate htmlescape;
 
 #[cfg(test)]
 #[macro_use]

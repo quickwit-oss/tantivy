@@ -6,6 +6,7 @@ use Index;
 use schema::FieldValue;
 use schema::Value;
 use tokenizer::BoxedTokenizer;
+use htmlescape::encode_minimal;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -70,13 +71,13 @@ impl Snippet {
         let mut start_from: usize = 0;
 
         for item in self.highlighted.iter() {
-            html.push_str(&self.fragments[start_from..item.start]);
+            html.push_str(&encode_minimal(&self.fragments[start_from..item.start]));
             html.push_str(HIGHLIGHTEN_PREFIX);
-            html.push_str(&self.fragments[item.start..item.stop]);
+            html.push_str(&encode_minimal(&self.fragments[item.start..item.stop]));
             html.push_str(HIGHLIGHTEN_POSTFIX);
             start_from = item.stop;
         }
-        html.push_str(&self.fragments[start_from..self.fragments.len()]);
+        html.push_str(&encode_minimal(&self.fragments[start_from..self.fragments.len()]));
         html
     }
 }
@@ -202,6 +203,6 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         }
         let snippet = select_best_fragment_combination(fragments, &text);
         assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by Mozilla which describes it as a \"safe".to_owned());
-        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> sponsored by Mozilla which describes it as a \"safe".to_owned())
+        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> sponsored by Mozilla which describes it as a &quot;safe".to_owned())
     }
 }
