@@ -22,6 +22,7 @@ mod scorer;
 mod term_query;
 mod union;
 mod weight;
+mod fastfield_filter;
 
 #[cfg(test)]
 mod vec_docset;
@@ -54,3 +55,4 @@ pub use self::scorer::ConstScorer;
 pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
+pub use self::fastfield_filter::FastFieldFilterQuery;
