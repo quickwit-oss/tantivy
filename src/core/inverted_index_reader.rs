@@ -100,6 +100,20 @@ impl InvertedIndexReader {
         block_postings.reset(term_info.doc_freq, postings_reader);
     }
 
+
+    /// Returns a block postings given a `Term`.
+    /// This method is for an advanced usage only.
+    ///
+    /// Most user should prefer using `read_postings` instead.
+    pub fn read_block_postings(
+        &self,
+        term: &Term,
+        option: IndexRecordOption,
+    ) -> Option<BlockSegmentPostings> {
+        self.get_term_info(term)
+            .map(move|term_info| self.read_block_postings_from_terminfo(&term_info, option))
+    }
+
     /// Returns a block postings given a `term_info`.
     /// This method is for an advanced usage only.
     ///
@@ -159,8 +173,8 @@ impl InvertedIndexReader {
     /// `TextIndexingOptions` that does not index position will return a `SegmentPostings`
     /// with `DocId`s and frequencies.
     pub fn read_postings(&self, term: &Term, option: IndexRecordOption) -> Option<SegmentPostings> {
-        let term_info = get!(self.get_term_info(term));
-        Some(self.read_postings_from_terminfo(&term_info, option))
+        self.get_term_info(term)
+            .map(move |term_info| self.read_postings_from_terminfo(&term_info, option))
     }
 
     pub(crate) fn read_postings_no_deletes(
@@ -168,8 +182,8 @@ impl InvertedIndexReader {
         term: &Term,
         option: IndexRecordOption,
     ) -> Option<SegmentPostings> {
-        let term_info = get!(self.get_term_info(term));
-        Some(self.read_postings_from_terminfo(&term_info, option))
+        self.get_term_info(term)
+            .map(|term_info| self.read_postings_from_terminfo(&term_info, option))
     }
 
     /// Returns the number of documents containing the term.

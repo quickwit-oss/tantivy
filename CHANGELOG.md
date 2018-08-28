@@ -4,6 +4,7 @@ Tantivy 0.7
 - Skip data for doc ids and positions (@fulmicoton),
   greatly improving performance
 - Tantivy error now rely on the failure crate (@drusellers)
+- Added support for `AND`, `OR`, `NOT` syntax in addition to the `+`,`-` syntax
 
 
 Tantivy 0.6.1

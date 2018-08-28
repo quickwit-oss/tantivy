@@ -29,10 +29,11 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 # Features
 
 - Full-text search
+- Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command line tools
 - BM25 scoring (the same as lucene)
-- Basic query language (`+michael +jackson`)
-- Phrase queries search (\"michael jackson\"`)
+- Natural query language `(michael AND jackson) OR "king of pop"`
+- Phrase queries search (`"michael jackson"`)
 - Incremental indexing
 - Multithreaded indexing (indexing English Wikipedia takes < 3 minutes on my desktop)
 - Mmap directory
@@ -42,7 +43,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 - LZ4 compressed document store
 - Range queries
 - Faceted search
-- Configurable indexing (optional term frequency and position indexing
+- Configurable indexing (optional term frequency and position indexing)
 - Cheesy logo with a horse
 
 # Non-features
