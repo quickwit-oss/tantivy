@@ -43,7 +43,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 - LZ4 compressed document store
 - Range queries
 - Faceted search
-- Configurable indexing (optional term frequency and position indexing
+- Configurable indexing (optional term frequency and position indexing)
 - Cheesy logo with a horse
 
 # Non-features
