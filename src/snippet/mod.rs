@@ -1,12 +1,12 @@
-use tokenizer::{TokenStream, Tokenizer, Token};
-use std::collections::BTreeMap;
-use Term;
-use Document;
-use Index;
+use htmlescape::encode_minimal;
 use schema::FieldValue;
 use schema::Value;
+use std::collections::BTreeMap;
 use tokenizer::BoxedTokenizer;
-use htmlescape::encode_minimal;
+use tokenizer::{Token, TokenStream, Tokenizer};
+use Document;
+use Index;
+use Term;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -16,10 +16,7 @@ pub struct HighlightSection {
 
 impl HighlightSection {
     fn new(start: usize, stop: usize) -> HighlightSection {
-        HighlightSection {
-            start,
-            stop
-        }
+        HighlightSection { start, stop }
     }
 }
 
@@ -33,18 +30,19 @@ pub struct FragmentCandidate {
 }
 
 impl FragmentCandidate {
-
     /// Create a basic `FragmentCandidate`
     ///
     /// `score`, `num_chars` are set to 0
     /// and `highlighted` is set to empty vec
     /// stop_offset is set to start_offset, which is taken as a param.
     fn new(start_offset: usize) -> FragmentCandidate {
-        FragmentCandidate{score: 0.0,
-                          start_offset: start_offset,
-                          stop_offset: start_offset,
-                          num_chars: 0,
-                          highlighted: vec![]}
+        FragmentCandidate {
+            score: 0.0,
+            start_offset: start_offset,
+            stop_offset: start_offset,
+            num_chars: 0,
+            highlighted: vec![],
+        }
     }
 
     /// Updates `score` and `highlighted` fields of the objects.
@@ -57,8 +55,10 @@ impl FragmentCandidate {
 
         if let Some(score) = terms.get(&token.text.to_lowercase()) {
             self.score += score;
-            self.highlighted.push(HighlightSection{start: token.offset_from,
-                                                   stop: token.offset_to});
+            self.highlighted.push(HighlightSection {
+                start: token.offset_from,
+                stop: token.offset_to,
+            });
         }
     }
 }
@@ -69,11 +69,10 @@ pub struct Snippet {
     highlighted: Vec<HighlightSection>,
 }
 
-const HIGHLIGHTEN_PREFIX:&str = "<b>";
-const HIGHLIGHTEN_POSTFIX:&str = "</b>";
+const HIGHLIGHTEN_PREFIX: &str = "<b>";
+const HIGHLIGHTEN_POSTFIX: &str = "</b>";
 
 impl Snippet {
-
     /// Returns a hignlightned html from the `Snippet`.
     pub fn to_html(&self) -> String {
         let mut html = String::new();
@@ -86,7 +85,9 @@ impl Snippet {
             html.push_str(HIGHLIGHTEN_POSTFIX);
             start_from = item.stop;
         }
-        html.push_str(&encode_minimal(&self.fragments[start_from..self.fragments.len()]));
+        html.push_str(&encode_minimal(
+            &self.fragments[start_from..self.fragments.len()],
+        ));
         html
     }
 }
@@ -116,10 +117,11 @@ fn search_fragments<'a>(
     tokenizer: Box<BoxedTokenizer>,
     text: &'a str,
     terms: BTreeMap<String, f32>,
-    max_num_chars: usize) -> Vec<FragmentCandidate> {
+    max_num_chars: usize,
+) -> Vec<FragmentCandidate> {
     let mut token_stream = tokenizer.token_stream(text);
     let mut fragment = FragmentCandidate::new(0);
-    let mut fragments:Vec<FragmentCandidate> = vec![];
+    let mut fragments: Vec<FragmentCandidate> = vec![];
 
     while let Some(next) = token_stream.next() {
         if (next.offset_to - fragment.start_offset) > max_num_chars {
@@ -141,24 +143,41 @@ fn search_fragments<'a>(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination<'a>(fragments: Vec<FragmentCandidate>,
-                                        text: &'a str,) -> Snippet {
+fn select_best_fragment_combination<'a>(
+    fragments: Vec<FragmentCandidate>,
+    text: &'a str,
+) -> Snippet {
     if let Some(init) = fragments.iter().nth(0) {
-        let fragment = fragments.iter().skip(1).fold(init, |acc, item| {
-            if item.score > acc.score { item } else { acc }
-        });
+        let fragment =
+            fragments.iter().skip(1).fold(
+                init,
+                |acc, item| {
+                    if item.score > acc.score {
+                        item
+                    } else {
+                        acc
+                    }
+                },
+            );
         let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
-        let highlighted = fragment.highlighted.iter().map(|item| {
-            HighlightSection{start: item.start-fragment.start_offset,
-                             stop: item.stop-fragment.start_offset}
-        }).collect();
-        Snippet{fragments: fragment_text.to_owned(),
-                highlighted: highlighted}
+        let highlighted = fragment
+            .highlighted
+            .iter()
+            .map(|item| HighlightSection {
+                start: item.start - fragment.start_offset,
+                stop: item.stop - fragment.start_offset,
+            }).collect();
+        Snippet {
+            fragments: fragment_text.to_owned(),
+            highlighted: highlighted,
+        }
     } else {
         // when there no fragments to chose from,
         // for now create a empty snippet
-        Snippet{fragments: String::new(),
-                highlighted: vec![]}
+        Snippet {
+            fragments: String::new(),
+            highlighted: vec![],
+        }
     }
 }
 
@@ -166,19 +185,19 @@ pub fn generate_snippet<'a>(
     doc: &'a [FieldValue],
     index: &Index,
     terms: Vec<Term>,
-    max_num_chars: usize) -> Snippet {
+    max_num_chars: usize,
+) -> Snippet {
     unimplemented!();
 }
 
-
 #[cfg(test)]
 mod tests {
-    use tokenizer::{SimpleTokenizer, box_tokenizer};
-    use std::iter::Iterator;
-    use std::collections::BTreeMap;
     use super::{search_fragments, select_best_fragment_combination};
+    use std::collections::BTreeMap;
+    use std::iter::Iterator;
+    use tokenizer::{box_tokenizer, SimpleTokenizer};
 
-    const TOKENIZER:SimpleTokenizer = SimpleTokenizer;
+    const TOKENIZER: SimpleTokenizer = SimpleTokenizer;
 
     #[test]
     fn test_snippet() {
