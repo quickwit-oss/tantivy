@@ -275,6 +275,31 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
     }
 
     #[test]
+    fn test_snippet_with_second_fragment_has_the_highest_score() {
+        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+
+        let text = "a b c d e f g";
+
+        let mut terms = BTreeMap::new();
+        terms.insert(String::from("f"), 1.0);
+        terms.insert(String::from("a"), 0.9);
+
+        let fragments = search_fragments(boxed_tokenizer, &text, terms, 7);
+
+        assert_eq!(fragments.len(), 2);
+        {
+            let first = fragments.iter().nth(0).unwrap();
+            assert_eq!(first.score, 0.9);
+            assert_eq!(first.stop_offset, 7);
+            assert_eq!(first.start_offset, 0);
+        }
+
+        let snippet = select_best_fragment_combination(fragments, &text);
+        assert_eq!(snippet.fragments, "e f g");
+        assert_eq!(snippet.to_html(), "e <b>f</b> g");
+    }
+
+    #[test]
     fn test_snippet_with_term_not_in_text() {
         let boxed_tokenizer = box_tokenizer(TOKENIZER);
 
@@ -292,6 +317,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         assert_eq!(snippet.to_html(), "");
     }
 
+    #[test]
     fn test_snippet_with_no_terms() {
         let boxed_tokenizer = box_tokenizer(TOKENIZER);
 
