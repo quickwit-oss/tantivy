@@ -55,10 +55,8 @@ impl FragmentCandidate {
 
         if let Some(score) = terms.get(&token.text.to_lowercase()) {
             self.score += score;
-            self.highlighted.push(HighlightSection {
-                start: token.offset_from,
-                stop: token.offset_to,
-            });
+            self.highlighted
+                .push(HighlightSection::new(token.offset_from, token.offset_to));
         }
     }
 }
@@ -163,9 +161,11 @@ fn select_best_fragment_combination<'a>(
         let highlighted = fragment
             .highlighted
             .iter()
-            .map(|item| HighlightSection {
-                start: item.start - fragment.start_offset,
-                stop: item.stop - fragment.start_offset,
+            .map(|item| {
+                HighlightSection::new(
+                    item.start - fragment.start_offset,
+                    item.stop - fragment.start_offset,
+                )
             }).collect();
         Snippet {
             fragments: fragment_text.to_owned(),
