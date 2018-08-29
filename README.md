@@ -4,6 +4,7 @@
 [![Join the chat at https://gitter.im/tantivy-search/tantivy](https://badges.gitter.im/tantivy-search/tantivy.svg)](https://gitter.im/tantivy-search/tantivy?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Build status](https://ci.appveyor.com/api/projects/status/r7nb13kj23u8m9pj/branch/master?svg=true)](https://ci.appveyor.com/project/fulmicoton/tantivy/branch/master)
+[![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton)
 
 ![Tantivy](https://tantivy-search.github.io/logo/tantivy-logo.png)
 
