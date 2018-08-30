@@ -1,10 +1,17 @@
-    use htmlescape::encode_minimal;
+use htmlescape::encode_minimal;
 use schema::FieldValue;
 use std::collections::BTreeMap;
+use itertools::Itertools;
 use tokenizer::BoxedTokenizer;
 use tokenizer::{Token, TokenStream};
 use Index;
+use Result;
 use Term;
+use query::Query;
+use DocAddress;
+use DocId;
+use Searcher;
+use query::MatchingTerms;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -179,12 +186,29 @@ fn select_best_fragment_combination<'a>(
     }
 }
 
+
+
+
+fn matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[DocAddress]) -> Result<()> {
+    let weight = query.weight(searcher, false)?;
+    let mut doc_groups = doc_addresses
+        .iter()
+        .group_by(|doc_address| doc_address.0);
+    for (segment_ord, doc_addrs) in doc_groups.into_iter() {
+        let doc_addrs_vec: Vec<DocId> = doc_addrs.map(|doc_addr| doc_addr.1).collect();
+        let mut matching_terms = MatchingTerms::from_doc_ids(&doc_addrs_vec[..]);
+        let segment_reader = searcher.segment_reader(segment_ord);
+        weight.matching_terms(segment_reader, &mut matching_terms)?;
+    }
+    Ok(())
+}
+
 pub fn generate_snippet<'a>(
-    doc: &'a [FieldValue],
+    doc: &'a [DocAddress],
     index: &Index,
+    query: &Query,
     terms: Vec<Term>,
-    max_num_chars: usize,
-) -> Snippet {
+    max_num_chars: usize) -> Snippet {
     unimplemented!();
 }
 

@@ -5,6 +5,8 @@ use downcast;
 use std::fmt;
 use Result;
 use SegmentLocalId;
+use DocAddress;
+use query::weight::MatchingTerms;
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.

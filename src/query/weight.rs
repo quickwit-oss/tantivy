@@ -6,7 +6,6 @@ use std::collections::HashSet;
 use Term;
 use std::collections::BTreeMap;
 
-
 pub struct MatchingTerms {
     doc_to_terms: BTreeMap<DocId, HashSet<Term>>
 }
