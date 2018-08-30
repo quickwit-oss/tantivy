@@ -1,10 +1,8 @@
-use htmlescape::encode_minimal;
+    use htmlescape::encode_minimal;
 use schema::FieldValue;
-use schema::Value;
 use std::collections::BTreeMap;
 use tokenizer::BoxedTokenizer;
-use tokenizer::{Token, TokenStream, Tokenizer};
-use Document;
+use tokenizer::{Token, TokenStream};
 use Index;
 use Term;
 

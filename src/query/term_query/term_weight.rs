@@ -8,6 +8,8 @@ use query::Weight;
 use schema::IndexRecordOption;
 use Result;
 use Term;
+use SkipResult;
+use query::weight::MatchingTerms;
 
 pub struct TermWeight {
     term: Term,
@@ -36,6 +38,26 @@ impl Weight for TermWeight {
                 similarity_weight,
             )))
         }
+    }
+
+
+    fn matching_terms(&self,
+                      reader: &SegmentReader,
+                      matching_terms: &mut MatchingTerms) -> Result<()> {
+        let doc_ids = matching_terms.sorted_doc_ids();
+        let mut scorer = self.scorer(reader)?;
+        for doc_id in doc_ids {
+            match scorer.skip_next(doc_id) {
+                SkipResult::Reached => {
+                    matching_terms.add_term(doc_id, self.term.clone());
+                }
+                SkipResult::OverStep => {}
+                SkipResult::End => {
+                    break;
+                }
+            }
+        }
+        Ok(())
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {

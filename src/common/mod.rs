@@ -68,6 +68,17 @@ pub trait HasLen {
     }
 }
 
+
+pub fn is_stricly_sorted<T: Ord>(els: &[T]) -> bool {
+    if els.is_empty() {
+        true
+    } else {
+        els.iter()
+            .zip(els[1..].iter())
+            .all(|(left, right)| left < right)
+    }
+}
+
 const HIGHEST_BIT: u64 = 1 << 63;
 
 /// Maps a `i64` to `u64`
@@ -105,12 +116,20 @@ pub fn u64_to_i64(val: u64) -> i64 {
 pub(crate) mod test {
 
     pub use super::serialize::test::fixed_size_test;
-    use super::{compute_num_bits, i64_to_u64, u64_to_i64};
+    use super::{compute_num_bits, i64_to_u64, u64_to_i64, is_stricly_sorted};
 
     fn test_i64_converter_helper(val: i64) {
         assert_eq!(u64_to_i64(i64_to_u64(val)), val);
     }
 
+
+    #[test]
+    fn test_is_strictly_sorted() {
+        assert!(is_stricly_sorted::<u32>(&[]));
+        assert!(is_stricly_sorted(&[1]));
+        assert!(is_stricly_sorted(&[1, 2, 3]));
+        assert!(!is_stricly_sorted(&[1, 3, 2]));
+    }
     #[test]
     fn test_i64_converter() {
         assert_eq!(i64_to_u64(i64::min_value()), u64::min_value());
