@@ -1,7 +1,7 @@
 use super::segment_register::SegmentRegister;
 use core::SegmentId;
 use core::SegmentMeta;
-use core::{LOCKFILE_FILEPATH, META_FILEPATH};
+use core::META_FILEPATH;
 use error::TantivyError;
 use indexer::delete_queue::DeleteCursor;
 use indexer::SegmentEntry;
@@ -81,7 +81,6 @@ impl SegmentManager {
     pub fn list_files(&self) -> HashSet<PathBuf> {
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
-        files.insert(LOCKFILE_FILEPATH.clone());
         for segment_meta in SegmentMeta::all() {
             files.extend(segment_meta.list_files());
         }

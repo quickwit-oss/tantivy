@@ -33,10 +33,4 @@ lazy_static! {
     /// Removing this file is safe, but will prevent the garbage collection of all of the file that
     /// are currently in the directory
     pub static ref MANAGED_FILEPATH: PathBuf = PathBuf::from(".managed.json");
-
-    /// Only one process should be able to write tantivy's index at a time.
-    /// This file, when present, is in charge of preventing other processes to open an IndexWriter.
-    ///
-    /// If the process is killed and this file remains, it is safe to remove it manually.
-    pub static ref LOCKFILE_FILEPATH: PathBuf = PathBuf::from(".tantivy-indexer.lock");
 }

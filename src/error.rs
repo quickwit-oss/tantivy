@@ -9,7 +9,6 @@ use schema;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::PoisonError;
-use core::LOCKFILE_FILEPATH;
 
 /// The library's failure based error enum
 #[derive(Debug, Fail)]
@@ -95,18 +94,14 @@ impl From<schema::DocParsingError> for TantivyError {
     }
 }
 
+
 impl From<OpenWriteError> for TantivyError {
     fn from(error: OpenWriteError) -> TantivyError {
         match error {
-            OpenWriteError::FileAlreadyExists(filepath) => {
-                let lockfile_fname = LOCKFILE_FILEPATH.to_str().unwrap();
-                if filepath.ends_with(lockfile_fname) {
-                    TantivyError::LockFileAlreadyExists(filepath)
-                } else {
-                    TantivyError::FileAlreadyExists(filepath)
-                }
-            }
-            OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
+            OpenWriteError::FileAlreadyExists(filepath) =>
+                TantivyError::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) =>
+                TantivyError::IOError(io_error),
         }.into()
     }
 }

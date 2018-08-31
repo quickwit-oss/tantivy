@@ -7,6 +7,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use Result;
+use indexer::LockType;
 
 use super::pool::LeasedItem;
 use super::pool::Pool;
@@ -156,7 +157,8 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        let directory_lock = DirectoryLock::lock(self.directory().box_clone())?;
+
+        let directory_lock = LockType::IndexWriterLock.acquire_lock(&self.directory)?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
             self,

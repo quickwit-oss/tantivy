@@ -156,7 +156,14 @@ impl ManagedDirectory {
     /// registering the filepath and creating the file
     /// will not lead to garbage files that will
     /// never get removed.
+    ///
+    /// File starting by "." are reserved to locks.
+    /// They are not managed and cannot be subjected
+    /// to garbage collection.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
+        if filepath.starts_with(".") {
+           return Ok(())
+        }
         let mut meta_wlock = self.meta_informations
             .write()
             .expect("Managed file lock poisoned");
