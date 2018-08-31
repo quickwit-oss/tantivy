@@ -7,6 +7,7 @@ use query::Weight;
 use schema::IndexRecordOption;
 use schema::Term;
 use Result;
+use query::MatchingTerms;
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -30,6 +31,11 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
+
+    fn matching_terms(&self, reader: &SegmentReader, matching_terms: &mut MatchingTerms) -> Result<()> {
+        unimplemented!();
+    }
+
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let similarity_weight = self.similarity_weight.clone();
         let field = self.phrase_terms[0].1.field();

@@ -41,7 +41,6 @@ impl<A> Weight for AutomatonWeight<A>
 where
     A: Automaton,
 {
-
     fn matching_terms(&self,
                       reader: &SegmentReader,
                       matching_terms: &mut MatchingTerms) -> Result<()> {

@@ -64,9 +64,8 @@ fn main() -> tantivy::Result<()> {
 
     for doc_address in doc_addresses {
         let retrieved_doc = searcher.doc(&doc_address)?;
-        generate_snippet(&retrieved_doc, query
+     //   generate_snippet(&retrieved_doc, query
     }
-
 
     Ok(())
 }

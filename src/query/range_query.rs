@@ -11,6 +11,7 @@ use std::collections::Bound;
 use std::ops::Range;
 use termdict::{TermDictionary, TermStreamer};
 use Result;
+use query::MatchingTerms;
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -274,6 +275,11 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
+
+    fn matching_terms(&self, reader: &SegmentReader, matching_terms: &mut MatchingTerms) -> Result<()> {
+        unimplemented!();
+    }
+
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);

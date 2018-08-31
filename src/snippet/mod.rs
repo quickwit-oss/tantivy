@@ -200,6 +200,7 @@ fn matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[DocAddres
         let segment_reader = searcher.segment_reader(segment_ord);
         weight.matching_terms(segment_reader, &mut matching_terms)?;
     }
+    let terms = HashSet<(DocId, Vec<Term>)>;
     Ok(())
 }
 
@@ -209,7 +210,7 @@ pub fn generate_snippet<'a>(
     query: &Query,
     terms: Vec<Term>,
     max_num_chars: usize) -> Snippet {
-    unimplemented!();
+    search_fragments(boxed_tokenizer, &text, terms, 3);
 }
 
 #[cfg(test)]

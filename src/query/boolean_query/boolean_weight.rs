@@ -13,6 +13,7 @@ use query::Weight;
 use std::borrow::Borrow;
 use std::collections::HashMap;
 use Result;
+use query::MatchingTerms;
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -107,6 +108,14 @@ impl BooleanWeight {
 }
 
 impl Weight for BooleanWeight {
+
+    fn matching_terms(&self, reader: &SegmentReader, matching_terms: &mut MatchingTerms) -> Result<()> {
+        for (_, weight) in &self.weights {
+            weight.matching_terms(reader, matching_terms)?;
+        }
+        Ok(())
+    }
+
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         if self.weights.is_empty() {
             Ok(Box::new(EmptyScorer))
