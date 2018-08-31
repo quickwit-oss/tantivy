@@ -4,7 +4,6 @@ use core::InvertedIndexReader;
 use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
-use core::SegmentMeta;
 use error::TantivyError;
 use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
@@ -44,7 +43,8 @@ pub struct SegmentReader {
     inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
-    segment_meta: SegmentMeta,
+    max_doc: DocId,
+    num_docs: DocId,
 
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
@@ -64,7 +64,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes, so it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
-        self.segment_meta.max_doc()
+        self.max_doc
     }
 
     /// Returns the number of documents.
@@ -73,7 +73,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_meta.num_docs()
+        self.num_docs
     }
 
     /// Returns the schema of the index this segment belongs to.
@@ -260,7 +260,8 @@ impl SegmentReader {
         let schema = segment.schema();
         Ok(SegmentReader {
             inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
-            segment_meta: segment.meta().clone(),
+            max_doc: segment.meta().max_doc(),
+            num_docs: segment.meta().num_docs(),
             termdict_composite,
             postings_composite,
             fast_fields_composite,
