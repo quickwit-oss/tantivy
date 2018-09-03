@@ -16,7 +16,7 @@ mod segment_writer;
 mod stamper;
 
 pub(crate) use self::directory_lock::DirectoryLock;
-pub(crate) use self::directory_lock::LockType;
+pub use self::directory_lock::LockType;
 
 pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;

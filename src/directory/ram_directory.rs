@@ -173,7 +173,6 @@ impl Directory for RAMDirectory {
         let exists = self.fs
             .write(path_buf.clone(), &Vec::new())
             .map_err(|err| IOError::with_path(path.to_owned(), err))?;
-
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))

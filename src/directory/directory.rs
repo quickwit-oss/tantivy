@@ -6,8 +6,6 @@ use std::marker::Send;
 use std::marker::Sync;
 use std::path::Path;
 use std::result;
-use TantivyError;
-use indexer::DirectoryLock;
 
 /// Write-once read many (WORM) abstraction for where
 /// tantivy's data should be stored.

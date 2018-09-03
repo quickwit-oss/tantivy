@@ -6,6 +6,7 @@ use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteErro
 use fastfield::FastFieldNotAvailableError;
 use query;
 use schema;
+use indexer::LockType;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::PoisonError;
@@ -19,9 +20,9 @@ pub enum TantivyError {
     /// File already exists, this is a problem when we try to write into a new file.
     #[fail(display = "file already exists: '{:?}'", _0)]
     FileAlreadyExists(PathBuf),
-    /// Lockfile already exists
-    #[fail(display = "Lockfile '{:?}' already exists. Possible causes: another IndexWriter instance or panic during previous lock drop.", _0)]
-    LockFileAlreadyExists(PathBuf),
+    /// Failed to acquire file lock
+    #[fail(display = "Failed to acquire Lockfile: {:?}. Possible causes: another IndexWriter instance or panic during previous lock drop.", _0)]
+    LockFailure(LockType),
     /// IO Error.
     #[fail(display = "an IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
