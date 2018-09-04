@@ -1,7 +1,7 @@
 use super::segment_register::SegmentRegister;
 use core::SegmentId;
 use core::SegmentMeta;
-use core::{LOCKFILE_FILEPATH, META_FILEPATH};
+use core::META_FILEPATH;
 use error::TantivyError;
 use indexer::delete_queue::DeleteCursor;
 use indexer::SegmentEntry;
@@ -78,10 +78,13 @@ impl SegmentManager {
         registers_lock.committed.len() + registers_lock.uncommitted.len()
     }
 
+    /// List the files that are useful to the index.
+    ///
+    /// This does not include lock files, or files that are obsolete
+    /// but have not yet been deleted by the garbage collector.
     pub fn list_files(&self) -> HashSet<PathBuf> {
         let mut files = HashSet::new();
         files.insert(META_FILEPATH.clone());
-        files.insert(LOCKFILE_FILEPATH.clone());
         for segment_meta in SegmentMeta::all() {
             files.extend(segment_meta.list_files());
         }

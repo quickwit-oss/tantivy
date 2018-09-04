@@ -6,10 +6,10 @@ use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteErro
 use fastfield::FastFieldNotAvailableError;
 use query;
 use schema;
+use indexer::LockType;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::PoisonError;
-use core::LOCKFILE_FILEPATH;
 
 /// The library's failure based error enum
 #[derive(Debug, Fail)]
@@ -20,9 +20,9 @@ pub enum TantivyError {
     /// File already exists, this is a problem when we try to write into a new file.
     #[fail(display = "file already exists: '{:?}'", _0)]
     FileAlreadyExists(PathBuf),
-    /// Lockfile already exists
-    #[fail(display = "Lockfile '{:?}' already exists. Possible causes: another IndexWriter instance or panic during previous lock drop.", _0)]
-    LockFileAlreadyExists(PathBuf),
+    /// Failed to acquire file lock
+    #[fail(display = "Failed to acquire Lockfile: {:?}. Possible causes: another IndexWriter instance or panic during previous lock drop.", _0)]
+    LockFailure(LockType),
     /// IO Error.
     #[fail(display = "an IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
@@ -95,18 +95,14 @@ impl From<schema::DocParsingError> for TantivyError {
     }
 }
 
+
 impl From<OpenWriteError> for TantivyError {
     fn from(error: OpenWriteError) -> TantivyError {
         match error {
-            OpenWriteError::FileAlreadyExists(filepath) => {
-                let lockfile_fname = LOCKFILE_FILEPATH.to_str().unwrap();
-                if filepath.ends_with(lockfile_fname) {
-                    TantivyError::LockFileAlreadyExists(filepath)
-                } else {
-                    TantivyError::FileAlreadyExists(filepath)
-                }
-            }
-            OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
+            OpenWriteError::FileAlreadyExists(filepath) =>
+                TantivyError::FileAlreadyExists(filepath),
+            OpenWriteError::IOError(io_error) =>
+                TantivyError::IOError(io_error),
         }.into()
     }
 }

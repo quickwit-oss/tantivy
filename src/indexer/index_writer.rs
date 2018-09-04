@@ -657,7 +657,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
-            Err(TantivyError::LockFileAlreadyExists(_)) => {}
+            Err(TantivyError::LockFailure(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
         }
     }
@@ -671,7 +671,6 @@ mod tests {
             Err(err) => {
                 let err_msg = err.to_string();
                 assert!(err_msg.contains("Lockfile"));
-                assert!(err_msg.contains("already exists"));
                 assert!(err_msg.contains("Possible causes:"))
             },
             _ => panic!("Expected LockfileAlreadyExists error"),
