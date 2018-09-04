@@ -370,7 +370,7 @@ mod tests {
     pub fn generate_permutation() -> Vec<u64> {
         let seed: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let mut rng = XorShiftRng::from_seed(seed);
-        let mut permutation: Vec<u64> = (0u64..1_000_000u64).collect();
+        let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
         rng.shuffle(&mut permutation);
         permutation
     }

@@ -864,4 +864,33 @@ mod tests {
         assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
+
+    #[cfg(not(feature="no_fail"))]
+    #[test]
+    fn test_write_commit_fails() {
+        use fail;
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        for _    in 0..100 {
+            index_writer.add_document(doc!(text_field => "a"));
+        }
+        index_writer.commit().unwrap();
+        fail::cfg("RAMDirectory::atomic_write", "return(error_write_failed)").unwrap();
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "b"));
+        }
+        assert!(index_writer.commit().is_err());
+        index.load_searchers().unwrap();
+        let num_docs_containing = |s: &str| {
+            let searcher = index.searcher();
+            let term_a = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term_a)
+        };
+        assert_eq!(num_docs_containing("a"), 100);
+        assert_eq!(num_docs_containing("b"), 0);
+        fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
+    }
 }

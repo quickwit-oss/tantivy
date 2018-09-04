@@ -266,14 +266,14 @@ mod tests {
 
     #[test]
     fn test_bitset_large() {
-        let arr = generate_nonunique_unsorted(1_000_000, 50_000);
+        let arr = generate_nonunique_unsorted(100_000, 5_000);
         let mut btreeset: BTreeSet<u32> = BTreeSet::new();
-        let mut bitset = BitSet::with_max_value(1_000_000);
+        let mut bitset = BitSet::with_max_value(100_000);
         for el in arr {
             btreeset.insert(el);
             bitset.insert(el);
         }
-        for i in 0..1_000_000 {
+        for i in 0..100_000 {
             assert_eq!(btreeset.contains(&i), bitset.contains(i));
         }
         assert_eq!(btreeset.len(), bitset.len());

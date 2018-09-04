@@ -298,7 +298,6 @@ mod tests {
     use schema::*;
     use Index;
     use IndexWriter;
-    use fail;
     use Postings;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
@@ -949,17 +948,5 @@ mod tests {
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
     }
-
-
-    fn failing_function() {
-        fail_point!("DUMMY_FAIL");
-    }
-
-    /// Just checking that `fail-rs` is enabled when running tests.
-    #[test]
-    #[should_panic]
-    fn test_failpoints() {
-        fail::cfg("DUMMY_FAIL", "panic").unwrap();
-        failing_function();
-    }
 }
+
