@@ -16,7 +16,8 @@ main() {
             return
         fi
         echo "Test"
-        cross test --target $TARGET
+        cross test --target $TARGET --no-default-features --features mmap
+
     fi
     for example in $(ls examples/*.rs)
     do

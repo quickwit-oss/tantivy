@@ -301,25 +301,31 @@ fn index_documents(
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
-    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-    let segment_reader = SegmentReader::open(segment)?;
-    let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-    let may_have_deletes = compute_deleted_bitset(
-        &mut deleted_bitset,
-        &segment_reader,
-        &mut delete_cursor,
-        &doc_to_opstamps,
-        last_docstamp,
-    )?;
+    let segment_entry: SegmentEntry;
 
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
-        if may_have_deletes {
-            Some(deleted_bitset)
-        } else {
-            None
-        }
-    });
-
+    if delete_cursor.get().is_some() {
+        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+        let segment_reader = SegmentReader::open(segment)?;
+        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+        let may_have_deletes = compute_deleted_bitset(
+            &mut deleted_bitset,
+            &segment_reader,
+            &mut delete_cursor,
+            &doc_to_opstamps,
+            last_docstamp,
+        )?;
+        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
+            if may_have_deletes {
+                Some(deleted_bitset)
+            } else {
+                None
+            }
+        });
+    } else {
+        // if there are no delete operation in the queue, no need
+        // to even open the segment.
+        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
+    }
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 

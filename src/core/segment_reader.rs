@@ -225,6 +225,8 @@ impl SegmentReader {
         let store_source = segment.open_read(SegmentComponent::STORE)?;
         let store_reader = StoreReader::from_source(store_source);
 
+        fail_point!("SegmentReader::open#middle");
+
         let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
         let postings_composite = CompositeFile::open(&postings_source)?;
 
@@ -431,6 +433,7 @@ mod test {
     use core::Index;
     use schema::{SchemaBuilder, Term, STORED, TEXT};
     use DocId;
+
 
     #[test]
     fn test_alive_docs_iterator() {

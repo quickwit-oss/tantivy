@@ -48,6 +48,8 @@ census = "0.1"
 fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"
+fail = "0.2"
+
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
@@ -62,7 +64,8 @@ lto = true
 debug-assertions = false
 
 [features]
-default = ["mmap"]
+# by default no-fail is disabled. We manually enable it when running test.
+default = ["mmap", "fail/no_fail"]
 mmap = ["fst/mmap", "atomicwrites"]
 lz4-compression = ["lz4"]
 
