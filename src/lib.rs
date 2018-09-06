@@ -173,6 +173,9 @@ extern crate tinysegmenter;
 #[macro_use]
 extern crate downcast;
 
+#[macro_use]
+extern crate fail;
+
 #[cfg(test)]
 mod functional_test;
 
@@ -946,3 +949,4 @@ mod tests {
         }
     }
 }
+
