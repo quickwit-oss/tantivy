@@ -98,7 +98,7 @@ impl MultiFieldPostingsWriter {
             .iter()
             .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId))
             .collect();
-        term_offsets.sort_by_key(|&(k, _, _)| k);
+        term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
 
         let mut offsets: Vec<(Field, usize)> = vec![];
         let term_offsets_it = term_offsets
