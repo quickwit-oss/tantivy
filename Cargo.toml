@@ -48,6 +48,7 @@ census = "0.1"
 fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"
+fail = "0.2"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
@@ -60,12 +61,20 @@ opt-level = 3
 debug = false
 lto = true
 debug-assertions = false
+overflow-checks = false
+
+[profile.test]
+debug-assertions = true
+overflow-checks = true
 
 [features]
-default = ["mmap"]
+# by default no-fail is disabled. We manually enable it when running test.
+default = ["mmap", "no_fail"]
 mmap = ["fst/mmap", "atomicwrites"]
 lz4-compression = ["lz4"]
+no_fail = ["fail/no_fail"]
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }
+
 

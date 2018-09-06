@@ -78,6 +78,10 @@ To check out and run tests, you can simply run :
     cd tantivy
     cargo build
 
+## Running tests
+
+Some tests will not run with just `cargo test` because of `fail-rs`.
+To run the tests exhaustively, run `./run-tests.sh`. 
 
 # Contribute
 
