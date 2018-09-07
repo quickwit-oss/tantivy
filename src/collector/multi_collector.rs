@@ -104,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_multi_collector() {
-        let mut top_collector = TopCollector::with_limit(2);
+        let mut top_collector: TopCollector<Score> = TopCollector::with_limit(2);
         let mut count_collector = CountCollector::default();
         {
             let mut collectors =

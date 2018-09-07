@@ -8,39 +8,42 @@ use Score;
 use SegmentLocalId;
 use SegmentReader;
 
-// Rust heap is a max-heap and we need a min heap.
+/// Contains a feature (field, score, etc.) of a document along with the document address.
+///
+/// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
+/// default Rust heap is a max heap, whereas a min heap is needed.
 #[derive(Clone, Copy)]
-struct GlobalScoredDoc {
-    score: Score,
+struct ComparableDoc<T> {
+    feature: T,
     doc_address: DocAddress,
 }
 
-impl PartialOrd for GlobalScoredDoc {
-    fn partial_cmp(&self, other: &GlobalScoredDoc) -> Option<Ordering> {
+impl<T: PartialOrd> PartialOrd for ComparableDoc<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for GlobalScoredDoc {
+impl<T: PartialOrd> Ord for ComparableDoc<T> {
     #[inline]
-    fn cmp(&self, other: &GlobalScoredDoc) -> Ordering {
+    fn cmp(&self, other: &Self) -> Ordering {
         other
-            .score
-            .partial_cmp(&self.score)
+            .feature
+            .partial_cmp(&self.feature)
             .unwrap_or_else(|| other.doc_address.cmp(&self.doc_address))
     }
 }
 
-impl PartialEq for GlobalScoredDoc {
-    fn eq(&self, other: &GlobalScoredDoc) -> bool {
+impl<T: PartialOrd> PartialEq for ComparableDoc<T> {
+    fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl Eq for GlobalScoredDoc {}
+impl<T: PartialOrd> Eq for ComparableDoc<T> {}
 
 /// The Top Collector keeps track of the K documents
-/// with the best scores.
+/// sorted by type `T`.
 ///
 /// The implementation is based on a `BinaryHeap`.
 /// The theorical complexity for collecting the top `K` out of `n` documents
@@ -98,18 +101,18 @@ impl Eq for GlobalScoredDoc {}
 ///     Ok(())
 /// }
 /// ```
-pub struct TopCollector {
+pub struct TopCollector<T> {
     limit: usize,
-    heap: BinaryHeap<GlobalScoredDoc>,
+    heap: BinaryHeap<ComparableDoc<T>>,
     segment_id: u32,
 }
 
-impl TopCollector {
+impl<T: PartialOrd + Clone> TopCollector<T> {
     /// Creates a top collector, with a number of documents equal to "limit".
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(limit: usize) -> TopCollector {
+    pub fn with_limit(limit: usize) -> TopCollector<T> {
         if limit < 1 {
             panic!("Limit must be strictly greater than 0.");
         }
@@ -125,22 +128,22 @@ impl TopCollector {
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn docs(&self) -> Vec<DocAddress> {
-        self.score_docs()
+        self.feature_docs()
             .into_iter()
-            .map(|score_doc| score_doc.1)
+            .map(|(_feature, doc)| doc)
             .collect()
     }
 
-    /// Returns K best ScoredDocument sorted in decreasing order.
+    /// Returns K best FeatureDocuments sorted in decreasing order.
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
-    pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
-        let mut scored_docs: Vec<GlobalScoredDoc> = self.heap.iter().cloned().collect();
-        scored_docs.sort();
-        scored_docs
+    pub fn feature_docs(&self) -> Vec<(T, DocAddress)> {
+        let mut feature_docs: Vec<ComparableDoc<T>> = self.heap.iter().cloned().collect();
+        feature_docs.sort();
+        feature_docs
             .into_iter()
-            .map(|GlobalScoredDoc { score, doc_address }| (score, doc_address))
+            .map(|ComparableDoc { feature, doc_address }| (feature, doc_address))
             .collect()
     }
 
@@ -152,7 +155,19 @@ impl TopCollector {
     }
 }
 
-impl Collector for TopCollector {
+impl TopCollector<Score> {
+    /// Returns K best FeatureDocuments sorted in decreasing order.
+    ///
+    /// Calling this method triggers the sort.
+    /// The result of the sort is not cached.
+    pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
+        self.feature_docs()
+    }
+}
+
+// This will be removed in a future commit, as there cannot be an impl for just score as well as
+// for T of type PartialOrd. This would be possible if specialization were stable.
+impl Collector for TopCollector<Score> {
     fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         self.segment_id = segment_id;
         Ok(())
@@ -161,19 +176,19 @@ impl Collector for TopCollector {
     fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: GlobalScoredDoc = *self.heap
+            let limit_doc: ComparableDoc<Score> = *self.heap
                 .peek()
                 .expect("Top collector with size 0 is forbidden");
-            if limit_doc.score < score {
+            if limit_doc.feature < score {
                 let mut mut_head = self.heap
                     .peek_mut()
                     .expect("Top collector with size 0 is forbidden");
-                mut_head.score = score;
+                mut_head.feature = score;
                 mut_head.doc_address = DocAddress(self.segment_id, doc);
             }
         } else {
-            let wrapped_doc = GlobalScoredDoc {
-                score,
+            let wrapped_doc = ComparableDoc {
+                feature: score,
                 doc_address: DocAddress(self.segment_id, doc),
             };
             self.heap.push(wrapped_doc);
@@ -238,7 +253,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_top_0() {
-        TopCollector::with_limit(0);
+        let _collector: TopCollector<Score> = TopCollector::with_limit(0);
     }
 
 }
