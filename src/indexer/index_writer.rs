@@ -301,25 +301,31 @@ fn index_documents(
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
-    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-    let segment_reader = SegmentReader::open(segment)?;
-    let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-    let may_have_deletes = compute_deleted_bitset(
-        &mut deleted_bitset,
-        &segment_reader,
-        &mut delete_cursor,
-        &doc_to_opstamps,
-        last_docstamp,
-    )?;
+    let segment_entry: SegmentEntry;
 
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
-        if may_have_deletes {
-            Some(deleted_bitset)
-        } else {
-            None
-        }
-    });
-
+    if delete_cursor.get().is_some() {
+        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+        let segment_reader = SegmentReader::open(segment)?;
+        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+        let may_have_deletes = compute_deleted_bitset(
+            &mut deleted_bitset,
+            &segment_reader,
+            &mut delete_cursor,
+            &doc_to_opstamps,
+            last_docstamp,
+        )?;
+        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
+            if may_have_deletes {
+                Some(deleted_bitset)
+            } else {
+                None
+            }
+        });
+    } else {
+        // if there are no delete operation in the queue, no need
+        // to even open the segment.
+        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
+    }
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 
@@ -657,8 +663,23 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
-            Err(TantivyError::FileAlreadyExists(_)) => {}
+            Err(TantivyError::LockFailure(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
+        }
+    }
+
+    #[test]
+    fn test_lockfile_already_exists_error_msg() {
+        let schema_builder = schema::SchemaBuilder::default();
+        let index = Index::create_in_ram(schema_builder.build());
+        let _index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        match index.writer_with_num_threads(1, 3_000_000) {
+            Err(err) => {
+                let err_msg = err.to_string();
+                assert!(err_msg.contains("Lockfile"));
+                assert!(err_msg.contains("Possible causes:"))
+            },
+            _ => panic!("Expected LockfileAlreadyExists error"),
         }
     }
 
@@ -843,4 +864,33 @@ mod tests {
         assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
+
+    #[cfg(not(feature="no_fail"))]
+    #[test]
+    fn test_write_commit_fails() {
+        use fail;
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        for _    in 0..100 {
+            index_writer.add_document(doc!(text_field => "a"));
+        }
+        index_writer.commit().unwrap();
+        fail::cfg("RAMDirectory::atomic_write", "return(error_write_failed)").unwrap();
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "b"));
+        }
+        assert!(index_writer.commit().is_err());
+        index.load_searchers().unwrap();
+        let num_docs_containing = |s: &str| {
+            let searcher = index.searcher();
+            let term_a = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term_a)
+        };
+        assert_eq!(num_docs_containing("a"), 100);
+        assert_eq!(num_docs_containing("b"), 0);
+        fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
+    }
 }

@@ -20,6 +20,7 @@ use std::str::FromStr;
 use tokenizer::TokenizerManager;
 use combine::Parser;
 use query::EmptyQuery;
+use query::query_parser::logical_ast::LogicalAST;
 
 
 /// Possible error that may happen when parsing a query.
@@ -55,6 +56,27 @@ pub enum QueryParserError {
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
         QueryParserError::ExpectedInt(err)
+    }
+}
+
+
+/// Recursively remove empty clause from the AST
+///
+/// Returns `None` iff the `logical_ast` ended up being empty.
+fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
+    match logical_ast {
+        LogicalAST::Clause(children) => {
+            let trimmed_children = children.into_iter()
+                .flat_map(|(occur, child)|
+                    trim_ast(child).map(|trimmed_child| (occur, trimmed_child)) )
+                .collect::<Vec<_>>();
+            if trimmed_children.is_empty() {
+                None
+            } else {
+                Some(LogicalAST::Clause(trimmed_children))
+            }
+        },
+        _ => Some(logical_ast),
     }
 }
 
@@ -369,14 +391,15 @@ impl QueryParser {
                         asts.push(LogicalAST::Leaf(Box::new(ast)));
                     }
                 }
-                let result_ast = if asts.is_empty() {
-                    // this should never happen
-                    return Err(QueryParserError::SyntaxError);
-                } else if asts.len() == 1 {
-                    asts[0].clone()
-                } else {
-                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
-                };
+                let result_ast: LogicalAST =
+                    if asts.len() == 1 {
+                        asts.into_iter().next().unwrap()
+                    } else {
+                        LogicalAST::Clause(
+                            asts.into_iter()
+                                .map(|ast| (Occur::Should, ast))
+                                .collect())
+                    };
                 Ok(result_ast)
             }
             UserInputLeaf::All => {
@@ -429,19 +452,17 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
 }
 
 fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
-    match logical_ast {
-        LogicalAST::Clause(clause) => {
-            if clause.is_empty() {
-                Box::new(EmptyQuery)
-            } else {
-                let occur_subqueries = clause
-                    .into_iter()
-                    .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
-                    .collect::<Vec<_>>();
-                Box::new(BooleanQuery::from(occur_subqueries))
-            }
-        }
-        LogicalAST::Leaf(logical_literal) => convert_literal_to_query(*logical_literal),
+    match trim_ast(logical_ast) {
+        Some(LogicalAST::Clause(trimmed_clause)) => {
+            let occur_subqueries = trimmed_clause
+                .into_iter()
+                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .collect::<Vec<_>>();
+            assert!(!occur_subqueries.is_empty(), "Should not be empty after trimming");
+            Box::new(BooleanQuery::from(occur_subqueries))
+        },
+        Some(LogicalAST::Leaf(trimmed_logical_literal)) => convert_literal_to_query(*trimmed_logical_literal),
+        None => Box::new(EmptyQuery)
     }
 }
 
@@ -454,12 +475,17 @@ mod test {
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
-    use tokenizer::SimpleTokenizer;
-    use tokenizer::TokenizerManager;
+    use tokenizer::{Tokenizer, SimpleTokenizer, LowerCaser, StopWordFilter, TokenizerManager};
     use Index;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("en_with_stop_words")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
         schema_builder.add_i64_field("signed", INT_INDEXED);
@@ -468,9 +494,14 @@ mod test {
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);
         schema_builder.add_text_field("nottokenized", STRING);
+        schema_builder.add_text_field("with_stop_words", text_options);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register("en_with_stop_words", SimpleTokenizer
+            .filter(LowerCaser)
+            .filter(StopWordFilter::remove(vec!["the".to_string()]))
+        );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
 
@@ -737,6 +768,13 @@ mod test {
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_not_empty_but_no_tokens() {
+        let query_parser = make_query_parser();
+        assert!(query_parser.parse_query(" !, ").is_ok());
+        assert!(query_parser.parse_query("with_stop_words:the").is_ok());
     }
 
     #[test]

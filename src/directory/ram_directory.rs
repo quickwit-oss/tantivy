@@ -173,7 +173,6 @@ impl Directory for RAMDirectory {
         let exists = self.fs
             .write(path_buf.clone(), &Vec::new())
             .map_err(|err| IOError::with_path(path.to_owned(), err))?;
-
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
@@ -196,6 +195,9 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        fail_point!("RAMDirectory::atomic_write", |msg| {
+            Err(io::Error::new(io::ErrorKind::Other, msg.unwrap_or("Undefined".to_string())))
+        });
         let path_buf = PathBuf::from(path);
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
         self.fs.write(path_buf, &Vec::new())?;
