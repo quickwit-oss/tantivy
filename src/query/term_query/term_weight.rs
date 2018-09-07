@@ -49,7 +49,7 @@ impl Weight for TermWeight {
         for doc_id in doc_ids {
             match scorer.skip_next(doc_id) {
                 SkipResult::Reached => {
-                    matching_terms.add_term(doc_id, self.term.clone());
+                    matching_terms.add_term(doc_id, self.term.clone(), 1f32);
                 }
                 SkipResult::OverStep => {}
                 SkipResult::End => {

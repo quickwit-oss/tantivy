@@ -10,6 +10,7 @@ use std::sync::Arc;
 use termdict::TermMerger;
 use DocAddress;
 use Result;
+use Index;
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -18,17 +19,24 @@ use Result;
 ///
 pub struct Searcher {
     schema: Schema,
+    index: Index,
     segment_readers: Vec<SegmentReader>,
 }
 
 impl Searcher {
     /// Creates a new `Searcher`
-    pub(crate) fn new(schema: Schema, segment_readers: Vec<SegmentReader>) -> Searcher {
+    pub(crate) fn new(schema: Schema, index: Index, segment_readers: Vec<SegmentReader>) -> Searcher {
         Searcher {
             schema,
+            index,
             segment_readers,
         }
     }
+
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the

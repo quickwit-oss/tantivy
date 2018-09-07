@@ -29,6 +29,9 @@ use num_cpus;
 use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
+use schema::FieldType;
+use schema::Field;
+use tokenizer::BoxedTokenizer;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -111,6 +114,22 @@ impl Index {
     /// Accessor for the tokenizer manager.
     pub fn tokenizers(&self) -> &TokenizerManager {
         &self.tokenizers
+    }
+
+    pub fn tokenizer_for_field(&self, field: Field) -> Option<Box<BoxedTokenizer>> {
+        let field_type = self.schema.get_field_entry(field).field_type();
+        let tokenizer: &TokenizerManager = self.tokenizers();
+            match field_type {
+            FieldType::Str(text_options) => {
+                text_options.get_indexing_options()
+                    .map(|text_indexing_options| text_indexing_options.tokenizer())
+                    .and_then(|tokenizer_name| tokenizer.get(tokenizer_name))
+
+            },
+            _ => {
+                None
+            }
+        }
     }
 
     /// Opens a new directory from an index path.
@@ -257,7 +276,7 @@ impl Index {
         let schema = self.schema();
         let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
         let searchers = (0..num_searchers)
-            .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
+            .map(|_| Searcher::new(schema.clone(), self.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())

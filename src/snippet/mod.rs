@@ -12,6 +12,9 @@ use DocAddress;
 use DocId;
 use Searcher;
 use query::MatchingTerms;
+use schema::Field;
+use std::collections::HashMap;
+use SegmentLocalId;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -189,28 +192,55 @@ fn select_best_fragment_combination<'a>(
 
 
 
-fn matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[DocAddress]) -> Result<()> {
+fn compute_matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[DocAddress]) -> Result<HashMap<SegmentLocalId, MatchingTerms>> {
     let weight = query.weight(searcher, false)?;
     let mut doc_groups = doc_addresses
         .iter()
         .group_by(|doc_address| doc_address.0);
+    let mut matching_terms_per_segment: HashMap<SegmentLocalId, MatchingTerms> = HashMap::new();
     for (segment_ord, doc_addrs) in doc_groups.into_iter() {
         let doc_addrs_vec: Vec<DocId> = doc_addrs.map(|doc_addr| doc_addr.1).collect();
         let mut matching_terms = MatchingTerms::from_doc_ids(&doc_addrs_vec[..]);
         let segment_reader = searcher.segment_reader(segment_ord);
         weight.matching_terms(segment_reader, &mut matching_terms)?;
+        matching_terms_per_segment.insert(segment_ord, matching_terms);
     }
-    let terms = HashSet<(DocId, Vec<Term>)>;
-    Ok(())
+    Ok(matching_terms_per_segment)
 }
 
-pub fn generate_snippet<'a>(
-    doc: &'a [DocAddress],
-    index: &Index,
+pub fn generate_snippet(
+    doc_addresses: &[DocAddress],
+    fields: &[Field],
+    searcher: &Searcher,
     query: &Query,
-    terms: Vec<Term>,
-    max_num_chars: usize) -> Snippet {
-    search_fragments(boxed_tokenizer, &text, terms, 3);
+    max_num_chars: usize) -> Result<Vec<Snippet>> {
+    // TODO sort doc_addresses
+    let matching_terms_per_segment_local_id = compute_matching_terms(query, searcher, doc_addresses)?;
+    for doc_address in doc_addresses {
+        let doc = searcher.doc(doc_address)?;
+        for &field in fields {
+            let mut text = String::new();
+            for value in doc.get_all(field) {
+                text.push_str(value.text());
+            }
+            if let Some(tokenizer) = searcher.index().tokenizer_for_field(field) {
+                if let Some(matching_terms) = matching_terms_per_segment_local_id.get(&doc_address.segment_ord()) {
+                    if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
+                        let terms: BTreeMap<String, f32>  = terms
+                            .iter()
+                            .map(|(term, score)| (term.text().to_string(), *score))
+                            .collect();
+                        search_fragments(tokenizer,
+                                         &text,
+                                         terms,
+                                         max_num_chars);
+                    }
+                }
+            }
+        }
+    }
+    // search_fragments(boxed_tokenizer, &text, terms, 3);
+    panic!("e");
 }
 
 #[cfg(test)]
@@ -346,7 +376,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
         let text = "a b c d";
 
-        let mut terms = BTreeMap::new();
+        let  terms = BTreeMap::new();
         let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
         assert_eq!(fragments.len(), 0);
 

@@ -75,7 +75,7 @@ where
                 inverted_index.terms().ord_to_term(term_ord, &mut term_buffer);
                 let term = Term::from_field_bytes(self.field, &term_buffer[..]);
                 for &doc_id in &docs_matching_current_term {
-                    matching_terms.add_term(doc_id, term.clone());
+                    matching_terms.add_term(doc_id, term.clone(), 1f32);
                 }
             }
         }
