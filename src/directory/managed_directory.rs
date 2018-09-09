@@ -12,6 +12,20 @@ use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 use Directory;
 use Result;
+use indexer::LockType;
+
+
+
+/// Returns true iff the file is "managed".
+/// Non-managed file are not subject to garbage collection.
+///
+/// Filenames that starts by a "." -typically locks-
+/// are not managed.
+fn is_managed(path: &Path) -> bool {
+    path.to_str()
+        .map(|p_str| !p_str.starts_with("."))
+        .unwrap_or(true)
+}
 
 /// Wrapper of directories that keeps track of files created by Tantivy.
 ///
@@ -82,25 +96,34 @@ impl ManagedDirectory {
     pub fn garbage_collect<L: FnOnce() -> HashSet<PathBuf>>(&mut self, get_living_files: L) {
         info!("Garbage collect");
         let mut files_to_delete = vec![];
+
+        // It is crucial to get the living files after acquiring the
+        // read lock of meta informations. That way, we
+        // avoid the following scenario.
+        //
+        // 1) we get the list of living files.
+        // 2) someone creates a new file.
+        // 3) we start garbage collection and remove this file
+        // even though it is a living file.
+        //
+        // releasing the lock as .delete() will use it too.
         {
-            // releasing the lock as .delete() will use it too.
             let meta_informations_rlock = self.meta_informations
                 .read()
                 .expect("Managed directory rlock poisoned in garbage collect.");
 
-            // It is crucial to get the living files after acquiring the
-            // read lock of meta informations. That way, we
-            // avoid the following scenario.
-            //
-            // 1) we get the list of living files.
-            // 2) someone creates a new file.
-            // 3) we start garbage collection and remove this file
-            // even though it is a living file.
-            let living_files = get_living_files();
-
-            for managed_path in &meta_informations_rlock.managed_paths {
-                if !living_files.contains(managed_path) {
-                    files_to_delete.push(managed_path.clone());
+            // The point of this second "file" lock is to enforce the following scenario
+            // 1) process B tries to load a new set of searcher.
+            // The list of segments is loaded
+            // 2) writer change meta.json (for instance after a merge or a commit)
+            // 3) gc kicks in.
+            // 4) gc removes a file that was useful for process B, before process B opened it.
+            if let Ok(_meta_lock) = LockType::MetaLock.acquire_lock(self) {
+                let living_files = get_living_files();
+                for managed_path in &meta_informations_rlock.managed_paths {
+                    if !living_files.contains(managed_path) {
+                        files_to_delete.push(managed_path.clone());
+                    }
                 }
             }
         }
@@ -156,7 +179,15 @@ impl ManagedDirectory {
     /// registering the filepath and creating the file
     /// will not lead to garbage files that will
     /// never get removed.
+    ///
+    /// File starting by "." are reserved to locks.
+    /// They are not managed and cannot be subjected
+    /// to garbage collection.
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
+        // Files starting by "." (e.g. lock files) are not managed.
+        if !is_managed(filepath) {
+           return Ok(());
+        }
         let mut meta_wlock = self.meta_informations
             .write()
             .expect("Managed file lock poisoned");

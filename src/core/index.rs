@@ -7,7 +7,7 @@ use std::fmt;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use Result;
-
+use indexer::LockType;
 use super::pool::LeasedItem;
 use super::pool::Pool;
 use super::segment::create_segment;
@@ -20,11 +20,10 @@ use core::META_FILEPATH;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
-use directory::{DirectoryClone, ManagedDirectory};
+use directory::{ManagedDirectory};
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
-use indexer::DirectoryLock;
 use num_cpus;
 use std::path::Path;
 use tokenizer::TokenizerManager;
@@ -116,18 +115,28 @@ impl Index {
         &self.tokenizers
     }
 
-    pub fn tokenizer_for_field(&self, field: Field) -> Option<Box<BoxedTokenizer>> {
-        let field_type = self.schema.get_field_entry(field).field_type();
-        let tokenizer: &TokenizerManager = self.tokenizers();
+    pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<BoxedTokenizer>> {
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        let tokenizer_manager: &TokenizerManager = self.tokenizers();
+        let tokenizer_name_opt: Option<Box<BoxedTokenizer>> =
             match field_type {
-            FieldType::Str(text_options) => {
-                text_options.get_indexing_options()
-                    .map(|text_indexing_options| text_indexing_options.tokenizer())
-                    .and_then(|tokenizer_name| tokenizer.get(tokenizer_name))
-
-            },
-            _ => {
-                None
+                FieldType::Str(text_options) => {
+                    text_options
+                        .get_indexing_options()
+                        .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
+                        .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
+                },
+                _ => {
+                    None
+                }
+            };
+        match tokenizer_name_opt {
+            Some(tokenizer) => {
+                Ok(tokenizer)
+            }
+            None => {
+                Err(TantivyError::SchemaError(format!("{:?} is not a text field.", field_entry.name())))
             }
         }
     }
@@ -175,7 +184,8 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        let directory_lock = DirectoryLock::lock(self.directory().box_clone())?;
+
+        let directory_lock = LockType::IndexWriterLock.acquire_lock(&self.directory)?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
             self,
@@ -268,6 +278,7 @@ impl Index {
     /// This needs to be called when a new segment has been
     /// published or after a merge.
     pub fn load_searchers(&self) -> Result<()> {
+        let _meta_lock = LockType::MetaLock.acquire_lock(self.directory())?;
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
             .iter()

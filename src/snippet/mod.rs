@@ -15,6 +15,7 @@ use query::MatchingTerms;
 use schema::Field;
 use std::collections::HashMap;
 use SegmentLocalId;
+use error::TantivyError;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -79,6 +80,14 @@ const HIGHLIGHTEN_PREFIX: &str = "<b>";
 const HIGHLIGHTEN_POSTFIX: &str = "</b>";
 
 impl Snippet {
+
+    pub fn empty() -> Snippet {
+        Snippet {
+            fragments: String::new(),
+            highlighted: Vec::new()
+        }
+    }
+
     /// Returns a hignlightned html from the `Snippet`.
     pub fn to_html(&self) -> String {
         let mut html = String::new();
@@ -210,42 +219,55 @@ fn compute_matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[D
 
 pub fn generate_snippet(
     searcher: &Searcher,
-    field: Field,
     query: &Query,
+    field: Field,
     doc_addresses: &[DocAddress],
     max_num_chars: usize) -> Result<Vec<Snippet>> {
 
     let mut doc_address_ords: Vec<usize> = (0..doc_addresses.len()).collect();
     doc_address_ords.sort_by_key(|k| doc_addresses[*k]);
 
-    // TODO sort doc_addresses
+    let mut snippets = vec![];
     let matching_terms_per_segment_local_id = compute_matching_terms(query, searcher, doc_addresses)?;
-    for doc_address in doc_addresses {      
+
+    for &doc_address_ord in &doc_address_ords {
+        let doc_address = doc_addresses[doc_address_ord];
         let segment_ord: u32 = doc_address.segment_ord();
-        let doc = searcher.doc(doc_address)?;
+        let doc = searcher.doc(&doc_address)?;
 
         let mut text = String::new();
         for value in doc.get_all(field) {
             text.push_str(value.text());
         }
 
+
         if let Some(matching_terms) = matching_terms_per_segment_local_id.get(&segment_ord) {
-            if let Some(tokenizer) = searcher.index().tokenizer_for_field(field) {
-                if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
-                    let terms: BTreeMap<String, f32>  = terms
-                        .iter()
-                        .map(|(term, score)| (term.text().to_string(), *score))
-                        .collect();
-                    let fragment_candidates = search_fragments(tokenizer,
-                                     &text,
-                                     terms,
-                                     max_num_chars);
-                }
+            let tokenizer = searcher.index().tokenizer_for_field(field)?;
+            if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
+                let terms: BTreeMap<String, f32>  = terms
+                    .iter()
+                    .map(|(term, score)| (term.text().to_string(), *score))
+                    .collect();
+                let fragment_candidates = search_fragments(tokenizer,
+                                 &text,
+                                 terms,
+                                 max_num_chars);
+                let snippet = select_best_fragment_combination(fragment_candidates, &text);
+                snippets.push(snippet);
+            } else {
+                snippets.push(Snippet::empty());
             }
+        } else {
+
         }
     }
-    // search_fragments(boxed_tokenizer, &text, terms, 3);
-    panic!("e");
+
+    // reorder the snippets
+    for i in 0..doc_addresses.len() {
+        snippets.swap(i, doc_address_ords[i]);
+    }
+
+    Ok(snippets)
 }
 
 #[cfg(test)]
