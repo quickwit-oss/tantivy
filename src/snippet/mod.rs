@@ -209,32 +209,37 @@ fn compute_matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[D
 }
 
 pub fn generate_snippet(
-    doc_addresses: &[DocAddress],
-    fields: &[Field],
     searcher: &Searcher,
+    field: Field,
     query: &Query,
+    doc_addresses: &[DocAddress],
     max_num_chars: usize) -> Result<Vec<Snippet>> {
+
+    let mut doc_address_ords: Vec<usize> = (0..doc_addresses.len()).collect();
+    doc_address_ords.sort_by_key(|k| doc_addresses[*k]);
+
     // TODO sort doc_addresses
     let matching_terms_per_segment_local_id = compute_matching_terms(query, searcher, doc_addresses)?;
-    for doc_address in doc_addresses {
+    for doc_address in doc_addresses {      
+        let segment_ord: u32 = doc_address.segment_ord();
         let doc = searcher.doc(doc_address)?;
-        for &field in fields {
-            let mut text = String::new();
-            for value in doc.get_all(field) {
-                text.push_str(value.text());
-            }
+
+        let mut text = String::new();
+        for value in doc.get_all(field) {
+            text.push_str(value.text());
+        }
+
+        if let Some(matching_terms) = matching_terms_per_segment_local_id.get(&segment_ord) {
             if let Some(tokenizer) = searcher.index().tokenizer_for_field(field) {
-                if let Some(matching_terms) = matching_terms_per_segment_local_id.get(&doc_address.segment_ord()) {
-                    if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
-                        let terms: BTreeMap<String, f32>  = terms
-                            .iter()
-                            .map(|(term, score)| (term.text().to_string(), *score))
-                            .collect();
-                        search_fragments(tokenizer,
-                                         &text,
-                                         terms,
-                                         max_num_chars);
-                    }
+                if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
+                    let terms: BTreeMap<String, f32>  = terms
+                        .iter()
+                        .map(|(term, score)| (term.text().to_string(), *score))
+                        .collect();
+                    let fragment_candidates = search_fragments(tokenizer,
+                                     &text,
+                                     terms,
+                                     max_num_chars);
                 }
             }
         }
