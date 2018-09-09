@@ -15,7 +15,6 @@ keywords = ["search", "information", "retrieval"]
 base64 = "0.9.1"
 byteorder = "1.0"
 lazy_static = "1"
-tinysegmenter = "0.1.0"
 regex = "1.0"
 fst = {version="0.3", default-features=false}
 fst-regex = { version="0.2" }

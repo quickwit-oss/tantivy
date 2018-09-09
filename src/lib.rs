@@ -168,8 +168,6 @@ extern crate rand;
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-extern crate tinysegmenter;
-
 #[macro_use]
 extern crate downcast;
 
