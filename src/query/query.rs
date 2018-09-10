@@ -6,7 +6,8 @@ use std::fmt;
 use Result;
 use SegmentLocalId;
 use DocAddress;
-use query::weight::MatchingTerms;
+use std::collections::BTreeSet;
+use Term;
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -59,6 +60,8 @@ pub trait Query: QueryClone + downcast::Any + fmt::Debug {
         }
         Ok(result)
     }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {}
 
     /// Search works as follows :
     ///

@@ -11,11 +11,11 @@ use query::Query;
 use DocAddress;
 use DocId;
 use Searcher;
-use query::MatchingTerms;
 use schema::Field;
 use std::collections::HashMap;
 use SegmentLocalId;
 use error::TantivyError;
+use std::collections::BTreeSet;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -129,9 +129,9 @@ impl Snippet {
 /// Fragments must be valid in the sense that `&text[fragment.start..fragment.stop]`\
 /// has to be a valid string.
 fn search_fragments<'a>(
-    tokenizer: Box<BoxedTokenizer>,
+    tokenizer: &BoxedTokenizer,
     text: &'a str,
-    terms: BTreeMap<String, f32>,
+    terms: &BTreeMap<String, f32>,
     max_num_chars: usize,
 ) -> Vec<FragmentCandidate> {
     let mut token_stream = tokenizer.token_stream(text);
@@ -199,75 +199,41 @@ fn select_best_fragment_combination<'a>(
 }
 
 
+const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
-
-fn compute_matching_terms(query: &Query, searcher: &Searcher, doc_addresses: &[DocAddress]) -> Result<HashMap<SegmentLocalId, MatchingTerms>> {
-    let weight = query.weight(searcher, false)?;
-    let mut doc_groups = doc_addresses
-        .iter()
-        .group_by(|doc_address| doc_address.0);
-    let mut matching_terms_per_segment: HashMap<SegmentLocalId, MatchingTerms> = HashMap::new();
-    for (segment_ord, doc_addrs) in doc_groups.into_iter() {
-        let doc_addrs_vec: Vec<DocId> = doc_addrs.map(|doc_addr| doc_addr.1).collect();
-        let mut matching_terms = MatchingTerms::from_doc_ids(&doc_addrs_vec[..]);
-        let segment_reader = searcher.segment_reader(segment_ord);
-        weight.matching_terms(segment_reader, &mut matching_terms)?;
-        matching_terms_per_segment.insert(segment_ord, matching_terms);
-    }
-    Ok(matching_terms_per_segment)
+pub struct SnippetGenerator {
+    terms_text: BTreeMap<String, f32>,
+    tokenizer: Box<BoxedTokenizer>,
+    max_num_chars: usize
 }
 
-pub fn generate_snippet(
-    searcher: &Searcher,
-    query: &Query,
-    field: Field,
-    doc_addresses: &[DocAddress],
-    max_num_chars: usize) -> Result<Vec<Snippet>> {
-
-    let mut doc_address_ords: Vec<usize> = (0..doc_addresses.len()).collect();
-    doc_address_ords.sort_by_key(|k| doc_addresses[*k]);
-
-    let mut snippets = vec![];
-    let matching_terms_per_segment_local_id = compute_matching_terms(query, searcher, doc_addresses)?;
-
-    for &doc_address_ord in &doc_address_ords {
-        let doc_address = doc_addresses[doc_address_ord];
-        let segment_ord: u32 = doc_address.segment_ord();
-        let doc = searcher.doc(&doc_address)?;
-
-        let mut text = String::new();
-        for value in doc.get_all(field) {
-            text.push_str(value.text());
-        }
-
-
-        if let Some(matching_terms) = matching_terms_per_segment_local_id.get(&segment_ord) {
-            let tokenizer = searcher.index().tokenizer_for_field(field)?;
-            if let Some(terms) = matching_terms.terms_for_doc(doc_address.doc()) {
-                let terms: BTreeMap<String, f32>  = terms
-                    .iter()
-                    .map(|(term, score)| (term.text().to_string(), *score))
-                    .collect();
-                let fragment_candidates = search_fragments(tokenizer,
-                                 &text,
-                                 terms,
-                                 max_num_chars);
-                let snippet = select_best_fragment_combination(fragment_candidates, &text);
-                snippets.push(snippet);
-            } else {
-                snippets.push(Snippet::empty());
-            }
-        } else {
-
-        }
+impl SnippetGenerator {
+    pub fn new(searcher: &Searcher,
+               query: &Query,
+               field: Field) -> Result<SnippetGenerator> {
+        let mut terms = BTreeSet::new();
+        query.query_terms(&mut terms);
+        let terms_text: BTreeMap<String, f32>  = terms.into_iter()
+            .filter(|term| term.field() == field)
+            .map(|term| (term.text().to_string(), 1f32))
+            .collect();
+        let tokenizer = searcher.index().tokenizer_for_field(field)?;
+        Ok(SnippetGenerator {
+            terms_text,
+            tokenizer,
+            max_num_chars: DEFAULT_MAX_NUM_CHARS
+        })
     }
 
-    // reorder the snippets
-    for i in 0..doc_addresses.len() {
-        snippets.swap(i, doc_address_ords[i]);
-    }
+    pub fn snippet(&self, text: &str) -> Snippet {
+        let fragment_candidates = search_fragments(&*self.tokenizer,
+                                                   &text,
+                                                   &self.terms_text,
+                                                   self.max_num_chars);
+        let snippet = select_best_fragment_combination(fragment_candidates, &text);
+        snippet
 
-    Ok(snippets)
+    }
 }
 
 #[cfg(test)]
@@ -294,7 +260,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         terms.insert(String::from("rust"), 1.0);
         terms.insert(String::from("language"), 0.9);
 
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 100);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 100);
         assert_eq!(fragments.len(), 7);
         {
             let first = fragments.iter().nth(0).unwrap();
@@ -315,7 +281,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         let mut terms = BTreeMap::new();
         terms.insert(String::from("c"), 1.0);
 
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
 
         assert_eq!(fragments.len(), 1);
         {
@@ -339,7 +305,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         let mut terms = BTreeMap::new();
         terms.insert(String::from("f"), 1.0);
 
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -364,7 +330,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         terms.insert(String::from("f"), 1.0);
         terms.insert(String::from("a"), 0.9);
 
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 7);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 7);
 
         assert_eq!(fragments.len(), 2);
         {
@@ -388,7 +354,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         let mut terms = BTreeMap::new();
         terms.insert(String::from("z"), 1.0);
 
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
 
         assert_eq!(fragments.len(), 0);
 
@@ -404,7 +370,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         let text = "a b c d";
 
         let  terms = BTreeMap::new();
-        let fragments = search_fragments(boxed_tokenizer, &text, terms, 3);
+        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
         let snippet = select_best_fragment_combination(fragments, &text);

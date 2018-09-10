@@ -6,6 +6,7 @@ use schema::IndexRecordOption;
 use Result;
 use Searcher;
 use Term;
+use std::collections::BTreeSet;
 
 /// A Term query matches all of the documents
 /// containing a specific term.
@@ -109,5 +110,8 @@ impl TermQuery {
 impl Query for TermQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         Ok(Box::new(self.specialized_weight(searcher, scoring_enabled)))
+    }
+    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
+        term_set.insert(self.term.clone());
     }
 }
