@@ -4,6 +4,7 @@ use super::user_input_ast::*;
 use core::Index;
 use query::AllQuery;
 use query::BooleanQuery;
+use query::bm25;
 use query::Occur;
 use query::occur::compose_occur;
 use query::PhraseQuery;
@@ -134,6 +135,8 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
+    bm25_k1: f32,
+    bm25_b: f32,
 }
 
 impl QueryParser {
@@ -151,6 +154,8 @@ impl QueryParser {
             default_fields,
             tokenizer_manager,
             conjunction_by_default: false,
+            bm25_k1: bm25::DEFAULT_K1,
+            bm25_b: bm25::DEFAULT_B,
         }
     }
 
@@ -160,6 +165,25 @@ impl QueryParser {
     ///   in the query.
     pub fn for_index(index: &Index, default_fields: Vec<Field>) -> QueryParser {
         QueryParser::new(index.schema(), default_fields, index.tokenizers().clone())
+    }
+
+    /// Creates a `QueryParser`, given
+    ///  * an index
+    ///  * a set of default - fields used to search if no field is specifically defined
+    ///   in the query.
+    ///  * custom bm25 coefficients
+    pub fn for_index_with_settings(index: &Index, default_fields: Vec<Field>,
+        bm25_k1: f32, bm25_b: f32)
+        -> QueryParser
+    {
+        QueryParser {
+            schema: index.schema(),
+            default_fields,
+            tokenizer_manager: index.tokenizers().clone(),
+            conjunction_by_default: false,
+            bm25_k1,
+            bm25_b,
+        }
     }
 
     /// Set the default way to compose queries to a conjunction.
@@ -183,7 +207,7 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(logical_ast))
+        Ok(convert_to_query(logical_ast, self))
     }
 
     /// Parse the user query into an AST.
@@ -437,10 +461,16 @@ impl QueryParser {
     }
 }
 
-fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
+fn convert_literal_to_query(logical_literal: LogicalLiteral, parser: &QueryParser) -> Box<Query> {
     match logical_literal {
-        LogicalLiteral::Term(term) => Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs)),
-        LogicalLiteral::Phrase(term_with_offsets) => Box::new(PhraseQuery::new_with_offset(term_with_offsets)),
+        LogicalLiteral::Term(term) => {
+            Box::new(TermQuery::new_with_settings(term, IndexRecordOption::WithFreqs,
+                parser.bm25_k1, parser.bm25_b))
+        }
+        LogicalLiteral::Phrase(term_with_offsets) => {
+            Box::new(PhraseQuery::new_with_settings(term_with_offsets,
+                parser.bm25_k1, parser.bm25_b))
+        }
         LogicalLiteral::Range {
             field,
             value_type,
@@ -451,17 +481,17 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     }
 }
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
+fn convert_to_query(logical_ast: LogicalAST, parser: &QueryParser) -> Box<Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAST::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .map(|(occur, subquery)| (occur, convert_to_query(subquery, parser)))
                 .collect::<Vec<_>>();
             assert!(!occur_subqueries.is_empty(), "Should not be empty after trimming");
             Box::new(BooleanQuery::from(occur_subqueries))
         },
-        Some(LogicalAST::Leaf(trimmed_logical_literal)) => convert_literal_to_query(*trimmed_logical_literal),
+        Some(LogicalAST::Leaf(trimmed_logical_literal)) => convert_literal_to_query(*trimmed_logical_literal, parser),
         None => Box::new(EmptyQuery)
     }
 }

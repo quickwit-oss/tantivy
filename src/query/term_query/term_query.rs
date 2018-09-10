@@ -2,6 +2,7 @@ use super::term_weight::TermWeight;
 use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
+use query::bm25;
 use schema::IndexRecordOption;
 use Result;
 use Searcher;
@@ -73,6 +74,8 @@ use Term;
 pub struct TermQuery {
     term: Term,
     index_record_option: IndexRecordOption,
+    bm25_k1: f32,
+    bm25_b: f32,
 }
 
 impl TermQuery {
@@ -81,6 +84,22 @@ impl TermQuery {
         TermQuery {
             term,
             index_record_option: segment_postings_options,
+            bm25_k1: bm25::DEFAULT_K1,
+            bm25_b: bm25::DEFAULT_B,
+        }
+    }
+
+    /// Creates a new term query with custom BM25 coefficients
+    pub fn new_with_settings(term: Term,
+        segment_postings_options: IndexRecordOption,
+        bm25_k1: f32, bm25_b: f32)
+        -> TermQuery
+    {
+        TermQuery {
+            term,
+            index_record_option: segment_postings_options,
+            bm25_k1,
+            bm25_b,
         }
     }
 
@@ -96,7 +115,8 @@ impl TermQuery {
     /// This is useful for optimization purpose.
     pub fn specialized_weight(&self, searcher: &Searcher, scoring_enabled: bool) -> TermWeight {
         let term = self.term.clone();
-        let bm25_weight = BM25Weight::for_terms(searcher, &[term]);
+        let bm25_weight = BM25Weight::for_terms(searcher, &[term],
+            self.bm25_k1, self.bm25_b);
         let index_record_option = if scoring_enabled {
             self.index_record_option
         } else {

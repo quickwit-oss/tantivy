@@ -1,7 +1,7 @@
 use super::PhraseWeight;
 use core::searcher::Searcher;
 use error::TantivyError;
-use query::bm25::BM25Weight;
+use query::bm25::{self, BM25Weight};
 use query::Query;
 use query::Weight;
 use schema::{Field, Term};
@@ -25,6 +25,8 @@ use Result;
 pub struct PhraseQuery {
     field: Field,
     phrase_terms: Vec<(usize, Term)>,
+    bm25_k1: f32,
+    bm25_b: f32,
 }
 
 impl PhraseQuery {
@@ -41,7 +43,16 @@ impl PhraseQuery {
     /// Creates a new `PhraseQuery` given a list of terms and there offsets.
     ///
     /// Can be used to provide custom offset for each term.
-    pub fn new_with_offset(mut terms: Vec<(usize, Term)>) -> PhraseQuery {
+    pub fn new_with_offset(terms: Vec<(usize, Term)>) -> PhraseQuery {
+        PhraseQuery::new_with_settings(terms,
+            bm25::DEFAULT_K1, bm25::DEFAULT_B)
+    }
+
+    /// Creates a new `PhraseQuery` with custom bm25 coefficients
+    pub fn new_with_settings(mut terms: Vec<(usize, Term)>,
+        bm25_k1: f32, bm25_b: f32)
+        -> PhraseQuery
+    {
         assert!(
             terms.len() > 1,
             "A phrase query is required to have strictly more than one term."
@@ -55,6 +66,8 @@ impl PhraseQuery {
         PhraseQuery {
             field,
             phrase_terms: terms,
+            bm25_k1,
+            bm25_b,
         }
     }
 
@@ -93,7 +106,8 @@ impl Query for PhraseQuery {
         }
         if scoring_enabled {
             let terms = self.phrase_terms();
-            let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+            let bm25_weight = BM25Weight::for_terms(searcher, &terms,
+                self.bm25_k1, self.bm25_b);
             Ok(Box::new(PhraseWeight::new(
                 self.phrase_terms.clone(),
                 bm25_weight,
