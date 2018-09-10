@@ -1,21 +1,12 @@
 use htmlescape::encode_minimal;
-use schema::FieldValue;
 use std::collections::BTreeMap;
-use itertools::Itertools;
-use tokenizer::BoxedTokenizer;
 use tokenizer::{Token, TokenStream};
-use Index;
 use Result;
-use Term;
 use query::Query;
-use DocAddress;
-use DocId;
 use Searcher;
 use schema::Field;
-use std::collections::HashMap;
-use SegmentLocalId;
-use error::TantivyError;
 use std::collections::BTreeSet;
+use tokenizer::BoxedTokenizer;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -225,14 +216,16 @@ impl SnippetGenerator {
         })
     }
 
+    pub fn set_max_num_chars(&mut self, max_num_chars: usize) {
+        self.max_num_chars = max_num_chars;
+    }
+
     pub fn snippet(&self, text: &str) -> Snippet {
         let fragment_candidates = search_fragments(&*self.tokenizer,
                                                    &text,
                                                    &self.terms_text,
                                                    self.max_num_chars);
-        let snippet = select_best_fragment_combination(fragment_candidates, &text);
-        snippet
-
+        select_best_fragment_combination(fragment_candidates, &text)
     }
 }
 
@@ -242,39 +235,47 @@ mod tests {
     use std::collections::BTreeMap;
     use std::iter::Iterator;
     use tokenizer::{box_tokenizer, SimpleTokenizer};
+    use Index;
+    use schema::{SchemaBuilder, IndexRecordOption, TextOptions, TextFieldIndexing};
+    use SnippetGenerator;
+    use query::QueryParser;
 
-    const TOKENIZER: SimpleTokenizer = SimpleTokenizer;
+
+    const TEST_TEXT: &'static str = r#"Rust is a systems programming language sponsored by Mozilla which
+describes it as a "safe, concurrent, practical language", supporting functional and
+imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?],
+but its designers intend it to provide better memory safety while still maintaining
+performance.
+
+Rust is free and open-source software, released under an MIT License, or Apache License
+2.0. Its designers have refined the language through the experiences of writing the Servo
+web browser layout engine[14] and the Rust compiler. A large proportion of current commits
+to the project are from community members.[15]
+
+Rust won first place for "most loved programming language" in the Stack Overflow Developer
+Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
-
-        let text = "Rust is a systems programming language sponsored by Mozilla which describes it as a \"safe, concurrent, practical language\", supporting functional and imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?], but its designers intend it to provide better memory safety while still maintaining performance.
-
-Rust is free and open-source software, released under an MIT License, or Apache License 2.0. Its designers have refined the language through the experiences of writing the Servo web browser layout engine[14] and the Rust compiler. A large proportion of current commits to the project are from community members.[15]
-
-Rust won first place for \"most loved programming language\" in the Stack Overflow Developer Survey in 2016, 2017, and 2018.
-";
-
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
         let mut terms = BTreeMap::new();
         terms.insert(String::from("rust"), 1.0);
         terms.insert(String::from("language"), 0.9);
-
-        let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 100);
+        let fragments = search_fragments(&*boxed_tokenizer, TEST_TEXT, &terms, 100);
         assert_eq!(fragments.len(), 7);
         {
             let first = fragments.iter().nth(0).unwrap();
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(fragments, &text);
-        assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by Mozilla which describes it as a \"safe".to_owned());
-        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> sponsored by Mozilla which describes it as a &quot;safe".to_owned())
+        let snippet = select_best_fragment_combination(fragments, &TEST_TEXT);
+        assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by Mozilla which\ndescribes it as a \"safe".to_owned());
+        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> sponsored by Mozilla which\ndescribes it as a &quot;safe".to_owned())
     }
 
     #[test]
     fn test_snippet_in_second_fragment() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
 
         let text = "a b c d e f g";
 
@@ -298,7 +299,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
     #[test]
     fn test_snippet_with_term_at_the_end_of_fragment() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
 
         let text = "a b c d e f f g";
 
@@ -322,7 +323,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
     #[test]
     fn test_snippet_with_second_fragment_has_the_highest_score() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
 
         let text = "a b c d e f g";
 
@@ -347,7 +348,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
     #[test]
     fn test_snippet_with_term_not_in_text() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
 
         let text = "a b c d";
 
@@ -365,7 +366,7 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
 
     #[test]
     fn test_snippet_with_no_terms() {
-        let boxed_tokenizer = box_tokenizer(TOKENIZER);
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
 
         let text = "a b c d";
 
@@ -376,5 +377,42 @@ Rust won first place for \"most loved programming language\" in the Stack Overfl
         let snippet = select_best_fragment_combination(fragments, &text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
+    }
+
+    #[test]
+    fn test_snippet_generator() {
+        let mut schema_builder = SchemaBuilder::default ();
+        let text_options = TextOptions::default()
+            .set_indexing_options(TextFieldIndexing::default()
+                .set_tokenizer("en_stem")
+                .set_index_option(IndexRecordOption::Basic)
+            );
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            {
+                let doc = doc ! (text_field => TEST_TEXT);
+                index_writer.add_document(doc);
+            }
+            index_writer.commit().unwrap();
+        }
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let query = query_parser.parse_query("rust design").unwrap();
+        let mut snippet_generator = SnippetGenerator::new(&*searcher, &*query, text_field).unwrap();
+        {
+            let snippet = snippet_generator.snippet(TEST_TEXT);
+            assert_eq!(snippet.to_html(), "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to provide better memory safety");
+        }
+        {
+            snippet_generator.set_max_num_chars(90);
+            let snippet = snippet_generator.snippet(TEST_TEXT);
+            assert_eq!(snippet.to_html(), "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to");
+        }
+
     }
 }

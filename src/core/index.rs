@@ -136,7 +136,7 @@ impl Index {
                 Ok(tokenizer)
             }
             None => {
-                Err(TantivyError::SchemaError(format!("{:?} is not a text field.", field_entry.name())))
+                Err(TantivyError:: SchemaError(format!("{:?} is not a text field.", field_entry.name())))
             }
         }
     }

@@ -8,7 +8,6 @@ use query::Weight;
 use schema::IndexRecordOption;
 use Result;
 use Term;
-use SkipResult;
 
 pub struct TermWeight {
     term: Term,

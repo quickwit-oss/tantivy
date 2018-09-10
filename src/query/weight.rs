@@ -1,11 +1,6 @@
 use super::Scorer;
 use core::SegmentReader;
 use Result;
-use DocId;
-use std::collections::HashSet;
-use Term;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
 
 /// A Weight is the specialization of a Query
 /// for a given set of segments.

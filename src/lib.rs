@@ -214,6 +214,7 @@ pub mod store;
 pub mod termdict;
 
 mod snippet;
+pub use self::snippet::SnippetGenerator;
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};

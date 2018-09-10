@@ -14,6 +14,8 @@ use tantivy::collector::TopCollector;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
+use tantivy::SnippetGenerator;
+use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
@@ -53,15 +55,14 @@ fn main() -> tantivy::Result<()> {
 
     let searcher = index.searcher();
     let query_parser = QueryParser::for_index(&index, vec![title, body]);
-
     let query = query_parser.parse_query("sycamore spring")?;
 
     let mut top_collector = TopCollector::with_limit(10);
-
     searcher.search(&*query, &mut top_collector)?;
 
-    let doc_addresses = top_collector.docs();
+    let snippet_generator =
 
+    let doc_addresses = top_collector.docs();
     for doc_address in doc_addresses {
         let retrieved_doc = searcher.doc(&doc_address)?;
      //   generate_snippet(&retrieved_doc, query
@@ -69,6 +70,3 @@ fn main() -> tantivy::Result<()> {
 
     Ok(())
 }
-
-
-use tempdir::TempDir;

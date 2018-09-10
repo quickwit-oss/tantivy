@@ -5,7 +5,6 @@ use downcast;
 use std::fmt;
 use Result;
 use SegmentLocalId;
-use DocAddress;
 use std::collections::BTreeSet;
 use Term;
 
@@ -61,7 +60,7 @@ pub trait Query: QueryClone + downcast::Any + fmt::Debug {
         Ok(result)
     }
 
-    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {}
+    fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
 
     /// Search works as follows :
     ///

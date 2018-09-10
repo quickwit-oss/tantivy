@@ -7,10 +7,6 @@ use query::{Scorer, Weight};
 use schema::{Field, IndexRecordOption};
 use termdict::{TermDictionary, TermStreamer};
 use Result;
-use SkipResult;
-use Term;
-use DocId;
-use DocSet;
 
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
