@@ -8,6 +8,7 @@ use schema::Field;
 use std::collections::BTreeSet;
 use tokenizer::BoxedTokenizer;
 use Document;
+use std::cmp::Ordering;
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -156,18 +157,17 @@ fn select_best_fragment_combination<'a>(
     fragments: Vec<FragmentCandidate>,
     text: &'a str,
 ) -> Snippet {
-    if let Some(init) = fragments.iter().nth(0) {
-        let fragment =
-            fragments.iter().skip(1).fold(
-                init,
-                |acc, item| {
-                    if item.score > acc.score {
-                        item
-                    } else {
-                        acc
-                    }
-                },
-            );
+    let best_fragment_opt = fragments
+        .iter()
+        .max_by(|left, right| {
+            let cmp_score = left.score.partial_cmp(&right.score).unwrap_or(Ordering::Equal);
+            if cmp_score == Ordering::Equal {
+                (right.start_offset, right.stop_offset).cmp(&(left.start_offset, left.stop_offset))
+            } else {
+                cmp_score
+            }
+        });
+    if let Some(fragment) = best_fragment_opt {
         let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
         let highlighted = fragment
             .highlighted
@@ -179,7 +179,7 @@ fn select_best_fragment_combination<'a>(
                 )
             }).collect();
         Snippet {
-            fragments: fragment_text.to_owned(),
+            fragments: fragment_text.to_string(),
             highlighted: highlighted,
         }
     } else {
