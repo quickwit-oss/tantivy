@@ -27,7 +27,6 @@ mod weight;
 mod vec_docset;
 
 pub(crate) mod score_combiner;
-
 pub use self::intersection::Intersection;
 pub use self::union::Union;
 

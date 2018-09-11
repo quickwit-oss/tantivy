@@ -30,6 +30,7 @@ impl PhraseWeight {
 }
 
 impl Weight for PhraseWeight {
+
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let similarity_weight = self.similarity_weight.clone();
         let field = self.phrase_terms[0].1.field();

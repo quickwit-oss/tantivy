@@ -154,6 +154,7 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
+extern crate htmlescape;
 
 #[cfg(test)]
 #[macro_use]
@@ -209,6 +210,9 @@ pub mod query;
 pub mod schema;
 pub mod store;
 pub mod termdict;
+
+mod snippet;
+pub use self::snippet::SnippetGenerator;
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
@@ -893,11 +897,11 @@ mod tests {
         assert_eq!(document.len(), 3);
         let values = document.get_all(text_field);
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].text(), "tantivy");
-        assert_eq!(values[1].text(), "some other value");
+        assert_eq!(values[0].text(), Some("tantivy"));
+        assert_eq!(values[1].text(), Some("some other value"));
         let values = document.get_all(other_text_field);
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].text(), "short");
+        assert_eq!(values[0].text(), Some("short"));
     }
 
     #[test]

@@ -28,6 +28,9 @@ use num_cpus;
 use std::path::Path;
 use tokenizer::TokenizerManager;
 use IndexWriter;
+use schema::FieldType;
+use schema::Field;
+use tokenizer::BoxedTokenizer;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -110,6 +113,34 @@ impl Index {
     /// Accessor for the tokenizer manager.
     pub fn tokenizers(&self) -> &TokenizerManager {
         &self.tokenizers
+    }
+
+
+    /// Helper to access the tokenizer associated to a specific field.
+    pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<BoxedTokenizer>> {
+        let field_entry = self.schema.get_field_entry(field);
+        let field_type = field_entry.field_type();
+        let tokenizer_manager: &TokenizerManager = self.tokenizers();
+        let tokenizer_name_opt: Option<Box<BoxedTokenizer>> =
+            match field_type {
+                FieldType::Str(text_options) => {
+                    text_options
+                        .get_indexing_options()
+                        .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
+                        .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
+                },
+                _ => {
+                    None
+                }
+            };
+        match tokenizer_name_opt {
+            Some(tokenizer) => {
+                Ok(tokenizer)
+            }
+            None => {
+                Err(TantivyError:: SchemaError(format!("{:?} is not a text field.", field_entry.name())))
+            }
+        }
     }
 
     /// Opens a new directory from an index path.
@@ -258,7 +289,7 @@ impl Index {
         let schema = self.schema();
         let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
         let searchers = (0..num_searchers)
-            .map(|_| Searcher::new(schema.clone(), segment_readers.clone()))
+            .map(|_| Searcher::new(schema.clone(), self.clone(), segment_readers.clone()))
             .collect();
         self.searcher_pool.publish_new_generation(searchers);
         Ok(())
@@ -295,4 +326,27 @@ impl Clone for Index {
             tokenizers: self.tokenizers.clone(),
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use Index;
+    use schema::{SchemaBuilder, TEXT, INT_INDEXED};
+
+    #[test]
+    fn test_indexer_for_field() {
+        let mut schema_builder = SchemaBuilder::default();
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let body_field = schema_builder.add_text_field("body", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        assert!(index.tokenizer_for_field(body_field).is_ok());
+        assert_eq!(
+            format!("{:?}", index.tokenizer_for_field(num_likes_field).err()),
+            "Some(SchemaError(\"\\\"num_likes\\\" is not a text field.\"))"
+        );
+    }
+
+
 }

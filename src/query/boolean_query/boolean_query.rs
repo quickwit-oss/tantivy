@@ -6,6 +6,7 @@ use query::Weight;
 use schema::IndexRecordOption;
 use schema::Term;
 use Result;
+use std::collections::BTreeSet;
 use Searcher;
 
 /// The boolean query combines a set of queries
@@ -40,6 +41,7 @@ impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
 }
 
 impl Query for BooleanQuery {
+
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
         let sub_weights = self.subqueries
             .iter()
@@ -48,6 +50,12 @@ impl Query for BooleanQuery {
             })
             .collect::<Result<_>>()?;
         Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
+    }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
+        for (_occur, subquery) in &self.subqueries {
+            subquery.query_terms(term_set);
+        }
     }
 }
 

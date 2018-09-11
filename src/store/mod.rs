@@ -109,7 +109,7 @@ pub mod tests {
         let store = StoreReader::from_source(store_source);
         for i in 0..1_000 {
             assert_eq!(
-                *store.get(i).unwrap().get_first(field_title).unwrap().text(),
+                *store.get(i).unwrap().get_first(field_title).unwrap().text().unwrap(),
                 format!("Doc {}", i)
             );
         }

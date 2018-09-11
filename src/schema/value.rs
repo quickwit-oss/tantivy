@@ -74,10 +74,10 @@ impl Value {
     ///
     /// # Panics
     /// If the value is not of type `Str`
-    pub fn text(&self) -> &str {
+    pub fn text(&self) -> Option<&str> {
         match *self {
-            Value::Str(ref text) => text,
-            _ => panic!("This is not a text field."),
+            Value::Str(ref text) => Some(text),
+            _ => None,
         }
     }
 

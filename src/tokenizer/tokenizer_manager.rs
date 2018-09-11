@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tokenizer::tokenizer::box_tokenizer;
+use tokenizer::box_tokenizer;
 use tokenizer::BoxedTokenizer;
 use tokenizer::LowerCaser;
 use tokenizer::RawTokenizer;

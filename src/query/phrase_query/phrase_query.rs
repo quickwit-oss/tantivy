@@ -6,6 +6,7 @@ use query::Query;
 use query::Weight;
 use schema::{Field, Term};
 use Result;
+use std::collections::BTreeSet;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///
@@ -105,6 +106,12 @@ impl Query for PhraseQuery {
                 BM25Weight::null(),
                 false,
             )))
+        }
+    }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
+        for (_, query_term) in &self.phrase_terms {
+            term_set.insert(query_term.clone());
         }
     }
 }
