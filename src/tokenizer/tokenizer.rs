@@ -130,7 +130,7 @@ where
     }
 }
 
-pub fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
+pub(crate) fn box_tokenizer<A>(a: A) -> Box<BoxedTokenizer>
 where
     A: 'static + Send + Sync + for<'a> Tokenizer<'a>,
 {

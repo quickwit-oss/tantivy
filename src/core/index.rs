@@ -115,6 +115,8 @@ impl Index {
         &self.tokenizers
     }
 
+
+    /// Helper to access the tokenizer associated to a specific field.
     pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<BoxedTokenizer>> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
@@ -324,4 +326,27 @@ impl Clone for Index {
             tokenizers: self.tokenizers.clone(),
         }
     }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use Index;
+    use schema::{SchemaBuilder, TEXT, INT_INDEXED};
+
+    #[test]
+    fn test_indexer_for_field() {
+        let mut schema_builder = SchemaBuilder::default();
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let body_field = schema_builder.add_text_field("body", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        assert!(index.tokenizer_for_field(body_field).is_ok());
+        assert_eq!(
+            format!("{:?}", index.tokenizer_for_field(num_likes_field).err()),
+            "Some(SchemaError(\"\\\"num_likes\\\" is not a text field.\"))"
+        );
+    }
+
+
 }

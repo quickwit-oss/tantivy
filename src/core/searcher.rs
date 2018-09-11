@@ -33,6 +33,7 @@ impl Searcher {
         }
     }
 
+    /// Returns the `Index` associated to the `Searcher`
     pub fn index(&self) -> &Index {
         &self.index
     }

@@ -62,7 +62,6 @@ opt-level = 3
 debug = false
 lto = true
 debug-assertions = false
-overflow-checks = false
 
 [profile.test]
 debug-assertions = true

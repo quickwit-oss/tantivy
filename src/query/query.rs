@@ -60,6 +60,8 @@ pub trait Query: QueryClone + downcast::Any + fmt::Debug {
         Ok(result)
     }
 
+    /// Extract all of the terms associated to the query and insert them in the
+    /// term set given in arguments.
     fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
 
     /// Search works as follows :

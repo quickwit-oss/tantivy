@@ -35,7 +35,6 @@ fn main() -> tantivy::Result<()> {
     let title = schema.get_field("title").unwrap();
     let body = schema.get_field("body").unwrap();
 
-    let mut old_man_doc = Document::default();
     // we'll only need one doc for this example.
     index_writer.add_document(doc!(
         title => "Of Mice and Men",
@@ -60,12 +59,14 @@ fn main() -> tantivy::Result<()> {
     let mut top_collector = TopCollector::with_limit(10);
     searcher.search(&*query, &mut top_collector)?;
 
-    let snippet_generator =
+    let snippet_generator = SnippetGenerator::new(&*searcher, &*query, body)?;
 
     let doc_addresses = top_collector.docs();
     for doc_address in doc_addresses {
-        let retrieved_doc = searcher.doc(&doc_address)?;
-     //   generate_snippet(&retrieved_doc, query
+        let doc = searcher.doc(&doc_address)?;
+        let snippet = snippet_generator.snippet_from_doc(&doc);
+        println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
+        println!("snippet: {}", snippet.to_html());
     }
 
     Ok(())

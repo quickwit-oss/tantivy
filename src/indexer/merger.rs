@@ -770,23 +770,23 @@ mod tests {
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c"));
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c d");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c d"));
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
                 let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c g");
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c g"));
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {

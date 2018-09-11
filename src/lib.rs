@@ -899,11 +899,11 @@ mod tests {
         assert_eq!(document.len(), 3);
         let values = document.get_all(text_field);
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].text(), "tantivy");
-        assert_eq!(values[1].text(), "some other value");
+        assert_eq!(values[0].text(), Some("tantivy"));
+        assert_eq!(values[1].text(), Some("some other value"));
         let values = document.get_all(other_text_field);
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].text(), "short");
+        assert_eq!(values[0].text(), Some("short"));
     }
 
     #[test]

@@ -7,6 +7,9 @@ use Searcher;
 use schema::Field;
 use std::collections::BTreeSet;
 use tokenizer::BoxedTokenizer;
+use Document;
+
+const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
 #[derive(Debug)]
 pub struct HighlightSection {
@@ -189,16 +192,58 @@ fn select_best_fragment_combination<'a>(
     }
 }
 
-
-const DEFAULT_MAX_NUM_CHARS: usize = 150;
-
+/// `SnippetGenerator`
+///
+/// # Example
+///
+/// ```rust
+/// # #[macro_use]
+/// # extern crate tantivy;
+/// # use tantivy::Index;
+/// # use tantivy::schema::{SchemaBuilder, TEXT};
+/// # use tantivy::query::QueryParser;
+/// use tantivy::SnippetGenerator;
+///
+/// # fn main() -> tantivy::Result<()> {
+/// #    let mut schema_builder = SchemaBuilder::default();
+/// #    let text_field = schema_builder.add_text_field("text", TEXT);
+/// #    let schema = schema_builder.build();
+/// #    let index = Index::create_in_ram(schema);
+/// #    let mut index_writer = index.writer_with_num_threads(1, 30_000_000)?;
+/// #    let doc = doc!(text_field => r#"Comme je descendais des Fleuves impassibles,
+/// #   Je ne me sentis plus guidé par les haleurs :
+/// #  Des Peaux-Rouges criards les avaient pris pour cibles,
+/// #  Les ayant cloués nus aux poteaux de couleurs.
+/// #
+/// #  J'étais insoucieux de tous les équipages,
+/// #  Porteur de blés flamands ou de cotons anglais.
+/// #  Quand avec mes haleurs ont fini ces tapages,
+/// #  Les Fleuves m'ont laissé descendre où je voulais.
+/// #  "#);
+/// #    index_writer.add_document(doc.clone());
+/// #    index_writer.commit()?;
+/// #    let query_parser = QueryParser::for_index(&index, vec![text_field]);
+/// // ...
+/// let query = query_parser.parse_query("haleurs flamands").unwrap();
+/// # index.load_searchers()?;
+/// # let searcher = index.searcher();
+/// let mut snippet_generator = SnippetGenerator::new(&*searcher, &*query, text_field)?;
+/// snippet_generator.set_max_num_chars(100);
+/// let snippet = snippet_generator.snippet_from_doc(&doc);
+/// let snippet_html: String = snippet.to_html();
+/// assert_eq!(snippet_html, "Comme je descendais des Fleuves impassibles,\n  Je ne me sentis plus guidé par les <b>haleurs</b> :\n Des");
+/// #    Ok(())
+/// # }
+/// ```
 pub struct SnippetGenerator {
     terms_text: BTreeMap<String, f32>,
     tokenizer: Box<BoxedTokenizer>,
+    field: Field,
     max_num_chars: usize
 }
 
 impl SnippetGenerator {
+    /// Creates a new snippet generator
     pub fn new(searcher: &Searcher,
                query: &Query,
                field: Field) -> Result<SnippetGenerator> {
@@ -212,14 +257,30 @@ impl SnippetGenerator {
         Ok(SnippetGenerator {
             terms_text,
             tokenizer,
+            field,
             max_num_chars: DEFAULT_MAX_NUM_CHARS
         })
     }
 
+    /// Sets a maximum number of chars.
     pub fn set_max_num_chars(&mut self, max_num_chars: usize) {
         self.max_num_chars = max_num_chars;
     }
 
+    /// Generates a snippet for the given `Document`.
+    ///
+    /// This method extract the text associated to the `SnippetGenerator`'s field
+    /// and computes a snippet.
+    pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
+        let text: String = doc.get_all(self.field)
+            .into_iter()
+            .flat_map(|val| val.text())
+            .collect::<Vec<&str>>()
+            .join(" ");
+        self.snippet(&text)
+    }
+
+    /// Generates a snippet for the given text.
     pub fn snippet(&self, text: &str) -> Snippet {
         let fragment_candidates = search_fragments(&*self.tokenizer,
                                                    &text,
