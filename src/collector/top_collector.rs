@@ -1,21 +1,21 @@
-use super::Collector;
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 use DocAddress;
 use DocId;
 use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
+use super::Collector;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
 #[derive(Clone, Copy)]
-struct ComparableDoc<T> {
-    feature: T,
-    doc_address: DocAddress,
+pub struct ComparableDoc<T> {
+    pub feature: T,
+    pub doc_address: DocAddress,
 }
 
 impl<T: PartialOrd> PartialOrd for ComparableDoc<T> {
@@ -143,7 +143,12 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
         feature_docs.sort();
         feature_docs
             .into_iter()
-            .map(|ComparableDoc { feature, doc_address }| (feature, doc_address))
+            .map(
+                |ComparableDoc {
+                     feature,
+                     doc_address,
+                 }| (feature, doc_address),
+            )
             .collect()
     }
 
@@ -152,6 +157,40 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
     #[inline]
     pub fn at_capacity(&self) -> bool {
         self.heap.len() >= self.limit
+    }
+
+    /// Sets the segment local ID for the collector
+    pub fn set_segment_id(&mut self, segment_id: SegmentLocalId) {
+        self.segment_id = segment_id;
+    }
+
+    /// Collects a document scored by the given feature
+    ///
+    /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
+    /// will compare the lowest scoring item with the given one and keep whichever is greater.
+    pub fn collect_feature(&mut self, doc: DocId, feature: T) {
+        if self.at_capacity() {
+            // It's ok to unwrap as long as a limit of 0 is forbidden.
+            let limit_doc: ComparableDoc<T> = self
+                .heap
+                .peek()
+                .expect("Top collector with size 0 is forbidden")
+                .clone();
+            if limit_doc.feature < feature {
+                let mut mut_head = self
+                    .heap
+                    .peek_mut()
+                    .expect("Top collector with size 0 is forbidden");
+                mut_head.feature = feature;
+                mut_head.doc_address = DocAddress(self.segment_id, doc);
+            }
+        } else {
+            let wrapped_doc = ComparableDoc {
+                feature,
+                doc_address: DocAddress(self.segment_id, doc),
+            };
+            self.heap.push(wrapped_doc);
+        }
     }
 }
 
@@ -167,6 +206,7 @@ impl TopCollector<Score> {
 
 // This will be removed in a future commit, as there cannot be an impl for just score as well as
 // for T of type PartialOrd. This would be possible if specialization were stable.
+#[deprecated(since = "0.1")]
 impl Collector for TopCollector<Score> {
     fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
         self.segment_id = segment_id;
@@ -176,11 +216,13 @@ impl Collector for TopCollector<Score> {
     fn collect(&mut self, doc: DocId, score: Score) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: ComparableDoc<Score> = *self.heap
+            let limit_doc: ComparableDoc<Score> = *self
+                .heap
                 .peek()
                 .expect("Top collector with size 0 is forbidden");
             if limit_doc.feature < score {
-                let mut mut_head = self.heap
+                let mut mut_head = self
+                    .heap
                     .peek_mut()
                     .expect("Top collector with size 0 is forbidden");
                 mut_head.feature = score;
@@ -202,11 +244,10 @@ impl Collector for TopCollector<Score> {
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
     use collector::Collector;
     use DocId;
     use Score;
+    use super::*;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

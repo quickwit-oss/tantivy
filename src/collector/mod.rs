@@ -17,6 +17,12 @@ pub use self::multi_collector::MultiCollector;
 mod top_collector;
 pub use self::top_collector::TopCollector;
 
+mod top_score_collector;
+pub use self::top_score_collector::TopScoreCollector;
+
+mod top_field_collector;
+pub use self::top_field_collector::TopFieldCollector;
+
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
