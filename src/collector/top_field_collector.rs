@@ -1,4 +1,4 @@
-use collector::TopCollector;
+use collector::top_collector::TopCollector;
 use DocAddress;
 use DocId;
 use fastfield::FastFieldReader;
@@ -7,7 +7,7 @@ use Result;
 use Score;
 use SegmentReader;
 use super::Collector;
-use TantivyError;
+use schema::Field;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -56,13 +56,13 @@ use TantivyError;
 ///     let searcher = index.searcher();
 ///
 ///     {
-///	        let mut top_collector = TopFieldCollector::with_limit("rating", 2);
+///	        let mut top_collector = TopFieldCollector::with_limit(rating, 2);
 ///         let query_parser = QueryParser::for_index(&index, vec![title]);
 ///         let query = query_parser.parse_query("diary")?;
 ///         searcher.search(&*query, &mut top_collector).unwrap();
 ///
 ///         let score_docs: Vec<(u64, DocId)> = top_collector
-///           .field_docs()
+///           .top_docs()
 ///           .into_iter()
 ///           .map(|(field, doc_address)| (field, doc_address.doc()))
 ///           .collect();
@@ -74,7 +74,7 @@ use TantivyError;
 /// }
 /// ```
 pub struct TopFieldCollector<T: FastValue> {
-    field_name: String,
+    field: Field,
     collector: TopCollector<T>,
     fast_field: Option<FastFieldReader<T>>,
 }
@@ -87,9 +87,9 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(field_name: impl Into<String>, limit: usize) -> Self {
+    pub fn with_limit(field: Field, limit: usize) -> Self {
         TopFieldCollector {
-            field_name: field_name.into(),
+            field,
             collector: TopCollector::with_limit(limit),
             fast_field: None,
         }
@@ -107,8 +107,8 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
-    pub fn field_docs(&self) -> Vec<(T, DocAddress)> {
-        self.collector.feature_docs()
+    pub fn top_docs(&self) -> Vec<(T, DocAddress)> {
+        self.collector.top_docs()
     }
 
     /// Return true iff at least K documents have gone through
@@ -122,10 +122,7 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
 impl<T: FastValue + PartialOrd + Clone> Collector for TopFieldCollector<T> {
     fn set_segment(&mut self, segment_id: u32, segment: &SegmentReader) -> Result<()> {
         self.collector.set_segment_id(segment_id);
-        let field = segment.schema().get_field(&self.field_name).ok_or(
-            TantivyError::InvalidArgument("Could not find field.".to_owned()),
-        )?;
-        self.fast_field = Some(segment.fast_field_reader(field)?);
+        self.fast_field = Some(segment.fast_field_reader(self.field)?);
         Ok(())
     }
 
@@ -135,7 +132,7 @@ impl<T: FastValue + PartialOrd + Clone> Collector for TopFieldCollector<T> {
             .as_ref()
             .expect("collect() was called before set_segment. This should never happen.")
             .get(doc);
-        self.collector.collect_feature(doc, field_value);
+        self.collector.collect(doc, field_value);
     }
 
     fn requires_scoring(&self) -> bool {
@@ -147,6 +144,7 @@ impl<T: FastValue + PartialOrd + Clone> Collector for TopFieldCollector<T> {
 mod tests {
     use Index;
     use IndexWriter;
+    use TantivyError;
     use query::Query;
     use query::QueryParser;
     use schema::{FAST, SchemaBuilder, TEXT};
@@ -180,12 +178,12 @@ mod tests {
         });
         let searcher = index.searcher();
 
-        let mut top_collector = TopFieldCollector::with_limit(SIZE, 4);
+        let mut top_collector = TopFieldCollector::with_limit(size, 4);
         searcher.search(&*query, &mut top_collector).unwrap();
         assert!(!top_collector.at_capacity());
 
         let score_docs: Vec<(u64, DocId)> = top_collector
-            .field_docs()
+            .top_docs()
             .into_iter()
             .map(|(field, doc_address)| (field, doc_address.doc()))
             .collect();
@@ -193,6 +191,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic]
     fn test_field_does_not_exist() {
         let mut schema_builder = SchemaBuilder::new();
         let title = schema_builder.add_text_field(TITLE, TEXT);
@@ -206,11 +205,8 @@ mod tests {
         });
         let searcher = index.searcher();
         let segment = searcher.segment_reader(0);
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit("unknown", 4);
-        assert_matches!(
-            top_collector.set_segment(0, segment),
-            Err(TantivyError::InvalidArgument(_))
-        );
+        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(2), 4);
+        let _ = top_collector.set_segment(0, segment);
     }
 
     #[test]
@@ -227,7 +223,7 @@ mod tests {
         });
         let searcher = index.searcher();
         let segment = searcher.segment_reader(0);
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(SIZE, 4);
+        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(size, 4);
         assert_matches!(
             top_collector.set_segment(0, segment),
             Err(TantivyError::FastFieldError(_))
@@ -237,14 +233,14 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_collect_before_set_segment() {
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(SIZE, 4);
+        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 4);
         top_collector.collect(0, 0f32);
     }
 
     #[test]
     #[should_panic]
     fn test_top_0() {
-        let _: TopFieldCollector<u64> = TopFieldCollector::with_limit(SIZE, 0);
+        let _: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 0);
     }
 
     fn index(

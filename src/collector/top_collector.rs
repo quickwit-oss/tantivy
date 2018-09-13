@@ -1,12 +1,8 @@
 use DocAddress;
 use DocId;
-use Result;
-use Score;
 use SegmentLocalId;
-use SegmentReader;
 use std::cmp::Ordering;
 use std::collections::BinaryHeap;
-use super::Collector;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
@@ -14,8 +10,8 @@ use super::Collector;
 /// default Rust heap is a max heap, whereas a min heap is needed.
 #[derive(Clone, Copy)]
 pub struct ComparableDoc<T> {
-    pub feature: T,
-    pub doc_address: DocAddress,
+    feature: T,
+    doc_address: DocAddress,
 }
 
 impl<T: PartialOrd> PartialOrd for ComparableDoc<T> {
@@ -48,59 +44,6 @@ impl<T: PartialOrd> Eq for ComparableDoc<T> {}
 /// The implementation is based on a `BinaryHeap`.
 /// The theorical complexity for collecting the top `K` out of `n` documents
 /// is `O(n log K)`.
-///
-/// ```rust
-/// #[macro_use]
-/// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT};
-/// use tantivy::{Index, Result, DocId, Score};
-/// use tantivy::collector::TopCollector;
-/// use tantivy::query::QueryParser;
-///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///         ));
-///         index_writer.commit().unwrap();
-///     }
-///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
-///
-///     {
-///	        let mut top_collector = TopCollector::with_limit(2);
-///         let query_parser = QueryParser::for_index(&index, vec![title]);
-///         let query = query_parser.parse_query("diary")?;
-///         searcher.search(&*query, &mut top_collector).unwrap();
-///
-///         let score_docs: Vec<(Score, DocId)> = top_collector
-///           .score_docs()
-///           .into_iter()
-///           .map(|(score, doc_address)| (score, doc_address.doc()))
-///           .collect();
-///
-///         assert_eq!(score_docs, vec![(0.7261542, 1), (0.6099695, 3)]);
-///     }
-///
-///     Ok(())
-/// }
-/// ```
 pub struct TopCollector<T> {
     limit: usize,
     heap: BinaryHeap<ComparableDoc<T>>,
@@ -128,7 +71,7 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
     pub fn docs(&self) -> Vec<DocAddress> {
-        self.feature_docs()
+        self.top_docs()
             .into_iter()
             .map(|(_feature, doc)| doc)
             .collect()
@@ -138,7 +81,7 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
-    pub fn feature_docs(&self) -> Vec<(T, DocAddress)> {
+    pub fn top_docs(&self) -> Vec<(T, DocAddress)> {
         let mut feature_docs: Vec<ComparableDoc<T>> = self.heap.iter().cloned().collect();
         feature_docs.sort();
         feature_docs
@@ -168,7 +111,7 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
     ///
     /// It collects documents until it has reached the max capacity. Once it reaches capacity, it
     /// will compare the lowest scoring item with the given one and keep whichever is greater.
-    pub fn collect_feature(&mut self, doc: DocId, feature: T) {
+    pub fn collect(&mut self, doc: DocId, feature: T) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
             let limit_doc: ComparableDoc<T> = self
@@ -194,57 +137,8 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
     }
 }
 
-impl TopCollector<Score> {
-    /// Returns K best FeatureDocuments sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
-        self.feature_docs()
-    }
-}
-
-// This will be removed in a future commit, as there cannot be an impl for just score as well as
-// for T of type PartialOrd. This would be possible if specialization were stable.
-#[deprecated(since = "0.1")]
-impl Collector for TopCollector<Score> {
-    fn set_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<()> {
-        self.segment_id = segment_id;
-        Ok(())
-    }
-
-    fn collect(&mut self, doc: DocId, score: Score) {
-        if self.at_capacity() {
-            // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: ComparableDoc<Score> = *self
-                .heap
-                .peek()
-                .expect("Top collector with size 0 is forbidden");
-            if limit_doc.feature < score {
-                let mut mut_head = self
-                    .heap
-                    .peek_mut()
-                    .expect("Top collector with size 0 is forbidden");
-                mut_head.feature = score;
-                mut_head.doc_address = DocAddress(self.segment_id, doc);
-            }
-        } else {
-            let wrapped_doc = ComparableDoc {
-                feature: score,
-                doc_address: DocAddress(self.segment_id, doc),
-            };
-            self.heap.push(wrapped_doc);
-        }
-    }
-
-    fn requires_scoring(&self) -> bool {
-        true
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use collector::Collector;
     use DocId;
     use Score;
     use super::*;
@@ -257,7 +151,7 @@ mod tests {
         top_collector.collect(5, 0.3);
         assert!(!top_collector.at_capacity());
         let score_docs: Vec<(Score, DocId)> = top_collector
-            .score_docs()
+            .top_docs()
             .into_iter()
             .map(|(score, doc_address)| (score, doc_address.doc()))
             .collect();
@@ -275,7 +169,7 @@ mod tests {
         assert!(top_collector.at_capacity());
         {
             let score_docs: Vec<(Score, DocId)> = top_collector
-                .score_docs()
+                .top_docs()
                 .into_iter()
                 .map(|(score, doc_address)| (score, doc_address.doc()))
                 .collect();

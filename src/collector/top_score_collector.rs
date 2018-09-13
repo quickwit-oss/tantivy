@@ -1,4 +1,4 @@
-use collector::TopCollector;
+use collector::top_collector::TopCollector;
 use DocAddress;
 use DocId;
 use Result;
@@ -55,7 +55,7 @@ use super::Collector;
 ///         searcher.search(&*query, &mut top_collector).unwrap();
 ///
 ///         let score_docs: Vec<(Score, DocId)> = top_collector
-///           .score_docs()
+///           .top_docs()
 ///           .into_iter()
 ///           .map(|(score, doc_address)| (score, doc_address.doc()))
 ///           .collect();
@@ -93,8 +93,17 @@ impl TopScoreCollector {
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
+    pub fn top_docs(&self) -> Vec<(Score, DocAddress)> {
+        self.collector.top_docs()
+    }
+
+    /// Returns K best ScoredDocuments sorted in decreasing order.
+    ///
+    /// Calling this method triggers the sort.
+    /// The result of the sort is not cached.
+    #[deprecated]
     pub fn score_docs(&self) -> Vec<(Score, DocAddress)> {
-        self.collector.feature_docs()
+        self.collector.top_docs()
     }
 
     /// Return true iff at least K documents have gone through
@@ -112,7 +121,7 @@ impl Collector for TopScoreCollector {
     }
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        self.collector.collect_feature(doc, score);
+        self.collector.collect(doc, score);
     }
 
     fn requires_scoring(&self) -> bool {
@@ -135,7 +144,7 @@ mod tests {
         top_collector.collect(5, 0.3);
         assert!(!top_collector.at_capacity());
         let score_docs: Vec<(Score, DocId)> = top_collector
-            .score_docs()
+            .top_docs()
             .into_iter()
             .map(|(score, doc_address)| (score, doc_address.doc()))
             .collect();
@@ -153,7 +162,7 @@ mod tests {
         assert!(top_collector.at_capacity());
         {
             let score_docs: Vec<(Score, DocId)> = top_collector
-                .score_docs()
+                .top_docs()
                 .into_iter()
                 .map(|(score, doc_address)| (score, doc_address.doc()))
                 .collect();
