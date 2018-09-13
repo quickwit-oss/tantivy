@@ -24,16 +24,14 @@ fn main() -> tantivy::Result<()> {
 
     // # Defining the schema
     let mut schema_builder = SchemaBuilder::default();
-    schema_builder.add_text_field("body", TEXT);
+    let title = schema_builder.add_text_field("title", TEXT | STORED);
+    let body = schema_builder.add_text_field("body", TEXT | STORED);
     let schema = schema_builder.build();
 
     // # Indexing documents
     let index = Index::create_in_dir(&index_path, schema.clone())?;
 
     let mut index_writer = index.writer(50_000_000)?;
-
-    let title = schema.get_field("title").unwrap();
-    let body = schema.get_field("body").unwrap();
 
     // we'll only need one doc for this example.
     index_writer.add_document(doc!(
@@ -68,6 +66,6 @@ fn main() -> tantivy::Result<()> {
         println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
         println!("snippet: {}", snippet.to_html());
     }
-
+    
     Ok(())
 }
