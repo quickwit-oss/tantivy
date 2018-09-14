@@ -1,5 +1,6 @@
 use bit_set::BitSet;
 use common::HasLen;
+use common::TinySet;
 use directory::ReadOnlySource;
 use directory::WritePtr;
 use std::io;
@@ -35,6 +36,7 @@ pub fn write_delete_bitset(delete_bitset: &BitSet, writer: &mut WritePtr) -> io:
 #[derive(Clone)]
 pub struct DeleteBitSet {
     data: ReadOnlySource,
+    tinysets: Box<[TinySet]>,
     len: usize,
 }
 
@@ -45,8 +47,23 @@ impl DeleteBitSet {
             .iter()
             .map(|b| b.count_ones() as usize)
             .sum();
+        let mut tinysets = Vec::new();
+        let mut value_accumulator = 0u64;
+        let byte_count = data.as_slice().len();
+        for index in 0..byte_count {
+            value_accumulator <<= 1;
+            value_accumulator += data.as_slice()[byte_count - index - 1] as u64;
+            if (index + 1) % 8 == 0 {
+                tinysets.push(TinySet::from(value_accumulator).complement());
+                value_accumulator = 0;
+            }
+        }
+        if data.as_slice().len() % 8 != 0 {
+            tinysets.push(TinySet::from(value_accumulator).complement());
+        }
         DeleteBitSet {
             data,
+            tinysets: tinysets.into_boxed_slice(),
             len: num_deleted,
         }
     }
@@ -61,6 +78,26 @@ impl DeleteBitSet {
             let shift = (doc & 7u32) as u8;
             b & (1u8 << shift) != 0
         }
+    }
+
+    /// Returns the first non-empty `TinySet` associated to a bucket lower
+    /// or greater than bucket.
+    ///
+    /// Reminder: the tiny set with the bucket `bucket`, represents the
+    /// elements from `bucket * 64` to `(bucket+1) * 64`.
+    pub(crate) fn first_non_empty_bucket(&self, bucket: u32) -> Option<u32> {
+        self.tinysets[bucket as usize..]
+            .iter()
+            .cloned()
+            .position(|tinyset| !tinyset.is_empty())
+            .map(|delta_bucket| bucket + delta_bucket as u32)
+    }
+
+    /// Returns the tiny bitset representing the
+    /// the set restricted to the number range from
+    /// `bucket * 64` to `(bucket + 1) * 64`.
+    pub(crate) fn tinyset(&self, bucket: u32) -> TinySet {
+        self.tinysets[bucket as usize]
     }
 }
 
