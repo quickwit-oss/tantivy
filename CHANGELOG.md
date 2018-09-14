@@ -6,6 +6,7 @@ Tantivy 0.7
 - Tantivy error now rely on the failure crate (@drusellers)
 - Added support for `AND`, `OR`, `NOT` syntax in addition to the `+`,`-` syntax
 - Added a snippet generator with highlight (@vigneshsarma, @fulmicoton)
+- Added a `TopFieldCollector` (@pentlander)
 
 Tantivy 0.6.1
 =========================
