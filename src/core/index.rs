@@ -273,12 +273,16 @@ impl Index {
         self.num_searchers.store(num_searchers, Ordering::Release);
     }
 
-    /// Creates a new generation of searchers after
-
-    /// a change of the set of searchable indexes.
+    /// Update searchers so that they reflect the state of the last
+    /// `.commit()`.
     ///
-    /// This needs to be called when a new segment has been
-    /// published or after a merge.
+    /// If indexing happens in the same process as searching,
+    /// you most likely want to call `.load_searchers()` right after each
+    /// successful call to `.commit()`.
+    ///
+    /// If indexing and searching happen in different processes, the way to
+    /// get the freshest `index` at all time, is to watch `meta.json` and
+    /// call `load_searchers` whenever a changes happen.
     pub fn load_searchers(&self) -> Result<()> {
         let _meta_lock = LockType::MetaLock.acquire_lock(self.directory())?;
         let searchable_segments = self.searchable_segments()?;
