@@ -34,7 +34,7 @@ pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
 
 pub(crate) type UnorderedTermId = u64;
 
-#[allow(enum_variant_names)]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
 #[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,

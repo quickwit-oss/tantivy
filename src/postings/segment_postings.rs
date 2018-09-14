@@ -205,11 +205,9 @@ impl DocSet for SegmentPostings {
                         return SkipResult::End;
                     }
                 }
-            } else {
+            } else if self.block_cursor.skip_to(target) == BlockSegmentPostingsSkipResult::Terminated {
                 // no positions needed. no need to sum freqs.
-                if self.block_cursor.skip_to(target) == BlockSegmentPostingsSkipResult::Terminated {
-                    return SkipResult::End;
-                }
+                return SkipResult::End;
             }
             self.cur = 0;
         }
@@ -236,9 +234,9 @@ impl DocSet for SegmentPostings {
         let doc = block_docs[new_cur];
         debug_assert!(doc >= target);
         if doc == target {
-            return SkipResult::Reached;
+            SkipResult::Reached
         } else {
-            return SkipResult::OverStep;
+            SkipResult::OverStep
         }
     }
 

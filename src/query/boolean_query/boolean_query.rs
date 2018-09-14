@@ -28,7 +28,7 @@ impl Clone for BooleanQuery {
     fn clone(&self) -> Self {
         self.subqueries
             .iter()
-            .map(|(x, y)| (x.clone(), y.box_clone()))
+            .map(|(occur, subquery)| (*occur, subquery.box_clone()))
             .collect::<Vec<_>>()
             .into()
     }

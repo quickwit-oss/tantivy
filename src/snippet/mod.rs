@@ -181,7 +181,7 @@ fn select_best_fragment_combination<'a>(
             .collect();
         Snippet {
             fragments: fragment_text.to_string(),
-            highlighted: highlighted,
+            highlighted,
         }
     } else {
         // when there no fragments to chose from,

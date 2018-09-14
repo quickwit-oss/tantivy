@@ -18,8 +18,8 @@ impl Occur {
     /// - `Should` => '?',
     /// - `Must` => '+'
     /// - `Not` => '-'
-    pub fn to_char(&self) -> char {
-        match *self {
+    pub fn to_char(self) -> char {
+        match self {
             Occur::Should => '?',
             Occur::Must => '+',
             Occur::MustNot => '-',

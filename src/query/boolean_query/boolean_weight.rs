@@ -39,7 +39,7 @@ where
     }
 
     let scorer: Box<Scorer> = Box::new(Union::<_, TScoreCombiner>::from(scorers));
-    return scorer;
+    scorer
 }
 
 pub struct BooleanWeight {

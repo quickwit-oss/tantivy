@@ -400,7 +400,7 @@ pub struct SegmentReaderAliveDocsIterator<'a> {
 impl<'a> SegmentReaderAliveDocsIterator<'a> {
     pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
         SegmentReaderAliveDocsIterator {
-            reader: reader,
+            reader,
             max_doc: reader.max_doc(),
             current: 0,
         }

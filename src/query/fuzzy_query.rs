@@ -10,7 +10,7 @@ lazy_static! {
         let mut lev_builder_cache = HashMap::new();
         // TODO make population lazy on a `(distance, val)` basis
         for distance in 0..3 {
-            for &transposition in [false, true].iter() {
+            for &transposition in &[false, true] {
                 let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
                 lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
             }
