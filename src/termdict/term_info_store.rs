@@ -59,7 +59,6 @@ impl TermInfoBlockMeta {
     }
 
     fn deserialize_term_info(&self, data: &[u8], inner_offset: usize) -> TermInfo {
-
         let num_bits = self.num_bits() as usize;
         let mut cursor = num_bits * inner_offset;
 

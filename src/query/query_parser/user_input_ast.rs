@@ -16,9 +16,7 @@ pub enum UserInputLeaf {
 impl Debug for UserInputLeaf {
     fn fmt(&self, formatter: &mut Formatter) -> Result<(), fmt::Error> {
         match self {
-            UserInputLeaf::Literal(literal) => {
-                literal.fmt(formatter)
-            }
+            UserInputLeaf::Literal(literal) => literal.fmt(formatter),
             UserInputLeaf::Range {
                 ref field,
                 ref lower,
@@ -82,12 +80,11 @@ impl UserInputBound {
 pub enum UserInputAST {
     Clause(Vec<UserInputAST>),
     Unary(Occur, Box<UserInputAST>),
-//    Not(Box<UserInputAST>),
-//    Should(Box<UserInputAST>),
-//    Must(Box<UserInputAST>),
+    //    Not(Box<UserInputAST>),
+    //    Should(Box<UserInputAST>),
+    //    Must(Box<UserInputAST>),
     Leaf(Box<UserInputLeaf>),
 }
-
 
 impl UserInputAST {
     pub fn unary(self, occur: Occur) -> UserInputAST {
@@ -100,12 +97,10 @@ impl UserInputAST {
         if asts.len() == 1 {
             asts.into_iter().next().unwrap() //< safe
         } else {
-            UserInputAST::Clause(asts
-                .into_iter()
-                .map(|ast: UserInputAST|
-                    ast.unary(occur)
-                )
-                .collect::<Vec<_>>()
+            UserInputAST::Clause(
+                asts.into_iter()
+                    .map(|ast: UserInputAST| ast.unary(occur))
+                    .collect::<Vec<_>>(),
             )
         }
     }
@@ -117,10 +112,7 @@ impl UserInputAST {
     pub fn or(asts: Vec<UserInputAST>) -> UserInputAST {
         UserInputAST::compose(Occur::Should, asts)
     }
-
 }
-
-
 
 /*
 impl UserInputAST {

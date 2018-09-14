@@ -72,7 +72,8 @@ impl<W: Write> CompositeWrite<W> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
 
-        let mut offset_fields: Vec<_> = self.offsets
+        let mut offset_fields: Vec<_> = self
+            .offsets
             .iter()
             .map(|(file_addr, offset)| (*offset, *file_addr))
             .collect();

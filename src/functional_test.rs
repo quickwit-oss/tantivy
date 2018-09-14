@@ -1,8 +1,8 @@
 use rand::thread_rng;
 use std::collections::HashSet;
 
-use rand::Rng;
 use rand::distributions::Range;
+use rand::Rng;
 use schema::*;
 use Index;
 use Searcher;

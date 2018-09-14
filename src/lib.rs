@@ -143,6 +143,7 @@ extern crate fst;
 extern crate fst_regex;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate htmlescape;
 extern crate itertools;
 extern crate levenshtein_automata;
 extern crate num_cpus;
@@ -154,7 +155,6 @@ extern crate stable_deref_trait;
 extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
-extern crate htmlescape;
 
 #[cfg(test)]
 #[macro_use]
@@ -183,7 +183,7 @@ mod macros;
 
 pub use error::TantivyError;
 
-#[deprecated(since="0.7.0", note="please use `tantivy::TantivyError` instead")]
+#[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
 pub use error::TantivyError as Error;
 
 extern crate census;
@@ -951,4 +951,3 @@ mod tests {
         }
     }
 }
-

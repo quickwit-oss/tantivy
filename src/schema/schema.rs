@@ -444,7 +444,10 @@ mod tests {
                 )
                 .unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), Some("my title"));
-            assert_eq!(doc.get_first(author_field).unwrap().text(), Some("fulmicoton"));
+            assert_eq!(
+                doc.get_first(author_field).unwrap().text(),
+                Some("fulmicoton")
+            );
             assert_eq!(doc.get_first(count_field).unwrap().u64_value(), 4);
             assert_eq!(doc.get_first(popularity_field).unwrap().i64_value(), 10);
         }

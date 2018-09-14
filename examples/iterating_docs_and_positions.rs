@@ -7,18 +7,15 @@
 // the list of documents containing a term, getting
 // its term frequency, and accessing its positions.
 
-
 // ---
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
 use tantivy::schema::*;
 use tantivy::Index;
-use tantivy::{DocSet, DocId, Postings};
+use tantivy::{DocId, DocSet, Postings};
 
 fn main() -> tantivy::Result<()> {
-
-
     // We first create a schema for the sake of the
     // example. Check the `basic_search` example for more information.
     let mut schema_builder = SchemaBuilder::default();
@@ -47,7 +44,6 @@ fn main() -> tantivy::Result<()> {
     // there is actually only one segment here, but let's iterate through the list
     // anyway)
     for segment_reader in searcher.segment_readers() {
-
         // A segment contains different data structure.
         // Inverted index stands for the combination of
         // - the term dictionary
@@ -58,19 +54,18 @@ fn main() -> tantivy::Result<()> {
         // Let's go through all docs containing the term `title:the` and access their position
         let term_the = Term::from_field_text(title, "the");
 
-
         // This segment posting object is like a cursor over the documents matching the term.
         // The `IndexRecordOption` arguments tells tantivy we will be interested in both term frequencies
         // and positions.
         //
         // If you don't need all this information, you may get better performance by decompressing less
         // information.
-        if let Some(mut segment_postings) = inverted_index.read_postings(&term_the, IndexRecordOption::WithFreqsAndPositions) {
-
+        if let Some(mut segment_postings) =
+            inverted_index.read_postings(&term_the, IndexRecordOption::WithFreqsAndPositions)
+        {
             // this buffer will be used to request for positions
             let mut positions: Vec<u32> = Vec::with_capacity(100);
             while segment_postings.advance() {
-
                 // the number of time the term appears in the document.
                 let doc_id: DocId = segment_postings.doc(); //< do not try to access this before calling advance once.
 
@@ -98,7 +93,6 @@ fn main() -> tantivy::Result<()> {
         }
     }
 
-
     // A `Term` is a text token associated with a field.
     // Let's go through all docs containing the term `title:the` and access their position
     let term_the = Term::from_field_text(title, "the");
@@ -111,7 +105,6 @@ fn main() -> tantivy::Result<()> {
     // Also, for some VERY specific high performance use case like an OLAP analysis of logs,
     // you can get better performance by accessing directly the blocks of doc ids.
     for segment_reader in searcher.segment_readers() {
-
         // A segment contains different data structure.
         // Inverted index stands for the combination of
         // - the term dictionary
@@ -124,7 +117,9 @@ fn main() -> tantivy::Result<()> {
         //
         // If you don't need all this information, you may get better performance by decompressing less
         // information.
-        if let Some(mut block_segment_postings) = inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic) {
+        if let Some(mut block_segment_postings) =
+            inverted_index.read_block_postings(&term_the, IndexRecordOption::Basic)
+        {
             while block_segment_postings.advance() {
                 // Once again these docs MAY contains deleted documents as well.
                 let docs = block_segment_postings.docs();
@@ -136,4 +131,3 @@ fn main() -> tantivy::Result<()> {
 
     Ok(())
 }
-

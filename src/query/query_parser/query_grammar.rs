@@ -1,8 +1,8 @@
 use super::user_input_ast::*;
 use combine::char::*;
-use combine::*;
-use combine::stream::StreamErrorFor;
 use combine::error::StreamError;
+use combine::stream::StreamErrorFor;
+use combine::*;
 use query::occur::Occur;
 use query::query_parser::user_input_ast::UserInputBound;
 
@@ -123,7 +123,8 @@ parser! {
 }
 
 enum BinaryOperand {
-    Or, And
+    Or,
+    And,
 }
 
 parser! {
@@ -138,19 +139,16 @@ parser! {
     }
 }
 
-
 enum Element {
     SingleEl(UserInputAST),
-    NormalDisjunctive(Vec<Vec<UserInputAST>>)
+    NormalDisjunctive(Vec<Vec<UserInputAST>>),
 }
 
 impl Element {
     pub fn into_dnf(self) -> Vec<Vec<UserInputAST>> {
         match self {
-            Element::NormalDisjunctive(conjunctions) =>
-                conjunctions,
-            Element::SingleEl(el) =>
-                vec!(vec!(el)),
+            Element::NormalDisjunctive(conjunctions) => conjunctions,
+            Element::SingleEl(el) => vec![vec![el]],
         }
     }
 }
@@ -227,10 +225,12 @@ mod test {
         assert!(parse_to_ast().parse(query).is_err());
     }
 
-
     #[test]
     fn test_parse_query_to_ast_not_op() {
-        assert_eq!(format!("{:?}", parse_to_ast().parse("NOT")), "Err(UnexpectedParse)");
+        assert_eq!(
+            format!("{:?}", parse_to_ast().parse("NOT")),
+            "Err(UnexpectedParse)"
+        );
         test_parse_query_to_ast_helper("NOTa", "\"NOTa\"");
         test_parse_query_to_ast_helper("NOT a", "-(\"a\")");
     }
@@ -241,10 +241,22 @@ mod test {
         test_parse_query_to_ast_helper("a OR b", "(?(\"a\") ?(\"b\"))");
         test_parse_query_to_ast_helper("a OR b AND c", "(?(\"a\") ?((+(\"b\") +(\"c\"))))");
         test_parse_query_to_ast_helper("a AND b         AND c", "(+(\"a\") +(\"b\") +(\"c\"))");
-        assert_eq!(format!("{:?}", parse_to_ast().parse("a OR b aaa")), "Err(UnexpectedParse)");
-        assert_eq!(format!("{:?}", parse_to_ast().parse("a AND b aaa")), "Err(UnexpectedParse)");
-        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa a OR b ")), "Err(UnexpectedParse)");
-        assert_eq!(format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")), "Err(UnexpectedParse)");
+        assert_eq!(
+            format!("{:?}", parse_to_ast().parse("a OR b aaa")),
+            "Err(UnexpectedParse)"
+        );
+        assert_eq!(
+            format!("{:?}", parse_to_ast().parse("a AND b aaa")),
+            "Err(UnexpectedParse)"
+        );
+        assert_eq!(
+            format!("{:?}", parse_to_ast().parse("aaa a OR b ")),
+            "Err(UnexpectedParse)"
+        );
+        assert_eq!(
+            format!("{:?}", parse_to_ast().parse("aaa ccc a OR b ")),
+            "Err(UnexpectedParse)"
+        );
     }
 
     #[test]

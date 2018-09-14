@@ -1,3 +1,4 @@
+use super::Collector;
 use collector::top_collector::TopCollector;
 use DocAddress;
 use DocId;
@@ -5,7 +6,6 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use super::Collector;
 
 /// The Top Score Collector keeps track of the K documents
 /// sorted by their score.
@@ -131,10 +131,10 @@ impl Collector for TopScoreCollector {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use collector::Collector;
     use DocId;
     use Score;
-    use super::*;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

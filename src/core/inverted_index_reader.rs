@@ -1,13 +1,13 @@
 use common::BinarySerializable;
 use directory::ReadOnlySource;
+use owned_read::OwnedRead;
+use positions::PositionReader;
 use postings::TermInfo;
 use postings::{BlockSegmentPostings, SegmentPostings};
 use schema::FieldType;
 use schema::IndexRecordOption;
 use schema::Term;
 use termdict::TermDictionary;
-use owned_read::OwnedRead;
-use positions::PositionReader;
 
 /// The inverted index reader is in charge of accessing
 /// the inverted index associated to a specific field.
@@ -100,7 +100,6 @@ impl InvertedIndexReader {
         block_postings.reset(term_info.doc_freq, postings_reader);
     }
 
-
     /// Returns a block postings given a `Term`.
     /// This method is for an advanced usage only.
     ///
@@ -111,7 +110,7 @@ impl InvertedIndexReader {
         option: IndexRecordOption,
     ) -> Option<BlockSegmentPostings> {
         self.get_term_info(term)
-            .map(move|term_info| self.read_block_postings_from_terminfo(&term_info, option))
+            .map(move |term_info| self.read_block_postings_from_terminfo(&term_info, option))
     }
 
     /// Returns a block postings given a `term_info`.
@@ -147,7 +146,8 @@ impl InvertedIndexReader {
             if option.has_positions() {
                 let position_reader = self.positions_source.clone();
                 let skip_reader = self.positions_idx_source.clone();
-                let position_reader = PositionReader::new(position_reader, skip_reader, term_info.positions_idx);
+                let position_reader =
+                    PositionReader::new(position_reader, skip_reader, term_info.positions_idx);
                 Some(position_reader)
             } else {
                 None

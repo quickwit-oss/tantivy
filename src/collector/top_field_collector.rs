@@ -1,13 +1,13 @@
+use super::Collector;
 use collector::top_collector::TopCollector;
-use DocAddress;
-use DocId;
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
+use schema::Field;
+use DocAddress;
+use DocId;
 use Result;
 use Score;
 use SegmentReader;
-use super::Collector;
-use schema::Field;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -142,16 +142,16 @@ impl<T: FastValue + PartialOrd + Clone> Collector for TopFieldCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use Index;
-    use IndexWriter;
-    use TantivyError;
+    use super::*;
     use query::Query;
     use query::QueryParser;
-    use schema::{FAST, SchemaBuilder, TEXT};
     use schema::Field;
     use schema::IntOptions;
     use schema::Schema;
-    use super::*;
+    use schema::{SchemaBuilder, FAST, TEXT};
+    use Index;
+    use IndexWriter;
+    use TantivyError;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";

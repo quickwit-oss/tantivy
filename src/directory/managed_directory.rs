@@ -2,6 +2,7 @@ use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use error::TantivyError;
+use indexer::LockType;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
@@ -12,9 +13,6 @@ use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 use Directory;
 use Result;
-use indexer::LockType;
-
-
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -108,7 +106,8 @@ impl ManagedDirectory {
         //
         // releasing the lock as .delete() will use it too.
         {
-            let meta_informations_rlock = self.meta_informations
+            let meta_informations_rlock = self
+                .meta_informations
                 .read()
                 .expect("Managed directory rlock poisoned in garbage collect.");
 
@@ -157,7 +156,8 @@ impl ManagedDirectory {
         if !deleted_files.is_empty() {
             // update the list of managed files by removing
             // the file that were removed.
-            let mut meta_informations_wlock = self.meta_informations
+            let mut meta_informations_wlock = self
+                .meta_informations
                 .write()
                 .expect("Managed directory wlock poisoned (2).");
             {
@@ -186,9 +186,10 @@ impl ManagedDirectory {
     fn register_file_as_managed(&mut self, filepath: &Path) -> io::Result<()> {
         // Files starting by "." (e.g. lock files) are not managed.
         if !is_managed(filepath) {
-           return Ok(());
+            return Ok(());
         }
-        let mut meta_wlock = self.meta_informations
+        let mut meta_wlock = self
+            .meta_informations
             .write()
             .expect("Managed file lock poisoned");
         let has_changed = meta_wlock.managed_paths.insert(filepath.to_owned());

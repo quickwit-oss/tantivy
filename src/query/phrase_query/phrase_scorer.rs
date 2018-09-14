@@ -124,7 +124,8 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         fieldnorm_reader: FieldNormReader,
         score_needed: bool,
     ) -> PhraseScorer<TPostings> {
-        let max_offset = term_postings.iter()
+        let max_offset = term_postings
+            .iter()
             .map(|&(offset, _)| offset)
             .max()
             .unwrap_or(0);

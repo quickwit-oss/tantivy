@@ -5,8 +5,8 @@ use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
 use schema::{Field, Term};
-use Result;
 use std::collections::BTreeSet;
+use Result;
 
 /// `PhraseQuery` matches a specific sequence of words.
 ///

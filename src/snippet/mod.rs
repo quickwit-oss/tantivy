@@ -1,14 +1,14 @@
 use htmlescape::encode_minimal;
-use std::collections::BTreeMap;
-use tokenizer::{Token, TokenStream};
-use Result;
 use query::Query;
-use Searcher;
 use schema::Field;
+use std::cmp::Ordering;
+use std::collections::BTreeMap;
 use std::collections::BTreeSet;
 use tokenizer::BoxedTokenizer;
+use tokenizer::{Token, TokenStream};
 use Document;
-use std::cmp::Ordering;
+use Result;
+use Searcher;
 
 const DEFAULT_MAX_NUM_CHARS: usize = 150;
 
@@ -75,11 +75,10 @@ const HIGHLIGHTEN_PREFIX: &str = "<b>";
 const HIGHLIGHTEN_POSTFIX: &str = "</b>";
 
 impl Snippet {
-
     pub fn empty() -> Snippet {
         Snippet {
             fragments: String::new(),
-            highlighted: Vec::new()
+            highlighted: Vec::new(),
         }
     }
 
@@ -157,16 +156,17 @@ fn select_best_fragment_combination<'a>(
     fragments: Vec<FragmentCandidate>,
     text: &'a str,
 ) -> Snippet {
-    let best_fragment_opt = fragments
-        .iter()
-        .max_by(|left, right| {
-            let cmp_score = left.score.partial_cmp(&right.score).unwrap_or(Ordering::Equal);
-            if cmp_score == Ordering::Equal {
-                (right.start_offset, right.stop_offset).cmp(&(left.start_offset, left.stop_offset))
-            } else {
-                cmp_score
-            }
-        });
+    let best_fragment_opt = fragments.iter().max_by(|left, right| {
+        let cmp_score = left
+            .score
+            .partial_cmp(&right.score)
+            .unwrap_or(Ordering::Equal);
+        if cmp_score == Ordering::Equal {
+            (right.start_offset, right.stop_offset).cmp(&(left.start_offset, left.stop_offset))
+        } else {
+            cmp_score
+        }
+    });
     if let Some(fragment) = best_fragment_opt {
         let fragment_text = &text[fragment.start_offset..fragment.stop_offset];
         let highlighted = fragment
@@ -177,7 +177,8 @@ fn select_best_fragment_combination<'a>(
                     item.start - fragment.start_offset,
                     item.stop - fragment.start_offset,
                 )
-            }).collect();
+            })
+            .collect();
         Snippet {
             fragments: fragment_text.to_string(),
             highlighted: highlighted,
@@ -239,17 +240,16 @@ pub struct SnippetGenerator {
     terms_text: BTreeMap<String, f32>,
     tokenizer: Box<BoxedTokenizer>,
     field: Field,
-    max_num_chars: usize
+    max_num_chars: usize,
 }
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
-    pub fn new(searcher: &Searcher,
-               query: &Query,
-               field: Field) -> Result<SnippetGenerator> {
+    pub fn new(searcher: &Searcher, query: &Query, field: Field) -> Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
-        let terms_text: BTreeMap<String, f32>  = terms.into_iter()
+        let terms_text: BTreeMap<String, f32> = terms
+            .into_iter()
             .filter(|term| term.field() == field)
             .map(|term| (term.text().to_string(), 1f32))
             .collect();
@@ -258,7 +258,7 @@ impl SnippetGenerator {
             terms_text,
             tokenizer,
             field,
-            max_num_chars: DEFAULT_MAX_NUM_CHARS
+            max_num_chars: DEFAULT_MAX_NUM_CHARS,
         })
     }
 
@@ -272,7 +272,8 @@ impl SnippetGenerator {
     /// This method extract the text associated to the `SnippetGenerator`'s field
     /// and computes a snippet.
     pub fn snippet_from_doc(&self, doc: &Document) -> Snippet {
-        let text: String = doc.get_all(self.field)
+        let text: String = doc
+            .get_all(self.field)
             .into_iter()
             .flat_map(|val| val.text())
             .collect::<Vec<&str>>()
@@ -282,10 +283,12 @@ impl SnippetGenerator {
 
     /// Generates a snippet for the given text.
     pub fn snippet(&self, text: &str) -> Snippet {
-        let fragment_candidates = search_fragments(&*self.tokenizer,
-                                                   &text,
-                                                   &self.terms_text,
-                                                   self.max_num_chars);
+        let fragment_candidates = search_fragments(
+            &*self.tokenizer,
+            &text,
+            &self.terms_text,
+            self.max_num_chars,
+        );
         select_best_fragment_combination(fragment_candidates, &text)
     }
 }
@@ -293,16 +296,16 @@ impl SnippetGenerator {
 #[cfg(test)]
 mod tests {
     use super::{search_fragments, select_best_fragment_combination};
+    use query::QueryParser;
+    use schema::{IndexRecordOption, SchemaBuilder, TextFieldIndexing, TextOptions};
     use std::collections::BTreeMap;
     use std::iter::Iterator;
     use tokenizer::{box_tokenizer, SimpleTokenizer};
     use Index;
-    use schema::{SchemaBuilder, IndexRecordOption, TextOptions, TextFieldIndexing};
     use SnippetGenerator;
-    use query::QueryParser;
 
-
-    const TEST_TEXT: &'static str = r#"Rust is a systems programming language sponsored by Mozilla which
+    const TEST_TEXT: &'static str =
+        r#"Rust is a systems programming language sponsored by Mozilla which
 describes it as a "safe, concurrent, practical language", supporting functional and
 imperative-procedural paradigms. Rust is syntactically similar to C++[according to whom?],
 but its designers intend it to provide better memory safety while still maintaining
@@ -431,7 +434,7 @@ Survey in 2016, 2017, and 2018."#;
 
         let text = "a b c d";
 
-        let  terms = BTreeMap::new();
+        let terms = BTreeMap::new();
         let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
@@ -442,12 +445,12 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet_generator() {
-        let mut schema_builder = SchemaBuilder::default ();
-        let text_options = TextOptions::default()
-            .set_indexing_options(TextFieldIndexing::default()
+        let mut schema_builder = SchemaBuilder::default();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
                 .set_tokenizer("en_stem")
-                .set_index_option(IndexRecordOption::Basic)
-            );
+                .set_index_option(IndexRecordOption::Basic),
+        );
         let text_field = schema_builder.add_text_field("text", text_options);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -474,6 +477,5 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = snippet_generator.snippet(TEST_TEXT);
             assert_eq!(snippet.to_html(), "<b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to");
         }
-
     }
 }

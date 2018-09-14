@@ -77,15 +77,15 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
 
 /// DirectoryClone
 pub trait DirectoryClone {
-  /// Clones the directory and boxes the clone
-  fn box_clone(&self) -> Box<Directory>;
+    /// Clones the directory and boxes the clone
+    fn box_clone(&self) -> Box<Directory>;
 }
 
 impl<T> DirectoryClone for T
 where
-  T: 'static + Directory + Clone,
+    T: 'static + Directory + Clone,
 {
-  fn box_clone(&self) -> Box<Directory> {
-    Box::new(self.clone())
-  }
+    fn box_clone(&self) -> Box<Directory> {
+        Box::new(self.clone())
+    }
 }

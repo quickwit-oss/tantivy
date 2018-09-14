@@ -2,10 +2,10 @@ use super::Weight;
 use collector::Collector;
 use core::searcher::Searcher;
 use downcast;
+use std::collections::BTreeSet;
 use std::fmt;
 use Result;
 use SegmentLocalId;
-use std::collections::BTreeSet;
 use Term;
 
 /// The `Query` trait defines a set of documents and a scoring method

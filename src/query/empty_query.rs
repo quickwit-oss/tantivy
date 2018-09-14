@@ -1,11 +1,11 @@
 use super::Scorer;
-use DocSet;
-use Score;
-use DocId;
 use query::Query;
-use Result;
-use Searcher;
 use query::Weight;
+use DocId;
+use DocSet;
+use Result;
+use Score;
+use Searcher;
 use SegmentReader;
 
 /// `EmptyQuery` is a dummy `Query` in which no document matches.
