@@ -68,7 +68,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
 ///
 /// let mut count_collector = CountCollector::default();
-/// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+/// docs_in_the_sixties.search(&searcher, &mut count_collector)?;
 ///
 /// let num_60s_books = count_collector.count();
 ///
@@ -333,7 +333,7 @@ mod tests {
 
             // ... or `1960..=1969` if inclusive range is enabled.
             let mut count_collector = CountCollector::default();
-            docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+            docs_in_the_sixties.search(&searcher, &mut count_collector)?;
             assert_eq!(count_collector.count(), 2285);
             Ok(())
         }
@@ -371,7 +371,7 @@ mod tests {
         let count_multiples = |range_query: RangeQuery| {
             let mut count_collector = CountCollector::default();
             range_query
-                .search(&*searcher, &mut count_collector)
+                .search(&searcher, &mut count_collector)
                 .unwrap();
             count_collector.count()
         };

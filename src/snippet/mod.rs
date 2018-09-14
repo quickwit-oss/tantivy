@@ -227,7 +227,7 @@ fn select_best_fragment_combination<'a>(
 /// let query = query_parser.parse_query("haleurs flamands").unwrap();
 /// # index.load_searchers()?;
 /// # let searcher = index.searcher();
-/// let mut snippet_generator = SnippetGenerator::new(&*searcher, &*query, text_field)?;
+/// let mut snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field)?;
 /// snippet_generator.set_max_num_chars(100);
 /// let snippet = snippet_generator.snippet_from_doc(&doc);
 /// let snippet_html: String = snippet.to_html();
@@ -464,7 +464,7 @@ Survey in 2016, 2017, and 2018."#;
         let searcher = index.searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("rust design").unwrap();
-        let mut snippet_generator = SnippetGenerator::new(&*searcher, &*query, text_field).unwrap();
+        let mut snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
         {
             let snippet = snippet_generator.snippet(TEST_TEXT);
             assert_eq!(snippet.to_html(), "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to provide better memory safety");

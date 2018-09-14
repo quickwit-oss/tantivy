@@ -57,7 +57,7 @@ fn main() -> tantivy::Result<()> {
     let mut top_collector = TopCollector::with_limit(10);
     searcher.search(&*query, &mut top_collector)?;
 
-    let snippet_generator = SnippetGenerator::new(&*searcher, &*query, body)?;
+    let snippet_generator = SnippetGenerator::new(&searcher, &*query, body)?;
 
     let doc_addresses = top_collector.docs();
     for doc_address in doc_addresses {
