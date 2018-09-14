@@ -1,10 +1,10 @@
 use directory::error::OpenWriteError;
-use Directory;
-use TantivyError;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::thread;
 use std::time::Duration;
-use std::io::Write;
+use Directory;
+use TantivyError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum LockType {
@@ -29,9 +29,8 @@ pub enum LockType {
     /// is very simplistic. We retry after `100ms` until we effectively
     /// acquire the lock.
     /// This lock should not have much contention in normal usage.
-    MetaLock
+    MetaLock,
 }
-
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -49,7 +48,7 @@ impl RetryPolicy {
         }
     }
 
-    fn wait_and_retry(&mut self,) -> bool {
+    fn wait_and_retry(&mut self) -> bool {
         if self.num_retries == 0 {
             false
         } else {
@@ -58,42 +57,32 @@ impl RetryPolicy {
             thread::sleep(wait_duration);
             true
         }
-
     }
 }
 
 impl LockType {
-
     fn retry_policy(&self) -> RetryPolicy {
         match *self {
-            LockType::IndexWriterLock =>
-                RetryPolicy::no_retry(),
-            LockType::MetaLock =>
-                RetryPolicy {
-                    num_retries: 100,
-                    wait_in_ms: 100,
-                }
+            LockType::IndexWriterLock => RetryPolicy::no_retry(),
+            LockType::MetaLock => RetryPolicy {
+                num_retries: 100,
+                wait_in_ms: 100,
+            },
         }
     }
 
     fn try_acquire_lock(&self, directory: &mut Directory) -> Result<DirectoryLock, TantivyError> {
         let path = self.filename();
-        let mut write = directory
-            .open_write(path)
-            .map_err(|e|
-                match e {
-                    OpenWriteError::FileAlreadyExists(_) =>
-                        TantivyError::LockFailure(*self),
-                    OpenWriteError::IOError(io_error) =>
-                        TantivyError::IOError(io_error),
-                })?;
+        let mut write = directory.open_write(path).map_err(|e| match e {
+            OpenWriteError::FileAlreadyExists(_) => TantivyError::LockFailure(*self),
+            OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
+        })?;
         write.flush()?;
         Ok(DirectoryLock {
             directory: directory.box_clone(),
             path: path.to_owned(),
         })
     }
-
 
     /// Acquire a lock in the given directory.
     pub fn acquire_lock(&self, directory: &Directory) -> Result<DirectoryLock, TantivyError> {
@@ -110,24 +99,18 @@ impl LockType {
                         return Err(TantivyError::LockFailure(filepath.to_owned()));
                     }
                 }
-                Err(_) => {
-                }
+                Err(_) => {}
             }
         }
     }
 
     fn filename(&self) -> &Path {
         match *self {
-            LockType::MetaLock => {
-                Path::new(".tantivy-meta.lock")
-            }
-            LockType::IndexWriterLock => {
-                Path::new(".tantivy-indexer.lock")
-            }
+            LockType::MetaLock => Path::new(".tantivy-meta.lock"),
+            LockType::IndexWriterLock => Path::new(".tantivy-indexer.lock"),
         }
     }
 }
-
 
 /// The `DirectoryLock` is an object that represents a file lock.
 /// See  [`LockType`](struct.LockType.html)

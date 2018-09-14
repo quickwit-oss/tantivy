@@ -342,16 +342,19 @@ impl FacetCollector {
     pub fn harvest(mut self) -> FacetCounts {
         self.finalize_segment();
 
-        let collapsed_facet_ords: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_ords: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_ords[..])
             .collect();
-        let collapsed_facet_counts: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_counts: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_counts[..])
             .collect();
 
-        let facet_streams = self.segment_counters
+        let facet_streams = self
+            .segment_counters
             .iter()
             .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
             .collect::<Vec<_>>();
@@ -402,7 +405,8 @@ impl Collector for FacetCollector {
 
     fn collect(&mut self, doc: DocId, _: Score) {
         let facet_reader: &mut FacetReader = unsafe {
-            &mut *self.ff_reader
+            &mut *self
+                .ff_reader
                 .as_ref()
                 .expect("collect() was called before set_segment. This should never happen.")
                 .get()
@@ -476,9 +480,8 @@ impl FacetCounts {
             heap.push(Hit { count, facet });
         }
 
-        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count)
-            .unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
-                                  // is never used in that case.
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
+                                                                                          // is never used in that case.
 
         for (facet, count) in it {
             if count > lowest_count {
@@ -619,7 +622,13 @@ mod tests {
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
             })
-            .map(|mut doc| { doc.add_facet(facet_field, &format!("/facet/{}", thread_rng().sample(&uniform) )); doc})
+            .map(|mut doc| {
+                doc.add_facet(
+                    facet_field,
+                    &format!("/facet/{}", thread_rng().sample(&uniform)),
+                );
+                doc
+            })
             .collect();
         thread_rng().shuffle(&mut docs[..]);
 

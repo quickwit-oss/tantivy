@@ -2,6 +2,7 @@
 Postings module (also called inverted index)
 */
 
+pub(crate) mod compression;
 /// Postings module
 ///
 /// Postings, also called inverted lists, is the key datastructure
@@ -11,18 +12,17 @@ mod postings_writer;
 mod recorder;
 mod segment_postings;
 mod serializer;
-pub(crate) mod compression;
+mod skip;
 mod stacker;
 mod term_info;
-mod skip;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
+use self::compression::COMPRESSION_BLOCK_SIZE;
 pub use self::postings::Postings;
-pub use self::term_info::TermInfo;
 pub(crate) use self::skip::SkipReader;
-use self::compression::{COMPRESSION_BLOCK_SIZE};
+pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
 
@@ -71,8 +71,7 @@ pub mod tests {
         let mut segment = index.new_segment();
         let mut posting_serializer = InvertedIndexSerializer::open(&mut segment).unwrap();
         {
-            let mut field_serializer = posting_serializer
-                .new_field(text_field, 120 * 4).unwrap();
+            let mut field_serializer = posting_serializer.new_field(text_field, 120 * 4).unwrap();
             field_serializer.new_term("abc".as_bytes()).unwrap();
             for doc_id in 0u32..120u32 {
                 let delta_positions = vec![1, 2, 3, 2];
@@ -512,13 +511,13 @@ pub mod tests {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
                 for _ in 0..posting_list_size {
                     let mut doc = Document::default();
-                    if rng.gen_bool(1f64/ 15f64) {
+                    if rng.gen_bool(1f64 / 15f64) {
                         doc.add_text(text_field, "a");
                     }
-                    if rng.gen_bool(1f64/ 10f64) {
+                    if rng.gen_bool(1f64 / 10f64) {
                         doc.add_text(text_field, "b");
                     }
-                    if rng.gen_bool(1f64/ 5f64) {
+                    if rng.gen_bool(1f64 / 5f64) {
                         doc.add_text(text_field, "c");
                     }
                     doc.add_text(text_field, "d");

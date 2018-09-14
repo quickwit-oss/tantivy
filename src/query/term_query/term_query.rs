@@ -3,10 +3,10 @@ use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
 use schema::IndexRecordOption;
+use std::collections::BTreeSet;
 use Result;
 use Searcher;
 use Term;
-use std::collections::BTreeSet;
 
 /// A Term query matches all of the documents
 /// containing a specific term.

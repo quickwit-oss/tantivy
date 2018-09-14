@@ -132,7 +132,8 @@ impl MultiValueIntFastFieldWriter {
                     );
 
                     let mut doc_vals: Vec<u64> = Vec::with_capacity(100);
-                    for (start, stop) in self.doc_index
+                    for (start, stop) in self
+                        .doc_index
                         .windows(2)
                         .map(|interval| (interval[0], interval[1]))
                         .chain(Some(last_interval).into_iter())
@@ -148,7 +149,6 @@ impl MultiValueIntFastFieldWriter {
                             value_serializer.add_val(val)?;
                         }
                     }
-
                 }
                 None => {
                     let val_min_max = self.vals.iter().cloned().minmax();

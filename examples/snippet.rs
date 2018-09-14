@@ -66,6 +66,6 @@ fn main() -> tantivy::Result<()> {
         println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
         println!("snippet: {}", snippet.to_html());
     }
-    
+
     Ok(())
 }

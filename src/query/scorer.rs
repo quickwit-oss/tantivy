@@ -50,7 +50,6 @@ impl Scorer for Box<Scorer> {
     }
 }
 
-
 /// Wraps a `DocSet` and simply returns a constant `Scorer`.
 /// The `ConstScorer` is useful if you have a `DocSet` where
 /// you needed a scorer.

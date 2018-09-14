@@ -28,14 +28,16 @@ impl BlockEncoder {
 
     pub fn compress_block_sorted(&mut self, block: &[u32], offset: u32) -> (u8, &[u8]) {
         let num_bits = self.bitpacker.num_bits_sorted(offset, block);
-        let written_size = self.bitpacker
-            .compress_sorted(offset, block, &mut self.output[..], num_bits);
+        let written_size =
+            self.bitpacker
+                .compress_sorted(offset, block, &mut self.output[..], num_bits);
         (num_bits, &self.output[..written_size])
     }
 
     pub fn compress_block_unsorted(&mut self, block: &[u32]) -> (u8, &[u8]) {
         let num_bits = self.bitpacker.num_bits(block);
-        let written_size = self.bitpacker
+        let written_size = self
+            .bitpacker
             .compress(block, &mut self.output[..], num_bits);
         (num_bits, &self.output[..written_size])
     }
@@ -62,19 +64,21 @@ impl BlockDecoder {
         }
     }
 
-    pub fn uncompress_block_sorted(&mut self, compressed_data: &[u8], offset: u32, num_bits: u8) -> usize {
+    pub fn uncompress_block_sorted(
+        &mut self,
+        compressed_data: &[u8],
+        offset: u32,
+        num_bits: u8,
+    ) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
-        self.bitpacker.decompress_sorted(
-            offset,
-            &compressed_data,
-            &mut self.output,
-            num_bits,
-        )
+        self.bitpacker
+            .decompress_sorted(offset, &compressed_data, &mut self.output, num_bits)
     }
 
     pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
-        self.bitpacker.decompress(&compressed_data, &mut self.output, num_bits)
+        self.bitpacker
+            .decompress(&compressed_data, &mut self.output, num_bits)
     }
 
     #[inline]
@@ -87,7 +91,6 @@ impl BlockDecoder {
         self.output[idx]
     }
 }
-
 
 pub trait VIntEncoder {
     /// Compresses an array of `u32` integers,

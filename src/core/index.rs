@@ -1,36 +1,36 @@
-use core::SegmentId;
-use error::TantivyError;
-use schema::Schema;
-use serde_json;
-use std::borrow::BorrowMut;
-use std::fmt;
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::Arc;
-use Result;
-use indexer::LockType;
 use super::pool::LeasedItem;
 use super::pool::Pool;
 use super::segment::create_segment;
 use super::segment::Segment;
 use core::searcher::Searcher;
 use core::IndexMeta;
+use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
 use core::META_FILEPATH;
+use directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
-use directory::{ManagedDirectory};
+use error::TantivyError;
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
+use indexer::LockType;
 use num_cpus;
+use schema::Field;
+use schema::FieldType;
+use schema::Schema;
+use serde_json;
+use std::borrow::BorrowMut;
+use std::fmt;
 use std::path::Path;
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
+use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
-use schema::FieldType;
-use schema::Field;
-use tokenizer::BoxedTokenizer;
+use Result;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -115,31 +115,24 @@ impl Index {
         &self.tokenizers
     }
 
-
     /// Helper to access the tokenizer associated to a specific field.
     pub fn tokenizer_for_field(&self, field: Field) -> Result<Box<BoxedTokenizer>> {
         let field_entry = self.schema.get_field_entry(field);
         let field_type = field_entry.field_type();
         let tokenizer_manager: &TokenizerManager = self.tokenizers();
-        let tokenizer_name_opt: Option<Box<BoxedTokenizer>> =
-            match field_type {
-                FieldType::Str(text_options) => {
-                    text_options
-                        .get_indexing_options()
-                        .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
-                        .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name))
-                },
-                _ => {
-                    None
-                }
-            };
+        let tokenizer_name_opt: Option<Box<BoxedTokenizer>> = match field_type {
+            FieldType::Str(text_options) => text_options
+                .get_indexing_options()
+                .map(|text_indexing_options| text_indexing_options.tokenizer().to_string())
+                .and_then(|tokenizer_name| tokenizer_manager.get(&tokenizer_name)),
+            _ => None,
+        };
         match tokenizer_name_opt {
-            Some(tokenizer) => {
-                Ok(tokenizer)
-            }
-            None => {
-                Err(TantivyError:: SchemaError(format!("{:?} is not a text field.", field_entry.name())))
-            }
+            Some(tokenizer) => Ok(tokenizer),
+            None => Err(TantivyError::SchemaError(format!(
+                "{:?} is not a text field.",
+                field_entry.name()
+            ))),
         }
     }
 
@@ -186,7 +179,6 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-
         let directory_lock = LockType::IndexWriterLock.acquire_lock(&self.directory)?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
@@ -225,7 +217,8 @@ impl Index {
 
     /// Returns the list of segments that are searchable
     pub fn searchable_segments(&self) -> Result<Vec<Segment>> {
-        Ok(self.searchable_segment_metas()?
+        Ok(self
+            .searchable_segment_metas()?
             .into_iter()
             .map(|segment_meta| self.segment(segment_meta))
             .collect())
@@ -260,7 +253,8 @@ impl Index {
 
     /// Returns the list of segment ids that are searchable.
     pub fn searchable_segment_ids(&self) -> Result<Vec<SegmentId>> {
-        Ok(self.searchable_segment_metas()?
+        Ok(self
+            .searchable_segment_metas()?
             .iter()
             .map(|segment_meta| segment_meta.id())
             .collect())
@@ -332,11 +326,10 @@ impl Clone for Index {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
+    use schema::{SchemaBuilder, INT_INDEXED, TEXT};
     use Index;
-    use schema::{SchemaBuilder, TEXT, INT_INDEXED};
 
     #[test]
     fn test_indexer_for_field() {
@@ -351,6 +344,5 @@ mod tests {
             "Some(SchemaError(\"\\\"num_likes\\\" is not a text field.\"))"
         );
     }
-
 
 }

@@ -347,7 +347,8 @@ impl IndexWriter {
         }
         drop(self.workers_join_handle);
 
-        let result = self.segment_updater
+        let result = self
+            .segment_updater
             .wait_merging_thread()
             .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
 
@@ -494,7 +495,8 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self._directory_lock
+        let directory_lock = self
+            ._directory_lock
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
@@ -678,7 +680,7 @@ mod tests {
                 let err_msg = err.to_string();
                 assert!(err_msg.contains("Lockfile"));
                 assert!(err_msg.contains("Possible causes:"))
-            },
+            }
             _ => panic!("Expected LockfileAlreadyExists error"),
         }
     }
@@ -864,8 +866,7 @@ mod tests {
         assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
-
-    #[cfg(not(feature="no_fail"))]
+    #[cfg(not(feature = "no_fail"))]
     #[test]
     fn test_write_commit_fails() {
         use fail;
@@ -874,7 +875,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        for _    in 0..100 {
+        for _ in 0..100 {
             index_writer.add_document(doc!(text_field => "a"));
         }
         index_writer.commit().unwrap();

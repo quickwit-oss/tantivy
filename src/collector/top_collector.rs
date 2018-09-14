@@ -1,8 +1,8 @@
+use std::cmp::Ordering;
+use std::collections::BinaryHeap;
 use DocAddress;
 use DocId;
 use SegmentLocalId;
-use std::cmp::Ordering;
-use std::collections::BinaryHeap;
 
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
@@ -139,9 +139,9 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use DocId;
     use Score;
-    use super::*;
 
     #[test]
     fn test_top_collector_not_at_capacity() {

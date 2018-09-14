@@ -274,7 +274,6 @@ impl RangeWeight {
 }
 
 impl Weight for RangeWeight {
-
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let max_doc = reader.max_doc();
         let mut doc_bitset = BitSet::with_max_value(max_doc);
@@ -370,9 +369,7 @@ mod tests {
         let searcher = index.searcher();
         let count_multiples = |range_query: RangeQuery| {
             let mut count_collector = CountCollector::default();
-            range_query
-                .search(&searcher, &mut count_collector)
-                .unwrap();
+            range_query.search(&searcher, &mut count_collector).unwrap();
             count_collector.count()
         };
 

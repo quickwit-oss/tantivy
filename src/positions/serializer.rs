@@ -1,8 +1,8 @@
-use std::io;
-use bitpacking::BitPacker;
-use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
-use common::BinarySerializable;
 use super::BIT_PACKER;
+use bitpacking::BitPacker;
+use common::BinarySerializable;
+use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
+use std::io;
 
 pub struct PositionSerializer<W: io::Write> {
     write_stream: W,
@@ -23,14 +23,13 @@ impl<W: io::Write> PositionSerializer<W> {
             buffer: vec![0u8; 128 * 4],
             num_ints: 0u64,
             long_skips: Vec::new(),
-            cumulated_num_bits: 0u64
+            cumulated_num_bits: 0u64,
         }
     }
 
     pub fn positions_idx(&self) -> u64 {
         self.num_ints
     }
-
 
     fn remaining_block_len(&self) -> usize {
         COMPRESSION_BLOCK_SIZE - self.block.len()

@@ -440,7 +440,8 @@ impl IndexMerger {
     ) -> Result<Option<TermOrdinalMapping>> {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
-        let field_readers = self.readers
+        let field_readers = self
+            .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
             .collect::<Vec<_>>();

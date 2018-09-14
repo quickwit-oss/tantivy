@@ -10,8 +10,6 @@ pub struct VInt(pub u64);
 const STOP_BIT: u8 = 128;
 
 impl VInt {
-
-
     pub fn val(&self) -> u64 {
         self.0
     }
@@ -20,14 +18,13 @@ impl VInt {
         VInt::deserialize(reader).map(|vint| vint.0)
     }
 
-    pub fn serialize_into_vec(&self, output: &mut Vec<u8>){
+    pub fn serialize_into_vec(&self, output: &mut Vec<u8>) {
         let mut buffer = [0u8; 10];
         let num_bytes = self.serialize_into(&mut buffer);
         output.extend(&buffer[0..num_bytes]);
     }
 
     fn serialize_into(&self, buffer: &mut [u8; 10]) -> usize {
-
         let mut remaining = self.0;
         for (i, b) in buffer.iter_mut().enumerate() {
             let next_byte: u8 = (remaining % 128u64) as u8;
@@ -74,7 +71,6 @@ impl BinarySerializable for VInt {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -89,10 +85,10 @@ mod tests {
         }
         assert!(num_bytes > 0);
         if num_bytes < 10 {
-            assert!(1u64 << (7*num_bytes) > val);
+            assert!(1u64 << (7 * num_bytes) > val);
         }
         if num_bytes > 1 {
-            assert!(1u64 << (7*(num_bytes-1)) <= val);
+            assert!(1u64 << (7 * (num_bytes - 1)) <= val);
         }
         let serdeser_val = VInt::deserialize(&mut &v[..]).unwrap();
         assert_eq!(val, serdeser_val.0);
@@ -105,9 +101,9 @@ mod tests {
         aux_test_vint(5);
         aux_test_vint(u64::max_value());
         for i in 1..9 {
-            let power_of_128 = 1u64 << (7*i);
+            let power_of_128 = 1u64 << (7 * i);
             aux_test_vint(power_of_128 - 1u64);
-            aux_test_vint(power_of_128 );
+            aux_test_vint(power_of_128);
             aux_test_vint(power_of_128 + 1u64);
         }
         aux_test_vint(10);
