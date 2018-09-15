@@ -112,7 +112,7 @@ pub struct TermDictionary {
 
 impl TermDictionary {
     /// Opens a `TermDictionary` given a data source.
-    pub fn from_source(source: ReadOnlySource) -> Self {
+    pub fn from_source(source: &ReadOnlySource) -> Self {
         let total_len = source.len();
         let length_offset = total_len - 8;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
@@ -136,7 +136,7 @@ impl TermDictionary {
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");
         let source = ReadOnlySource::from(term_dictionary_data);
-        Self::from_source(source)
+        Self::from_source(&source)
     }
 
     /// Returns the number of terms in the dictionary.

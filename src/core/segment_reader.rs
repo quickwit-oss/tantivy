@@ -188,7 +188,7 @@ impl SegmentReader {
                 field_entry.name()
             ))
         })?;
-        let termdict = TermDictionary::from_source(termdict_source);
+        let termdict = TermDictionary::from_source(&termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Ok(facet_reader)
     }
@@ -333,7 +333,7 @@ impl SegmentReader {
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::from_source(termdict_source),
+            TermDictionary::from_source(&termdict_source),
             postings_source,
             positions_source,
             positions_idx_source,

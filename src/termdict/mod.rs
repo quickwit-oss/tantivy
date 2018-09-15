@@ -75,7 +75,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let term_dict: TermDictionary = TermDictionary::from_source(source);
+        let term_dict: TermDictionary = TermDictionary::from_source(&source);
         for (term_ord, term) in COUNTRIES.iter().enumerate() {
             assert_eq!(term_dict.term_ord(term).unwrap(), term_ord as u64);
             let mut bytes = vec![];
@@ -102,7 +102,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let term_dict: TermDictionary = TermDictionary::from_source(source);
+        let term_dict: TermDictionary = TermDictionary::from_source(&source);
         assert_eq!(term_dict.get("abc").unwrap().doc_freq, 34u32);
         assert_eq!(term_dict.get("abcd").unwrap().doc_freq, 346u32);
         let mut stream = term_dict.stream();
@@ -189,7 +189,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionary = TermDictionary::from_source(source);
+        let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
         {
             let mut streamer = term_dictionary.stream();
             let mut i = 0;
@@ -224,7 +224,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionary = TermDictionary::from_source(source);
+        let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
         let mut kv_stream = term_dictionary.stream();
         assert!(kv_stream.advance());
         assert_eq!(kv_stream.key(), "abcdefghijklmnopqrstuvwxy".as_bytes());
@@ -256,7 +256,7 @@ mod tests {
 
         let source = ReadOnlySource::from(buffer);
 
-        let term_dictionary: TermDictionary = TermDictionary::from_source(source);
+        let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
         {
             for i in (0..20).chain(6000..8_000) {
                 let &(ref target_key, _) = &ids[i];
@@ -324,7 +324,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionary = TermDictionary::from_source(source);
+        let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
         let mut stream = term_dictionary.stream();
         assert!(stream.advance());
         assert!(stream.key().is_empty());
@@ -348,7 +348,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap()
         };
         let source = ReadOnlySource::from(buffer);
-        let term_dictionary: TermDictionary = TermDictionary::from_source(source);
+        let term_dictionary: TermDictionary = TermDictionary::from_source(&source);
 
         let value_list = |mut streamer: TermStreamer| {
             let mut res: Vec<u32> = vec![];
@@ -417,7 +417,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let term_dict: TermDictionary = TermDictionary::from_source(source);
+        let term_dict: TermDictionary = TermDictionary::from_source(&   source);
 
         // We can now build an entire dfa.
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);
