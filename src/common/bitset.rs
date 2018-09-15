@@ -34,17 +34,17 @@ impl TinySet {
     }
 
     /// Returns the complement of the set in `[0, 64[`.
-    fn complement(&self) -> TinySet {
+    fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
     /// Returns true iff the `TinySet` contains the element `el`.
-    pub fn contains(&self, el: u32) -> bool {
+    pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
     /// Returns the intersection of `self` and `other`
-    pub fn intersect(&self, other: TinySet) -> TinySet {
+    pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)
     }
 

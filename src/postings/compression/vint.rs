@@ -50,7 +50,7 @@ pub fn uncompress_sorted<'a>(compressed_data: &'a [u8], output: &mut [u32], offs
         loop {
             let cur_byte = compressed_data[read_byte];
             read_byte += 1;
-            result += ((cur_byte % 128u8) as u32) << shift;
+            result += u32::from(cur_byte % 128u8) << shift;
             if cur_byte & 128u8 != 0u8 {
                 break;
             }
@@ -62,10 +62,9 @@ pub fn uncompress_sorted<'a>(compressed_data: &'a [u8], output: &mut [u32], offs
 }
 
 #[inline(always)]
-pub(crate) fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u32]) -> usize {
+pub(crate) fn uncompress_unsorted(compressed_data: &[u8], output_arr: &mut [u32]) -> usize {
     let mut read_byte = 0;
-    let num_els = output.len();
-    for i in 0..num_els {
+    for output_mut in output_arr.iter_mut() {
         let mut result = 0u32;
         let mut shift = 0u32;
         loop {
@@ -77,7 +76,7 @@ pub(crate) fn uncompress_unsorted<'a>(compressed_data: &'a [u8], output: &mut [u
             }
             shift += 7;
         }
-        output[i] = result;
+        *output_mut = result;
     }
     read_byte
 }

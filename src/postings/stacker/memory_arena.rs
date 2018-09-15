@@ -233,12 +233,12 @@ impl Page {
 
     #[inline(always)]
     pub(crate) unsafe fn get_ptr(&self, addr: usize) -> *const u8 {
-        self.data.as_ptr().offset(addr as isize)
+        self.data.as_ptr().add(addr)
     }
 
     #[inline(always)]
     pub(crate) unsafe fn get_mut_ptr(&mut self, addr: usize) -> *mut u8 {
-        self.data.as_mut_ptr().offset(addr as isize)
+        self.data.as_mut_ptr().add(addr)
     }
 }
 
