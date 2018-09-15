@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
-
 use super::logical_ast::*;
 use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
