@@ -46,8 +46,8 @@ impl Searcher {
     ///
     /// The searcher uses the segment ordinal to route the
     /// the request to the right `Segment`.
-    pub fn doc(&self, doc_address: &DocAddress) -> Result<Document> {
-        let DocAddress(segment_local_id, doc_id) = *doc_address;
+    pub fn doc(&self, doc_address: DocAddress) -> Result<Document> {
+        let DocAddress(segment_local_id, doc_id) = doc_address;
         let segment_reader = &self.segment_readers[segment_local_id as usize];
         segment_reader.doc(doc_id)
     }
@@ -61,7 +61,7 @@ impl Searcher {
     pub fn num_docs(&self) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.num_docs() as u64)
+            .map(|segment_reader| u64::from(segment_reader.num_docs()))
             .sum::<u64>()
     }
 

@@ -98,7 +98,7 @@
 //! // most relevant doc ids...
 //! let doc_addresses = top_collector.docs();
 //! for doc_address in doc_addresses {
-//!     let retrieved_doc = searcher.doc(&doc_address)?;
+//!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }
 //!
