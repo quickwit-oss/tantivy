@@ -69,7 +69,6 @@ impl TermInfoBlockMeta {
         cursor += self.postings_offset_nbits as usize;
 
         let positions_idx = extract_bits(data, cursor, self.positions_idx_nbits);
-        self.positions_idx_nbits as usize;
 
         TermInfo {
             doc_freq,

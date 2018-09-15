@@ -54,7 +54,6 @@ type DocumentReceiver = channel::Receiver<AddOperation>;
 fn initial_table_size(per_thread_memory_budget: usize) -> usize {
     let table_size_limit: usize = per_thread_memory_budget / 3;
     (1..)
-        .into_iter()
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
         .expect(&format!(

@@ -21,7 +21,7 @@ use Result;
 /// are not managed.
 fn is_managed(path: &Path) -> bool {
     path.to_str()
-        .map(|p_str| !p_str.starts_with("."))
+        .map(|p_str| !p_str.starts_with('.'))
         .unwrap_or(true)
 }
 

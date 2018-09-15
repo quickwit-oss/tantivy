@@ -11,8 +11,8 @@ pub enum SegmentState {
 }
 
 impl SegmentState {
-    pub fn letter_code(&self) -> char {
-        match *self {
+    pub fn letter_code(self) -> char {
+        match self {
             SegmentState::InMerge => 'M',
             SegmentState::Ready => 'R',
         }
