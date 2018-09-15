@@ -127,7 +127,7 @@ impl PositionReader {
 
         self.ahead = self.ahead.and_then(|num_blocks| {
             if num_blocks >= num_blocks_to_advance {
-                Some(num_blocks - num_blocks_to_advance)
+                Some(num_blocks_to_advance - num_blocks_to_advance)
             } else {
                 None
             }
