@@ -190,7 +190,7 @@ impl IndexMerger {
                         `term_ordinal_mapping`.");
                     self.write_hierarchical_facet_field(
                         field,
-                        term_ordinal_mapping,
+                        &term_ordinal_mapping,
                         fast_field_serializer,
                     )?;
                 }
@@ -314,7 +314,7 @@ impl IndexMerger {
     fn write_hierarchical_facet_field(
         &self,
         field: Field,
-        term_ordinal_mappings: TermOrdinalMapping,
+        term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> Result<()> {
         // Multifastfield consists in 2 fastfields.

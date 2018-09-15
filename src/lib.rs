@@ -1,13 +1,9 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
-#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::decimal_literal_representation))]
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![allow(unknown_lints)]
 #![warn(missing_docs)]
 #![recursion_limit = "80"]
 

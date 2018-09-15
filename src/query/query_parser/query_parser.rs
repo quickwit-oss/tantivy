@@ -452,7 +452,7 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
             value_type,
             lower,
             upper,
-        } => Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper)),
+        } => Box::new(RangeQuery::new_term_bounds(field, value_type, &lower, &upper)),
         LogicalLiteral::All => Box::new(AllQuery),
     }
 }
