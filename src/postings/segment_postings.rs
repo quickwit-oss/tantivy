@@ -205,7 +205,9 @@ impl DocSet for SegmentPostings {
                         return SkipResult::End;
                     }
                 }
-            } else if self.block_cursor.skip_to(target) == BlockSegmentPostingsSkipResult::Terminated {
+            } else if self.block_cursor.skip_to(target)
+                == BlockSegmentPostingsSkipResult::Terminated
+            {
                 // no positions needed. no need to sum freqs.
                 return SkipResult::End;
             }
@@ -531,8 +533,7 @@ impl BlockSegmentPostings {
                     } else {
                         BlockSegmentPostingsSkipResult::Terminated
                     }
-                })
-                .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
+                }).unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
         }
         BlockSegmentPostingsSkipResult::Terminated
     }

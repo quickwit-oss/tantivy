@@ -336,8 +336,7 @@ impl SegmentUpdater {
                     .unwrap()
                     .remove(&merging_thread_id);
                 Ok(())
-            })
-            .expect("Failed to spawn a thread.");
+            }).expect("Failed to spawn a thread.");
         self.0
             .merging_threads
             .write()

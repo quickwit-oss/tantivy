@@ -31,7 +31,7 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     searcher.search(&term_query, &mut top_collector)?;
 
     if let Some(doc_address) = top_collector.docs().first() {
-        let doc = searcher.doc(doc_address)?;
+        let doc = searcher.doc(*doc_address)?;
         Ok(Some(doc))
     } else {
         // no doc matching this ID.

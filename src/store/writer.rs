@@ -51,7 +51,8 @@ impl StoreWriter {
         stored_document.serialize(&mut self.intermediary_buffer)?;
         let doc_num_bytes = self.intermediary_buffer.len();
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
-        self.current_block.write_all(&self.intermediary_buffer[..])?;
+        self.current_block
+            .write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
             self.write_and_compress_block()?;

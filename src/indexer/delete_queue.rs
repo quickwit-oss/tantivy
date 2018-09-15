@@ -186,17 +186,19 @@ impl DeleteCursor {
     /// `opstamp >= target_opstamp`.
     pub fn skip_to(&mut self, target_opstamp: u64) {
         // TODO Can be optimize as we work with block.
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
-        loop {
-            if let Some(operation) = self.get() {
-                if operation.opstamp >= target_opstamp {
-                    break;
-                }
-            } else {
-                break;
-            }
+        while self.is_behind_opstamp(target_opstamp) {
             self.advance();
         }
+    }
+
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::wrong_self_convention)
+    )]
+    fn is_behind_opstamp(&mut self, target_opstamp: u64) -> bool {
+        self.get()
+            .map(|operation| operation.opstamp < target_opstamp)
+            .unwrap_or(false)
     }
 
     /// If the current block has been entirely

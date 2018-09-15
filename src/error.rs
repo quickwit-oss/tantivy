@@ -84,9 +84,7 @@ impl<Guard> From<PoisonError<Guard>> for TantivyError {
 impl From<OpenReadError> for TantivyError {
     fn from(error: OpenReadError) -> TantivyError {
         match error {
-            OpenReadError::FileDoesNotExist(filepath) => {
-                TantivyError::PathDoesNotExist(filepath)
-            }
+            OpenReadError::FileDoesNotExist(filepath) => TantivyError::PathDoesNotExist(filepath),
             OpenReadError::IOError(io_error) => TantivyError::IOError(io_error),
         }
     }
@@ -105,7 +103,7 @@ impl From<OpenWriteError> for TantivyError {
                 TantivyError::FileAlreadyExists(filepath)
             }
             OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
-        }.into()
+        }
     }
 }
 
@@ -115,9 +113,9 @@ impl From<OpenDirectoryError> for TantivyError {
             OpenDirectoryError::DoesNotExist(directory_path) => {
                 TantivyError::PathDoesNotExist(directory_path)
             }
-            OpenDirectoryError::NotADirectory(directory_path) => TantivyError::InvalidArgument(
-                format!("{:?} is not a directory", directory_path),
-            ),
+            OpenDirectoryError::NotADirectory(directory_path) => {
+                TantivyError::InvalidArgument(format!("{:?} is not a directory", directory_path))
+            }
         }
     }
 }

@@ -153,8 +153,8 @@ impl SegmentReader {
     /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
     pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match field_entry.field_type() {
-            &FieldType::Bytes => {}
+        match *field_entry.field_type() {
+            FieldType::Bytes => {}
             _ => return Err(FastFieldNotAvailableError::new(field_entry)),
         }
         let idx_reader = self
@@ -177,7 +177,7 @@ impl SegmentReader {
                 "The field {:?} is not a \
                  hierarchical facet.",
                 field_entry
-            )).into());
+            )));
         }
         let term_ords_reader = self.multi_fast_field_reader(field)?;
         let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
@@ -188,7 +188,7 @@ impl SegmentReader {
                 field_entry.name()
             ))
         })?;
-        let termdict = TermDictionary::from_source(termdict_source);
+        let termdict = TermDictionary::from_source(&termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Ok(facet_reader)
     }
@@ -312,7 +312,7 @@ impl SegmentReader {
             // As a result, no data is associated to the inverted index.
             //
             // Returns an empty inverted index.
-            return Arc::new(InvertedIndexReader::empty(field_type.clone()));
+            return Arc::new(InvertedIndexReader::empty(field_type));
         }
 
         let postings_source = postings_source_opt.unwrap();
@@ -333,7 +333,7 @@ impl SegmentReader {
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::from_source(termdict_source),
+            TermDictionary::from_source(&termdict_source),
             postings_source,
             positions_source,
             positions_idx_source,
