@@ -1,3 +1,6 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::toplevel_ref_arg))]
+
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::error::StreamError;

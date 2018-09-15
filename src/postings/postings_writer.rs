@@ -203,14 +203,11 @@ pub trait PostingsWriter {
         heap: &mut MemoryArena,
     ) -> u32 {
         let mut term = Term::for_field(field);
-        let num_tokens = {
-            let mut sink = |token: &Token| {
-                term.set_text(token.text.as_str());
-                self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
-            };
-            token_stream.process(&mut sink)
+        let mut sink = |token: &Token| {
+            term.set_text(token.text.as_str());
+            self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
         };
-        num_tokens
+        token_stream.process(&mut sink)
     }
 
     fn total_num_tokens(&self) -> u64;

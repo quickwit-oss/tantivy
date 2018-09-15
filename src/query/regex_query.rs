@@ -82,7 +82,7 @@ impl RegexQuery {
         let automaton = Regex::new(&self.regex_pattern)
             .map_err(|_| TantivyError::InvalidArgument(self.regex_pattern.clone()))?;
 
-        Ok(AutomatonWeight::new(self.field.clone(), automaton))
+        Ok(AutomatonWeight::new(self.field, automaton))
     }
 }
 

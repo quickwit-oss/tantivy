@@ -113,7 +113,7 @@ impl Document {
             .into_iter()
             .group_by(|field_value| field_value.field())
             .into_iter()
-            .map(|(key, group)| (key, group.into_iter().collect()))
+            .map(|(key, group)| (key, group.collect()))
             .collect::<Vec<(Field, Vec<&FieldValue>)>>()
     }
 

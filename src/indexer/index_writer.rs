@@ -177,7 +177,7 @@ pub fn compute_deleted_bitset(
 ) -> Result<bool> {
     let mut might_have_changed = false;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
     loop {
         if let Some(delete_op) = delete_cursor.get() {
             if delete_op.opstamp > target_opstamp {

@@ -42,7 +42,7 @@ impl FragmentCandidate {
     fn new(start_offset: usize) -> FragmentCandidate {
         FragmentCandidate {
             score: 0.0,
-            start_offset: start_offset,
+            start_offset,
             stop_offset: start_offset,
             num_chars: 0,
             highlighted: vec![],

@@ -81,7 +81,7 @@ impl<'a> TermMerger<'a> {
     /// Advance the term iterator to the next term.
     /// Returns true if there is indeed another term
     /// False if there is none.
-    #[allow(while_let_loop)]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
     pub fn advance(&mut self) -> bool {
         self.advance_segments();
         if let Some(head) = self.heap.pop() {
@@ -123,7 +123,7 @@ impl<'a> TermMerger<'a> {
     }
 
     /// Iterates through terms
-    #[allow(should_implement_trait)]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
     pub fn next(&mut self) -> Option<Term<&[u8]>> {
         if self.advance() {
             Some(Term::wrap(self.current_streamers[0].streamer.key()))
