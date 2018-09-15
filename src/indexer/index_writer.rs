@@ -54,7 +54,6 @@ type DocumentReceiver = channel::Receiver<AddOperation>;
 fn initial_table_size(per_thread_memory_budget: usize) -> usize {
     let table_size_limit: usize = per_thread_memory_budget / 3;
     (1..)
-        .into_iter()
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
         .expect(&format!(
@@ -177,7 +176,7 @@ pub fn compute_deleted_bitset(
 ) -> Result<bool> {
     let mut might_have_changed = false;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
     loop {
         if let Some(delete_op) = delete_cursor.get() {
             if delete_op.opstamp > target_opstamp {

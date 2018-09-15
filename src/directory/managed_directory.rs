@@ -21,7 +21,7 @@ use Result;
 /// are not managed.
 fn is_managed(path: &Path) -> bool {
     path.to_str()
-        .map(|p_str| !p_str.starts_with("."))
+        .map(|p_str| !p_str.starts_with('.'))
         .unwrap_or(true)
 }
 
@@ -52,7 +52,7 @@ fn save_managed_paths(
     wlock: &RwLockWriteGuard<MetaInformation>,
 ) -> io::Result<()> {
     let mut w = serde_json::to_vec(&wlock.managed_paths)?;
-    write!(&mut w, "\n")?;
+    writeln!(&mut w)?;
     directory.atomic_write(&MANAGED_FILEPATH, &w[..])?;
     Ok(())
 }

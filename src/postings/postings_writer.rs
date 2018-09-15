@@ -15,7 +15,7 @@ use tokenizer::TokenStream;
 use DocId;
 use Result;
 
-fn posting_from_field_entry<'a>(field_entry: &FieldEntry) -> Box<PostingsWriter> {
+fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
     match *field_entry.field_type() {
         FieldType::Str(ref text_options) => text_options
             .get_indexing_options()
@@ -128,8 +128,8 @@ impl MultiFieldPostingsWriter {
 
             let field_entry = self.schema.get_field_entry(field);
 
-            match field_entry.field_type() {
-                &FieldType::Str(_) | &FieldType::HierarchicalFacet => {
+            match *field_entry.field_type() {
+                FieldType::Str(_) | FieldType::HierarchicalFacet => {
                     // populating the (unordered term ord) -> (ordered term ord) mapping
                     // for the field.
                     let mut unordered_term_ids = term_offsets[start..stop]
@@ -143,8 +143,8 @@ impl MultiFieldPostingsWriter {
                         .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
-                &FieldType::U64(_) | &FieldType::I64(_) => {}
-                &FieldType::Bytes => {}
+                FieldType::U64(_) | FieldType::I64(_) => {}
+                FieldType::Bytes => {}
             }
 
             let postings_writer = &self.per_field_postings_writers[field.0 as usize];
@@ -203,14 +203,11 @@ pub trait PostingsWriter {
         heap: &mut MemoryArena,
     ) -> u32 {
         let mut term = Term::for_field(field);
-        let num_tokens = {
-            let mut sink = |token: &Token| {
-                term.set_text(token.text.as_str());
-                self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
-            };
-            token_stream.process(&mut sink)
+        let mut sink = |token: &Token| {
+            term.set_text(token.text.as_str());
+            self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
         };
-        num_tokens
+        token_stream.process(&mut sink)
     }
 
     fn total_num_tokens(&self) -> u64;

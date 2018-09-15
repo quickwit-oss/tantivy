@@ -72,7 +72,7 @@ pub fn save_metas(
         payload,
     };
     let mut buffer = serde_json::to_vec_pretty(&metas)?;
-    write!(&mut buffer, "\n")?;
+    writeln!(&mut buffer)?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
     Ok(())

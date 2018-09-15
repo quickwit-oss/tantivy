@@ -42,7 +42,7 @@ impl FragmentCandidate {
     fn new(start_offset: usize) -> FragmentCandidate {
         FragmentCandidate {
             score: 0.0,
-            start_offset: start_offset,
+            start_offset,
             stop_offset: start_offset,
             num_chars: 0,
             highlighted: vec![],
@@ -181,7 +181,7 @@ fn select_best_fragment_combination<'a>(
             .collect();
         Snippet {
             fragments: fragment_text.to_string(),
-            highlighted: highlighted,
+            highlighted,
         }
     } else {
         // when there no fragments to chose from,

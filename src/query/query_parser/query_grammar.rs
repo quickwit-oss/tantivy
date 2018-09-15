@@ -1,3 +1,6 @@
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::toplevel_ref_arg))]
+
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::error::StreamError;
@@ -110,12 +113,11 @@ parser! {
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
         .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All) ))
         .or(try(
-            (string("NOT"), spaces1(), leaf()).map(|(_, _, expr)| expr.unary(Occur::MustNot)))
+            (string("NOT"), spaces1(), leaf()).map(|(_, _, expr)| expr.unary(Occur::MustNot))
+            )
          )
-        .or(
-            try(
-                range()
-                .map(|leaf| UserInputAST::from(leaf))
+        .or(try(
+            range().map(UserInputAST::from)
             )
         )
         .or(literal().map(|leaf| UserInputAST::Leaf(Box::new(leaf))))
@@ -189,7 +191,7 @@ parser! {
                     } else {
                         let conjunctions = fnd
                         .into_iter()
-                        .map(|conjunction| UserInputAST::and(conjunction))
+                        .map(UserInputAST::and)
                         .collect();
                         UserInputAST::or(conjunctions)
                     }

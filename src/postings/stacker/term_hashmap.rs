@@ -61,7 +61,7 @@ impl Default for KeyValue {
 }
 
 impl KeyValue {
-    fn is_empty(&self) -> bool {
+    fn is_empty(self) -> bool {
         self.key_value_addr.is_null()
     }
 }

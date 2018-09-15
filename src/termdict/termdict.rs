@@ -29,7 +29,7 @@ where
     W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
-    pub fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
+    pub fn new(w: W, _field_type: &FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
             fst_builder,
@@ -129,9 +129,9 @@ impl TermDictionary {
     }
 
     /// Creates an empty term dictionary which contains no terms.
-    pub fn empty(field_type: FieldType) -> Self {
+    pub fn empty(field_type: &FieldType) -> Self {
         let term_dictionary_data: Vec<u8> =
-            TermDictionaryBuilder::new(Vec::<u8>::new(), field_type)
+            TermDictionaryBuilder::new(Vec::<u8>::new(), &field_type)
                 .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");
@@ -193,12 +193,12 @@ impl TermDictionary {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range<'a>(&'a self) -> TermStreamerBuilder<'a> {
+    pub fn range(&self) -> TermStreamerBuilder {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream<'a>(&'a self) -> TermStreamer<'a> {
+    pub fn stream(&self) -> TermStreamer {
         self.range().into_stream()
     }
 

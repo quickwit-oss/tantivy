@@ -1,11 +1,13 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
-#![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::decimal_literal_representation))]
+
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![allow(unknown_lints)]
-#![allow(new_without_default)]
-#![allow(decimal_literal_representation)]
 #![warn(missing_docs)]
 #![recursion_limit = "80"]
 
@@ -133,7 +135,6 @@ extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
 
-#[macro_use]
 extern crate combine;
 
 extern crate crossbeam;
@@ -266,12 +267,12 @@ impl DocAddress {
     /// The segment ordinal is an id identifying the segment
     /// hosting the document. It is only meaningful, in the context
     /// of a searcher.
-    pub fn segment_ord(&self) -> SegmentLocalId {
+    pub fn segment_ord(self) -> SegmentLocalId {
         self.0
     }
 
     /// Return the segment local `DocId`
-    pub fn doc(&self) -> DocId {
+    pub fn doc(self) -> DocId {
         self.1
     }
 }

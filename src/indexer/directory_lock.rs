@@ -61,8 +61,8 @@ impl RetryPolicy {
 }
 
 impl LockType {
-    fn retry_policy(&self) -> RetryPolicy {
-        match *self {
+    fn retry_policy(self) -> RetryPolicy {
+        match self {
             LockType::IndexWriterLock => RetryPolicy::no_retry(),
             LockType::MetaLock => RetryPolicy {
                 num_retries: 100,
@@ -71,10 +71,10 @@ impl LockType {
         }
     }
 
-    fn try_acquire_lock(&self, directory: &mut Directory) -> Result<DirectoryLock, TantivyError> {
+    fn try_acquire_lock(self, directory: &mut Directory) -> Result<DirectoryLock, TantivyError> {
         let path = self.filename();
         let mut write = directory.open_write(path).map_err(|e| match e {
-            OpenWriteError::FileAlreadyExists(_) => TantivyError::LockFailure(*self),
+            OpenWriteError::FileAlreadyExists(_) => TantivyError::LockFailure(self),
             OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
         })?;
         write.flush()?;
@@ -85,7 +85,7 @@ impl LockType {
     }
 
     /// Acquire a lock in the given directory.
-    pub fn acquire_lock(&self, directory: &Directory) -> Result<DirectoryLock, TantivyError> {
+    pub fn acquire_lock(self, directory: &Directory) -> Result<DirectoryLock, TantivyError> {
         let mut box_directory = directory.box_clone();
         let mut retry_policy = self.retry_policy();
         loop {

@@ -66,7 +66,7 @@ mod tests {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(write, field_type).unwrap();
+                TermDictionaryBuilder::new(write, &field_type).unwrap();
             for term in COUNTRIES.iter() {
                 term_dictionary_builder
                     .insert(term.as_bytes(), &make_term_info(0u64))
@@ -92,7 +92,7 @@ mod tests {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(write, field_type).unwrap();
+                TermDictionaryBuilder::new(write, &field_type).unwrap();
             term_dictionary_builder
                 .insert("abc".as_bytes(), &make_term_info(34u64))
                 .unwrap();
@@ -180,7 +180,7 @@ mod tests {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(vec![], field_type).unwrap();
+                TermDictionaryBuilder::new(vec![], &field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -210,7 +210,7 @@ mod tests {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(vec![], field_type).unwrap();
+                TermDictionaryBuilder::new(vec![], &field_type).unwrap();
             // term requires more than 16bits
             term_dictionary_builder
                 .insert("abcdefghijklmnopqrstuvwxy", &make_term_info(1))
@@ -245,7 +245,7 @@ mod tests {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(vec![], field_type).unwrap();
+                TermDictionaryBuilder::new(vec![], &field_type).unwrap();
             for &(ref id, ref i) in &ids {
                 term_dictionary_builder
                     .insert(id.as_bytes(), &make_term_info(*i as u64))
@@ -314,7 +314,7 @@ mod tests {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(vec![], field_type).unwrap();
+                TermDictionaryBuilder::new(vec![], &field_type).unwrap();
             term_dictionary_builder
                 .insert(&[], &make_term_info(1 as u64))
                 .unwrap();
@@ -338,7 +338,7 @@ mod tests {
         let field_type = FieldType::Str(TEXT);
         let buffer: Vec<u8> = {
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(vec![], field_type).unwrap();
+                TermDictionaryBuilder::new(vec![], &field_type).unwrap();
             for i in 0u8..10u8 {
                 let number_arr = [i; 1];
                 term_dictionary_builder
@@ -408,7 +408,7 @@ mod tests {
             let write = directory.open_write(&path).unwrap();
             let field_type = FieldType::Str(TEXT);
             let mut term_dictionary_builder =
-                TermDictionaryBuilder::new(write, field_type).unwrap();
+                TermDictionaryBuilder::new(write, &field_type).unwrap();
             for term in COUNTRIES.iter() {
                 term_dictionary_builder
                     .insert(term.as_bytes(), &make_term_info(0u64))

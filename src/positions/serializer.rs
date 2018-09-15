@@ -51,8 +51,8 @@ impl<W: io::Write> PositionSerializer<W> {
 
     fn flush_block(&mut self) -> io::Result<()> {
         let num_bits = BIT_PACKER.num_bits(&self.block[..]);
-        self.cumulated_num_bits += num_bits as u64;
-        self.write_skiplist.write(&[num_bits])?;
+        self.cumulated_num_bits += u64::from(num_bits);
+        self.write_skiplist.write_all(&[num_bits])?;
         let written_len = BIT_PACKER.compress(&self.block[..], &mut self.buffer, num_bits);
         self.write_stream.write_all(&self.buffer[..written_len])?;
         self.block.clear();

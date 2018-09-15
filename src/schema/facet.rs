@@ -97,7 +97,7 @@ impl Facet {
     }
 
     /// Returns `true` iff other is a subfacet of `self`.
-    #[allow(collapsible_if)]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::collapsible_if))]
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
         let self_bytes: &[u8] = self.encoded_bytes();
         let other_bytes: &[u8] = other.encoded_bytes();

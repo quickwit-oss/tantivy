@@ -22,7 +22,7 @@ impl Debug for UserInputLeaf {
                 ref lower,
                 ref upper,
             } => {
-                if let &Some(ref field) = field {
+                if let Some(ref field) = field {
                     write!(formatter, "{}:", field)?;
                 }
                 lower.display_lower(formatter)?;

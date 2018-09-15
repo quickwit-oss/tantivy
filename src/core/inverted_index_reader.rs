@@ -59,7 +59,7 @@ impl InvertedIndexReader {
             .get_index_record_option()
             .unwrap_or(IndexRecordOption::Basic);
         InvertedIndexReader {
-            termdict: TermDictionary::empty(field_type),
+            termdict: TermDictionary::empty(&field_type),
             postings_source: ReadOnlySource::empty(),
             positions_source: ReadOnlySource::empty(),
             positions_idx_source: ReadOnlySource::empty(),

@@ -100,7 +100,7 @@ impl InvertedIndexSerializer {
         let positionsidx_write = self.positionsidx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
         FieldSerializer::new(
-            field_type,
+            &field_type,
             term_dictionary_write,
             postings_write,
             positions_write,
@@ -131,7 +131,7 @@ pub struct FieldSerializer<'a> {
 
 impl<'a> FieldSerializer<'a> {
     fn new(
-        field_type: FieldType,
+        field_type: &FieldType,
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
         positions_write: &'a mut CountingWriter<WritePtr>,
@@ -152,7 +152,7 @@ impl<'a> FieldSerializer<'a> {
             _ => (false, false),
         };
         let term_dictionary_builder =
-            TermDictionaryBuilder::new(term_dictionary_write, field_type)?;
+            TermDictionaryBuilder::new(term_dictionary_write, &field_type)?;
         let postings_serializer =
             PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled);
         let positions_serializer_opt = if position_enabled {
