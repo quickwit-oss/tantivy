@@ -63,8 +63,7 @@ impl BM25Weight {
             .map(|term| {
                 let term_doc_freq = searcher.doc_freq(term);
                 idf(term_doc_freq, total_num_docs)
-            })
-            .sum::<f32>();
+            }).sum::<f32>();
         BM25Weight::new(idf, average_fieldnorm)
     }
 

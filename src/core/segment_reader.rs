@@ -312,7 +312,7 @@ impl SegmentReader {
             // As a result, no data is associated to the inverted index.
             //
             // Returns an empty inverted index.
-            return Arc::new(InvertedIndexReader::empty( field_type));
+            return Arc::new(InvertedIndexReader::empty(field_type));
         }
 
         let postings_source = postings_source_opt.unwrap();

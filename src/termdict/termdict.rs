@@ -77,7 +77,8 @@ where
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
         {
             let mut counting_writer = CountingWriter::wrap(&mut file);
-            self.term_info_store_writer.serialize(&mut counting_writer)?;
+            self.term_info_store_writer
+                .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             (footer_size as u64).serialize(&mut counting_writer)?;
             counting_writer.flush()?;

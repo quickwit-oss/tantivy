@@ -2,7 +2,6 @@
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
 #![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
-
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
 #![recursion_limit = "80"]
@@ -180,7 +179,10 @@ mod macros;
 
 pub use error::TantivyError;
 
-#[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
+#[deprecated(
+    since = "0.7.0",
+    note = "please use `tantivy::TantivyError` instead"
+)]
 pub use error::TantivyError as Error;
 
 extern crate census;

@@ -417,7 +417,7 @@ mod tests {
             term_dictionary_builder.finish().unwrap();
         }
         let source = directory.open_read(&path).unwrap();
-        let term_dict: TermDictionary = TermDictionary::from_source(&   source);
+        let term_dict: TermDictionary = TermDictionary::from_source(&source);
 
         // We can now build an entire dfa.
         let lev_automaton_builder = LevenshteinAutomatonBuilder::new(2, true);

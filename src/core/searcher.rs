@@ -70,8 +70,9 @@ impl Searcher {
     pub fn doc_freq(&self, term: &Term) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| u64::from(segment_reader.inverted_index(term.field()).doc_freq(term)))
-            .sum::<u64>()
+            .map(|segment_reader| {
+                u64::from(segment_reader.inverted_index(term.field()).doc_freq(term))
+            }).sum::<u64>()
     }
 
     /// Return the list of segment readers

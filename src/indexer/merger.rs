@@ -40,15 +40,13 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             total_tokens += reader.inverted_index(field).total_num_tokens();
         }
     }
-    total_tokens
-        + count
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(fieldnorm_ord, count)| {
-                count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
-            })
-            .sum::<u64>()
+    total_tokens + count
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(fieldnorm_ord, count)| {
+            count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
+        }).sum::<u64>()
 }
 
 pub struct IndexMerger {
@@ -393,8 +391,8 @@ impl IndexMerger {
 
         // We can now initialize our serializer, and push it the different values
         {
-            let mut serialize_vals =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+            let mut serialize_vals = fast_field_serializer
+                .new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
             for reader in &self.readers {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     reader.multi_fast_field_reader(field)?;
@@ -525,8 +523,7 @@ impl IndexMerger {
                         }
                     }
                     None
-                })
-                .collect();
+                }).collect();
 
             // At this point, `segment_postings` contains the posting list
             // of all of the segments containing the given term.
@@ -667,8 +664,7 @@ mod tests {
                 TextFieldIndexing::default()
                     .set_tokenizer("default")
                     .set_index_option(IndexRecordOption::WithFreqs),
-            )
-            .set_stored();
+            ).set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
@@ -822,8 +818,7 @@ mod tests {
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
-            )
-            .set_stored();
+            ).set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);

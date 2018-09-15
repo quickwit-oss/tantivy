@@ -184,11 +184,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str_bounds(
-        field: Field,
-        left: Bound<&str>,
-        right: Bound<&str>,
-    ) -> RangeQuery {
+    pub fn new_str_bounds(field: Field, left: Bound<&str>, right: Bound<&str>) -> RangeQuery {
         let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,

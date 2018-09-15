@@ -191,7 +191,10 @@ impl DeleteCursor {
         }
     }
 
-    #[cfg_attr(feature = "cargo-clippy", allow(clippy::wrong_self_convention))]
+    #[cfg_attr(
+        feature = "cargo-clippy",
+        allow(clippy::wrong_self_convention)
+    )]
     fn is_behind_opstamp(&mut self, target_opstamp: u64) -> bool {
         self.get()
             .map(|operation| operation.opstamp < target_opstamp)
