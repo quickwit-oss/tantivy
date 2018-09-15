@@ -157,6 +157,8 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
 
+
+
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
@@ -166,6 +168,10 @@ extern crate winapi;
 
 #[cfg(test)]
 extern crate rand;
+
+#[cfg(test)]
+#[macro_use]
+extern crate maplit;
 
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
