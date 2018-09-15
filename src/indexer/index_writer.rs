@@ -56,10 +56,7 @@ fn initial_table_size(per_thread_memory_budget: usize) -> usize {
     (1..)
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
-        .expect(&format!(
-            "Per thread memory is too small: {}",
-            per_thread_memory_budget
-        ))
+        .unwrap_or_else(|| panic!("Per thread memory is too small: {}", per_thread_memory_budget))
         .min(19) // we cap it at 512K
 }
 
@@ -300,31 +297,30 @@ fn index_documents(
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
-    let segment_entry: SegmentEntry;
-
-    if delete_cursor.get().is_some() {
-        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-        let segment_reader = SegmentReader::open(segment)?;
-        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-        let may_have_deletes = compute_deleted_bitset(
-            &mut deleted_bitset,
-            &segment_reader,
-            &mut delete_cursor,
-            &doc_to_opstamps,
-            last_docstamp,
-        )?;
-        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
-            if may_have_deletes {
-                Some(deleted_bitset)
-            } else {
-                None
-            }
-        });
-    } else {
-        // if there are no delete operation in the queue, no need
-        // to even open the segment.
-        segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
-    }
+    let segment_entry: SegmentEntry =
+        if delete_cursor.get().is_some() {
+            let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+            let segment_reader = SegmentReader::open(segment)?;
+            let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+            let may_have_deletes = compute_deleted_bitset(
+                &mut deleted_bitset,
+                &segment_reader,
+                &mut delete_cursor,
+                &doc_to_opstamps,
+                last_docstamp,
+            )?;
+            SegmentEntry::new(segment_meta, delete_cursor, {
+                if may_have_deletes {
+                    Some(deleted_bitset)
+                } else {
+                    None
+                }
+            })
+        } else {
+            // if there are no delete operation in the queue, no need
+            // to even open the segment.
+            SegmentEntry::new(segment_meta, delete_cursor, None)
+        };
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 
@@ -394,8 +390,7 @@ impl IndexWriter {
             ))
             .spawn(move || {
                 loop {
-                    let mut document_iterator =
-                        document_receiver_clone.clone().into_iter().peekable();
+                    let mut document_iterator = document_receiver_clone.clone().peekable();
 
                     // the peeking here is to avoid
                     // creating a new segment's files

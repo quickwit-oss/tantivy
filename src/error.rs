@@ -105,7 +105,7 @@ impl From<OpenWriteError> for TantivyError {
                 TantivyError::FileAlreadyExists(filepath)
             }
             OpenWriteError::IOError(io_error) => TantivyError::IOError(io_error),
-        }.into()
+        }
     }
 }
 

@@ -46,7 +46,7 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             .cloned()
             .enumerate()
             .map(|(fieldnorm_ord, count)| {
-                count as u64 * FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8) as u64
+                count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
             })
             .sum::<u64>()
 }
@@ -111,7 +111,7 @@ impl TermOrdinalMapping {
             .iter()
             .flat_map(|term_ordinals| term_ordinals.iter().cloned().max())
             .max()
-            .unwrap_or(TermOrdinal::default())
+            .unwrap_or_else(TermOrdinal::default)
     }
 }
 

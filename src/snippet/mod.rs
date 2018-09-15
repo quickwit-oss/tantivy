@@ -152,9 +152,9 @@ fn search_fragments<'a>(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination<'a>(
+fn select_best_fragment_combination(
     fragments: Vec<FragmentCandidate>,
-    text: &'a str,
+    text: &str,
 ) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left

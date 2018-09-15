@@ -51,7 +51,7 @@ impl BytesFastFieldWriter {
         self.next_doc();
         for field_value in doc.field_values() {
             if field_value.field() == self.field {
-                if let &Value::Bytes(ref bytes) = field_value.value() {
+                if let Value::Bytes(ref bytes) = *field_value.value() {
                     self.vals.extend_from_slice(bytes);
                 } else {
                     panic!(

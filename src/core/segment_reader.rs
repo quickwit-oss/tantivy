@@ -153,8 +153,8 @@ impl SegmentReader {
     /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
     pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match field_entry.field_type() {
-            &FieldType::Bytes => {}
+        match *field_entry.field_type() {
+            FieldType::Bytes => {}
             _ => return Err(FastFieldNotAvailableError::new(field_entry)),
         }
         let idx_reader = self
@@ -177,7 +177,7 @@ impl SegmentReader {
                 "The field {:?} is not a \
                  hierarchical facet.",
                 field_entry
-            )).into());
+            )));
         }
         let term_ords_reader = self.multi_fast_field_reader(field)?;
         let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
