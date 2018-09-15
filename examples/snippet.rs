@@ -61,7 +61,7 @@ fn main() -> tantivy::Result<()> {
 
     let doc_addresses = top_collector.docs();
     for doc_address in doc_addresses {
-        let doc = searcher.doc(&doc_address)?;
+        let doc = searcher.doc(doc_address)?;
         let snippet = snippet_generator.snippet_from_doc(&doc);
         println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
         println!("snippet: {}", snippet.to_html());

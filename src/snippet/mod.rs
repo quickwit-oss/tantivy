@@ -152,10 +152,7 @@ fn search_fragments<'a>(
 ///
 /// Takes a vector of `FragmentCandidate`s and the text.
 /// Figures out the best fragment from it and creates a snippet.
-fn select_best_fragment_combination<'a>(
-    fragments: Vec<FragmentCandidate>,
-    text: &'a str,
-) -> Snippet {
+fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str) -> Snippet {
     let best_fragment_opt = fragments.iter().max_by(|left, right| {
         let cmp_score = left
             .score
@@ -177,8 +174,7 @@ fn select_best_fragment_combination<'a>(
                     item.start - fragment.start_offset,
                     item.stop - fragment.start_offset,
                 )
-            })
-            .collect();
+            }).collect();
         Snippet {
             fragments: fragment_text.to_string(),
             highlighted,
@@ -302,7 +298,7 @@ impl SnippetGenerator {
             &self.terms_text,
             self.max_num_chars,
         );
-        select_best_fragment_combination(fragment_candidates, &text)
+        select_best_fragment_combination(&fragment_candidates[..], &text)
     }
 }
 
@@ -348,7 +344,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
-        let snippet = select_best_fragment_combination(fragments, &TEST_TEXT);
+        let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
         assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by \
          Mozilla which\ndescribes it as a \"safe");
         assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> \
@@ -370,7 +366,7 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 1.0);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(fragments, &TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
             assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
         }
         let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
@@ -386,9 +382,10 @@ Survey in 2016, 2017, and 2018."#;
                 assert_eq!(first.score, 0.9);
                 assert_eq!(first.stop_offset, 17);
             }
-            let snippet = select_best_fragment_combination(fragments, &TEST_TEXT);
+            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
+
     }
 
 
@@ -411,7 +408,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 7);
         }
 
-        let snippet = select_best_fragment_combination(fragments, &text);
+        let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "c d");
         assert_eq!(snippet.to_html(), "<b>c</b> d");
     }
@@ -435,7 +432,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 8);
         }
 
-        let snippet = select_best_fragment_combination(fragments, &text);
+        let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "e f");
         assert_eq!(snippet.to_html(), "e <b>f</b>");
     }
@@ -460,7 +457,7 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.start_offset, 0);
         }
 
-        let snippet = select_best_fragment_combination(fragments, &text);
+        let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "e f g");
         assert_eq!(snippet.to_html(), "e <b>f</b> g");
     }
@@ -478,7 +475,7 @@ Survey in 2016, 2017, and 2018."#;
 
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(fragments, &text);
+        let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
     }
@@ -493,7 +490,7 @@ Survey in 2016, 2017, and 2018."#;
         let fragments = search_fragments(&*boxed_tokenizer, &text, &terms, 3);
         assert_eq!(fragments.len(), 0);
 
-        let snippet = select_best_fragment_combination(fragments, &text);
+        let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
     }

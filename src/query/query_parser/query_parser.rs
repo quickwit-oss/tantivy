@@ -1,5 +1,3 @@
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
-
 use super::logical_ast::*;
 use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
@@ -70,8 +68,7 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
                 .into_iter()
                 .flat_map(|(occur, child)| {
                     trim_ast(child).map(|trimmed_child| (occur, trimmed_child))
-                })
-                .collect::<Vec<_>>();
+                }).collect::<Vec<_>>();
             if trimmed_children.is_empty() {
                 None
             } else {
@@ -237,14 +234,15 @@ impl QueryParser {
             }
             FieldType::Str(ref str_options) => {
                 if let Some(option) = str_options.get_indexing_options() {
-                    let mut tokenizer = self.tokenizer_manager.get(option.tokenizer()).ok_or_else(
-                        || {
-                            QueryParserError::UnknownTokenizer(
-                                field_entry.name().to_string(),
-                                option.tokenizer().to_string(),
-                            )
-                        },
-                    )?;
+                    let mut tokenizer =
+                        self.tokenizer_manager
+                            .get(option.tokenizer())
+                            .ok_or_else(|| {
+                                QueryParserError::UnknownTokenizer(
+                                    field_entry.name().to_string(),
+                                    option.tokenizer().to_string(),
+                                )
+                            })?;
                     let mut terms: Vec<(usize, Term)> = Vec::new();
                     let mut token_stream = tokenizer.token_stream(phrase);
                     token_stream.process(&mut |token| {
@@ -423,8 +421,7 @@ impl QueryParser {
                             lower: self.resolve_bound(field, &lower)?,
                             upper: self.resolve_bound(field, &upper)?,
                         })))
-                    })
-                    .collect::<Result<Vec<_>, QueryParserError>>()?;
+                    }).collect::<Result<Vec<_>, QueryParserError>>()?;
                 let result_ast = if clauses.len() == 1 {
                     clauses.pop().unwrap()
                 } else {
@@ -452,7 +449,9 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
             value_type,
             lower,
             upper,
-        } => Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper)),
+        } => Box::new(RangeQuery::new_term_bounds(
+            field, value_type, &lower, &upper,
+        )),
         LogicalLiteral::All => Box::new(AllQuery),
     }
 }

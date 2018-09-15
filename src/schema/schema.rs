@@ -441,8 +441,7 @@ mod tests {
                 "count": 4,
                 "popularity": 10
             }"#,
-                )
-                .unwrap();
+                ).unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), Some("my title"));
             assert_eq!(
                 doc.get_first(author_field).unwrap().text(),

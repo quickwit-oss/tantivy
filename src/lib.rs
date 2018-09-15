@@ -1,13 +1,8 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::inline_always))]
-#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::new_without_default))]
-#![cfg_attr(feature = "cargo-clippy", allow(clippy::decimal_literal_representation))]
-
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![allow(unknown_lints)]
 #![warn(missing_docs)]
 #![recursion_limit = "80"]
 
@@ -98,7 +93,7 @@
 //! // most relevant doc ids...
 //! let doc_addresses = top_collector.docs();
 //! for doc_address in doc_addresses {
-//!     let retrieved_doc = searcher.doc(&doc_address)?;
+//!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }
 //!
@@ -190,7 +185,10 @@ mod macros;
 
 pub use error::TantivyError;
 
-#[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
+#[deprecated(
+    since = "0.7.0",
+    note = "please use `tantivy::TantivyError` instead"
+)]
 pub use error::TantivyError as Error;
 
 extern crate census;

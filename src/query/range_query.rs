@@ -96,8 +96,8 @@ impl RangeQuery {
     pub fn new_term_bounds(
         field: Field,
         value_type: Type,
-        left_bound: Bound<Term>,
-        right_bound: Bound<Term>,
+        left_bound: &Bound<Term>,
+        right_bound: &Bound<Term>,
     ) -> RangeQuery {
         let verify_and_unwrap_term = |val: &Term| {
             assert_eq!(field, val.field());
@@ -184,11 +184,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str_bounds<'b>(
-        field: Field,
-        left: Bound<&'b str>,
-        right: Bound<&'b str>,
-    ) -> RangeQuery {
+    pub fn new_str_bounds(field: Field, left: Bound<&str>, right: Bound<&str>) -> RangeQuery {
         let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,
@@ -202,7 +198,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str<'b>(field: Field, range: Range<&'b str>) -> RangeQuery {
+    pub fn new_str(field: Field, range: Range<&str>) -> RangeQuery {
         RangeQuery::new_str_bounds(
             field,
             Bound::Included(range.start),

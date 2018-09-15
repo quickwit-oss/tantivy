@@ -100,8 +100,7 @@ impl InnerDirectory {
                 );
                 let io_err = make_io_err(msg);
                 OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|readable_map| {
+            }).and_then(|readable_map| {
                 readable_map
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
@@ -121,8 +120,7 @@ impl InnerDirectory {
                 );
                 let io_err = make_io_err(msg);
                 DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|mut writable_map| match writable_map.remove(path) {
+            }).and_then(|mut writable_map| match writable_map.remove(path) {
                 Some(_) => Ok(()),
                 None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
             })

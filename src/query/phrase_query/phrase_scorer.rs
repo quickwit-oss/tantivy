@@ -134,8 +134,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             .into_iter()
             .map(|(offset, postings)| {
                 PostingsWithOffset::new(postings, (max_offset - offset) as u32)
-            })
-            .collect::<Vec<_>>();
+            }).collect::<Vec<_>>();
         PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
             num_docsets,

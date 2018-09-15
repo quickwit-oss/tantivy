@@ -137,7 +137,8 @@ impl PositionReader {
             .iter()
             .cloned()
             .map(|num_bit| num_bit as usize)
-            .sum::<usize>() * (COMPRESSION_BLOCK_SIZE / 8);
+            .sum::<usize>()
+            * (COMPRESSION_BLOCK_SIZE / 8);
 
         self.skip_read.advance(num_blocks_to_advance);
         self.position_read.advance(skip_len);

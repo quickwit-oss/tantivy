@@ -77,7 +77,7 @@ impl TinySet {
 
     /// Returns true iff the `TinySet` is empty.
     #[inline(always)]
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.0 == 0u64
     }
 
@@ -114,7 +114,7 @@ impl TinySet {
         self.0 = 0u64;
     }
 
-    pub fn len(&self) -> u32 {
+    pub fn len(self) -> u32 {
         self.0.count_ones()
     }
 }

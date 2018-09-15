@@ -77,7 +77,8 @@ where
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
         {
             let mut counting_writer = CountingWriter::wrap(&mut file);
-            self.term_info_store_writer.serialize(&mut counting_writer)?;
+            self.term_info_store_writer
+                .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             (footer_size as u64).serialize(&mut counting_writer)?;
             counting_writer.flush()?;
@@ -112,7 +113,7 @@ pub struct TermDictionary {
 
 impl TermDictionary {
     /// Opens a `TermDictionary` given a data source.
-    pub fn from_source(source: ReadOnlySource) -> Self {
+    pub fn from_source(source: &ReadOnlySource) -> Self {
         let total_len = source.len();
         let length_offset = total_len - 8;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
@@ -136,7 +137,7 @@ impl TermDictionary {
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");
         let source = ReadOnlySource::from(term_dictionary_data);
-        Self::from_source(source)
+        Self::from_source(&source)
     }
 
     /// Returns the number of terms in the dictionary.

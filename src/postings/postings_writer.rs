@@ -29,8 +29,7 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
                 IndexRecordOption::WithFreqsAndPositions => {
                     SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
                 }
-            })
-            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
+            }).unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
         FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
         }
@@ -139,8 +138,7 @@ impl MultiFieldPostingsWriter {
                         .enumerate()
                         .map(|(term_ord, unord_term_id)| {
                             (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
-                        })
-                        .collect();
+                        }).collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
                 FieldType::U64(_) | FieldType::I64(_) => {}

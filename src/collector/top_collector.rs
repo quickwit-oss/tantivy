@@ -91,8 +91,7 @@ impl<T: PartialOrd + Clone> TopCollector<T> {
                      feature,
                      doc_address,
                  }| (feature, doc_address),
-            )
-            .collect()
+            ).collect()
     }
 
     /// Return true iff at least K documents have gone through

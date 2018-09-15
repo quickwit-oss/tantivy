@@ -377,10 +377,8 @@ impl FacetCollector {
                             } else {
                                 collapsed_facet_counts[seg_ord][collapsed_term_id]
                             }
-                        })
-                        .unwrap_or(0)
-                })
-                .sum();
+                        }).unwrap_or(0)
+                }).sum();
             if count > 0u64 {
                 let bytes: Vec<u8> = facet_merger.key().to_owned();
                 // may create an corrupted facet if the term dicitonary is corrupted
@@ -529,8 +527,7 @@ mod tests {
                 n /= 4;
                 let leaf = n % 5;
                 Facet::from(&format!("/top{}/mid{}/leaf{}", top, mid, leaf))
-            })
-            .collect();
+            }).collect();
         for i in 0..num_facets * 10 {
             let mut doc = Document::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
@@ -557,7 +554,8 @@ mod tests {
                     ("/top1/mid1", 50),
                     ("/top1/mid2", 50),
                     ("/top1/mid3", 50),
-                ].iter()
+                ]
+                    .iter()
                     .map(|&(facet_str, count)| (String::from(facet_str), count))
                     .collect::<Vec<_>>()
             );
@@ -621,15 +619,13 @@ mod tests {
                 let facet = Facet::from(&format!("/facet/{}", c));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
-            })
-            .map(|mut doc| {
+            }).map(|mut doc| {
                 doc.add_facet(
                     facet_field,
                     &format!("/facet/{}", thread_rng().sample(&uniform)),
                 );
                 doc
-            })
-            .collect();
+            }).collect();
         thread_rng().shuffle(&mut docs[..]);
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
