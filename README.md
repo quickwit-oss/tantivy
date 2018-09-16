@@ -49,7 +49,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Non-features
 
-- Distributed search and will not be in the scope of tantivy.
+- Distributed search is out of the scope of tantivy.
 
 
 # Supported OS and compiler
