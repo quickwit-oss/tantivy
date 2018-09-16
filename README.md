@@ -49,7 +49,9 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 
 # Non-features
 
-- Distributed search is out of the scope of tantivy.
+- Distributed search is out of the scope of tantivy. That being said, tantivy is meant as a
+library upon which one could build a distributed search. Serializable/mergeable collector state for instance, 
+are within the scope of tantivy.
 
 
 # Supported OS and compiler
