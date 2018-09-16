@@ -53,3 +53,53 @@ pub use self::scorer::ConstScorer;
 pub use self::scorer::Scorer;
 pub use self::term_query::TermQuery;
 pub use self::weight::Weight;
+
+#[cfg(test)]
+mod tests {
+    use Index;
+    use schema::{SchemaBuilder, TEXT};
+    use query::QueryParser;
+    use Term;
+    use std::collections::BTreeSet;
+
+    #[test]
+    fn test_query_terms() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let term_a = Term::from_field_text(text_field, "a");
+        let term_b = Term::from_field_text(text_field, "b");
+        {
+            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            query_parser.parse_query("a").unwrap().query_terms(&mut terms_set);
+            let terms: Vec<&Term> = terms_set.iter().collect();
+            assert_eq!(vec![&term_a], terms);
+        }
+        {
+            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            query_parser.parse_query("a b").unwrap().query_terms(&mut terms_set);
+            let terms: Vec<&Term> = terms_set.iter().collect();
+            assert_eq!(vec![&term_a, &term_b], terms);
+        }
+        {
+            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            query_parser.parse_query("\"a b\"").unwrap().query_terms(&mut terms_set);
+            let terms: Vec<&Term> = terms_set.iter().collect();
+            assert_eq!(vec![&term_a, &term_b], terms);
+        }
+        {
+            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            query_parser.parse_query("a a a a a").unwrap().query_terms(&mut terms_set);
+            let terms: Vec<&Term> = terms_set.iter().collect();
+            assert_eq!(vec![&term_a], terms);
+        }
+        {
+            let mut terms_set: BTreeSet<Term> = BTreeSet::new();
+            query_parser.parse_query("a -b").unwrap().query_terms(&mut terms_set);
+            let terms: Vec<&Term> = terms_set.iter().collect();
+            assert_eq!(vec![&term_a, &term_b], terms);
+        }
+    }
+}

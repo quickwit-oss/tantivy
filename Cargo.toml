@@ -55,6 +55,7 @@ winapi = "0.2"
 
 [dev-dependencies]
 rand = "0.5"
+maplit = "1"
 
 [profile.release]
 opt-level = 3

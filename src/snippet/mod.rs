@@ -247,7 +247,15 @@ impl SnippetGenerator {
         let terms_text: BTreeMap<String, f32> = terms
             .into_iter()
             .filter(|term| term.field() == field)
-            .map(|term| (term.text().to_string(), 1f32))
+            .flat_map(|term| {
+                let doc_freq = searcher.doc_freq(&term);
+                let score = 1f32 / (1f32 + doc_freq as f32);
+                if doc_freq > 0 {
+                    Some((term.text().to_string(), score))
+                } else {
+                    None
+                }
+            })
             .collect();
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
         Ok(SnippetGenerator {
@@ -261,6 +269,11 @@ impl SnippetGenerator {
     /// Sets a maximum number of chars.
     pub fn set_max_num_chars(&mut self, max_num_chars: usize) {
         self.max_num_chars = max_num_chars;
+    }
+
+    #[cfg(test)]
+    pub fn terms_text(&self) -> &BTreeMap<String, f32> {
+        &self.terms_text
     }
 
     /// Generates a snippet for the given `Document`.
@@ -293,7 +306,7 @@ impl SnippetGenerator {
 mod tests {
     use super::{search_fragments, select_best_fragment_combination};
     use query::QueryParser;
-    use schema::{IndexRecordOption, SchemaBuilder, TextFieldIndexing, TextOptions};
+    use schema::{IndexRecordOption, SchemaBuilder, TextFieldIndexing, TextOptions, TEXT};
     use std::collections::BTreeMap;
     use std::iter::Iterator;
     use tokenizer::{box_tokenizer, SimpleTokenizer};
@@ -315,23 +328,66 @@ to the project are from community members.[15]
 Rust won first place for "most loved programming language" in the Stack Overflow Developer
 Survey in 2016, 2017, and 2018."#;
 
+
+
     #[test]
     fn test_snippet() {
         let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
-        let mut terms = BTreeMap::new();
-        terms.insert(String::from("rust"), 1.0);
-        terms.insert(String::from("language"), 0.9);
+        let terms = btreemap! {
+            String::from("rust") => 1.0,
+            String::from("language") => 0.9
+        };
         let fragments = search_fragments(&*boxed_tokenizer, TEST_TEXT, &terms, 100);
         assert_eq!(fragments.len(), 7);
         {
-            let first = fragments.iter().nth(0).unwrap();
+            let first = &fragments[0];
             assert_eq!(first.score, 1.9);
             assert_eq!(first.stop_offset, 89);
         }
         let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
-        assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by Mozilla which\ndescribes it as a \"safe".to_owned());
-        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> sponsored by Mozilla which\ndescribes it as a &quot;safe".to_owned())
+        assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by \
+         Mozilla which\ndescribes it as a \"safe");
+        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> \
+         sponsored by Mozilla which\ndescribes it as a &quot;safe")
     }
+
+
+    #[test]
+    fn test_snippet_scored_fragment() {
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
+        {
+            let terms = btreemap! {
+                String::from("rust") =>1.0f32,
+                String::from("language") => 0.9f32
+            };
+            let fragments = search_fragments(&*boxed_tokenizer, TEST_TEXT, &terms, 20);
+            {
+                let first = &fragments[0];
+                assert_eq!(first.score, 1.0);
+                assert_eq!(first.stop_offset, 17);
+            }
+            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
+            assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems")
+        }
+        let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
+        {
+            let terms = btreemap! {
+                String::from("rust") =>0.9f32,
+                String::from("language") => 1.0f32
+            };
+            let fragments = search_fragments(&*boxed_tokenizer, TEST_TEXT, &terms, 20);
+            //assert_eq!(fragments.len(), 7);
+            {
+                let first = &fragments[0];
+                assert_eq!(first.score, 0.9);
+                assert_eq!(first.stop_offset, 17);
+            }
+            let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
+            assert_eq!(snippet.to_html(), "programming <b>language</b>")
+        }
+
+    }
+
 
     #[test]
     fn test_snippet_in_second_fragment() {
@@ -437,6 +493,46 @@ Survey in 2016, 2017, and 2018."#;
         let snippet = select_best_fragment_combination(&fragments[..], &text);
         assert_eq!(snippet.fragments, "");
         assert_eq!(snippet.to_html(), "");
+    }
+
+
+    #[test]
+    fn test_snippet_generator_term_score() {
+        let mut schema_builder = SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        {
+            // writing the segment
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            index_writer.add_document(doc!(text_field => "a"));
+            index_writer.add_document(doc!(text_field => "a"));
+            index_writer.add_document(doc!(text_field => "a b"));
+            index_writer.commit().unwrap();
+            index.load_searchers().unwrap();
+        }
+        let searcher = index.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        {
+            let query = query_parser.parse_query("e").unwrap();
+            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            assert!(snippet_generator.terms_text().is_empty());
+        }
+        {
+            let query = query_parser.parse_query("a").unwrap();
+            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            assert_eq!(&btreemap!("a".to_string() => 0.25f32), snippet_generator.terms_text());
+        }
+        {
+            let query = query_parser.parse_query("a b").unwrap();
+            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            assert_eq!(&btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5), snippet_generator.terms_text());
+        }
+        {
+            let query = query_parser.parse_query("a b c").unwrap();
+            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            assert_eq!(&btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5), snippet_generator.terms_text());
+        }
     }
 
     #[test]
