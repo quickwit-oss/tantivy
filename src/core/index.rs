@@ -24,7 +24,7 @@ use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
@@ -49,6 +49,11 @@ pub struct Index {
 }
 
 impl Index {
+    /// Examines the director to see if it contains an index
+    pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
+        dir.exists(&PathBuf::from("meta.json"))
+    }
+
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
@@ -65,6 +70,10 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
+        if Index::exists(&mmap_directory) {
+            return Err(TantivyError::IndexAlreadyExists);
+        }
+
         Index::create(mmap_directory, schema)
     }
 
@@ -328,7 +337,9 @@ impl Clone for Index {
 
 #[cfg(test)]
 mod tests {
+    use directory::MmapDirectory;
     use schema::{SchemaBuilder, INT_INDEXED, TEXT};
+    use tempdir::TempDir;
     use Index;
 
     #[test]
@@ -345,4 +356,25 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_index_exists() {
+        let index_path = TempDir::new("test_exists").expect("can create dir");
+
+        let mut schema_builder = SchemaBuilder::default();
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let schema = schema_builder.build();
+
+        let a = index_path.path().clone();
+
+        Index::create_in_dir(&index_path, schema).expect("should be ok");
+
+        let dir = MmapDirectory::open(a).expect("open existing dir");
+        assert!(Index::exists(&dir));
+
+        let mut schema_builder = SchemaBuilder::default();
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let schema = schema_builder.build();
+
+        Index::create_in_dir(&index_path, schema).expect_err("should not be ok");
+    }
 }
