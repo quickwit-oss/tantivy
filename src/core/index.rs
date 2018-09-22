@@ -24,7 +24,7 @@ use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
@@ -51,7 +51,7 @@ pub struct Index {
 impl Index {
     /// Examines the director to see if it contains an index
     pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
-        dir.exists(&PathBuf::from("meta.json"))
+        dir.exists(&META_FILEPATH)
     }
 
     /// Creates a new index using the `RAMDirectory`.
@@ -75,6 +75,15 @@ impl Index {
         }
 
         Index::create(mmap_directory, schema)
+    }
+
+    /// Opens or creates a new index in the provided directory
+    #[cfg(feature = "mmap")]
+    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+        if Index::exists(&dir) {
+            return Index::open(dir);
+        }
+        Index::create(dir, schema)
     }
 
     /// Creates a new index in a temp directory.
@@ -338,7 +347,8 @@ impl Clone for Index {
 #[cfg(test)]
 mod tests {
     use directory::MmapDirectory;
-    use schema::{SchemaBuilder, INT_INDEXED, TEXT};
+    use schema::{Schema, SchemaBuilder, INT_INDEXED, TEXT};
+    use std::fs;
     use tempdir::TempDir;
     use Index;
 
@@ -358,23 +368,77 @@ mod tests {
 
     #[test]
     fn test_index_exists() {
-        let index_path = TempDir::new("test_exists").expect("can create dir");
+        let index_path = TempDir::new("test_exist").unwrap();
+        fs::create_dir(index_path.path().join("work")).unwrap();
 
+        // should not exist
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).expect("open existing dir");
+            assert!(!Index::exists(&dir));
+        }
+
+        // create index
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).expect("open existing dir");
+            Index::create(dir, throw_away_schema()).expect("should be ok");
+        }
+
+        // should exist
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).expect("open existing dir");
+            assert!(Index::exists(&dir));
+        }
+    }
+
+    #[test]
+    fn open_or_create_should_open() {
+        let index_path = TempDir::new("open_or_create_should_open").unwrap();
+        fs::create_dir(index_path.path().join("work")).unwrap();
+
+        // create a directory
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).unwrap();
+            Index::create(dir, throw_away_schema()).unwrap();
+        }
+
+        // verify its there
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).unwrap();
+            assert_eq!(Index::exists(&dir), true);
+        }
+
+        // open or create should open
+        let work_path = index_path.path().join("work");
+        let dir = MmapDirectory::open(work_path).unwrap();
+        Index::open_or_create(dir, throw_away_schema()).expect("should be ok");
+    }
+
+    #[test]
+    fn open_or_create_should_create() {
+        let index_path = TempDir::new("open_or_create_should_create").unwrap();
+        fs::create_dir(index_path.path().join("work")).unwrap();
+
+        // doesn't exist
+        {
+            let work_path = index_path.path().join("work");
+            let dir = MmapDirectory::open(work_path).unwrap();
+            assert_eq!(Index::exists(&dir), false);
+        }
+
+        // index doesn't open, it creates
+        let work_path = index_path.path().join("work");
+        let dir = MmapDirectory::open(work_path).unwrap();
+        Index::open_or_create(dir, throw_away_schema()).unwrap();
+    }
+
+    fn throw_away_schema() -> Schema {
         let mut schema_builder = SchemaBuilder::default();
-        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
-        let schema = schema_builder.build();
-
-        let a = index_path.path().clone();
-
-        Index::create_in_dir(&index_path, schema).expect("should be ok");
-
-        let dir = MmapDirectory::open(a).expect("open existing dir");
-        assert!(Index::exists(&dir));
-
-        let mut schema_builder = SchemaBuilder::default();
-        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
-        let schema = schema_builder.build();
-
-        Index::create_in_dir(&index_path, schema).expect_err("should not be ok");
+        let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        schema_builder.build()
     }
 }
