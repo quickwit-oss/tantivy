@@ -365,6 +365,11 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_open_non_existant_path() {
+        assert!(MmapDirectory::open(PathBuf::from("./nowhere")).is_err());
+    }
+
+    #[test]
     fn test_open_empty() {
         // empty file is actually an edge case because those
         // cannot be mmapped.

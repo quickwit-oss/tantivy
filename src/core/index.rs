@@ -107,6 +107,8 @@ impl Index {
     }
 
     /// Create a new index from a directory.
+    ///
+    /// This will overwrite existing meta.json
     fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
