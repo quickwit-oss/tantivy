@@ -291,6 +291,46 @@ pub mod test {
     }
 
     #[test]
+    fn test_ngram_non_ascii_tokenizer() {
+        use super::NgramTokenizer;
+        use tokenizer::tokenizer::TokenStream;
+        use tokenizer::tokenizer::Tokenizer;
+
+        let tokenizer = NgramTokenizer::new(1, 2, false);
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            tokenizer.token_stream("hεllo").process(&mut add_token);
+        }
+        assert_eq!(tokens.len(), 9);
+        assert_token(&tokens[0], 0, "h", 0, 1);
+        assert_token(&tokens[1], 0, "hε", 0, 3);
+        assert_token(&tokens[2], 1, "ε", 1, 3);
+        assert_token(&tokens[3], 1, "εl", 1, 4);
+        assert_token(&tokens[4], 2, "l", 3, 4);
+        assert_token(&tokens[5], 2, "ll", 3, 5);
+        assert_token(&tokens[6], 3, "l", 4, 5);
+        assert_token(&tokens[7], 3, "lo", 4, 6);
+        assert_token(&tokens[8], 4, "o", 5, 6);
+
+        let tokenizer = NgramTokenizer::new(2, 5, true);
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            tokenizer.token_stream("hεllo").process(&mut add_token);
+        }
+        assert_eq!(tokens.len(), 4);
+        assert_token(&tokens[0], 0, "hε", 0, 3);
+        assert_token(&tokens[1], 0, "hεl", 0, 4);
+        assert_token(&tokens[2], 0, "hεll", 0, 5);
+        assert_token(&tokens[3], 0, "hεllo", 0, 6);
+    }
+
+    #[test]
     fn test_tokenizer_empty() {
         let tokenizer_manager = TokenizerManager::default();
         let en_tokenizer = tokenizer_manager.get("en_stem").unwrap();

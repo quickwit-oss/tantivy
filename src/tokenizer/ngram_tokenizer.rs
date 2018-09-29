@@ -1,4 +1,5 @@
 use super::{Token, TokenStream, Tokenizer};
+use std::str::Chars;
 
 /// Tokenize the text by splitting words into n-grams of the given size(s)
 ///
@@ -18,6 +19,13 @@ use super::{Token, TokenStream, Tokenizer};
 /// |----------|-----|-----|-------|-------|
 /// | Position | 0   | 0   | 0     | 0     |
 /// | Offsets  | 0,2 | 0,3 | 0,4   | 0,5   |
+///
+/// Example 3: `hεllo` (non-ascii) would be tokenized as (min_gram: 2, max_gram: 5, prefix_only: **true**)
+///
+/// | Term     | hε  | hεl | hεll  | hεllo |
+/// |----------|-----|-----|-------|-------|
+/// | Position | 0   | 0   | 0     | 0     |
+/// | Offsets  | 0,3 | 0,4 | 0,5   | 0,6   |
 ///
 /// # Example
 ///
@@ -68,8 +76,9 @@ impl NgramTokenizer {
 }
 pub struct NgramTokenStream<'a> {
     text: &'a str,
+    chars: Chars<'a>,
     position: usize,
-    text_length: usize,
+    char_count: usize,
     token: Token,
     min_gram: usize,
     max_gram: usize,
@@ -81,10 +90,14 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
     type TokenStreamImpl = NgramTokenStream<'a>;
 
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
+        let chars = text.chars();
+        let char_count = text.chars().count();
+
         NgramTokenStream {
             text,
+            chars,
+            char_count,
             position: 0,
-            text_length: text.len(),
             token: Token::default(),
             min_gram: self.min_gram,
             max_gram: self.max_gram,
@@ -113,8 +126,21 @@ impl<'a> NgramTokenStream<'a> {
             self.position += 1;
         }
 
-        let result = if (self.position + self.gram_size) <= self.text_length {
-            Some((self.position, self.gram_size))
+        let result = if (self.position + self.gram_size) <= self.char_count {
+            // map from logical to physical
+            let chars = self.chars.clone();
+            let raw_position = chars.take(self.position).map(|c| c.len_utf8()).sum();
+
+            let chars = self.chars.clone();
+            let raw_size = chars
+                .skip(self.position)
+                .take(self.gram_size)
+                .map(|c| c.len_utf8())
+                .sum();
+
+            println!("logical: {},{}", self.position, self.gram_size);
+            println!("physical: {},{}", raw_position, raw_size);
+            Some((raw_position, raw_size))
         } else {
             None
         };
@@ -132,7 +158,7 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
         self.token.text.clear();
 
         if let Some((position, size)) = self.chomp() {
-            self.token.position = position;
+            self.token.position = self.position;
             let offset_from = position;
             let offset_to = offset_from + size;
 
