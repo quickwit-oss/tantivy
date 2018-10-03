@@ -17,7 +17,7 @@ byteorder = "1.0"
 lazy_static = "1"
 regex = "1.0"
 fst = {version="0.3", default-features=false}
-fst-regex = { version="0.2" }
+fst-regex = { version="0.2", optional=true}
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
 atomicwrites = {version="0.2.2", optional=true}
@@ -68,8 +68,9 @@ overflow-checks = true
 
 [features]
 # by default no-fail is disabled. We manually enable it when running test.
-default = ["mmap", "no_fail"]
+default = ["mmap", "no_fail", "regex_query"]
 mmap = ["fst/mmap", "atomicwrites"]
+regex_query = ["fst-regex"]
 lz4-compression = ["lz4"]
 no_fail = ["fail/no_fail"]
 

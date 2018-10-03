@@ -1,5 +1,7 @@
+extern crate fst_regex;
+
 use error::TantivyError;
-use fst_regex::Regex;
+use self::fst_regex::Regex;
 use query::{AutomatonWeight, Query, Weight};
 use schema::Field;
 use std::clone::Clone;

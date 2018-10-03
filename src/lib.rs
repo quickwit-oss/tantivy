@@ -136,7 +136,7 @@ extern crate crossbeam;
 extern crate crossbeam_channel;
 extern crate fnv;
 extern crate fst;
-extern crate fst_regex;
+
 extern crate futures;
 extern crate futures_cpupool;
 extern crate htmlescape;

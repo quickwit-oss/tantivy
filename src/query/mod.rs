@@ -16,7 +16,10 @@ mod phrase_query;
 mod query;
 mod query_parser;
 mod range_query;
+
+#[cfg(feature="regex_query")]
 mod regex_query;
+
 mod reqopt_scorer;
 mod scorer;
 mod term_query;
@@ -47,7 +50,10 @@ pub use self::query::Query;
 pub use self::query_parser::QueryParser;
 pub use self::query_parser::QueryParserError;
 pub use self::range_query::RangeQuery;
+
+#[cfg(feature="regex_query")]
 pub use self::regex_query::RegexQuery;
+
 pub use self::reqopt_scorer::RequiredOptionalScorer;
 pub use self::scorer::ConstScorer;
 pub use self::scorer::Scorer;
