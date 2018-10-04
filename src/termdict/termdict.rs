@@ -96,6 +96,9 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
         ReadOnlySource::Mmap(mmap_readonly) => {
             Fst::from_mmap(mmap_readonly).expect("FST data is corrupted")
         }
+        ReadOnlySource::Static(data) => {
+            Fst::from_static_slice(data).expect("FST data is corrupted")
+        }
     };
     fst::Map::from(fst)
 }

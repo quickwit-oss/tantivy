@@ -5,6 +5,9 @@ use fst::raw::MmapReadOnly;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::ops::Deref;
 
+
+const EMPTY_SLICE: [u8; 0] = [];
+
 /// Read object that represents files in tantivy.
 ///
 /// These read objects are only in charge to deliver
@@ -17,6 +20,8 @@ pub enum ReadOnlySource {
     Mmap(MmapReadOnly),
     /// Wrapping a `Vec<u8>`
     Anonymous(SharedVecSlice),
+    /// Wrapping a static slice
+    Static(&'static [u8])
 }
 
 unsafe impl StableDeref for ReadOnlySource {}
@@ -33,7 +38,7 @@ impl Deref for ReadOnlySource {
 impl ReadOnlySource {
     /// Creates an empty ReadOnlySource
     pub fn empty() -> ReadOnlySource {
-        ReadOnlySource::Anonymous(SharedVecSlice::empty())
+        ReadOnlySource::Static(&EMPTY_SLICE)
     }
 
     /// Returns the data underlying the ReadOnlySource object.
@@ -42,6 +47,7 @@ impl ReadOnlySource {
             #[cfg(feature = "mmap")]
             ReadOnlySource::Mmap(ref mmap_read_only) => mmap_read_only.as_slice(),
             ReadOnlySource::Anonymous(ref shared_vec) => shared_vec.as_slice(),
+            ReadOnlySource::Static(data) => data,
         }
     }
 
@@ -78,6 +84,9 @@ impl ReadOnlySource {
             }
             ReadOnlySource::Anonymous(ref shared_vec) => {
                 ReadOnlySource::Anonymous(shared_vec.slice(from_offset, to_offset))
+            }
+            ReadOnlySource::Static(data) => {
+                ReadOnlySource::Static(&data[from_offset..to_offset])
             }
         }
     }
@@ -116,5 +125,11 @@ impl From<Vec<u8>> for ReadOnlySource {
     fn from(data: Vec<u8>) -> ReadOnlySource {
         let shared_data = SharedVecSlice::from(data);
         ReadOnlySource::Anonymous(shared_data)
+    }
+}
+
+impl From<&'static [u8]> for ReadOnlySource {
+    fn from(data: &'static [u8]) -> ReadOnlySource {
+        ReadOnlySource::Static(data)
     }
 }

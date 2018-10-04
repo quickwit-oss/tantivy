@@ -12,6 +12,7 @@ mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod shared_vec_slice;
+mod static_dictionnary;
 
 /// Errors specific to the directory module.
 pub mod error;
@@ -21,6 +22,7 @@ use std::io::{BufWriter, Seek, Write};
 pub use self::directory::{Directory, DirectoryClone};
 pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;
+pub use self::static_dictionnary::StaticDirectory;
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
