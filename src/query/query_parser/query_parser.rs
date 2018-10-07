@@ -133,6 +133,7 @@ pub struct QueryParser {
     default_fields: Vec<Field>,
     conjunction_by_default: bool,
     tokenizer_manager: TokenizerManager,
+    empty_query_match_all: bool,
 }
 
 impl QueryParser {
@@ -150,6 +151,7 @@ impl QueryParser {
             default_fields,
             tokenizer_manager,
             conjunction_by_default: false,
+            empty_query_match_all: false,
         }
     }
 
@@ -170,6 +172,25 @@ impl QueryParser {
         self.conjunction_by_default = true;
     }
 
+    /// Set the behavior of matching on an empty query.
+    ///
+    /// In some use case, most of the time, people want an empty query to match nothing,
+    /// but for some analytics use case, it might make more sense for empty query to match
+    /// all documents. This method allow to choose the behavior of the results in case of
+    /// an empty query.
+    pub fn set_empty_query_match_all(&mut self, should_match_all: bool) {
+        self.empty_query_match_all = should_match_all;
+    }
+
+    /// Get the current behavior of matching on an empty query
+    ///
+    /// This method get the value of `empty_query_match_all`, that regulate the
+    /// behavior of the matching on an empty query. When `true`, an empty query returns
+    /// all the value, opposite of the standard behavior `false` that return nothing.
+    pub fn get_empty_query_match_all(&self) -> bool {
+        self.empty_query_match_all
+    }
+
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
@@ -182,7 +203,7 @@ impl QueryParser {
     /// in [Issue 5](https://github.com/fulmicoton/tantivy/issues/5)
     pub fn parse_query(&self, query: &str) -> Result<Box<Query>, QueryParserError> {
         let logical_ast = self.parse_query_to_logical_ast(query)?;
-        Ok(convert_to_query(logical_ast))
+        Ok(convert_to_query(logical_ast, self.empty_query_match_all))
     }
 
     /// Parse the user query into an AST.
@@ -456,12 +477,12 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
     }
 }
 
-fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
+fn convert_to_query(logical_ast: LogicalAST, should_match_all: bool) -> Box<Query> {
     match trim_ast(logical_ast) {
         Some(LogicalAST::Clause(trimmed_clause)) => {
             let occur_subqueries = trimmed_clause
                 .into_iter()
-                .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
+                .map(|(occur, subquery)| (occur, convert_to_query(subquery, should_match_all)))
                 .collect::<Vec<_>>();
             assert!(
                 !occur_subqueries.is_empty(),
@@ -472,7 +493,14 @@ fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
         Some(LogicalAST::Leaf(trimmed_logical_literal)) => {
             convert_literal_to_query(*trimmed_logical_literal)
         }
-        None => Box::new(EmptyQuery),
+        None => {
+            if should_match_all {
+                Box::new(AllQuery)
+            } else {
+                Box::new(EmptyQuery)
+
+            }
+        },
     }
 }
 
@@ -586,6 +614,23 @@ mod test {
         test_parse_query_to_logical_ast_helper("", "<emptyclause>", false);
         test_parse_query_to_logical_ast_helper(" ", "<emptyclause>", false);
         let query_parser = make_query_parser();
+        let query_result = query_parser.parse_query("");
+        let query = query_result.unwrap();
+        assert_eq!(format!("{:?}", query), "EmptyQuery");
+    }
+
+    #[test]
+    pub fn test_parse_query_empty_match_all() {
+        test_parse_query_to_logical_ast_helper("", "<emptyclause>", false);
+        test_parse_query_to_logical_ast_helper(" ", "<emptyclause>", false);
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+        let query_result = query_parser.parse_query("");
+        let query = query_result.unwrap();
+        assert_eq!(format!("{:?}", query), "AllQuery");
+
+        // reset of the flag
+        query_parser.set_empty_query_match_all(false);
         let query_result = query_parser.parse_query("");
         let query = query_result.unwrap();
         assert_eq!(format!("{:?}", query), "EmptyQuery");
