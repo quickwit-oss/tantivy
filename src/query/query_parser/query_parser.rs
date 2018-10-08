@@ -182,15 +182,6 @@ impl QueryParser {
         self.empty_query_match_all = should_match_all;
     }
 
-    /// Get the current behavior of matching on an empty query
-    ///
-    /// This method get the value of `empty_query_match_all`, that regulate the
-    /// behavior of the matching on an empty query. When `true`, an empty query returns
-    /// all the value, opposite of the standard behavior `false` that return nothing.
-    pub fn get_empty_query_match_all(&self) -> bool {
-        self.empty_query_match_all
-    }
-
     /// Parse a query
     ///
     /// Note that `parse_query` returns an error if the input
@@ -570,6 +561,19 @@ mod test {
     pub fn test_parse_query_simple() {
         let query_parser = make_query_parser();
         assert!(query_parser.parse_query("toto").is_ok());
+    }
+
+    #[test]
+    pub fn test_parse_query_empty_match_all_field_default() {
+        let query_parser = make_query_parser();
+        assert_eq!(query_parser.empty_query_match_all, false);
+    }
+
+    #[test]
+    pub fn test_parse_query_empty_match_all_field_setter() {
+        let mut query_parser = make_query_parser();
+        query_parser.set_empty_query_match_all(true);
+        assert_eq!(query_parser.empty_query_match_all, true);
     }
 
     #[test]
