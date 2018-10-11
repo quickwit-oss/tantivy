@@ -21,7 +21,7 @@
 
 **Tantivy** is a **full text search engine library** written in rust.
 
-It is closer to Lucene than to Elastic Search and Solr in the sense it is not
+It is closer to [Apache Lucene](https://lucene.apache.org/) than to [Elastic Search](https://www.elastic.co/products/elasticsearch) and [Apache Solr](https://lucene.apache.org/solr/) in the sense it is not
 an off-the-shelf search engine server, but rather a crate that can be used
 to build such a search engine.
 
