@@ -2,6 +2,7 @@
 Postings module (also called inverted index)
 */
 
+pub(crate) mod compression;
 /// Postings module
 ///
 /// Postings, also called inverted lists, is the key datastructure
@@ -11,14 +12,16 @@ mod postings_writer;
 mod recorder;
 mod segment_postings;
 mod serializer;
-mod term_info;
+mod skip;
 mod stacker;
-
+mod term_info;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
 
+use self::compression::COMPRESSION_BLOCK_SIZE;
 pub use self::postings::Postings;
+pub(crate) use self::skip::SkipReader;
 pub use self::term_info::TermInfo;
 
 pub use self::segment_postings::{BlockSegmentPostings, SegmentPostings};
@@ -27,9 +30,12 @@ pub(crate) use self::stacker::compute_table_size;
 
 pub use common::HasLen;
 
+pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
+
 pub(crate) type UnorderedTermId = u64;
 
-#[allow(enum_variant_names)]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
+#[derive(Debug, PartialEq, Clone, Copy, Eq)]
 pub(crate) enum FreqReadingOption {
     NoFreq,
     SkipFreq,
@@ -328,7 +334,6 @@ pub mod tests {
                 assert!(index_writer.commit().is_ok());
             }
             index.load_searchers().unwrap();
-
             index
         };
         let searcher = index.searcher();
@@ -497,8 +502,8 @@ pub mod tests {
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
 
-            let seed: &[u32; 4] = &[1, 2, 3, 4];
-            let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
+            let seed: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
+            let mut rng: XorShiftRng = XorShiftRng::from_seed(seed);
 
             let index = Index::create_in_ram(schema);
             let posting_list_size = 1_000_000;
@@ -506,18 +511,16 @@ pub mod tests {
                 let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
                 for _ in 0..posting_list_size {
                     let mut doc = Document::default();
-                    if rng.gen_weighted_bool(15) {
+                    if rng.gen_bool(1f64 / 15f64) {
                         doc.add_text(text_field, "a");
                     }
-                    if rng.gen_weighted_bool(10) {
+                    if rng.gen_bool(1f64 / 10f64) {
                         doc.add_text(text_field, "b");
                     }
-                    if rng.gen_weighted_bool(5) {
+                    if rng.gen_bool(1f64 / 5f64) {
                         doc.add_text(text_field, "c");
                     }
-                    if rng.gen_weighted_bool(1) {
-                        doc.add_text(text_field, "d");
-                    }
+                    doc.add_text(text_field, "d");
                     index_writer.add_document(doc);
                 }
                 assert!(index_writer.commit().is_ok());

@@ -29,7 +29,7 @@ where
     W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
-    pub fn new(w: W, _field_type: FieldType) -> io::Result<Self> {
+    pub fn new(w: W, _field_type: &FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
             fst_builder,
@@ -77,7 +77,8 @@ where
         let mut file = self.fst_builder.into_inner().map_err(convert_fst_error)?;
         {
             let mut counting_writer = CountingWriter::wrap(&mut file);
-            self.term_info_store_writer.serialize(&mut counting_writer)?;
+            self.term_info_store_writer
+                .serialize(&mut counting_writer)?;
             let footer_size = counting_writer.written_bytes();
             (footer_size as u64).serialize(&mut counting_writer)?;
             counting_writer.flush()?;
@@ -112,7 +113,7 @@ pub struct TermDictionary {
 
 impl TermDictionary {
     /// Opens a `TermDictionary` given a data source.
-    pub fn from_source(source: ReadOnlySource) -> Self {
+    pub fn from_source(source: &ReadOnlySource) -> Self {
         let total_len = source.len();
         let length_offset = total_len - 8;
         let mut split_len_buffer: &[u8] = &source.as_slice()[length_offset..];
@@ -129,14 +130,14 @@ impl TermDictionary {
     }
 
     /// Creates an empty term dictionary which contains no terms.
-    pub fn empty(field_type: FieldType) -> Self {
+    pub fn empty(field_type: &FieldType) -> Self {
         let term_dictionary_data: Vec<u8> =
-            TermDictionaryBuilder::new(Vec::<u8>::new(), field_type)
+            TermDictionaryBuilder::new(Vec::<u8>::new(), &field_type)
                 .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");
         let source = ReadOnlySource::from(term_dictionary_data);
-        Self::from_source(source)
+        Self::from_source(&source)
     }
 
     /// Returns the number of terms in the dictionary.
@@ -164,7 +165,8 @@ impl TermDictionary {
         let fst = self.fst_index.as_fst();
         let mut node = fst.root();
         while ord != 0 || !node.is_final() {
-            if let Some(transition) = node.transitions()
+            if let Some(transition) = node
+                .transitions()
                 .take_while(|transition| transition.out.value() <= ord)
                 .last()
             {
@@ -192,12 +194,12 @@ impl TermDictionary {
 
     /// Returns a range builder, to stream all of the terms
     /// within an interval.
-    pub fn range<'a>(&'a self) -> TermStreamerBuilder<'a> {
+    pub fn range(&self) -> TermStreamerBuilder {
         TermStreamerBuilder::new(self, self.fst_index.range())
     }
 
     /// A stream of all the sorted terms. [See also `.stream_field()`](#method.stream_field)
-    pub fn stream<'a>(&'a self) -> TermStreamer<'a> {
+    pub fn stream(&self) -> TermStreamer {
         self.range().into_stream()
     }
 

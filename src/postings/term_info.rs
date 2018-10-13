@@ -10,9 +10,7 @@ pub struct TermInfo {
     /// Start offset within the postings (`.idx`) file.
     pub postings_offset: u64,
     /// Start offset of the first block within the position (`.pos`) file.
-    pub positions_offset: u64,
-    /// Start offset within this position block.
-    pub positions_inner_offset: u8,
+    pub positions_idx: u64,
 }
 
 impl FixedSize for TermInfo {
@@ -20,27 +18,25 @@ impl FixedSize for TermInfo {
     /// This is large, but in practise, `TermInfo` are encoded in blocks and
     /// only the first `TermInfo` of a block is serialized uncompressed.
     /// The subsequent `TermInfo` are delta encoded and bitpacked.
-    const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES + u8::SIZE_IN_BYTES;
+    const SIZE_IN_BYTES: usize = u32::SIZE_IN_BYTES + 2 * u64::SIZE_IN_BYTES;
 }
 
 impl BinarySerializable for TermInfo {
     fn serialize<W: io::Write>(&self, writer: &mut W) -> io::Result<()> {
         self.doc_freq.serialize(writer)?;
         self.postings_offset.serialize(writer)?;
-        self.positions_offset.serialize(writer)?;
-        self.positions_inner_offset.serialize(writer)
+        self.positions_idx.serialize(writer)?;
+        Ok(())
     }
 
     fn deserialize<R: io::Read>(reader: &mut R) -> io::Result<Self> {
         let doc_freq = u32::deserialize(reader)?;
         let postings_offset = u64::deserialize(reader)?;
-        let positions_offset = u64::deserialize(reader)?;
-        let positions_inner_offset = u8::deserialize(reader)?;
+        let positions_idx = u64::deserialize(reader)?;
         Ok(TermInfo {
             doc_freq,
             postings_offset,
-            positions_offset,
-            positions_inner_offset,
+            positions_idx,
         })
     }
 }

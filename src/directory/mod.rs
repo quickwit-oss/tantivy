@@ -18,15 +18,14 @@ pub mod error;
 
 use std::io::{BufWriter, Seek, Write};
 
-pub use self::directory::Directory;
+pub use self::directory::{Directory, DirectoryClone};
 pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 
-pub(crate) use self::managed_directory::{FileProtection, ManagedDirectory};
-pub(crate) use self::read_only_source::SourceRead;
+pub(crate) use self::managed_directory::ManagedDirectory;
 
 /// Synonym of Seek + Write
 pub trait SeekableWrite: Seek + Write {}

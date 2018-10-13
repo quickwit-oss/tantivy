@@ -1,7 +1,7 @@
-use super::{MemoryArena, Addr};
+use super::{Addr, MemoryArena};
 
-use std::mem;
 use common::is_power_of_2;
+use std::mem;
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 
@@ -57,7 +57,6 @@ pub struct ExpUnrolledLinkedList {
 }
 
 impl ExpUnrolledLinkedList {
-
     pub fn new(heap: &mut MemoryArena) -> ExpUnrolledLinkedList {
         let addr = heap.allocate_space((FIRST_BLOCK as usize) * mem::size_of::<u32>());
         ExpUnrolledLinkedList {
@@ -87,18 +86,19 @@ impl ExpUnrolledLinkedList {
             // to the future next block.
             let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
-            unsafe { // logic
+            unsafe {
+                // logic
                 heap.write(self.tail, new_block_addr)
             };
             self.tail = new_block_addr;
         }
-        unsafe { // logic
+        unsafe {
+            // logic
             heap.write(self.tail, val);
             self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
         }
     }
 }
-
 
 pub struct ExpUnrolledLinkedListIterator<'a> {
     heap: &'a MemoryArena,
@@ -115,16 +115,17 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
             None
         } else {
             self.consumed += 1;
-            let addr: Addr =
-                if jump_needed(self.consumed).is_some() {
-                    unsafe { // logic
-                        self.heap.read(self.addr)
-                    }
-                } else {
-                    self.addr
-                };
+            let addr: Addr = if jump_needed(self.consumed).is_some() {
+                unsafe {
+                    // logic
+                    self.heap.read(self.addr)
+                }
+            } else {
+                self.addr
+            };
             self.addr = addr.offset(mem::size_of::<u32>() as u32);
-            Some(unsafe { // logic
+            Some(unsafe {
+                // logic
                 self.heap.read(addr)
             })
         }
@@ -134,8 +135,8 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
 #[cfg(test)]
 mod tests {
 
-    use super::jump_needed;
     use super::super::MemoryArena;
+    use super::jump_needed;
     use super::*;
 
     #[test]
@@ -171,18 +172,14 @@ mod tests {
     }
 }
 
-
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::ExpUnrolledLinkedList;
-    use test::Bencher;
     use tantivy_memory_arena::MemoryArena;
+    use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
-
-
-
 
     #[bench]
     fn bench_push_vec(bench: &mut Bencher) {

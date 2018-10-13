@@ -100,8 +100,7 @@ impl InnerDirectory {
                 );
                 let io_err = make_io_err(msg);
                 OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|readable_map| {
+            }).and_then(|readable_map| {
                 readable_map
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
@@ -121,8 +120,7 @@ impl InnerDirectory {
                 );
                 let io_err = make_io_err(msg);
                 DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|mut writable_map| match writable_map.remove(path) {
+            }).and_then(|mut writable_map| match writable_map.remove(path) {
                 Some(_) => Ok(()),
                 None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
             })
@@ -170,10 +168,10 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
 
-        let exists = self.fs
+        let exists = self
+            .fs
             .write(path_buf.clone(), &Vec::new())
             .map_err(|err| IOError::with_path(path.to_owned(), err))?;
-
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
@@ -196,15 +194,15 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
+        fail_point!("RAMDirectory::atomic_write", |msg| Err(io::Error::new(
+            io::ErrorKind::Other,
+            msg.unwrap_or("Undefined".to_string())
+        )));
         let path_buf = PathBuf::from(path);
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
         self.fs.write(path_buf, &Vec::new())?;
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         Ok(())
-    }
-
-    fn box_clone(&self) -> Box<Directory> {
-        Box::new(self.clone())
     }
 }

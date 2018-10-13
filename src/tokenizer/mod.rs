@@ -130,7 +130,6 @@
 //!
 mod alphanum_only;
 mod facet_tokenizer;
-mod japanese_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
 mod raw_tokenizer;
@@ -144,7 +143,6 @@ mod tokenizer_manager;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
-pub use self::japanese_tokenizer::JapaneseTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
@@ -153,7 +151,9 @@ pub use self::simple_tokenizer::SimpleTokenizer;
 pub use self::stemmer::Stemmer;
 pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
+pub(crate) use self::tokenizer::box_tokenizer;
 pub use self::tokenizer::BoxedTokenizer;
+
 pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer_manager::TokenizerManager;
 
@@ -222,28 +222,6 @@ pub mod test {
         assert_token(&tokens[1], 1, "happi", 7, 12);
         assert_token(&tokens[2], 2, "tax", 13, 16);
         assert_token(&tokens[3], 3, "payer", 17, 22);
-    }
-
-    #[test]
-    fn test_jp_tokenizer() {
-        let tokenizer_manager = TokenizerManager::default();
-        let en_tokenizer = tokenizer_manager.get("ja").unwrap();
-
-        let mut tokens: Vec<Token> = vec![];
-        {
-            let mut add_token = |token: &Token| {
-                tokens.push(token.clone());
-            };
-            en_tokenizer
-                .token_stream("野菜食べないとやばい!")
-                .process(&mut add_token);
-        }
-        assert_eq!(tokens.len(), 5);
-        assert_token(&tokens[0], 0, "野菜", 0, 6);
-        assert_token(&tokens[1], 1, "食べ", 6, 12);
-        assert_token(&tokens[2], 2, "ない", 12, 18);
-        assert_token(&tokens[3], 3, "と", 18, 21);
-        assert_token(&tokens[4], 4, "やばい", 21, 30);
     }
 
     #[test]

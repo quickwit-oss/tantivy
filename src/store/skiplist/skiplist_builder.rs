@@ -33,7 +33,7 @@ impl<T: BinarySerializable> LayerBuilder<T> {
     fn insert(&mut self, key: u64, value: &T) -> io::Result<Option<(u64, u64)>> {
         self.len += 1;
         let offset = self.written_size() as u64;
-        VInt(key).serialize(&mut self.buffer)?;
+        VInt(key).serialize_into_vec(&mut self.buffer);
         value.serialize(&mut self.buffer)?;
         let emit_skip_info = (self.period_mask & self.len) == 0;
         if emit_skip_info {
@@ -72,7 +72,8 @@ impl<T: BinarySerializable> SkipListBuilder<T> {
         let mut skip_pointer = self.data_layer.insert(key, dest)?;
         loop {
             skip_pointer = match skip_pointer {
-                Some((skip_doc_id, skip_offset)) => self.get_skip_layer(layer_id)
+                Some((skip_doc_id, skip_offset)) => self
+                    .get_skip_layer(layer_id)
                     .insert(skip_doc_id, &skip_offset)?,
                 None => {
                     return Ok(());

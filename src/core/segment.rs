@@ -4,7 +4,7 @@ use core::SegmentId;
 use core::SegmentMeta;
 use directory::error::{OpenReadError, OpenWriteError};
 use directory::Directory;
-use directory::{FileProtection, ReadOnlySource, WritePtr};
+use directory::{ReadOnlySource, WritePtr};
 use indexer::segment_serializer::SegmentSerializer;
 use schema::Schema;
 use std::fmt;
@@ -28,6 +28,7 @@ impl fmt::Debug for Segment {
 /// Creates a new segment given an `Index` and a `SegmentId`
 ///
 /// The function is here to make it private outside `tantivy`.
+/// #[doc(hidden)]
 pub fn create_segment(index: Index, meta: SegmentMeta) -> Segment {
     Segment { index, meta }
 }
@@ -49,8 +50,11 @@ impl Segment {
     }
 
     #[doc(hidden)]
-    pub fn set_delete_meta(&mut self, num_deleted_docs: u32, opstamp: u64) {
-        self.meta.set_delete_meta(num_deleted_docs, opstamp);
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> Segment {
+        Segment {
+            index: self.index,
+            meta: self.meta.with_delete_meta(num_deleted_docs, opstamp),
+        }
     }
 
     /// Returns the segment's id.
@@ -64,16 +68,6 @@ impl Segment {
     /// associated to a segment component.
     pub fn relative_path(&self, component: SegmentComponent) -> PathBuf {
         self.meta.relative_path(component)
-    }
-
-    /// Protects a specific component file from being deleted.
-    ///
-    /// Returns a FileProtection object. The file is guaranteed
-    /// to not be garbage collected as long as this `FileProtection`  object
-    /// lives.
-    pub fn protect_from_delete(&self, component: SegmentComponent) -> FileProtection {
-        let path = self.relative_path(component);
-        self.index.directory().protect_file_from_delete(&path)
     }
 
     /// Open one of the component file for a *regular* read.
@@ -104,36 +98,4 @@ pub trait SerializableSegment {
     /// # Returns
     /// The number of documents in the segment.
     fn write(&self, serializer: SegmentSerializer) -> Result<u32>;
-}
-
-#[cfg(test)]
-mod tests {
-
-    use core::SegmentComponent;
-    use directory::Directory;
-    use schema::SchemaBuilder;
-    use std::collections::HashSet;
-    use Index;
-
-    #[test]
-    fn test_segment_protect_component() {
-        let mut index = Index::create_in_ram(SchemaBuilder::new().build());
-        let segment = index.new_segment();
-        let path = segment.relative_path(SegmentComponent::POSTINGS);
-
-        let directory = index.directory_mut();
-        directory.atomic_write(&*path, &vec![0u8]).unwrap();
-
-        let living_files = HashSet::new();
-        {
-            let _file_protection = segment.protect_from_delete(SegmentComponent::POSTINGS);
-            assert!(directory.exists(&*path));
-            directory.garbage_collect(|| living_files.clone());
-            assert!(directory.exists(&*path));
-        }
-
-        directory.garbage_collect(|| living_files);
-        assert!(!directory.exists(&*path));
-    }
-
 }

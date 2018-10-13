@@ -4,6 +4,7 @@ const M: u32 = 0x5bd1_e995;
 
 #[inline(always)]
 pub fn murmurhash2(key: &[u8]) -> u32 {
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
     let mut key_ptr: *const u32 = key.as_ptr() as *const u32;
     let len = key.len() as u32;
     let mut h: u32 = SEED ^ len;
@@ -44,14 +45,11 @@ pub fn murmurhash2(key: &[u8]) -> u32 {
     h ^ (h >> 15)
 }
 
-
-
 #[cfg(test)]
 mod test {
 
     use super::murmurhash2;
     use std::collections::HashSet;
-
 
     #[test]
     fn test_murmur() {

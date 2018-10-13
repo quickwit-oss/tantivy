@@ -10,7 +10,7 @@ lazy_static! {
         let mut lev_builder_cache = HashMap::new();
         // TODO make population lazy on a `(distance, val)` basis
         for distance in 0..3 {
-            for &transposition in [false, true].iter() {
+            for &transposition in &[false, true] {
                 let lev_automaton_builder = LevenshteinAutomatonBuilder::new(distance, transposition);
                 lev_builder_cache.insert((distance, transposition), lev_automaton_builder);
             }
@@ -153,7 +153,7 @@ mod test {
 
             let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
             searcher.search(&fuzzy_query, &mut collector).unwrap();
-            let scored_docs = collector.score_docs();
+            let scored_docs = collector.top_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);

@@ -11,7 +11,6 @@ use schema::SchemaBuilder;
 use schema::FAST;
 use std::collections::HashMap;
 use std::marker::PhantomData;
-use std::mem;
 use std::path::Path;
 use DocId;
 
@@ -80,7 +79,8 @@ impl<Item: FastValue> FastFieldReader<Item> {
     // TODO change start to `u64`.
     // For multifastfield, start is an index in a second fastfield, not a `DocId`
     pub fn get_range(&self, start: u32, output: &mut [Item]) {
-        let output_u64: &mut [u64] = unsafe { mem::transmute(output) }; // ok: Item is either `u64` or `i64`
+        // ok: Item is either `u64` or `i64`
+        let output_u64: &mut [u64] = unsafe { &mut *(output as *mut [Item] as *mut [u64]) };
         self.bit_unpacker.get_range(start, output_u64);
         for out in output_u64.iter_mut() {
             *out = Item::from_u64(*out + self.min_value_u64).as_u64();

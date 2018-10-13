@@ -2,9 +2,11 @@ use super::Weight;
 use collector::Collector;
 use core::searcher::Searcher;
 use downcast;
+use std::collections::BTreeSet;
 use std::fmt;
 use Result;
 use SegmentLocalId;
+use Term;
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -57,6 +59,10 @@ pub trait Query: QueryClone + downcast::Any + fmt::Debug {
         }
         Ok(result)
     }
+
+    /// Extract all of the terms associated to the query and insert them in the
+    /// term set given in arguments.
+    fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
 
     /// Search works as follows :
     ///

@@ -43,10 +43,11 @@ impl Default for TextOptions {
 }
 
 /// Configuration defining indexing for a text field.
-/// It wraps:
 ///
-/// * record (See [`IndexRecordOption`](./enum.IndexRecordOption.html))
-/// * tokenizer
+/// It defines
+/// - the amount of information that should be stored about the presence of a term in a document.
+/// Essentially, should we store the term frequency and/or the positions (See [`IndexRecordOption`](./enum.IndexRecordOption.html)).
+/// - the name of the `Tokenizer` that should be used to process the field.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct TextFieldIndexing {
     record: IndexRecordOption,

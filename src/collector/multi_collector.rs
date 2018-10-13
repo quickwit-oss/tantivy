@@ -100,11 +100,11 @@ impl<'a> Collector for MultiCollector<'a> {
 mod tests {
 
     use super::*;
-    use collector::{Collector, CountCollector, TopCollector};
+    use collector::{Collector, CountCollector, TopScoreCollector};
 
     #[test]
     fn test_multi_collector() {
-        let mut top_collector = TopCollector::with_limit(2);
+        let mut top_collector = TopScoreCollector::with_limit(2);
         let mut count_collector = CountCollector::default();
         {
             let mut collectors =
