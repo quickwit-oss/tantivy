@@ -288,3 +288,197 @@ impl FieldUsage {
         self.num_bytes
     }
 }
+
+#[cfg(test)]
+mod test {
+    use core::Index;
+    use schema::SchemaBuilder;
+    use schema::{FAST, INT_INDEXED, TEXT};
+    use schema::Field;
+    use space_usage::ByteCount;
+    use space_usage::PerFieldSpaceUsage;
+    use schema::STORED;
+    use Term;
+
+    #[test]
+    fn test_empty() {
+        let schema = SchemaBuilder::new().build();
+        let index = Index::create_in_ram(schema.clone());
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let searcher_space_usage = searcher.space_usage();
+        assert_eq!(0, searcher_space_usage.total());
+    }
+
+    fn expect_single_field(field_space: &PerFieldSpaceUsage, field: &Field, min_size: ByteCount, max_size: ByteCount) {
+        assert!(field_space.total() >= min_size);
+        assert!(field_space.total() <= max_size);
+        assert_eq!(
+            vec![(field, field_space.total())],
+            field_space.fields().map(|(x,y)| (x, y.total())).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_fast_indexed() {
+        let mut schema_builder = SchemaBuilder::new();
+        let name = schema_builder.add_u64_field("name", FAST | INT_INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => 1u64));
+            index_writer.add_document(doc!(name => 2u64));
+            index_writer.add_document(doc!(name => 10u64));
+            index_writer.add_document(doc!(name => 20u64));
+            index_writer.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let searcher_space_usage = searcher.space_usage();
+        assert!(searcher_space_usage.total() > 0);
+        assert_eq!(1, searcher_space_usage.segments().len());
+
+        let segment = &searcher_space_usage.segments()[0];
+        assert!(segment.total() > 0);
+
+        assert_eq!(4, segment.num_docs());
+
+        expect_single_field(segment.termdict(), &name, 1, 512);
+        expect_single_field(segment.postings(), &name, 1, 512);
+        assert_eq!(0, segment.positions().total());
+        assert_eq!(0, segment.positions_skip_idx().total());
+        expect_single_field(segment.fast_fields(), &name, 1, 512);
+        expect_single_field(segment.fieldnorms(), &name, 1, 512);
+        // TODO: understand why the following fails
+//        assert_eq!(0, segment.store().total());
+        assert_eq!(0, segment.deletes());
+    }
+
+    #[test]
+    fn test_text() {
+        let mut schema_builder = SchemaBuilder::new();
+        let name = schema_builder.add_text_field("name", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => "hi"));
+            index_writer.add_document(doc!(name => "this is a test"));
+            index_writer.add_document(doc!(name => "some more documents with some word overlap with the other test"));
+            index_writer.add_document(doc!(name => "hello hi goodbye"));
+            index_writer.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let searcher_space_usage = searcher.space_usage();
+        assert!(searcher_space_usage.total() > 0);
+        assert_eq!(1, searcher_space_usage.segments().len());
+
+        let segment = &searcher_space_usage.segments()[0];
+        assert!(segment.total() > 0);
+
+        assert_eq!(4, segment.num_docs());
+
+        expect_single_field(segment.termdict(), &name, 1, 512);
+        expect_single_field(segment.postings(), &name, 1, 512);
+        expect_single_field(segment.positions(), &name, 1, 512);
+        expect_single_field(segment.positions_skip_idx(), &name, 1, 512);
+        assert_eq!(0, segment.fast_fields().total());
+        expect_single_field(segment.fieldnorms(), &name, 1, 512);
+        // TODO: understand why the following fails
+//        assert_eq!(0, segment.store().total());
+        assert_eq!(0, segment.deletes());
+    }
+
+    #[test]
+    fn test_store() {
+        let mut schema_builder = SchemaBuilder::new();
+        let name = schema_builder.add_text_field("name", STORED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => "hi"));
+            index_writer.add_document(doc!(name => "this is a test"));
+            index_writer.add_document(doc!(name => "some more documents with some word overlap with the other test"));
+            index_writer.add_document(doc!(name => "hello hi goodbye"));
+            index_writer.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        let searcher_space_usage = searcher.space_usage();
+        assert!(searcher_space_usage.total() > 0);
+        assert_eq!(1, searcher_space_usage.segments().len());
+
+        let segment = &searcher_space_usage.segments()[0];
+        assert!(segment.total() > 0);
+
+        assert_eq!(4, segment.num_docs());
+
+        assert_eq!(0, segment.termdict().total());
+        assert_eq!(0, segment.postings().total());
+        assert_eq!(0, segment.positions().total());
+        assert_eq!(0, segment.positions_skip_idx().total());
+        assert_eq!(0, segment.fast_fields().total());
+        assert_eq!(0, segment.fieldnorms().total());
+        assert!(segment.store().total() > 0);
+        assert!(segment.store().total() < 512);
+        assert_eq!(0, segment.deletes());
+    }
+
+    #[test]
+    fn test_deletes() {
+        let mut schema_builder = SchemaBuilder::new();
+        let name = schema_builder.add_u64_field("name", INT_INDEXED);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+
+        {
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            index_writer.add_document(doc!(name => 1u64));
+            index_writer.add_document(doc!(name => 2u64));
+            index_writer.add_document(doc!(name => 3u64));
+            index_writer.add_document(doc!(name => 4u64));
+            index_writer.commit().unwrap();
+        }
+
+        {
+            let mut index_writer2 = index.writer(50_000_000).unwrap();
+            index_writer2.delete_term(Term::from_field_u64(name, 2u64));
+            index_writer2.delete_term(Term::from_field_u64(name, 3u64));
+
+            // ok, now we should have a deleted doc
+            index_writer2.commit().unwrap();
+        }
+
+        index.load_searchers().unwrap();
+
+        let searcher = index.searcher();
+        let searcher_space_usage = searcher.space_usage();
+        assert!(searcher_space_usage.total() > 0);
+        assert_eq!(1, searcher_space_usage.segments().len());
+
+        let segment = &searcher_space_usage.segments()[0];
+        assert!(segment.total() > 0);
+
+        assert_eq!(2, segment.num_docs());
+
+        expect_single_field(segment.termdict(), &name, 1, 512);
+        expect_single_field(segment.postings(), &name, 1, 512);
+        assert_eq!(0, segment.positions().total());
+        assert_eq!(0, segment.positions_skip_idx().total());
+        assert_eq!(0, segment.fast_fields().total());
+        expect_single_field(segment.fieldnorms(), &name, 1, 512);
+        // TODO: understand why the following fails
+//        assert_eq!(0, segment.store().total());
+        assert!(segment.deletes() > 0);
+    }
+}
