@@ -68,6 +68,7 @@ pub struct SegmentSpaceUsage {
     termdict: PerFieldSpaceUsage,
     postings: PerFieldSpaceUsage,
     positions: PerFieldSpaceUsage,
+    positions_idx: PerFieldSpaceUsage,
     fast_fields: PerFieldSpaceUsage,
     fieldnorms: PerFieldSpaceUsage,
 
@@ -84,6 +85,7 @@ impl SegmentSpaceUsage {
         termdict: PerFieldSpaceUsage,
         postings: PerFieldSpaceUsage,
         positions: PerFieldSpaceUsage,
+        positions_idx: PerFieldSpaceUsage,
         fast_fields: PerFieldSpaceUsage,
         fieldnorms: PerFieldSpaceUsage,
         store: StoreSpaceUsage,
@@ -101,6 +103,7 @@ impl SegmentSpaceUsage {
             termdict,
             postings,
             positions,
+            positions_idx,
             fast_fields,
             fieldnorms,
             store,
@@ -119,6 +122,7 @@ impl SegmentSpaceUsage {
         match component {
             POSTINGS => PerField(self.postings().clone()),
             POSITIONS => PerField(self.positions().clone()),
+            POSITIONSSKIP => PerField(self.positions_skip_idx().clone()),
             FASTFIELDS => PerField(self.fast_fields().clone()),
             FIELDNORMS => PerField(self.fieldnorms().clone()),
             TERMS => PerField(self.termdict().clone()),
@@ -145,6 +149,11 @@ impl SegmentSpaceUsage {
     /// Space usage for positions
     pub fn positions(&self) -> &PerFieldSpaceUsage {
         &self.positions
+    }
+
+    /// Space usage for positions skip idx
+    pub fn positions_skip_idx(&self) -> &PerFieldSpaceUsage {
+        &self.positions_idx
     }
 
     /// Space usage for fast fields

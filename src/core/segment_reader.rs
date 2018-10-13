@@ -390,6 +390,7 @@ impl SegmentReader {
             self.termdict_composite.space_usage(),
             self.postings_composite.space_usage(),
             self.positions_composite.space_usage(),
+            self.positions_idx_composite.space_usage(),
             self.fast_fields_composite.space_usage(),
             self.fieldnorms_composite.space_usage(),
             self.store_reader.space_usage(),
