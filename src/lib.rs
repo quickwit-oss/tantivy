@@ -213,6 +213,7 @@ pub(crate) mod positions;
 pub mod postings;
 pub mod query;
 pub mod schema;
+pub mod space_usage;
 pub mod store;
 pub mod termdict;
 

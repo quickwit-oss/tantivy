@@ -6,6 +6,7 @@ use common::BinarySerializable;
 use common::VInt;
 use directory::ReadOnlySource;
 use schema::Document;
+use space_usage::StoreSpaceUsage;
 use std::cell::RefCell;
 use std::io;
 use std::mem::size_of;
@@ -86,6 +87,11 @@ impl StoreReader {
         let doc_length = VInt::deserialize(&mut cursor)?.val() as usize;
         cursor = &cursor[..doc_length];
         Ok(Document::deserialize(&mut cursor)?)
+    }
+
+    /// Summarize total space usage of this store reader.
+    pub fn space_usage(&self) -> StoreSpaceUsage {
+        StoreSpaceUsage::new(self.data.len(), self.offset_index_source.len())
     }
 }
 

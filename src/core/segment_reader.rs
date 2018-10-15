@@ -16,6 +16,7 @@ use schema::Document;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
+use space_usage::SegmentSpaceUsage;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -380,6 +381,21 @@ impl SegmentReader {
     /// Returns an iterator that will iterate over the alive document ids
     pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator {
         SegmentReaderAliveDocsIterator::new(&self)
+    }
+
+    /// Summarize total space usage of this segment.
+    pub fn space_usage(&self) -> SegmentSpaceUsage {
+        SegmentSpaceUsage::new(
+            self.num_docs(),
+            self.termdict_composite.space_usage(),
+            self.postings_composite.space_usage(),
+            self.positions_composite.space_usage(),
+            self.positions_idx_composite.space_usage(),
+            self.fast_fields_composite.space_usage(),
+            self.fieldnorms_composite.space_usage(),
+            self.store_reader.space_usage(),
+            self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(0),
+        )
     }
 }
 
