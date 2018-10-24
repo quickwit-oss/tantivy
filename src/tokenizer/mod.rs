@@ -309,11 +309,11 @@ pub mod test {
         assert_token(&tokens[1], 0, "hε", 0, 3);
         assert_token(&tokens[2], 1, "ε", 1, 3);
         assert_token(&tokens[3], 1, "εl", 1, 4);
-        assert_token(&tokens[4], 2, "l", 3, 4);
-        assert_token(&tokens[5], 2, "ll", 3, 5);
-        assert_token(&tokens[6], 3, "l", 4, 5);
-        assert_token(&tokens[7], 3, "lo", 4, 6);
-        assert_token(&tokens[8], 4, "o", 5, 6);
+        assert_token(&tokens[4], 3, "l", 3, 4);
+        assert_token(&tokens[5], 3, "ll", 3, 5);
+        assert_token(&tokens[6], 4, "l", 4, 5);
+        assert_token(&tokens[7], 4, "lo", 4, 6);
+        assert_token(&tokens[8], 5, "o", 5, 6);
 
         let tokenizer = NgramTokenizer::new(2, 5, true);
         let mut tokens: Vec<Token> = vec![];
