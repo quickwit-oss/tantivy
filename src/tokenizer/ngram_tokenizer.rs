@@ -119,15 +119,15 @@ impl NgramTokenizer {
     }
 }
 
-
+/// TokenStream associate to the `NgramTokenizer`
 pub struct NgramTokenStream<'a> {
-    // parameters
+    /// parameters
     ngram_charidx_iterator: StutteringIterator<CodepointFrontiers<'a>>,
-    // true if the NgramTokenStream is in prefix mode.
+    /// true if the NgramTokenStream is in prefix mode.
     prefix_only: bool,
-    // input
+    /// input
     text: &'a str,
-    // output
+    /// output
     token: Token,
 }
 
@@ -135,10 +135,9 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
     type TokenStreamImpl = NgramTokenStream<'a>;
 
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
-        let char_limit_it = CodepointFrontiers::for_str(text);
         NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
-                char_limit_it,
+                    CodepointFrontiers::for_str(text),
                 self.min_gram,
                 self.max_gram),
             prefix_only: self.prefix_only,
@@ -182,7 +181,7 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
 /// The elements are emitted in the order of appearance
 /// of `a` first, `b` then.
 ///
-/// See test_stutterring_iterator for an example of its
+/// See `test_stutterring_iterator` for an example of its
 /// output.
 struct StutteringIterator<T> {
     underlying: T,
@@ -194,17 +193,20 @@ struct StutteringIterator<T> {
     gram_len: usize
 }
 
-impl<T> StutteringIterator<T> where T: Iterator<Item=usize> {
+impl<T> StutteringIterator<T>
+    where T: Iterator<Item=usize> {
     pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
+        assert!(min_gram > 0);
         let memory: Vec<usize> = (&mut underlying).take(max_gram + 1).collect();
-        if memory.len() < min_gram {
+        if memory.len() <= min_gram {
+            // returns an empty iterator
             StutteringIterator {
                 underlying,
                 min_gram: 1,
                 max_gram: 0,
                 memory,
                 cursor: 0,
-                gram_len: min_gram,
+                gram_len: 0,
             }
         } else {
             StutteringIterator {
@@ -216,7 +218,6 @@ impl<T> StutteringIterator<T> where T: Iterator<Item=usize> {
                 gram_len: min_gram,
             }
         }
-
     }
 }
 
@@ -225,45 +226,48 @@ impl<T> Iterator for StutteringIterator<T>
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<(usize, usize)> {
-        if self.max_gram >= self.min_gram {
-            if self.gram_len <= self.max_gram {
-                let start = self.memory[self.cursor % self.memory.len()];
-                let stop = self.memory[(self.cursor + self.gram_len) % self.memory.len()];
-                self.gram_len += 1;
-                Some((start, stop))
+        if self.gram_len > self.max_gram {
+            // we have exhausted all options
+            // starting at `self.memory[self.cursor]`.
+            //
+            // Time to advance. 
+            self.gram_len = self.min_gram;
+            if let Some(next_val) = self.underlying.next() {
+                self.memory[self.cursor] = next_val;
             } else {
-                self.gram_len = self.min_gram;
-                if let Some(next_val) = self.underlying.next() {
-                    self.memory[self.cursor] = next_val;
-                } else {
-                    self.max_gram -= 1;
-                }
-                self.cursor = (self.cursor + 1) % self.memory.len();
-                self.next()
+                self.max_gram -= 1;
             }
-        } else {
-            None
+            self.cursor += 1;
+            if self.cursor >= self.memory.len() {
+                self.cursor = 0;
+            }
         }
+        if self.max_gram < self.min_gram {
+            return None;
+        }
+        let start = self.memory[self.cursor % self.memory.len()];
+        let stop = self.memory[(self.cursor + self.gram_len) % self.memory.len()];
+        self.gram_len += 1;
+        Some((start, stop))
     }
 }
 
+
+
+/// Emits all of the offsets where a codepoint starts
+/// or a codepoint ends.
+///
+/// By convention, we emit [0] for the empty string.
 struct CodepointFrontiers<'a> {
-    len: Option<usize>,
-    offsets: std::str::CharIndices<'a>
+    s: &'a str,
+    next_el: Option<usize>
 }
 
 impl<'a> CodepointFrontiers<'a> {
     fn for_str(s: &'a str) -> Self {
-        if s.is_empty() {
-            CodepointFrontiers {
-                len: None,
-                offsets: s.char_indices(),
-            }
-        } else {
-            CodepointFrontiers {
-                len: Some(s.len()),
-                offsets: s.char_indices()
-            }
+        CodepointFrontiers {
+            s,
+            next_el: Some(0)
         }
     }
 }
@@ -272,13 +276,26 @@ impl<'a> Iterator for CodepointFrontiers<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        self.offsets.next()
-            .map(|(offset,_)| offset)
-            .or_else(|| self.len.take())
+        if let Some(offset) = self.next_el {
+            if self.s.is_empty() {
+                self.next_el = None;
+            } else {
+                let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
+                self.next_el = Some(offset + first_codepoint_width);
+                self.s = &self.s[first_codepoint_width..];
+            }
+            Some(offset)
+        } else {
+            None
+        }
     }
 }
 
-
+fn utf8_codepoint_width(b: u8) -> usize {
+    const MAGIC_TABLE: u32 = 3847553024u32;
+    let idx = (b >> 3) & 30;
+    ((MAGIC_TABLE >> idx) & 3) as usize + 1
+}
 
 #[cfg(test)]
 mod tests {
@@ -287,12 +304,49 @@ mod tests {
     use super::NgramTokenizer;
     use tokenizer::Token;
     use tokenizer::tests::assert_token;
+    use super::CodepointFrontiers;
     use super::StutteringIterator;
+    use super::utf8_codepoint_width;
 
     fn test_helper<T: TokenStream>(mut tokenizer: T) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];
         tokenizer.process(&mut |token: &Token| tokens.push(token.clone()));
         tokens
+    }
+
+
+    #[test]
+    fn test_utf8_codepoint_width() {
+        // 0xxx
+        for i in 0..128 {
+            assert_eq!(utf8_codepoint_width(i), 1);
+        }
+        // 110xx
+        for i in (128 | 64)..(128 | 64 | 32) {
+            assert_eq!(utf8_codepoint_width(i), 2);
+        }
+        // 1110xx
+        for i in (128 | 64 | 32)..(128 | 64 | 32 | 16) {
+            assert_eq!(utf8_codepoint_width(i), 3);
+        }
+        // 1111xx
+        for i in (128 | 64 | 32 | 16)..256 {
+            assert_eq!(utf8_codepoint_width(i as u8), 4);
+        }
+    }
+
+
+    #[test]
+    fn test_codepoint_frontiers() {
+        assert_eq!(CodepointFrontiers::for_str("").collect::<Vec<_>>(), vec![0]);
+        assert_eq!(
+            CodepointFrontiers::for_str("abcd").collect::<Vec<_>>(),
+            vec![0,1,2,3,4]
+        );
+        assert_eq!(
+                CodepointFrontiers::for_str("aあ").collect::<Vec<_>>(),
+            vec![0,1,4]
+        );
     }
 
     #[test]
@@ -356,8 +410,10 @@ mod tests {
 
     #[test]
     fn test_ngram_empty() {
+        let tokens = test_helper(NgramTokenizer::all_ngrams(1, 5).token_stream(""));
+        assert!(tokens.is_empty());
         let tokens = test_helper(NgramTokenizer::all_ngrams(2, 5).token_stream(""));
-        assert_eq!(tokens.len(), 0);
+        assert!(tokens.is_empty());
     }
 
 
@@ -371,6 +427,14 @@ mod tests {
     #[should_panic(expected = "min_gram must not be greater than max_gram")]
     fn test_invalid_interval_should_panic_if_smaller() {
         NgramTokenizer::all_ngrams(2, 1);
+    }
+
+
+    #[test]
+    fn test_stutterring_iterator_empty() {
+        let rg: Vec<usize> = vec![0];
+        let mut it = StutteringIterator::new(rg.into_iter(), 1, 2);
+        assert_eq!(it.next(), None);
     }
 
     #[test]
@@ -395,7 +459,6 @@ mod tests {
         assert_eq!(it.next(), Some((7, 9)));
         assert_eq!(it.next(), Some((8, 9)));
         assert_eq!(it.next(), None);
-
     }
 
 }
