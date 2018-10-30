@@ -1,7 +1,7 @@
 use common::BitSet;
 use core::Searcher;
 use core::SegmentReader;
-use error::ErrorKind;
+use error::TantivyError;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Query, Scorer, Weight};
@@ -68,7 +68,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
 ///
 /// let mut count_collector = CountCollector::default();
-/// docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+/// docs_in_the_sixties.search(&searcher, &mut count_collector)?;
 ///
 /// let num_60s_books = count_collector.count();
 ///
@@ -96,8 +96,8 @@ impl RangeQuery {
     pub fn new_term_bounds(
         field: Field,
         value_type: Type,
-        left_bound: Bound<Term>,
-        right_bound: Bound<Term>,
+        left_bound: &Bound<Term>,
+        right_bound: &Bound<Term>,
     ) -> RangeQuery {
         let verify_and_unwrap_term = |val: &Term| {
             assert_eq!(field, val.field());
@@ -184,11 +184,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str_bounds<'b>(
-        field: Field,
-        left: Bound<&'b str>,
-        right: Bound<&'b str>,
-    ) -> RangeQuery {
+    pub fn new_str_bounds(field: Field, left: Bound<&str>, right: Bound<&str>) -> RangeQuery {
         let make_term_val = |val: &&str| val.as_bytes().to_vec();
         RangeQuery {
             field,
@@ -202,7 +198,7 @@ impl RangeQuery {
     ///
     /// If the field is not of the type `Str`, tantivy
     /// will panic when the `Weight` object is created.
-    pub fn new_str<'b>(field: Field, range: Range<&'b str>) -> RangeQuery {
+    pub fn new_str(field: Field, range: Range<&str>) -> RangeQuery {
         RangeQuery::new_str_bounds(
             field,
             Bound::Included(range.start),
@@ -239,7 +235,7 @@ impl Query for RangeQuery {
                 "Create a range query of the type {:?}, when the field given was of type {:?}",
                 self.value_type, value_type
             );
-            bail!(ErrorKind::SchemaError(err_msg))
+            return Err(TantivyError::SchemaError(err_msg));
         }
         Ok(Box::new(RangeWeight {
             field: self.field,
@@ -332,7 +328,7 @@ mod tests {
 
             // ... or `1960..=1969` if inclusive range is enabled.
             let mut count_collector = CountCollector::default();
-            docs_in_the_sixties.search(&*searcher, &mut count_collector)?;
+            docs_in_the_sixties.search(&searcher, &mut count_collector)?;
             assert_eq!(count_collector.count(), 2285);
             Ok(())
         }
@@ -369,9 +365,7 @@ mod tests {
         let searcher = index.searcher();
         let count_multiples = |range_query: RangeQuery| {
             let mut count_collector = CountCollector::default();
-            range_query
-                .search(&*searcher, &mut count_collector)
-                .unwrap();
+            range_query.search(&searcher, &mut count_collector).unwrap();
             count_collector.count()
         };
 

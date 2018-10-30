@@ -50,7 +50,7 @@ impl<'a> serde::Deserialize<'a> for SegmentMeta {
     {
         let inner = InnerSegmentMeta::deserialize(deserializer)?;
         let tracked = INVENTORY.track(inner);
-        Ok(SegmentMeta { tracked: tracked })
+        Ok(SegmentMeta { tracked })
     }
 }
 

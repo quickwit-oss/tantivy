@@ -10,7 +10,6 @@
 // - search for the best document matchings "sea whale"
 // - retrieve the best document original content.
 
-
 extern crate tempdir;
 
 // ---
@@ -231,13 +230,11 @@ fn main() -> tantivy::Result<()> {
     // a title.
 
     for doc_address in doc_addresses {
-        let retrieved_doc = searcher.doc(&doc_address)?;
+        let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }
 
-
     Ok(())
 }
-
 
 use tempdir::TempDir;

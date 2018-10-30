@@ -58,7 +58,7 @@ mod tests {
         };
         let index_metas = IndexMeta {
             segments: Vec::new(),
-            schema: schema,
+            schema,
             opstamp: 0u64,
             payload: None,
         };

@@ -6,6 +6,7 @@ use common::BinarySerializable;
 use common::VInt;
 use directory::ReadOnlySource;
 use schema::Document;
+use space_usage::StoreSpaceUsage;
 use std::cell::RefCell;
 use std::io;
 use std::mem::size_of;
@@ -87,9 +88,17 @@ impl StoreReader {
         cursor = &cursor[..doc_length];
         Ok(Document::deserialize(&mut cursor)?)
     }
+
+    /// Summarize total space usage of this store reader.
+    pub fn space_usage(&self) -> StoreSpaceUsage {
+        StoreSpaceUsage::new(self.data.len(), self.offset_index_source.len())
+    }
 }
 
-#[allow(needless_pass_by_value)]
+#[cfg_attr(
+    feature = "cargo-clippy",
+    allow(clippy::needless_pass_by_value)
+)]
 fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId) {
     let data_len = data.len();
     let footer_offset = data_len - size_of::<u64>() - size_of::<u32>();

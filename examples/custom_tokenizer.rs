@@ -3,7 +3,6 @@
 // In this example, we'll see how to define a tokenizer pipeline
 // by aligning a bunch of `TokenFilter`.
 
-
 #[macro_use]
 extern crate tantivy;
 use tantivy::collector::TopCollector;
@@ -11,7 +10,6 @@ use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::NgramTokenizer;
 use tantivy::Index;
-
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -111,7 +109,7 @@ fn main() -> tantivy::Result<()> {
 
     let doc_addresses = top_collector.docs();
     for doc_address in doc_addresses {
-        let retrieved_doc = searcher.doc(&doc_address)?;
+        let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }
 

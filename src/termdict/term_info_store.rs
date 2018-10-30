@@ -59,7 +59,6 @@ impl TermInfoBlockMeta {
     }
 
     fn deserialize_term_info(&self, data: &[u8], inner_offset: usize) -> TermInfo {
-
         let num_bits = self.num_bits() as usize;
         let mut cursor = num_bits * inner_offset;
 
@@ -70,7 +69,6 @@ impl TermInfoBlockMeta {
         cursor += self.postings_offset_nbits as usize;
 
         let positions_idx = extract_bits(data, cursor, self.positions_idx_nbits);
-        self.positions_idx_nbits as usize;
 
         TermInfo {
             doc_freq,
@@ -92,8 +90,10 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     let bit_shift = (addr_bits % 8) as u64;
     assert!(data.len() >= addr_byte + 7);
     let val_unshifted_unmasked: u64 = unsafe {
-        // ok thanks to the 7 byte padding on `.close`
-        let addr = data.as_ptr().offset(addr_byte as isize) as *const u64;
+        // ok because the pointer is only accessed using `ptr::read_unaligned`
+        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
+        let addr = data.as_ptr().add(addr_byte) as *const u64;
+        // ok thanks to the 7 byte padding
         ptr::read_unaligned(addr)
     };
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;

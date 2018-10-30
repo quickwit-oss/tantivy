@@ -47,7 +47,7 @@ impl Addr {
     }
 
     /// Returns the `Addr` object for `addr + offset`
-    pub fn offset(&self, offset: u32) -> Addr {
+    pub fn offset(self, offset: u32) -> Addr {
         Addr(self.0.wrapping_add(offset))
     }
 
@@ -55,16 +55,16 @@ impl Addr {
         Addr((page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
     }
 
-    fn page_id(&self) -> usize {
+    fn page_id(self) -> usize {
         (self.0 as usize) >> NUM_BITS_PAGE_ADDR
     }
 
-    fn page_local_addr(&self) -> usize {
+    fn page_local_addr(self) -> usize {
         (self.0 as usize) & (PAGE_SIZE - 1)
     }
 
     /// Returns true if and only if the `Addr` is null.
-    pub fn is_null(&self) -> bool {
+    pub fn is_null(self) -> bool {
         self.0 == u32::max_value()
     }
 }
@@ -233,12 +233,12 @@ impl Page {
 
     #[inline(always)]
     pub(crate) unsafe fn get_ptr(&self, addr: usize) -> *const u8 {
-        self.data.as_ptr().offset(addr as isize)
+        self.data.as_ptr().add(addr)
     }
 
     #[inline(always)]
     pub(crate) unsafe fn get_mut_ptr(&mut self, addr: usize) -> *mut u8 {
-        self.data.as_mut_ptr().offset(addr as isize)
+        self.data.as_mut_ptr().add(addr)
     }
 }
 

@@ -69,7 +69,7 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("+a").unwrap();
         let searcher = index.searcher();
-        let weight = query.weight(&*searcher, true).unwrap();
+        let weight = query.weight(&searcher, true).unwrap();
         let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
         assert!(Downcast::<TermScorer>::is_type(&*scorer));
     }
@@ -81,13 +81,13 @@ mod tests {
         let searcher = index.searcher();
         {
             let query = query_parser.parse_query("+a +b +c").unwrap();
-            let weight = query.weight(&*searcher, true).unwrap();
+            let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             assert!(Downcast::<Intersection<TermScorer>>::is_type(&*scorer));
         }
         {
             let query = query_parser.parse_query("+a +(b c)").unwrap();
-            let weight = query.weight(&*searcher, true).unwrap();
+            let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             assert!(Downcast::<Intersection<Box<Scorer>>>::is_type(&*scorer));
         }
@@ -100,7 +100,7 @@ mod tests {
         let searcher = index.searcher();
         {
             let query = query_parser.parse_query("+a b").unwrap();
-            let weight = query.weight(&*searcher, true).unwrap();
+            let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             assert!(Downcast::<
                 RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>,
@@ -108,7 +108,7 @@ mod tests {
         }
         {
             let query = query_parser.parse_query("+a b").unwrap();
-            let weight = query.weight(&*searcher, false).unwrap();
+            let weight = query.weight(&searcher, false).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             println!("{:?}", scorer.type_name());
             assert!(Downcast::<TermScorer>::is_type(&*scorer));

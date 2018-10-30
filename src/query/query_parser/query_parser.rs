@@ -3,8 +3,11 @@ use super::query_grammar::parse_to_ast;
 use super::user_input_ast::*;
 use combine::Parser;
 use core::Index;
+use query::occur::compose_occur;
+use query::query_parser::logical_ast::LogicalAST;
 use query::AllQuery;
 use query::BooleanQuery;
+use query::EmptyQuery;
 use query::Occur;
 use query::PhraseQuery;
 use query::Query;
@@ -55,6 +58,27 @@ impl From<ParseIntError> for QueryParserError {
     }
 }
 
+/// Recursively remove empty clause from the AST
+///
+/// Returns `None` iff the `logical_ast` ended up being empty.
+fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
+    match logical_ast {
+        LogicalAST::Clause(children) => {
+            let trimmed_children = children
+                .into_iter()
+                .flat_map(|(occur, child)| {
+                    trim_ast(child).map(|trimmed_child| (occur, trimmed_child))
+                }).collect::<Vec<_>>();
+            if trimmed_children.is_empty() {
+                None
+            } else {
+                Some(LogicalAST::Clause(trimmed_children))
+            }
+        }
+        _ => Some(logical_ast),
+    }
+}
+
 /// Tantivy's Query parser
 ///
 /// The language covered by the current parser is extremely simple.
@@ -77,11 +101,21 @@ impl From<ParseIntError> for QueryParserError {
 ///
 ///   Switching to a default of `AND` can be done by calling `.set_conjunction_by_default()`.
 ///
+///
+/// * boolean operators `AND`, `OR`. `AND` takes precedence over `OR`, so that `a AND b OR c` is interpreted
+/// as `(a AND b) OR c`.
+///
+/// * In addition to the boolean operators, the `-`, `+` can help define. These operators
+///   are sufficient to axpress all queries using boolean operators. For instance `x AND y OR z` can
+///   be written (`(+x +y) z`). In addition, these operators can help define "required optional"
+///   queries. `(+x y)` matches the same document set as simply `x`, but `y` will help refining the score.
+///
 /// * negative terms: By prepending a term by a `-`, a term can be excluded
 ///   from the search. This is useful for disambiguating a query.
 ///   e.g. `apple -fruit`
 ///
 /// * must terms: By prepending a term by a `+`, a term can be made required for the search.
+///
 ///
 /// * phrase terms: Quoted terms become phrase searches on fields that have positions indexed.
 ///   e.g., `title:"Barack Obama"` will only find documents that have "barack" immediately followed
@@ -173,8 +207,8 @@ impl QueryParser {
             return convert_to_query(logical_ast);
         }
 
-        // we have no idea what you want, so here's everything
-        Box::new(AllQuery)
+        // we have no idea what you want, so here's nothing
+        Box::new(EmptyQuery)
     }
 
     /// Parse the user query into an AST.
@@ -186,15 +220,11 @@ impl QueryParser {
         // query input
 
         //  # Escape special characters: \\+-&|!(){}[]^~*?:\/
-        let special_chars = vec![
-            "\\", "+", "-", "&", "|", "!", "(", ")", "{", "}", "[", "]", "^", "~", "*", "?", ":",
-            "/",
-        ];
-
-        let mut scrubbed_query = query.to_string();
-        for c in special_chars.iter() {
-            scrubbed_query = scrubbed_query.replace(c, &format!("{}", c));
-        }
+        let special_chars = "\\+-&|!(){}[]^~*?:/";
+        let mut scrubbed_query = query
+            .chars()
+            .filter(|c| !special_chars.contains(*c))
+            .collect::<String>();
 
         // AND, OR and NOT are used by tantivy as logical operators. We need
         // to escape them
@@ -208,11 +238,10 @@ impl QueryParser {
         if quote_count % 2 == 1 {
             scrubbed_query = scrubbed_query.replace("\"", "\\\"");
         }
-
+        
         let (user_input_ast, _remaining) = parse_to_ast()
             .parse(scrubbed_query.as_str())
             .map_err(|_| QueryParserError::SyntaxError)?;
-
         self.compute_logical_ast(user_input_ast)
     }
 
@@ -373,23 +402,61 @@ impl QueryParser {
                 let default_occur = self.default_occur();
                 let mut logical_sub_queries: Vec<(Occur, LogicalAST)> = Vec::new();
                 for sub_query in sub_queries {
-                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(*sub_query)?;
+                    let (occur, sub_ast) = self.compute_logical_ast_with_occur(sub_query)?;
                     let new_occur = compose_occur(default_occur, occur);
                     logical_sub_queries.push((new_occur, sub_ast));
                 }
                 Ok((Occur::Should, LogicalAST::Clause(logical_sub_queries)))
             }
-            UserInputAST::Not(subquery) => {
-                let (occur, logical_sub_queries) =
+            UserInputAST::Unary(left_occur, subquery) => {
+                let (right_occur, logical_sub_queries) =
                     self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::MustNot, occur), logical_sub_queries))
+                Ok((compose_occur(left_occur, right_occur), logical_sub_queries))
             }
-            UserInputAST::Must(subquery) => {
-                let (occur, logical_sub_queries) =
-                    self.compute_logical_ast_with_occur(*subquery)?;
-                Ok((compose_occur(Occur::Must, occur), logical_sub_queries))
+            UserInputAST::Leaf(leaf) => {
+                let result_ast = self.compute_logical_ast_from_leaf(*leaf)?;
+                Ok((Occur::Should, result_ast))
             }
-            UserInputAST::Range {
+        }
+    }
+
+    fn compute_logical_ast_from_leaf(
+        &self,
+        leaf: UserInputLeaf,
+    ) -> Result<LogicalAST, QueryParserError> {
+        match leaf {
+            UserInputLeaf::Literal(literal) => {
+                let term_phrases: Vec<(Field, String)> = match literal.field_name {
+                    Some(ref field_name) => {
+                        let field = self.resolve_field_name(field_name)?;
+                        vec![(field, literal.phrase.clone())]
+                    }
+                    None => {
+                        if self.default_fields.is_empty() {
+                            return Err(QueryParserError::NoDefaultFieldDeclared);
+                        } else {
+                            self.default_fields
+                                .iter()
+                                .map(|default_field| (*default_field, literal.phrase.clone()))
+                                .collect::<Vec<(Field, String)>>()
+                        }
+                    }
+                };
+                let mut asts: Vec<LogicalAST> = Vec::new();
+                for (field, phrase) in term_phrases {
+                    if let Some(ast) = self.compute_logical_ast_for_leaf(field, &phrase)? {
+                        asts.push(LogicalAST::Leaf(Box::new(ast)));
+                    }
+                }
+                let result_ast: LogicalAST = if asts.len() == 1 {
+                    asts.into_iter().next().unwrap()
+                } else {
+                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
+                };
+                Ok(result_ast)
+            }
+            UserInputLeaf::All => Ok(LogicalAST::Leaf(Box::new(LogicalLiteral::All))),
+            UserInputLeaf::Range {
                 field,
                 lower,
                 upper,
@@ -417,65 +484,7 @@ impl QueryParser {
                             .collect(),
                     )
                 };
-                Ok((Occur::Should, result_ast))
-            }
-            UserInputAST::All => Ok((
-                Occur::Should,
-                LogicalAST::Leaf(Box::new(LogicalLiteral::All)),
-            )),
-            UserInputAST::Leaf(literal) => {
-                let term_phrases: Vec<(Field, String)> = match literal.field_name {
-                    Some(ref field_name) => {
-                        let field = self.resolve_field_name(field_name)?;
-                        vec![(field, literal.phrase.clone())]
-                    }
-                    None => {
-                        if self.default_fields.is_empty() {
-                            return Err(QueryParserError::NoDefaultFieldDeclared);
-                        } else {
-                            self.default_fields
-                                .iter()
-                                .map(|default_field| (*default_field, literal.phrase.clone()))
-                                .collect::<Vec<(Field, String)>>()
-                        }
-                    }
-                };
-                let mut asts: Vec<LogicalAST> = Vec::new();
-                for (field, phrase) in term_phrases {
-                    if let Some(ast) = self.compute_logical_ast_for_leaf(field, &phrase)? {
-                        asts.push(LogicalAST::Leaf(Box::new(ast)));
-                    }
-                }
-                let result_ast = if asts.is_empty() {
-                    // this should never happen
-                    return Err(QueryParserError::SyntaxError);
-                } else if asts.len() == 1 {
-                    asts[0].clone()
-                } else {
-                    LogicalAST::Clause(asts.into_iter().map(|ast| (Occur::Should, ast)).collect())
-                };
-                Ok((Occur::Should, result_ast))
-            }
-        }
-    }
-}
-
-/// Compose two occur values.
-fn compose_occur(left: Occur, right: Occur) -> Occur {
-    match left {
-        Occur::Should => right,
-        Occur::Must => {
-            if right == Occur::MustNot {
-                Occur::MustNot
-            } else {
-                Occur::Must
-            }
-        }
-        Occur::MustNot => {
-            if right == Occur::MustNot {
-                Occur::Must
-            } else {
-                Occur::MustNot
+                Ok(result_ast)
             }
         }
     }
@@ -492,21 +501,30 @@ fn convert_literal_to_query(logical_literal: LogicalLiteral) -> Box<Query> {
             value_type,
             lower,
             upper,
-        } => Box::new(RangeQuery::new_term_bounds(field, value_type, lower, upper)),
+        } => Box::new(RangeQuery::new_term_bounds(
+            field, value_type, &lower, &upper,
+        )),
         LogicalLiteral::All => Box::new(AllQuery),
     }
 }
 
 fn convert_to_query(logical_ast: LogicalAST) -> Box<Query> {
-    match logical_ast {
-        LogicalAST::Clause(clause) => {
-            let occur_subqueries = clause
+    match trim_ast(logical_ast) {
+        Some(LogicalAST::Clause(trimmed_clause)) => {
+            let occur_subqueries = trimmed_clause
                 .into_iter()
                 .map(|(occur, subquery)| (occur, convert_to_query(subquery)))
                 .collect::<Vec<_>>();
+            assert!(
+                !occur_subqueries.is_empty(),
+                "Should not be empty after trimming"
+            );
             Box::new(BooleanQuery::from(occur_subqueries))
         }
-        LogicalAST::Leaf(logical_literal) => convert_literal_to_query(*logical_literal),
+        Some(LogicalAST::Leaf(trimmed_logical_literal)) => {
+            convert_literal_to_query(*trimmed_logical_literal)
+        }
+        None => Box::new(EmptyQuery),
     }
 }
 
@@ -519,12 +537,17 @@ mod test {
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
     use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
-    use tokenizer::SimpleTokenizer;
-    use tokenizer::TokenizerManager;
+    use tokenizer::{LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager};
     use Index;
 
     fn make_query_parser() -> QueryParser {
         let mut schema_builder = SchemaBuilder::default();
+        let text_field_indexing = TextFieldIndexing::default()
+            .set_tokenizer("en_with_stop_words")
+            .set_index_option(IndexRecordOption::WithFreqsAndPositions);
+        let text_options = TextOptions::default()
+            .set_indexing_options(text_field_indexing)
+            .set_stored();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
         schema_builder.add_i64_field("signed", INT_INDEXED);
@@ -533,9 +556,16 @@ mod test {
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);
         schema_builder.add_text_field("nottokenized", STRING);
+        schema_builder.add_text_field("with_stop_words", text_options);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register(
+            "en_with_stop_words",
+            SimpleTokenizer
+                .filter(LowerCaser)
+                .filter(StopWordFilter::remove(vec!["the".to_string()])),
+        );
         QueryParser::new(schema, default_fields, tokenizer_manager)
     }
 
@@ -567,7 +597,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_parse_query_leient_no_panics() {
+    pub fn test_parse_query_lenient_no_panics() {
         let query_parser = make_query_parser();
 
         query_parser.parse_query_lenient("toto");
@@ -576,7 +606,7 @@ mod test {
     }
 
     #[test]
-    pub fn test_parse_query_leient_escapes_bad_queries() {
+    pub fn test_parse_query_lenient_escapes_bad_queries() {
         let query_parser = make_query_parser();
 
         let query = query_parser
@@ -621,6 +651,16 @@ mod test {
              101, 32, 119, 111, 114, 100, 116, 119, 111])",
             false,
         );
+    }
+
+    #[test]
+    pub fn test_parse_query_empty() {
+        test_parse_query_to_logical_ast_helper("", "<emptyclause>", false);
+        test_parse_query_to_logical_ast_helper(" ", "<emptyclause>", false);
+        let query_parser = make_query_parser();
+        let query_result = query_parser.parse_query("");
+        let query = query_result.unwrap();
+        assert_eq!(format!("{:?}", query), "EmptyQuery");
     }
 
     #[test]
@@ -800,6 +840,13 @@ mod test {
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_not_empty_but_no_tokens() {
+        let query_parser = make_query_parser();
+        assert!(query_parser.parse_query(" !, ").is_ok());
+        assert!(query_parser.parse_query("with_stop_words:the").is_ok());
     }
 
     #[test]

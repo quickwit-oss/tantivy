@@ -4,7 +4,8 @@ use std::result;
 /// `FastFieldNotAvailableError` is returned when the
 /// user requested for a fast field reader, and the field was not
 /// defined in the schema as a fast field.
-#[derive(Debug)]
+#[derive(Debug, Fail)]
+#[fail(display = "field not available: '{:?}'", field_name)]
 pub struct FastFieldNotAvailableError {
     field_name: String,
 }

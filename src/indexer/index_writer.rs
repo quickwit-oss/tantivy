@@ -2,15 +2,15 @@ use super::operation::AddOperation;
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use bit_set::BitSet;
-use crossbeam_channel as channel;
 use core::Index;
 use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
+use crossbeam_channel as channel;
 use docset::DocSet;
-use error::{Error, ErrorKind, Result, ResultExt};
+use error::TantivyError;
 use fastfield::write_delete_bitset;
 use futures::sync::oneshot::Receiver;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
@@ -29,6 +29,7 @@ use std::mem;
 use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
+use Result;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -53,14 +54,14 @@ type DocumentReceiver = channel::Receiver<AddOperation>;
 fn initial_table_size(per_thread_memory_budget: usize) -> usize {
     let table_size_limit: usize = per_thread_memory_budget / 3;
     (1..)
-        .into_iter()
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
-        .expect(&format!(
-            "Per thread memory is too small: {}",
-            per_thread_memory_budget
-        ))
-        .min(19) // we cap it at 512K
+        .unwrap_or_else(|| {
+            panic!(
+                "Per thread memory is too small: {}",
+                per_thread_memory_budget
+            )
+        }).min(19) // we cap it at 512K
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -122,11 +123,11 @@ pub fn open_index_writer(
             "The heap size per thread needs to be at least {}.",
             HEAP_SIZE_MIN
         );
-        bail!(ErrorKind::InvalidArgument(err_msg));
+        return Err(TantivyError::InvalidArgument(err_msg));
     }
     if heap_size_in_bytes_per_thread >= HEAP_SIZE_MAX {
         let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
-        bail!(ErrorKind::InvalidArgument(err_msg));
+        return Err(TantivyError::InvalidArgument(err_msg));
     }
     let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
         channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
@@ -176,7 +177,7 @@ pub fn compute_deleted_bitset(
 ) -> Result<bool> {
     let mut might_have_changed = false;
 
-    #[cfg_attr(feature = "cargo-clippy", allow(while_let_loop))]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::while_let_loop))]
     loop {
         if let Some(delete_op) = delete_cursor.get() {
             if delete_op.opstamp > target_opstamp {
@@ -300,25 +301,29 @@ fn index_documents(
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
-    let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
-    let segment_reader = SegmentReader::open(segment)?;
-    let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
-    let may_have_deletes = compute_deleted_bitset(
-        &mut deleted_bitset,
-        &segment_reader,
-        &mut delete_cursor,
-        &doc_to_opstamps,
-        last_docstamp,
-    )?;
-
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, {
-        if may_have_deletes {
-            Some(deleted_bitset)
-        } else {
-            None
-        }
-    });
-
+    let segment_entry: SegmentEntry = if delete_cursor.get().is_some() {
+        let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
+        let segment_reader = SegmentReader::open(segment)?;
+        let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
+        let may_have_deletes = compute_deleted_bitset(
+            &mut deleted_bitset,
+            &segment_reader,
+            &mut delete_cursor,
+            &doc_to_opstamps,
+            last_docstamp,
+        )?;
+        SegmentEntry::new(segment_meta, delete_cursor, {
+            if may_have_deletes {
+                Some(deleted_bitset)
+            } else {
+                None
+            }
+        })
+    } else {
+        // if there are no delete operation in the queue, no need
+        // to even open the segment.
+        SegmentEntry::new(segment_meta, delete_cursor, None)
+    };
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 
@@ -334,13 +339,16 @@ impl IndexWriter {
             join_handle
                 .join()
                 .expect("Indexing Worker thread panicked")
-                .chain_err(|| ErrorKind::ErrorInThread("Error in indexing worker thread.".into()))?;
+                .map_err(|_| {
+                    TantivyError::ErrorInThread("Error in indexing worker thread.".into())
+                })?;
         }
         drop(self.workers_join_handle);
 
-        let result = self.segment_updater
+        let result = self
+            .segment_updater
             .wait_merging_thread()
-            .chain_err(|| ErrorKind::ErrorInThread("Failed to join merging thread.".into()));
+            .map_err(|_| TantivyError::ErrorInThread("Failed to join merging thread.".into()));
 
         if let Err(ref e) = result {
             error!("Some merging thread failed {:?}", e);
@@ -382,11 +390,9 @@ impl IndexWriter {
             .name(format!(
                 "indexing thread {} for gen {}",
                 self.worker_id, generation
-            ))
-            .spawn(move || {
+            )).spawn(move || {
                 loop {
-                    let mut document_iterator =
-                        document_receiver_clone.clone().into_iter().peekable();
+                    let mut document_iterator = document_receiver_clone.clone().peekable();
 
                     // the peeking here is to avoid
                     // creating a new segment's files
@@ -485,7 +491,8 @@ impl IndexWriter {
         let document_receiver = self.document_receiver.clone();
 
         // take the directory lock to create a new index_writer.
-        let directory_lock = self._directory_lock
+        let directory_lock = self
+            ._directory_lock
             .take()
             .expect("The IndexWriter does not have any lock. This is a bug, please report.");
 
@@ -559,7 +566,7 @@ impl IndexWriter {
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
-                .map_err(|e| Error::from_kind(ErrorKind::ErrorInThread(format!("{:?}", e))))?;
+                .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
 
             indexing_worker_result?;
             // add a new worker for the next generation.
@@ -654,8 +661,23 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(40_000_000).unwrap();
         match index.writer(40_000_000) {
-            Err(Error(ErrorKind::FileAlreadyExists(_), _)) => {}
+            Err(TantivyError::LockFailure(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
+        }
+    }
+
+    #[test]
+    fn test_lockfile_already_exists_error_msg() {
+        let schema_builder = schema::SchemaBuilder::default();
+        let index = Index::create_in_ram(schema_builder.build());
+        let _index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        match index.writer_with_num_threads(1, 3_000_000) {
+            Err(err) => {
+                let err_msg = err.to_string();
+                assert!(err_msg.contains("Lockfile"));
+                assert!(err_msg.contains("Possible causes:"))
+            }
+            _ => panic!("Expected LockfileAlreadyExists error"),
         }
     }
 
@@ -840,4 +862,32 @@ mod tests {
         assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
+    #[cfg(not(feature = "no_fail"))]
+    #[test]
+    fn test_write_commit_fails() {
+        use fail;
+        let mut schema_builder = schema::SchemaBuilder::default();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "a"));
+        }
+        index_writer.commit().unwrap();
+        fail::cfg("RAMDirectory::atomic_write", "return(error_write_failed)").unwrap();
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "b"));
+        }
+        assert!(index_writer.commit().is_err());
+        index.load_searchers().unwrap();
+        let num_docs_containing = |s: &str| {
+            let searcher = index.searcher();
+            let term_a = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term_a)
+        };
+        assert_eq!(num_docs_containing("a"), 100);
+        assert_eq!(num_docs_containing("b"), 0);
+        fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
+    }
 }

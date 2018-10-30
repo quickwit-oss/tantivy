@@ -4,6 +4,8 @@ use common::VInt;
 use directory::ReadOnlySource;
 use directory::WritePtr;
 use schema::Field;
+use space_usage::PerFieldSpaceUsage;
+use space_usage::FieldUsage;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::{self, Read};
@@ -72,7 +74,8 @@ impl<W: Write> CompositeWrite<W> {
         let footer_offset = self.write.written_bytes();
         VInt(self.offsets.len() as u64).serialize(&mut self.write)?;
 
-        let mut offset_fields: Vec<_> = self.offsets
+        let mut offset_fields: Vec<_> = self
+            .offsets
             .iter()
             .map(|(file_addr, offset)| (*offset, *file_addr))
             .collect();
@@ -164,6 +167,16 @@ impl CompositeFile {
         self.offsets_index
             .get(&FileAddr { field, idx })
             .map(|&(from, to)| self.data.slice(from, to))
+    }
+
+    pub fn space_usage(&self) -> PerFieldSpaceUsage {
+        let mut fields = HashMap::new();
+        for (&field_addr, &(start, end)) in self.offsets_index.iter() {
+            fields.entry(field_addr.field)
+                .or_insert_with(|| FieldUsage::empty(field_addr.field))
+                .add_field_idx(field_addr.idx, end - start);
+        }
+        PerFieldSpaceUsage::new(fields)
     }
 }
 

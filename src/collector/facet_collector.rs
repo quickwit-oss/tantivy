@@ -342,16 +342,19 @@ impl FacetCollector {
     pub fn harvest(mut self) -> FacetCounts {
         self.finalize_segment();
 
-        let collapsed_facet_ords: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_ords: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_ords[..])
             .collect();
-        let collapsed_facet_counts: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_counts: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_counts[..])
             .collect();
 
-        let facet_streams = self.segment_counters
+        let facet_streams = self
+            .segment_counters
             .iter()
             .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
             .collect::<Vec<_>>();
@@ -374,10 +377,8 @@ impl FacetCollector {
                             } else {
                                 collapsed_facet_counts[seg_ord][collapsed_term_id]
                             }
-                        })
-                        .unwrap_or(0)
-                })
-                .sum();
+                        }).unwrap_or(0)
+                }).sum();
             if count > 0u64 {
                 let bytes: Vec<u8> = facet_merger.key().to_owned();
                 // may create an corrupted facet if the term dicitonary is corrupted
@@ -402,7 +403,8 @@ impl Collector for FacetCollector {
 
     fn collect(&mut self, doc: DocId, _: Score) {
         let facet_reader: &mut FacetReader = unsafe {
-            &mut *self.ff_reader
+            &mut *self
+                .ff_reader
                 .as_ref()
                 .expect("collect() was called before set_segment. This should never happen.")
                 .get()
@@ -476,9 +478,8 @@ impl FacetCounts {
             heap.push(Hit { count, facet });
         }
 
-        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count)
-            .unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
-                                  // is never used in that case.
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
+                                                                                          // is never used in that case.
 
         for (facet, count) in it {
             if count > lowest_count {
@@ -526,8 +527,7 @@ mod tests {
                 n /= 4;
                 let leaf = n % 5;
                 Facet::from(&format!("/top{}/mid{}/leaf{}", top, mid, leaf))
-            })
-            .collect();
+            }).collect();
         for i in 0..num_facets * 10 {
             let mut doc = Document::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
@@ -554,7 +554,8 @@ mod tests {
                     ("/top1/mid1", 50),
                     ("/top1/mid2", 50),
                     ("/top1/mid3", 50),
-                ].iter()
+                ]
+                    .iter()
                     .map(|&(facet_str, count)| (String::from(facet_str), count))
                     .collect::<Vec<_>>()
             );
@@ -618,9 +619,13 @@ mod tests {
                 let facet = Facet::from(&format!("/facet/{}", c));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
-            })
-            .map(|mut doc| { doc.add_facet(facet_field, &format!("/facet/{}", thread_rng().sample(&uniform) )); doc})
-            .collect();
+            }).map(|mut doc| {
+                doc.add_facet(
+                    facet_field,
+                    &format!("/facet/{}", thread_rng().sample(&uniform)),
+                );
+                doc
+            }).collect();
         thread_rng().shuffle(&mut docs[..]);
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();

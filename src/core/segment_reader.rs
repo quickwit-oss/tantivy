@@ -4,8 +4,7 @@ use core::InvertedIndexReader;
 use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
-use core::SegmentMeta;
-use error::ErrorKind;
+use error::TantivyError;
 use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
 use fastfield::FastFieldReader;
@@ -17,6 +16,7 @@ use schema::Document;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
+use space_usage::SegmentSpaceUsage;
 use std::collections::HashMap;
 use std::fmt;
 use std::sync::Arc;
@@ -44,7 +44,8 @@ pub struct SegmentReader {
     inv_idx_reader_cache: Arc<RwLock<HashMap<Field, Arc<InvertedIndexReader>>>>,
 
     segment_id: SegmentId,
-    segment_meta: SegmentMeta,
+    max_doc: DocId,
+    num_docs: DocId,
 
     termdict_composite: CompositeFile,
     postings_composite: CompositeFile,
@@ -64,7 +65,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes, so it happens
     /// to also be the number of documents in the index.
     pub fn max_doc(&self) -> DocId {
-        self.segment_meta.max_doc()
+        self.max_doc
     }
 
     /// Returns the number of documents.
@@ -73,7 +74,7 @@ impl SegmentReader {
     /// Today, `tantivy` does not handle deletes so max doc and
     /// num_docs are the same.
     pub fn num_docs(&self) -> DocId {
-        self.segment_meta.num_docs()
+        self.num_docs
     }
 
     /// Returns the schema of the index this segment belongs to.
@@ -153,15 +154,17 @@ impl SegmentReader {
     /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
     pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
         let field_entry = self.schema.get_field_entry(field);
-        match field_entry.field_type() {
-            &FieldType::Bytes => {}
+        match *field_entry.field_type() {
+            FieldType::Bytes => {}
             _ => return Err(FastFieldNotAvailableError::new(field_entry)),
         }
-        let idx_reader = self.fast_fields_composite
+        let idx_reader = self
+            .fast_fields_composite
             .open_read_with_idx(field, 0)
             .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
             .map(FastFieldReader::open)?;
-        let values = self.fast_fields_composite
+        let values = self
+            .fast_fields_composite
             .open_read_with_idx(field, 1)
             .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
         Ok(BytesFastFieldReader::open(idx_reader, values))
@@ -171,22 +174,22 @@ impl SegmentReader {
     pub fn facet_reader(&self, field: Field) -> Result<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
         if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(ErrorKind::InvalidArgument(format!(
+            return Err(TantivyError::InvalidArgument(format!(
                 "The field {:?} is not a \
                  hierarchical facet.",
                 field_entry
-            )).into());
+            )));
         }
         let term_ords_reader = self.multi_fast_field_reader(field)?;
         let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
-            ErrorKind::InvalidArgument(format!(
+            TantivyError::InvalidArgument(format!(
                 "The field \"{}\" is a hierarchical \
                  but this segment does not seem to have the field term \
                  dictionary.",
                 field_entry.name()
             ))
         })?;
-        let termdict = TermDictionary::from_source(termdict_source);
+        let termdict = TermDictionary::from_source(&termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
         Ok(facet_reader)
     }
@@ -225,6 +228,8 @@ impl SegmentReader {
         let store_source = segment.open_read(SegmentComponent::STORE)?;
         let store_reader = StoreReader::from_source(store_source);
 
+        fail_point!("SegmentReader::open#middle");
+
         let postings_source = segment.open_read(SegmentComponent::POSTINGS)?;
         let postings_composite = CompositeFile::open(&postings_source)?;
 
@@ -260,7 +265,8 @@ impl SegmentReader {
         let schema = segment.schema();
         Ok(SegmentReader {
             inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
-            segment_meta: segment.meta().clone(),
+            max_doc: segment.meta().max_doc(),
+            num_docs: segment.meta().num_docs(),
             termdict_composite,
             postings_composite,
             fast_fields_composite,
@@ -282,7 +288,8 @@ impl SegmentReader {
     /// term dictionary associated to a specific field,
     /// and opening the posting list associated to any term.
     pub fn inverted_index(&self, field: Field) -> Arc<InvertedIndexReader> {
-        if let Some(inv_idx_reader) = self.inv_idx_reader_cache
+        if let Some(inv_idx_reader) = self
+            .inv_idx_reader_cache
             .read()
             .expect("Lock poisoned. This should never happen")
             .get(&field)
@@ -306,25 +313,28 @@ impl SegmentReader {
             // As a result, no data is associated to the inverted index.
             //
             // Returns an empty inverted index.
-            return Arc::new(InvertedIndexReader::empty(field_type.clone()));
+            return Arc::new(InvertedIndexReader::empty(field_type));
         }
 
         let postings_source = postings_source_opt.unwrap();
 
-        let termdict_source = self.termdict_composite
+        let termdict_source = self
+            .termdict_composite
             .open_read(field)
             .expect("Failed to open field term dictionary in composite file. Is the field indexed");
 
-        let positions_source = self.positions_composite
+        let positions_source = self
+            .positions_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
-        let positions_idx_source = self.positions_idx_composite
+        let positions_idx_source = self
+            .positions_idx_composite
             .open_read(field)
             .expect("Index corrupted. Failed to open field positions in composite file.");
 
         let inv_idx_reader = Arc::new(InvertedIndexReader::new(
-            TermDictionary::from_source(termdict_source),
+            TermDictionary::from_source(&termdict_source),
             postings_source,
             positions_source,
             positions_idx_source,
@@ -372,6 +382,21 @@ impl SegmentReader {
     pub fn doc_ids_alive(&self) -> SegmentReaderAliveDocsIterator {
         SegmentReaderAliveDocsIterator::new(&self)
     }
+
+    /// Summarize total space usage of this segment.
+    pub fn space_usage(&self) -> SegmentSpaceUsage {
+        SegmentSpaceUsage::new(
+            self.num_docs(),
+            self.termdict_composite.space_usage(),
+            self.postings_composite.space_usage(),
+            self.positions_composite.space_usage(),
+            self.positions_idx_composite.space_usage(),
+            self.fast_fields_composite.space_usage(),
+            self.fieldnorms_composite.space_usage(),
+            self.store_reader.space_usage(),
+            self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(0),
+        )
+    }
 }
 
 impl fmt::Debug for SegmentReader {
@@ -391,7 +416,7 @@ pub struct SegmentReaderAliveDocsIterator<'a> {
 impl<'a> SegmentReaderAliveDocsIterator<'a> {
     pub fn new(reader: &'a SegmentReader) -> SegmentReaderAliveDocsIterator<'a> {
         SegmentReaderAliveDocsIterator {
-            reader: reader,
+            reader,
             max_doc: reader.max_doc(),
             current: 0,
         }
@@ -462,9 +487,7 @@ mod test {
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let docs: Vec<DocId> = searcher.segment_reader(0)
-            .doc_ids_alive()
-            .collect();
+        let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
         assert_eq!(vec![0u32, 2u32], docs);
     }
 }

@@ -11,12 +11,11 @@ main() {
     else
         echo "Build"
         cross build --target $TARGET
-        cross build --target $TARGET --release
         if [ ! -z $DISABLE_TESTS ]; then
             return
         fi
         echo "Test"
-        cross test --target $TARGET
+        cross test --target $TARGET --no-default-features --features mmap -- --test-threads 1
     fi
     for example in $(ls examples/*.rs)
     do

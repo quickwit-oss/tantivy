@@ -11,10 +11,9 @@
 #[macro_use]
 extern crate tantivy;
 use tantivy::collector::TopCollector;
+use tantivy::query::TermQuery;
 use tantivy::schema::*;
 use tantivy::Index;
-use tantivy::query::TermQuery;
-
 
 // A simple helper function to fetch a single document
 // given its id from our index.
@@ -31,8 +30,8 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     let mut top_collector = TopCollector::with_limit(1);
     searcher.search(&term_query, &mut top_collector)?;
 
-    if let Some(doc_address) =  top_collector.docs().first() {
-        let doc = searcher.doc(doc_address)?;
+    if let Some(doc_address) = top_collector.docs().first() {
+        let doc = searcher.doc(*doc_address)?;
         Ok(Some(doc))
     } else {
         // no doc matching this ID.
@@ -41,7 +40,6 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
 }
 
 fn main() -> tantivy::Result<()> {
-
     // # Defining the schema
     //
     // Check out the *basic_search* example if this makes
@@ -125,7 +123,6 @@ fn main() -> tantivy::Result<()> {
        title => "Frankenstein",
        isbn => "978-9176370711",
     ));
-
 
     // You are guaranteed that your clients will only observe your index in
     // the state it was in after a commit.

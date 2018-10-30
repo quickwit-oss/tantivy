@@ -97,16 +97,12 @@ impl Facet {
     }
 
     /// Returns `true` iff other is a subfacet of `self`.
-    #[allow(collapsible_if)]
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
         let self_bytes: &[u8] = self.encoded_bytes();
         let other_bytes: &[u8] = other.encoded_bytes();
-        if self_bytes.len() < other_bytes.len() {
-            if other_bytes.starts_with(self_bytes) {
-                return other_bytes[self_bytes.len()] == 0u8;
-            }
-        }
-        false
+        self_bytes.len() < other_bytes.len()
+            && other_bytes.starts_with(self_bytes)
+            && other_bytes[self_bytes.len()] == 0u8
     }
 }
 

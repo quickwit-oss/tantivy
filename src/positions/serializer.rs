@@ -1,8 +1,8 @@
-use std::io;
-use bitpacking::BitPacker;
-use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
-use common::BinarySerializable;
 use super::BIT_PACKER;
+use bitpacking::BitPacker;
+use common::BinarySerializable;
+use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
+use std::io;
 
 pub struct PositionSerializer<W: io::Write> {
     write_stream: W,
@@ -23,14 +23,13 @@ impl<W: io::Write> PositionSerializer<W> {
             buffer: vec![0u8; 128 * 4],
             num_ints: 0u64,
             long_skips: Vec::new(),
-            cumulated_num_bits: 0u64
+            cumulated_num_bits: 0u64,
         }
     }
 
     pub fn positions_idx(&self) -> u64 {
         self.num_ints
     }
-
 
     fn remaining_block_len(&self) -> usize {
         COMPRESSION_BLOCK_SIZE - self.block.len()
@@ -52,8 +51,8 @@ impl<W: io::Write> PositionSerializer<W> {
 
     fn flush_block(&mut self) -> io::Result<()> {
         let num_bits = BIT_PACKER.num_bits(&self.block[..]);
-        self.cumulated_num_bits += num_bits as u64;
-        self.write_skiplist.write(&[num_bits])?;
+        self.cumulated_num_bits += u64::from(num_bits);
+        self.write_skiplist.write_all(&[num_bits])?;
         let written_len = BIT_PACKER.compress(&self.block[..], &mut self.buffer, num_bits);
         self.write_stream.write_all(&self.buffer[..written_len])?;
         self.block.clear();

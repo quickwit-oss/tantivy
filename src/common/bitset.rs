@@ -34,17 +34,17 @@ impl TinySet {
     }
 
     /// Returns the complement of the set in `[0, 64[`.
-    fn complement(&self) -> TinySet {
+    fn complement(self) -> TinySet {
         TinySet(!self.0)
     }
 
     /// Returns true iff the `TinySet` contains the element `el`.
-    pub fn contains(&self, el: u32) -> bool {
+    pub fn contains(self, el: u32) -> bool {
         !self.intersect(TinySet::singleton(el)).is_empty()
     }
 
     /// Returns the intersection of `self` and `other`
-    pub fn intersect(&self, other: TinySet) -> TinySet {
+    pub fn intersect(self, other: TinySet) -> TinySet {
         TinySet(self.0 & other.0)
     }
 
@@ -77,7 +77,7 @@ impl TinySet {
 
     /// Returns true iff the `TinySet` is empty.
     #[inline(always)]
-    pub fn is_empty(&self) -> bool {
+    pub fn is_empty(self) -> bool {
         self.0 == 0u64
     }
 
@@ -114,7 +114,7 @@ impl TinySet {
         self.0 = 0u64;
     }
 
-    pub fn len(&self) -> u32 {
+    pub fn len(self) -> u32 {
         self.0.count_ones()
     }
 }
@@ -266,14 +266,14 @@ mod tests {
 
     #[test]
     fn test_bitset_large() {
-        let arr = generate_nonunique_unsorted(1_000_000, 50_000);
+        let arr = generate_nonunique_unsorted(100_000, 5_000);
         let mut btreeset: BTreeSet<u32> = BTreeSet::new();
-        let mut bitset = BitSet::with_max_value(1_000_000);
+        let mut bitset = BitSet::with_max_value(100_000);
         for el in arr {
             btreeset.insert(el);
             bitset.insert(el);
         }
-        for i in 0..1_000_000 {
+        for i in 0..100_000 {
             assert_eq!(btreeset.contains(&i), bitset.contains(i));
         }
         assert_eq!(btreeset.len(), bitset.len());

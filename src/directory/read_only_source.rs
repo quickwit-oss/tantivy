@@ -5,7 +5,6 @@ use fst::raw::MmapReadOnly;
 use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::ops::Deref;
 
-
 /// Read object that represents files in tantivy.
 ///
 /// These read objects are only in charge to deliver

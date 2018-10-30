@@ -1,4 +1,3 @@
-
 /// Positions are stored in three parts and over two files.
 //
 /// The `SegmentComponent::POSITIONS` file contains all of the bitpacked positions delta,
@@ -24,13 +23,12 @@
 /// The long skip structure makes it possible to skip rapidly to the a checkpoint close to this
 /// value, and then skip normally.
 ///
-
 mod reader;
 mod serializer;
 
 pub use self::reader::PositionReader;
 pub use self::serializer::PositionSerializer;
-use bitpacking::{BitPacker4x, BitPacker};
+use bitpacking::{BitPacker, BitPacker4x};
 
 const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const LONG_SKIP_IN_BLOCKS: usize = 1_024;
@@ -43,10 +41,10 @@ lazy_static! {
 #[cfg(test)]
 pub mod tests {
 
-    use std::iter;
-    use super::{PositionSerializer, PositionReader};
+    use super::{PositionReader, PositionSerializer};
     use directory::ReadOnlySource;
     use positions::COMPRESSION_BLOCK_SIZE;
+    use std::iter;
 
     fn create_stream_buffer(vals: &[u32]) -> (ReadOnlySource, ReadOnlySource) {
         let mut skip_buffer = vec![];
@@ -59,7 +57,10 @@ pub mod tests {
             }
             serializer.close().unwrap();
         }
-        (ReadOnlySource::from(stream_buffer), ReadOnlySource::from(skip_buffer))
+        (
+            ReadOnlySource::from(stream_buffer),
+            ReadOnlySource::from(skip_buffer),
+        )
     }
 
     #[test]
@@ -103,7 +104,7 @@ pub mod tests {
         assert_eq!(skip.len(), 12);
         assert_eq!(stream.len(), 1168);
 
-        let mut position_reader = PositionReader::new(stream,skip, 0u64);
+        let mut position_reader = PositionReader::new(stream, skip, 0u64);
         let mut buf = [0u32; 7];
         let mut c = 0;
         for _ in 0..100 {
@@ -125,7 +126,7 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 15_749);
         assert_eq!(stream.len(), 1_000_000);
-        let mut position_reader = PositionReader::new(stream,skip, 128 * 1024);
+        let mut position_reader = PositionReader::new(stream, skip, 128 * 1024);
         let mut buf = [0u32; 1];
         position_reader.read(&mut buf);
         assert_eq!(buf[0], CONST_VAL);
@@ -137,12 +138,17 @@ pub mod tests {
         let (stream, skip) = create_stream_buffer(&v[..]);
         assert_eq!(skip.len(), 15_749);
         assert_eq!(stream.len(), 4_987_872);
-        for &offset in &[10, 128 * 1024, 128 * 1024 - 1, 128 * 1024 + 7, 128 * 10 * 1024 + 10] {
-            let mut position_reader = PositionReader::new(stream.clone(),skip.clone(), offset);
+        for &offset in &[
+            10,
+            128 * 1024,
+            128 * 1024 - 1,
+            128 * 1024 + 7,
+            128 * 10 * 1024 + 10,
+        ] {
+            let mut position_reader = PositionReader::new(stream.clone(), skip.clone(), offset);
             let mut buf = [0u32; 1];
             position_reader.read(&mut buf);
             assert_eq!(buf[0], offset as u32);
         }
     }
 }
-

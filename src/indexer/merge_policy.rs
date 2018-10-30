@@ -21,17 +21,17 @@ pub trait MergePolicy: MergePolicyClone + marker::Send + marker::Sync + Debug {
 
 /// MergePolicyClone
 pub trait MergePolicyClone {
-  /// Returns a boxed clone of the MergePolicy.
-  fn box_clone(&self) -> Box<MergePolicy>;
+    /// Returns a boxed clone of the MergePolicy.
+    fn box_clone(&self) -> Box<MergePolicy>;
 }
 
 impl<T> MergePolicyClone for T
 where
-  T: 'static + MergePolicy + Clone,
+    T: 'static + MergePolicy + Clone,
 {
-  fn box_clone(&self) -> Box<MergePolicy> {
-    Box::new(self.clone())
-  }
+    fn box_clone(&self) -> Box<MergePolicy> {
+        Box::new(self.clone())
+    }
 }
 
 /// Never merge segments.

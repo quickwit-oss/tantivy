@@ -276,7 +276,7 @@ mod test {
             offset_from: 2,
             offset_to: 3,
             text: "abc".to_string(),
-            position_length: 1
+            position_length: 1,
         };
         let t2 = t1.clone();
 

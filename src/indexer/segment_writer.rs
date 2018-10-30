@@ -49,20 +49,20 @@ impl SegmentWriter {
     ) -> Result<SegmentWriter> {
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
         let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits);
-        let tokenizers = schema
-            .fields()
-            .iter()
-            .map(|field_entry| field_entry.field_type())
-            .map(|field_type| match *field_type {
-                FieldType::Str(ref text_options) => text_options.get_indexing_options().and_then(
-                    |text_index_option| {
-                        let tokenizer_name = &text_index_option.tokenizer();
-                        segment.index().tokenizers().get(tokenizer_name)
-                    },
-                ),
-                _ => None,
-            })
-            .collect();
+        let tokenizers =
+            schema
+                .fields()
+                .iter()
+                .map(|field_entry| field_entry.field_type())
+                .map(|field_type| match *field_type {
+                    FieldType::Str(ref text_options) => text_options
+                        .get_indexing_options()
+                        .and_then(|text_index_option| {
+                            let tokenizer_name = &text_index_option.tokenizer();
+                            segment.index().tokenizers().get(tokenizer_name)
+                        }),
+                    _ => None,
+                }).collect();
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
@@ -117,8 +117,7 @@ impl SegmentWriter {
                             _ => {
                                 panic!("Expected hierarchical facet");
                             }
-                        })
-                        .collect();
+                        }).collect();
                     let mut term = Term::for_field(field); // we set the Term
                     for facet_bytes in facets {
                         let mut unordered_term_id_opt = None;
@@ -146,8 +145,7 @@ impl SegmentWriter {
                             .flat_map(|field_value| match *field_value.value() {
                                 Value::Str(ref text) => Some(text.as_str()),
                                 _ => None,
-                            })
-                            .collect();
+                            }).collect();
                         if texts.is_empty() {
                             0
                         } else {
