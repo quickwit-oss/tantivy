@@ -134,6 +134,20 @@ struct InnerSchema {
     fields_map: HashMap<String, Field>, // transient
 }
 
+impl PartialEq for InnerSchema {
+    fn eq(&self, other: &InnerSchema) -> bool {
+        if self.fields.len() !=  other.fields.len() {
+            return false;
+        }
+        self.fields.iter()
+            .zip(other.fields.iter())
+            .all(|(left, right)| left == right)
+    }
+}
+
+impl Eq for InnerSchema {}
+
+
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
@@ -154,7 +168,7 @@ struct InnerSchema {
 /// let schema = schema_builder.build();
 ///
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {

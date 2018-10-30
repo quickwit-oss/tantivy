@@ -81,9 +81,15 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
         if Index::exists(&dir) {
-            return Index::open(dir);
+            let index = Index::open(dir)?;
+            if index.schema() == schema {
+                Ok(index)
+            } else {
+                Err(TantivyError::SchemaError("An index exists but the schema does not match.".to_string()))
+            }
+        } else {
+            Index::create(dir, schema)
         }
-        Index::create(dir, schema)
     }
 
     /// Creates a new index in a temp directory.
@@ -348,11 +354,9 @@ impl Clone for Index {
 
 #[cfg(test)]
 mod tests {
-    use directory::MmapDirectory;
     use schema::{Schema, SchemaBuilder, INT_INDEXED, TEXT};
-    use std::fs;
-    use tempdir::TempDir;
     use Index;
+    use directory::RAMDirectory;
 
     #[test]
     fn test_indexer_for_field() {
@@ -370,72 +374,45 @@ mod tests {
 
     #[test]
     fn test_index_exists() {
-        let index_path = TempDir::new("test_exist").unwrap();
-        fs::create_dir(index_path.path().join("work")).unwrap();
-
-        // should not exist
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).expect("open existing dir");
-            assert!(!Index::exists(&dir));
-        }
-
-        // create index
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).expect("open existing dir");
-            Index::create(dir, throw_away_schema()).expect("should be ok");
-        }
-
-        // should exist
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).expect("open existing dir");
-            assert!(Index::exists(&dir));
-        }
-    }
-
-    #[test]
-    fn open_or_create_should_open() {
-        let index_path = TempDir::new("open_or_create_should_open").unwrap();
-        fs::create_dir(index_path.path().join("work")).unwrap();
-
-        // create a directory
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).unwrap();
-            Index::create(dir, throw_away_schema()).unwrap();
-        }
-
-        // verify its there
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).unwrap();
-            assert_eq!(Index::exists(&dir), true);
-        }
-
-        // open or create should open
-        let work_path = index_path.path().join("work");
-        let dir = MmapDirectory::open(work_path).unwrap();
-        Index::open_or_create(dir, throw_away_schema()).expect("should be ok");
+        let directory = RAMDirectory::create();
+        assert!(!Index::exists(&directory));
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
     }
 
     #[test]
     fn open_or_create_should_create() {
-        let index_path = TempDir::new("open_or_create_should_create").unwrap();
-        fs::create_dir(index_path.path().join("work")).unwrap();
+        let directory = RAMDirectory::create();
+        assert!(!Index::exists(&directory));
+        assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+    }
 
-        // doesn't exist
-        {
-            let work_path = index_path.path().join("work");
-            let dir = MmapDirectory::open(work_path).unwrap();
-            assert_eq!(Index::exists(&dir), false);
-        }
 
-        // index doesn't open, it creates
-        let work_path = index_path.path().join("work");
-        let dir = MmapDirectory::open(work_path).unwrap();
-        Index::open_or_create(dir, throw_away_schema()).unwrap();
+    #[test]
+    fn open_or_create_should_open() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
+    }
+
+    #[test]
+    fn create_should_wipeoff_existing() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::create(directory.clone(), SchemaBuilder::default().build()).is_ok());
+    }
+
+    #[test]
+    fn open_or_create_exists_but_schema_does_not_match() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
+        let err = Index::open_or_create(directory, SchemaBuilder::default().build());
+        assert_eq!(format!("{:?}", err.unwrap_err()), "SchemaError(\"An index exists but the schema does not match.\")");
     }
 
     fn throw_away_schema() -> Schema {
