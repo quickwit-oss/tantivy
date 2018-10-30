@@ -276,25 +276,27 @@ impl<'a> Iterator for CodepointFrontiers<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        if let Some(offset) = self.next_el {
-            if self.s.is_empty() {
-                self.next_el = None;
-            } else {
-                let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
-                self.next_el = Some(offset + first_codepoint_width);
-                self.s = &self.s[first_codepoint_width..];
-            }
-            Some(offset)
-        } else {
-            None
-        }
+        self.next_el
+            .map(|offset| {
+                if self.s.is_empty() {
+                    self.next_el = None;
+                } else {
+                    let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
+                    self.s = &self.s[first_codepoint_width..];
+                    self.next_el = Some(offset + first_codepoint_width);
+                }
+                offset
+            })
     }
 }
 
+// Number of bytes to encode a codepoint in UTF-8 given
+// the first byte.
+//
+// To do that we count the number of higher significant bits set to `1`.
 fn utf8_codepoint_width(b: u8) -> usize {
-    const MAGIC_TABLE: u32 = 3847553024u32;
-    let idx = (b >> 3) & 30;
-    ((MAGIC_TABLE >> idx) & 3) as usize + 1
+    let num_bits = (!b | 15u8).leading_zeros() as usize;
+    num_bits.max(1)
 }
 
 #[cfg(test)]
