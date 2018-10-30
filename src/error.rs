@@ -20,6 +20,9 @@ pub enum TantivyError {
     /// File already exists, this is a problem when we try to write into a new file.
     #[fail(display = "file already exists: '{:?}'", _0)]
     FileAlreadyExists(PathBuf),
+    /// Index already exists in this directory
+    #[fail(display = "index already exists")]
+    IndexAlreadyExists,
     /// Failed to acquire file lock
     #[fail(
         display = "Failed to acquire Lockfile: {:?}. Possible causes: another IndexWriter instance or panic during previous lock drop.",

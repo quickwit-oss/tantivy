@@ -49,6 +49,11 @@ pub struct Index {
 }
 
 impl Index {
+    /// Examines the director to see if it contains an index
+    pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
+        dir.exists(&META_FILEPATH)
+    }
+
     /// Creates a new index using the `RAMDirectory`.
     ///
     /// The index will be allocated in anonymous memory.
@@ -65,7 +70,26 @@ impl Index {
     #[cfg(feature = "mmap")]
     pub fn create_in_dir<P: AsRef<Path>>(directory_path: P, schema: Schema) -> Result<Index> {
         let mmap_directory = MmapDirectory::open(directory_path)?;
+        if Index::exists(&mmap_directory) {
+            return Err(TantivyError::IndexAlreadyExists);
+        }
+
         Index::create(mmap_directory, schema)
+    }
+
+    /// Opens or creates a new index in the provided directory
+    #[cfg(feature = "mmap")]
+    pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
+        if Index::exists(&dir) {
+            let index = Index::open(dir)?;
+            if index.schema() == schema {
+                Ok(index)
+            } else {
+                Err(TantivyError::SchemaError("An index exists but the schema does not match.".to_string()))
+            }
+        } else {
+            Index::create(dir, schema)
+        }
     }
 
     /// Creates a new index in a temp directory.
@@ -89,6 +113,8 @@ impl Index {
     }
 
     /// Create a new index from a directory.
+    ///
+    /// This will overwrite existing meta.json
     fn from_directory(mut directory: ManagedDirectory, schema: Schema) -> Result<Index> {
         save_new_metas(schema.clone(), 0, directory.borrow_mut())?;
         let metas = IndexMeta::with_schema(schema);
@@ -328,8 +354,9 @@ impl Clone for Index {
 
 #[cfg(test)]
 mod tests {
-    use schema::{SchemaBuilder, INT_INDEXED, TEXT};
+    use schema::{Schema, SchemaBuilder, INT_INDEXED, TEXT};
     use Index;
+    use directory::RAMDirectory;
 
     #[test]
     fn test_indexer_for_field() {
@@ -345,4 +372,52 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_index_exists() {
+        let directory = RAMDirectory::create();
+        assert!(!Index::exists(&directory));
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+    }
+
+    #[test]
+    fn open_or_create_should_create() {
+        let directory = RAMDirectory::create();
+        assert!(!Index::exists(&directory));
+        assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+    }
+
+
+    #[test]
+    fn open_or_create_should_open() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::open_or_create(directory, throw_away_schema()).is_ok());
+    }
+
+    #[test]
+    fn create_should_wipeoff_existing() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::create(directory.clone(), SchemaBuilder::default().build()).is_ok());
+    }
+
+    #[test]
+    fn open_or_create_exists_but_schema_does_not_match() {
+        let directory = RAMDirectory::create();
+        assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
+        assert!(Index::exists(&directory));
+        assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
+        let err = Index::open_or_create(directory, SchemaBuilder::default().build());
+        assert_eq!(format!("{:?}", err.unwrap_err()), "SchemaError(\"An index exists but the schema does not match.\")");
+    }
+
+    fn throw_away_schema() -> Schema {
+        let mut schema_builder = SchemaBuilder::default();
+        let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        schema_builder.build()
+    }
 }
