@@ -136,12 +136,7 @@ struct InnerSchema {
 
 impl PartialEq for InnerSchema {
     fn eq(&self, other: &InnerSchema) -> bool {
-        if self.fields.len() !=  other.fields.len() {
-            return false;
-        }
-        self.fields.iter()
-            .zip(other.fields.iter())
-            .all(|(left, right)| left == right)
+        self.fields == other.fields
     }
 }
 
