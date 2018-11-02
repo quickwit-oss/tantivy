@@ -1,3 +1,7 @@
+Tantivy 0.7.1
+=====================
+- Bugfix: NGramTokenizer panics on non ascii chars
+- Added a space usage API
 
 Tantivy 0.7
 =====================
