@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use tokenizer::tokenizer::box_tokenizer;
+use tokenizer::box_tokenizer;
 use tokenizer::BoxedTokenizer;
-use tokenizer::JapaneseTokenizer;
 use tokenizer::LowerCaser;
 use tokenizer::RawTokenizer;
 use tokenizer::RemoveLongFilter;
@@ -74,7 +73,6 @@ impl Default for TokenizerManager {
                 .filter(LowerCaser)
                 .filter(Stemmer::new()),
         );
-        manager.register("ja", JapaneseTokenizer.filter(RemoveLongFilter::limit(40)));
         manager
     }
 }

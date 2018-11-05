@@ -2,7 +2,6 @@ use core::Segment;
 use core::SegmentReader;
 use core::SerializableSegment;
 use docset::DocSet;
-use error::Result;
 use fastfield::DeleteBitSet;
 use fastfield::FastFieldReader;
 use fastfield::FastFieldSerializer;
@@ -23,6 +22,7 @@ use store::StoreWriter;
 use termdict::TermMerger;
 use termdict::TermOrdinal;
 use DocId;
+use Result;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -40,15 +40,13 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             total_tokens += reader.inverted_index(field).total_num_tokens();
         }
     }
-    total_tokens
-        + count
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(fieldnorm_ord, count)| {
-                count as u64 * FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8) as u64
-            })
-            .sum::<u64>()
+    total_tokens + count
+        .iter()
+        .cloned()
+        .enumerate()
+        .map(|(fieldnorm_ord, count)| {
+            count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
+        }).sum::<u64>()
 }
 
 pub struct IndexMerger {
@@ -111,7 +109,7 @@ impl TermOrdinalMapping {
             .iter()
             .flat_map(|term_ordinals| term_ordinals.iter().cloned().max())
             .max()
-            .unwrap_or(TermOrdinal::default())
+            .unwrap_or_else(TermOrdinal::default)
     }
 }
 
@@ -190,7 +188,7 @@ impl IndexMerger {
                         `term_ordinal_mapping`.");
                     self.write_hierarchical_facet_field(
                         field,
-                        term_ordinal_mapping,
+                        &term_ordinal_mapping,
                         fast_field_serializer,
                     )?;
                 }
@@ -314,7 +312,7 @@ impl IndexMerger {
     fn write_hierarchical_facet_field(
         &self,
         field: Field,
-        term_ordinal_mappings: TermOrdinalMapping,
+        term_ordinal_mappings: &TermOrdinalMapping,
         fast_field_serializer: &mut FastFieldSerializer,
     ) -> Result<()> {
         // Multifastfield consists in 2 fastfields.
@@ -393,8 +391,8 @@ impl IndexMerger {
 
         // We can now initialize our serializer, and push it the different values
         {
-            let mut serialize_vals =
-                fast_field_serializer.new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
+            let mut serialize_vals = fast_field_serializer
+                .new_u64_fast_field_with_idx(field, min_value, max_value, 1)?;
             for reader in &self.readers {
                 let ff_reader: MultiValueIntFastFieldReader<u64> =
                     reader.multi_fast_field_reader(field)?;
@@ -440,7 +438,8 @@ impl IndexMerger {
     ) -> Result<Option<TermOrdinalMapping>> {
         let mut positions_buffer: Vec<u32> = Vec::with_capacity(1_000);
         let mut delta_computer = DeltaComputer::new();
-        let field_readers = self.readers
+        let field_readers = self
+            .readers
             .iter()
             .map(|reader| reader.inverted_index(indexed_field))
             .collect::<Vec<_>>();
@@ -524,8 +523,7 @@ impl IndexMerger {
                         }
                     }
                     None
-                })
-                .collect();
+                }).collect();
 
             // At this point, `segment_postings` contains the posting list
             // of all of the segments containing the given term.
@@ -666,8 +664,7 @@ mod tests {
                 TextFieldIndexing::default()
                     .set_tokenizer("default")
                     .set_index_option(IndexRecordOption::WithFreqs),
-            )
-            .set_stored();
+            ).set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
@@ -683,7 +680,7 @@ mod tests {
         };
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 // writing the segment
                 {
@@ -733,9 +730,10 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -768,24 +766,24 @@ mod tests {
                 );
             }
             {
-                let doc = searcher.doc(&DocAddress(0, 0)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
+                let doc = searcher.doc(DocAddress(0, 0)).unwrap();
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(&DocAddress(0, 1)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c");
+                let doc = searcher.doc(DocAddress(0, 1)).unwrap();
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c"));
             }
             {
-                let doc = searcher.doc(&DocAddress(0, 2)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c d");
+                let doc = searcher.doc(DocAddress(0, 2)).unwrap();
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c d"));
             }
             {
-                let doc = searcher.doc(&DocAddress(0, 3)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "af b");
+                let doc = searcher.doc(DocAddress(0, 3)).unwrap();
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("af b"));
             }
             {
-                let doc = searcher.doc(&DocAddress(0, 4)).unwrap();
-                assert_eq!(doc.get_first(text_field).unwrap().text(), "a b c g");
+                let doc = searcher.doc(DocAddress(0, 4)).unwrap();
+                assert_eq!(doc.get_first(text_field).unwrap().text(), Some("a b c g"));
             }
             {
                 let get_fast_vals = |terms: Vec<Term>| {
@@ -820,8 +818,7 @@ mod tests {
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
-            )
-            .set_stored();
+            ).set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
@@ -979,6 +976,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1075,6 +1073,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1128,6 +1127,7 @@ mod tests {
                 .expect("Searchable segments failed.");
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
@@ -1219,6 +1219,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -1290,6 +1291,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
@@ -1392,6 +1394,7 @@ mod tests {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
+                .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();

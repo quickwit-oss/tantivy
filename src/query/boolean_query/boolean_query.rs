@@ -5,6 +5,7 @@ use query::TermQuery;
 use query::Weight;
 use schema::IndexRecordOption;
 use schema::Term;
+use std::collections::BTreeSet;
 use Result;
 use Searcher;
 
@@ -27,7 +28,7 @@ impl Clone for BooleanQuery {
     fn clone(&self) -> Self {
         self.subqueries
             .iter()
-            .map(|(x, y)| (x.clone(), y.box_clone()))
+            .map(|(occur, subquery)| (*occur, subquery.box_clone()))
             .collect::<Vec<_>>()
             .into()
     }
@@ -41,13 +42,19 @@ impl From<Vec<(Occur, Box<Query>)>> for BooleanQuery {
 
 impl Query for BooleanQuery {
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
-        let sub_weights = self.subqueries
+        let sub_weights = self
+            .subqueries
             .iter()
             .map(|&(ref occur, ref subquery)| {
                 Ok((*occur, subquery.weight(searcher, scoring_enabled)?))
-            })
-            .collect::<Result<_>>()?;
+            }).collect::<Result<_>>()?;
         Ok(Box::new(BooleanWeight::new(sub_weights, scoring_enabled)))
+    }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term>) {
+        for (_occur, subquery) in &self.subqueries {
+            subquery.query_terms(term_set);
+        }
     }
 }
 
@@ -61,8 +68,7 @@ impl BooleanQuery {
                 let term_query: Box<Query> =
                     Box::new(TermQuery::new(term, IndexRecordOption::WithFreqs));
                 (Occur::Should, term_query)
-            })
-            .collect();
+            }).collect();
         BooleanQuery::from(occur_term_queries)
     }
 

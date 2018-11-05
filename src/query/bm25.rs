@@ -17,9 +17,9 @@ fn cached_tf_component(fieldnorm: u32, average_fieldnorm: f32) -> f32 {
 
 fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
     let mut cache = [0f32; 256];
-    for fieldnorm_id in 0..256 {
+    for (fieldnorm_id, cache_mut) in cache.iter_mut().enumerate() {
         let fieldnorm = FieldNormReader::id_to_fieldnorm(fieldnorm_id as u8);
-        cache[fieldnorm_id] = cached_tf_component(fieldnorm, average_fieldnorm);
+        *cache_mut = cached_tf_component(fieldnorm, average_fieldnorm);
     }
     cache
 }
@@ -54,7 +54,7 @@ impl BM25Weight {
         for segment_reader in searcher.segment_readers() {
             let inverted_index = segment_reader.inverted_index(field);
             total_num_tokens += inverted_index.total_num_tokens();
-            total_num_docs += segment_reader.max_doc() as u64;
+            total_num_docs += u64::from(segment_reader.max_doc());
         }
         let average_fieldnorm = total_num_tokens as f32 / total_num_docs as f32;
 
@@ -63,8 +63,7 @@ impl BM25Weight {
             .map(|term| {
                 let term_doc_freq = searcher.doc_freq(term);
                 idf(term_doc_freq, total_num_docs)
-            })
-            .sum::<f32>();
+            }).sum::<f32>();
         BM25Weight::new(idf, average_fieldnorm)
     }
 

@@ -14,7 +14,7 @@ use std::fmt;
 /// - a field name
 /// - a field type, itself wrapping up options describing
 /// how the field should be indexed.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FieldEntry {
     name: String,
     field_type: FieldType,

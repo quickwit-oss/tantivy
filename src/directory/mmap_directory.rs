@@ -32,7 +32,8 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadE
         }
     })?;
 
-    let meta_data = file.metadata()
+    let meta_data = file
+        .metadata()
         .map_err(|e| IOError::with_path(full_path.to_owned(), e))?;
     if meta_data.len() == 0 {
         // if the file size is 0, it will not be possible
@@ -309,7 +310,8 @@ impl Directory for MmapDirectory {
         // when the last reference is gone.
         mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
-            Ok(_) => self.sync_directory()
+            Ok(_) => self
+                .sync_directory()
                 .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
             Err(e) => {
                 if e.kind() == io::ErrorKind::NotFound {
@@ -352,10 +354,6 @@ impl Directory for MmapDirectory {
         meta_file.write(|f| f.write_all(data))?;
         Ok(())
     }
-
-    fn box_clone(&self) -> Box<Directory> {
-        Box::new(self.clone())
-    }
 }
 
 #[cfg(test)]
@@ -365,6 +363,11 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+
+    #[test]
+    fn test_open_non_existant_path() {
+        assert!(MmapDirectory::open(PathBuf::from("./nowhere")).is_err());
+    }
 
     #[test]
     fn test_open_empty() {

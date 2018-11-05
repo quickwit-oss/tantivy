@@ -1,14 +1,17 @@
+# Based on the "trust" template v0.1.2
+# https://github.com/japaric/trust/tree/v0.1.2
+
+dist: trusty
 language: rust
+services: docker
 sudo: required
-cache: cargo
-rust:
-  - nightly
+
 env:
   global:
-    - CC=gcc-4.8
-    - CXX=g++-4.8
+    - CRATE_NAME=tantivy
     - TRAVIS_CARGO_NIGHTLY_FEATURE=""
     - secure: eC8HjTi1wgRVCsMAeXEXt8Ckr0YBSGOEnQkkW4/Nde/OZ9jJjz2nmP1ELQlDE7+czHub2QvYtDMG0parcHZDx/Kus0yvyn08y3g2rhGIiE7y8OCvQm1Mybu2D/p7enm6shXquQ6Z5KRfRq+18mHy80wy9ABMA/ukEZdvnfQ76/Een8/Lb0eHaDoXDXn3PqLVtByvSfQQ7OhS60dEScu8PWZ6/l1057P5NpdWbMExBE7Ro4zYXNhkJeGZx0nP/Bd4Jjdt1XfPzMEybV6NZ5xsTILUBFTmOOt603IsqKGov089NExqxYu5bD3K+S4MzF1Nd6VhomNPJqLDCfhlymJCUj5n5Ku4yidlhQbM4Ej9nGrBalJnhcjBjPua5tmMF2WCxP9muKn/2tIOu1/+wc0vMf9Yd3wKIkf5+FtUxCgs2O+NslWvmOMAMI/yD25m7hb4t1IwE/4Bk+GVcWJRWXbo0/m6ZUHzRzdjUY2a1qvw7C9udzdhg7gcnXwsKrSWi2NjMiIVw86l+Zim0nLpKIN41sxZHLaFRG63Ki8zQ/481LGn32awJ6i3sizKS0WD+N1DfR2qYMrwYHaMN0uR0OFXYTJkFvTFttAeUY3EKmRKAuMhmO2YRdSr4/j/G5E9HMc1gSGJj6PxgpQU7EpvxRsmoVAEJr0mszmOj9icGHep/FM=
+
 addons:
   apt:
     sources:
@@ -22,16 +25,56 @@ addons:
       - libdw-dev
       - binutils-dev
       - cmake
+
+matrix:
+  include:
+    # Android
+    - env: TARGET=aarch64-linux-android DISABLE_TESTS=1
+    #- env: TARGET=arm-linux-androideabi DISABLE_TESTS=1
+    #- env: TARGET=armv7-linux-androideabi DISABLE_TESTS=1
+    #- env: TARGET=i686-linux-android DISABLE_TESTS=1
+    #- env: TARGET=x86_64-linux-android DISABLE_TESTS=1
+
+    # Linux
+    #- env: TARGET=aarch64-unknown-linux-gnu
+    #- env: TARGET=i686-unknown-linux-gnu
+    - env: TARGET=x86_64-unknown-linux-gnu CODECOV=1
+    # - env: TARGET=x86_64-unknown-linux-musl CODECOV=1
+
+    # OSX
+    - env: TARGET=x86_64-apple-darwin
+      os: osx
+
+before_install:
+  - set -e
+  - rustup self update
+
+install:
+  - sh ci/install.sh
+  - source ~/.cargo/env || true
+
 before_script:
   - export PATH=$HOME/.cargo/bin:$PATH
   - cargo install cargo-update || echo "cargo-update already installed"
   - cargo install cargo-travis || echo "cargo-travis already installed"
+
 script:
-  - cargo build
-  - cargo test
-  - cargo test -- --ignored
-  - cargo run --example simple_search
-  - cargo doc
-after_success:
-  - cargo coveralls --exclude-pattern src/functional_test.rs
-  - cargo doc-upload
+  - bash ci/script.sh
+
+before_deploy:
+  - sh ci/before_deploy.sh
+
+cache: cargo
+before_cache:
+  # Travis can't cache files that are not readable by "others"
+  - chmod -R a+r $HOME/.cargo
+
+#branches:
+#  only:
+#    # release tags
+#    - /^v\d+\.\d+\.\d+.*$/
+#    - master
+
+notifications:
+  email:
+    on_success: never

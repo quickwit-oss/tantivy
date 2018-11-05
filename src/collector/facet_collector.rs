@@ -192,7 +192,8 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     Ok(())
 /// }
 /// ```
-pub struct FacetCollector {
+pub struct
+FacetCollector {
     field: Field,
     segment_counters: Vec<SegmentFacetCounter>,
     facets: BTreeSet<Facet>,
@@ -284,12 +285,14 @@ impl FacetCollector {
             .iter()
             .map(|segment_counter| &segment_counter.facet_ords[..])
             .collect();
-        let collapsed_facet_counts: Vec<&[u64]> = self.segment_counters
+        let collapsed_facet_counts: Vec<&[u64]> = self
+            .segment_counters
             .iter()
             .map(|segment_counter| &segment_counter.facet_counts[..])
             .collect();
 
-        let facet_streams = self.segment_counters
+        let facet_streams = self
+            .segment_counters
             .iter()
             .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
             .collect::<Vec<_>>();
@@ -312,10 +315,8 @@ impl FacetCollector {
                             } else {
                                 collapsed_facet_counts[seg_ord][collapsed_term_id]
                             }
-                        })
-                        .unwrap_or(0)
-                })
-                .sum();
+                        }).unwrap_or(0)
+                }).sum();
             if count > 0u64 {
                 let bytes: Vec<u8> = facet_merger.key().to_owned();
                 // may create an corrupted facet if the term dicitonary is corrupted
@@ -470,16 +471,23 @@ impl FacetCounts {
         let mut heap = BinaryHeap::with_capacity(k);
         let mut it = self.get(facet);
 
+        // push the first k elements to first bring the heap
+        // to capacity
         for (facet, count) in (&mut it).take(k) {
             heap.push(Hit { count, facet });
         }
 
-        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN);
+        let mut lowest_count: u64 = heap.peek().map(|hit| hit.count).unwrap_or(u64::MIN); //< the `unwrap_or` case may be triggered but the value
+                                                                                          // is never used in that case.
+
         for (facet, count) in it {
             if count > lowest_count {
-                lowest_count = count;
                 if let Some(mut head) = heap.peek_mut() {
                     *head = Hit { count, facet };
+                }
+                // the heap gets reconstructed at this point
+                if let Some(head) = heap.peek() {
+                    lowest_count = head.count;
                 }
             }
         }
@@ -495,6 +503,7 @@ mod tests {
     use super::{FacetCollector, FacetCounts};
     use core::Index;
     use query::AllQuery;
+    use rand::distributions::Uniform;
     use rand::{thread_rng, Rng};
     use schema::Field;
     use schema::{Document, Facet, SchemaBuilder};
@@ -507,7 +516,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let num_facets: usize = 3 * 4 * 5;
         let facets: Vec<Facet> = (0..num_facets)
             .map(|mut n| {
@@ -517,8 +526,7 @@ mod tests {
                 n /= 4;
                 let leaf = n % 5;
                 Facet::from(&format!("/top{}/mid{}/leaf{}", top, mid, leaf))
-            })
-            .collect();
+            }).collect();
         for i in 0..num_facets * 10 {
             let mut doc = Document::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
@@ -545,7 +553,8 @@ mod tests {
                     ("/top1/mid1", 50),
                     ("/top1/mid2", 50),
                     ("/top1/mid3", 50),
-                ].iter()
+                ]
+                    .iter()
                     .map(|&(facet_str, count)| (String::from(facet_str), count))
                     .collect::<Vec<_>>()
             );
@@ -564,6 +573,31 @@ mod tests {
     }
 
     #[test]
+    fn test_doc_unsorted_multifacet() {
+        let mut schema_builder = SchemaBuilder::new();
+        let facet_field = schema_builder.add_facet_field("facets");
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(
+            facet_field => Facet::from_text(&"/subjects/A/a"),
+            facet_field => Facet::from_text(&"/subjects/B/a"),
+            facet_field => Facet::from_text(&"/subjects/A/b"),
+            facet_field => Facet::from_text(&"/subjects/B/b"),
+        ));
+        index_writer.commit().unwrap();
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 1);
+        let mut facet_collector = FacetCollector::for_field(facet_field);
+        facet_collector.add_facet("/subjects");
+        searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts = facet_collector.harvest();
+        let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
+        assert_eq!(facets[0].1, 1);
+    }
+
+    #[test]
     fn test_non_used_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field(0));
         facet_collector.add_facet(Facet::from("/country"));
@@ -577,17 +611,23 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
 
+        let uniform = Uniform::new_inclusive(1, 100_000);
         let mut docs: Vec<Document> = vec![("a", 10), ("b", 100), ("c", 7), ("d", 12), ("e", 21)]
             .into_iter()
             .flat_map(|(c, count)| {
-                let facet = Facet::from(&format!("/facet_{}", c));
+                let facet = Facet::from(&format!("/facet/{}", c));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
-            })
-            .collect();
+            }).map(|mut doc| {
+                doc.add_facet(
+                    facet_field,
+                    &format!("/facet/{}", thread_rng().sample(&uniform)),
+                );
+                doc
+            }).collect();
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }
@@ -597,18 +637,18 @@ mod tests {
         let searcher = index.searcher();
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
-        facet_collector.add_facet("/");
+        facet_collector.add_facet("/facet");
         searcher.search(&AllQuery, &mut facet_collector).unwrap();
 
         let counts: FacetCounts = facet_collector.harvest();
         {
-            let facets: Vec<(&Facet, u64)> = counts.top_k("/", 3);
+            let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 3);
             assert_eq!(
                 facets,
                 vec![
-                    (&Facet::from("/facet_b"), 100),
-                    (&Facet::from("/facet_e"), 21),
-                    (&Facet::from("/facet_d"), 12),
+                    (&Facet::from("/facet/b"), 100),
+                    (&Facet::from("/facet/e"), 21),
+                    (&Facet::from("/facet/d"), 12),
                 ]
             );
         }
@@ -644,7 +684,7 @@ mod bench {
         // 40425 docs
         thread_rng().shuffle(&mut docs[..]);
 
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {
             index_writer.add_document(doc);
         }

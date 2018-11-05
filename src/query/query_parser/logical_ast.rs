@@ -1,11 +1,21 @@
 use query::Occur;
+use schema::Field;
 use schema::Term;
+use schema::Type;
 use std::fmt;
+use std::ops::Bound;
 
 #[derive(Clone)]
 pub enum LogicalLiteral {
     Term(Term),
-    Phrase(Vec<Term>),
+    Phrase(Vec<(usize, Term)>),
+    Range {
+        field: Field,
+        value_type: Type,
+        lower: Bound<Term>,
+        upper: Bound<Term>,
+    },
+    All,
 }
 
 #[derive(Clone)]
@@ -54,6 +64,12 @@ impl fmt::Debug for LogicalLiteral {
         match *self {
             LogicalLiteral::Term(ref term) => write!(formatter, "{:?}", term),
             LogicalLiteral::Phrase(ref terms) => write!(formatter, "\"{:?}\"", terms),
+            LogicalLiteral::Range {
+                ref lower,
+                ref upper,
+                ..
+            } => write!(formatter, "({:?} TO {:?})", lower, upper),
+            LogicalLiteral::All => write!(formatter, "*"),
         }
     }
 }

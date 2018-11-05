@@ -59,10 +59,10 @@ impl DocSet for AllScorer {
             }
         }
         if self.doc < self.max_doc {
-            return true;
+            true
         } else {
             self.state = State::Finished;
-            return false;
+            false
         }
     }
 

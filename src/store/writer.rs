@@ -1,9 +1,9 @@
+use super::compress;
+use super::skiplist::SkipListBuilder;
 use super::StoreReader;
 use common::CountingWriter;
 use common::{BinarySerializable, VInt};
-use datastruct::SkipListBuilder;
 use directory::WritePtr;
-use lz4;
 use schema::Document;
 use std::io::{self, Write};
 use DocId;
@@ -51,7 +51,8 @@ impl StoreWriter {
         stored_document.serialize(&mut self.intermediary_buffer)?;
         let doc_num_bytes = self.intermediary_buffer.len();
         VInt(doc_num_bytes as u64).serialize(&mut self.current_block)?;
-        self.current_block.write_all(&self.intermediary_buffer[..])?;
+        self.current_block
+            .write_all(&self.intermediary_buffer[..])?;
         self.doc += 1;
         if self.current_block.len() > BLOCK_SIZE {
             self.write_and_compress_block()?;
@@ -87,12 +88,7 @@ impl StoreWriter {
 
     fn write_and_compress_block(&mut self) -> io::Result<()> {
         self.intermediary_buffer.clear();
-        {
-            let mut encoder = lz4::EncoderBuilder::new().build(&mut self.intermediary_buffer)?;
-            encoder.write_all(&self.current_block)?;
-            let (_, encoder_result) = encoder.finish();
-            encoder_result?;
-        }
+        compress(&self.current_block[..], &mut self.intermediary_buffer)?;
         (self.intermediary_buffer.len() as u32).serialize(&mut self.writer)?;
         self.writer.write_all(&self.intermediary_buffer)?;
         self.offset_index_writer

@@ -26,10 +26,11 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
         (Some(single_docset), None) => single_docset,
         (Some(left), Some(right)) => {
             {
-                if [&left, &right].into_iter().all(|scorer| {
+                let all_term_scorers = [&left, &right].into_iter().all(|scorer| {
                     let scorer_ref: &Scorer = (*scorer).borrow();
                     Downcast::<TermScorer>::is_type(scorer_ref)
-                }) {
+                });
+                if all_term_scorers {
                     let left = *Downcast::<TermScorer>::downcast(left).unwrap();
                     let right = *Downcast::<TermScorer>::downcast(right).unwrap();
                     return Box::new(Intersection {
@@ -40,12 +41,12 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
                     });
                 }
             }
-            return Box::new(Intersection {
+            Box::new(Intersection {
                 left,
                 right,
                 others: scorers,
                 num_docsets,
-            });
+            })
         }
         _ => {
             unreachable!();
@@ -99,7 +100,7 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> Intersection<TDocSet, TOtherDocSet> 
 }
 
 impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOtherDocSet> {
-    #[allow(never_loop)]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::never_loop))]
     fn advance(&mut self) -> bool {
         let (left, right) = (&mut self.left, &mut self.right);
 
@@ -228,7 +229,8 @@ where
     TOtherScorer: Scorer,
 {
     fn score(&mut self) -> Score {
-        self.left.score() + self.right.score()
+        self.left.score()
+            + self.right.score()
             + self.others.iter_mut().map(Scorer::score).sum::<Score>()
     }
 }

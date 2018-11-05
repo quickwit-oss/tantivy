@@ -5,10 +5,12 @@ use query::Query;
 use schema::Document;
 use schema::Schema;
 use schema::{Field, Term};
+use space_usage::SearcherSpaceUsage;
 use std::fmt;
 use std::sync::Arc;
 use termdict::TermMerger;
 use DocAddress;
+use Index;
 use Result;
 
 /// Holds a list of `SegmentReader`s ready for search.
@@ -18,23 +20,35 @@ use Result;
 ///
 pub struct Searcher {
     schema: Schema,
+    index: Index,
     segment_readers: Vec<SegmentReader>,
 }
 
 impl Searcher {
     /// Creates a new `Searcher`
-    pub(crate) fn new(schema: Schema, segment_readers: Vec<SegmentReader>) -> Searcher {
+    pub(crate) fn new(
+        schema: Schema,
+        index: Index,
+        segment_readers: Vec<SegmentReader>,
+    ) -> Searcher {
         Searcher {
             schema,
+            index,
             segment_readers,
         }
     }
+
+    /// Returns the `Index` associated to the `Searcher`
+    pub fn index(&self) -> &Index {
+        &self.index
+    }
+
     /// Fetches a document from tantivy's store given a `DocAddress`.
     ///
     /// The searcher uses the segment ordinal to route the
     /// the request to the right `Segment`.
-    pub fn doc(&self, doc_address: &DocAddress) -> Result<Document> {
-        let DocAddress(segment_local_id, doc_id) = *doc_address;
+    pub fn doc(&self, doc_address: DocAddress) -> Result<Document> {
+        let DocAddress(segment_local_id, doc_id) = doc_address;
         let segment_reader = &self.segment_readers[segment_local_id as usize];
         segment_reader.doc(doc_id)
     }
@@ -48,7 +62,7 @@ impl Searcher {
     pub fn num_docs(&self) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.num_docs() as u64)
+            .map(|segment_reader| u64::from(segment_reader.num_docs()))
             .sum::<u64>()
     }
 
@@ -57,8 +71,9 @@ impl Searcher {
     pub fn doc_freq(&self, term: &Term) -> u64 {
         self.segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.inverted_index(term.field()).doc_freq(term) as u64)
-            .sum::<u64>()
+            .map(|segment_reader| {
+                u64::from(segment_reader.inverted_index(term.field()).doc_freq(term))
+            }).sum::<u64>()
     }
 
     /// Return the list of segment readers
@@ -78,11 +93,21 @@ impl Searcher {
 
     /// Return the field searcher associated to a `Field`.
     pub fn field(&self, field: Field) -> FieldSearcher {
-        let inv_index_readers = self.segment_readers
+        let inv_index_readers = self
+            .segment_readers
             .iter()
             .map(|segment_reader| segment_reader.inverted_index(field))
             .collect::<Vec<_>>();
         FieldSearcher::new(inv_index_readers)
+    }
+
+    /// Summarize total space usage of this searcher.
+    pub fn space_usage(&self) -> SearcherSpaceUsage {
+        let mut space_usage = SearcherSpaceUsage::new();
+        for segment_reader in self.segment_readers.iter() {
+            space_usage.add_segment(segment_reader.space_usage());
+        }
+        space_usage
     }
 }
 
@@ -98,7 +123,8 @@ impl FieldSearcher {
     /// Returns a Stream over all of the sorted unique terms of
     /// for the given field.
     pub fn terms(&self) -> TermMerger {
-        let term_streamers: Vec<_> = self.inv_index_readers
+        let term_streamers: Vec<_> = self
+            .inv_index_readers
             .iter()
             .map(|inverted_index| inverted_index.terms().stream())
             .collect();
@@ -108,7 +134,8 @@ impl FieldSearcher {
 
 impl fmt::Debug for Searcher {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let segment_ids = self.segment_readers
+        let segment_ids = self
+            .segment_readers
             .iter()
             .map(|segment_reader| segment_reader.segment_id())
             .collect::<Vec<_>>();

@@ -1,12 +1,10 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
-#![cfg_attr(feature = "cargo-clippy", allow(module_inception))]
-#![cfg_attr(feature = "cargo-clippy", allow(inline_always))]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
+#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
+#![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
-#![allow(unknown_lints)]
-#![allow(new_without_default)]
-#![allow(decimal_literal_representation)]
 #![warn(missing_docs)]
+#![recursion_limit = "80"]
 
 //! # `tantivy`
 //!
@@ -55,7 +53,7 @@
 //!
 //! // Indexing documents
 //!
-//! let index = Index::create(index_path, schema.clone())?;
+//! let index = Index::create_in_dir(index_path, schema.clone())?;
 //!
 //! // Here we use a buffer of 100MB that will be split
 //! // between indexing threads.
@@ -95,7 +93,7 @@
 //! // most relevant doc ids...
 //! let doc_addresses = top_collector.docs();
 //! for doc_address in doc_addresses {
-//!     let retrieved_doc = searcher.doc(&doc_address)?;
+//!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }
 //!
@@ -123,7 +121,7 @@ extern crate serde_json;
 extern crate log;
 
 #[macro_use]
-extern crate error_chain;
+extern crate failure;
 
 #[cfg(feature = "mmap")]
 extern crate atomicwrites;
@@ -131,16 +129,19 @@ extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
-extern crate chan;
+
 extern crate combine;
+
 extern crate crossbeam;
+extern crate crossbeam_channel;
 extern crate fnv;
 extern crate fst;
+extern crate fst_regex;
 extern crate futures;
 extern crate futures_cpupool;
+extern crate htmlescape;
 extern crate itertools;
 extern crate levenshtein_automata;
-extern crate lz4;
 extern crate num_cpus;
 extern crate owning_ref;
 extern crate regex;
@@ -151,12 +152,11 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
 
+
+
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
-
-#[cfg(test)]
-extern crate env_logger;
 
 #[cfg(windows)]
 extern crate winapi;
@@ -164,13 +164,18 @@ extern crate winapi;
 #[cfg(test)]
 extern crate rand;
 
+#[cfg(test)]
+#[macro_use]
+extern crate maplit;
+
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
-extern crate tinysegmenter;
-
 #[macro_use]
 extern crate downcast;
+
+#[macro_use]
+extern crate fail;
 
 #[cfg(test)]
 mod functional_test;
@@ -178,18 +183,25 @@ mod functional_test;
 #[macro_use]
 mod macros;
 
-pub use error::{Error, ErrorKind, ResultExt};
+pub use error::TantivyError;
+
+#[deprecated(
+    since = "0.7.0",
+    note = "please use `tantivy::TantivyError` instead"
+)]
+pub use error::TantivyError as Error;
+
+extern crate census;
+extern crate owned_read;
 
 /// Tantivy result.
-pub type Result<T> = std::result::Result<T, Error>;
+pub type Result<T> = std::result::Result<T, error::TantivyError>;
 
 mod common;
-mod compression;
 mod core;
 mod indexer;
 
-mod datastruct;
-#[allow(unused_doc_comment)]
+#[allow(unused_doc_comments)]
 mod error;
 pub mod tokenizer;
 
@@ -197,11 +209,16 @@ pub mod collector;
 pub mod directory;
 pub mod fastfield;
 pub mod fieldnorm;
+pub(crate) mod positions;
 pub mod postings;
 pub mod query;
 pub mod schema;
+pub mod space_usage;
 pub mod store;
 pub mod termdict;
+
+mod snippet;
+pub use self::snippet::SnippetGenerator;
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
@@ -255,12 +272,12 @@ impl DocAddress {
     /// The segment ordinal is an id identifying the segment
     /// hosting the document. It is only meaningful, in the context
     /// of a searcher.
-    pub fn segment_ord(&self) -> SegmentLocalId {
+    pub fn segment_ord(self) -> SegmentLocalId {
         self.0
     }
 
     /// Return the segment local `DocId`
-    pub fn doc(&self) -> DocId {
+    pub fn doc(self) -> DocId {
         self.1
     }
 }
@@ -283,7 +300,8 @@ mod tests {
     use core::SegmentReader;
     use docset::DocSet;
     use query::BooleanQuery;
-    use rand::distributions::{IndependentSample, Range};
+    use rand::distributions::Bernoulli;
+    use rand::distributions::Range;
     use rand::{Rng, SeedableRng, XorShiftRng};
     use schema::*;
     use Index;
@@ -304,21 +322,24 @@ mod tests {
     }
 
     pub fn generate_nonunique_unsorted(max_value: u32, n_elems: usize) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, 4];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        let between = Range::new(0u32, max_value);
-        (0..n_elems)
-            .map(|_| between.ind_sample(&mut rng))
+        let seed: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
+        XorShiftRng::from_seed(seed)
+            .sample_iter(&Range::new(0u32, max_value))
+            .take(n_elems)
             .collect::<Vec<u32>>()
     }
 
-    pub fn sample_with_seed(n: u32, ratio: f32, seed_val: u32) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
-        let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0..n).filter(|_| rng.next_f32() < ratio).collect()
+    pub fn sample_with_seed(n: u32, ratio: f64, seed_val: u8) -> Vec<u32> {
+        let seed: [u8; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, seed_val];
+        XorShiftRng::from_seed(seed)
+            .sample_iter(&Bernoulli::new(ratio))
+            .take(n as usize)
+            .enumerate()
+            .filter_map(|(val, keep)| if keep { Some(val as u32) } else { None })
+            .collect()
     }
 
-    pub fn sample(n: u32, ratio: f32) -> Vec<u32> {
+    pub fn sample(n: u32, ratio: f64) -> Vec<u32> {
         sample_with_seed(n, ratio, 4)
     }
 
@@ -882,11 +903,11 @@ mod tests {
         assert_eq!(document.len(), 3);
         let values = document.get_all(text_field);
         assert_eq!(values.len(), 2);
-        assert_eq!(values[0].text(), "tantivy");
-        assert_eq!(values[1].text(), "some other value");
+        assert_eq!(values[0].text(), Some("tantivy"));
+        assert_eq!(values[1].text(), Some("some other value"));
         let values = document.get_all(other_text_field);
         assert_eq!(values.len(), 1);
-        assert_eq!(values[0].text(), "short");
+        assert_eq!(values[0].text(), Some("short"));
     }
 
     #[test]

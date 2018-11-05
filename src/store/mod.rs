@@ -34,9 +34,20 @@ and should rely on either
 !*/
 
 mod reader;
+mod skiplist;
 mod writer;
 pub use self::reader::StoreReader;
 pub use self::writer::StoreWriter;
+
+#[cfg(feature = "lz4")]
+mod compression_lz4;
+#[cfg(feature = "lz4")]
+use self::compression_lz4::*;
+
+#[cfg(not(feature = "lz4"))]
+mod compression_snap;
+#[cfg(not(feature = "lz4"))]
+use self::compression_snap::*;
 
 #[cfg(test)]
 pub mod tests {
@@ -98,7 +109,13 @@ pub mod tests {
         let store = StoreReader::from_source(store_source);
         for i in 0..1_000 {
             assert_eq!(
-                *store.get(i).unwrap().get_first(field_title).unwrap().text(),
+                *store
+                    .get(i)
+                    .unwrap()
+                    .get_first(field_title)
+                    .unwrap()
+                    .text()
+                    .unwrap(),
                 format!("Doc {}", i)
             );
         }

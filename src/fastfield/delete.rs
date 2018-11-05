@@ -2,6 +2,7 @@ use bit_set::BitSet;
 use common::HasLen;
 use directory::ReadOnlySource;
 use directory::WritePtr;
+use space_usage::ByteCount;
 use std::io;
 use std::io::Write;
 use DocId;
@@ -41,7 +42,8 @@ pub struct DeleteBitSet {
 impl DeleteBitSet {
     /// Opens a delete bitset given its data source.
     pub fn open(data: ReadOnlySource) -> DeleteBitSet {
-        let num_deleted: usize = data.as_slice()
+        let num_deleted: usize = data
+            .as_slice()
             .iter()
             .map(|b| b.count_ones() as usize)
             .sum();
@@ -61,6 +63,11 @@ impl DeleteBitSet {
             let shift = (doc & 7u32) as u8;
             b & (1u8 << shift) != 0
         }
+    }
+
+    /// Summarize total space usage of this bitset.
+    pub fn space_usage(&self) -> ByteCount {
+        self.data.len()
     }
 }
 

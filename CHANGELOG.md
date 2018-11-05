@@ -1,14 +1,48 @@
+Tantivy 0.7.1
+=====================
+- Bugfix: NGramTokenizer panics on non ascii chars
+- Added a space usage API
+
+Tantivy 0.7
+=====================
+- Skip data for doc ids and positions (@fulmicoton),
+  greatly improving performance
+- Tantivy error now rely on the failure crate (@drusellers)
+- Added support for `AND`, `OR`, `NOT` syntax in addition to the `+`,`-` syntax
+- Added a snippet generator with highlight (@vigneshsarma, @fulmicoton)
+- Added a `TopFieldCollector` (@pentlander)
+
+Tantivy 0.6.1
+=========================
+- Bugfix #324. GC removing was removing file that were still in useful
+- Added support for parsing AllQuery and RangeQuery via QueryParser
+    - AllQuery: `*`
+    - RangeQuery:
+        - Inclusive `field:[startIncl to endIncl]`
+        - Exclusive `field:{startExcl to endExcl}`
+        - Mixed `field:[startIncl to endExcl}` and vice versa
+        - Unbounded `field:[start to *]`, `field:[* to end]`
+ 
+
 Tantivy 0.6
 ==========================
-- Removed C code. Tantivy is now pure Rust.
-- BM25
-- Approximate field norms encoded over 1 byte.
-- Compiles on stable rust
+
+Special thanks to @drusellers and @jason-wolfe for their contributions
+to this release!
+
+- Removed C code. Tantivy is now pure Rust. (@pmasurel)
+- BM25 (@pmasurel)
+- Approximate field norms encoded over 1 byte. (@pmasurel)
+- Compiles on stable rust (@pmasurel)
 - Add &[u8] fastfield for associating arbitrary bytes to each document (@jason-wolfe) (#270)
     - Completely uncompressed
     - Internally: One u64 fast field for indexes, one fast field for the bytes themselves.
 - Add NGram token support (@drusellers)
 - Add Stopword Filter support (@drusellers)
+- Add a FuzzyTermQuery (@drusellers)
+- Add a RegexQuery (@drusellers)
+- Various performance improvements (@pmasurel)_
+
 
 Tantivy 0.5.2
 ===========================

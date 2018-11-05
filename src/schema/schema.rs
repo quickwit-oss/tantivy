@@ -134,6 +134,15 @@ struct InnerSchema {
     fields_map: HashMap<String, Field>, // transient
 }
 
+impl PartialEq for InnerSchema {
+    fn eq(&self, other: &InnerSchema) -> bool {
+        self.fields == other.fields
+    }
+}
+
+impl Eq for InnerSchema {}
+
+
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,
 /// stored or not, and RAM-based or not.
@@ -154,7 +163,7 @@ struct InnerSchema {
 /// let schema = schema_builder.build();
 ///
 /// ```
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq)]
 pub struct Schema(Arc<InnerSchema>);
 
 impl Schema {
@@ -441,10 +450,12 @@ mod tests {
                 "count": 4,
                 "popularity": 10
             }"#,
-                )
-                .unwrap();
-            assert_eq!(doc.get_first(title_field).unwrap().text(), "my title");
-            assert_eq!(doc.get_first(author_field).unwrap().text(), "fulmicoton");
+                ).unwrap();
+            assert_eq!(doc.get_first(title_field).unwrap().text(), Some("my title"));
+            assert_eq!(
+                doc.get_first(author_field).unwrap().text(),
+                Some("fulmicoton")
+            );
             assert_eq!(doc.get_first(count_field).unwrap().u64_value(), 4);
             assert_eq!(doc.get_first(popularity_field).unwrap().i64_value(), 10);
         }

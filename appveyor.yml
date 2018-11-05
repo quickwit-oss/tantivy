@@ -4,11 +4,8 @@
 os: Visual Studio 2015
 environment:
   matrix:
-    - channel: nightly
+    - channel: stable
       target: x86_64-pc-windows-msvc
-    - channel: nightly
-      target: x86_64-pc-windows-gnu
-      msys_bits: 64
 
 install:
   - appveyor DownloadFile https://win.rustup.rs/ -FileName rustup-init.exe
@@ -21,5 +18,5 @@ install:
 build: false
 
 test_script:
-  - REM SET RUST_LOG=tantivy,test & cargo test --verbose
-  - REM SET RUST_BACKTRACE=1 & cargo run --example simple_search
+  - REM SET RUST_LOG=tantivy,test & cargo test --verbose --no-default-features --features mmap -- --test-threads 1
+  - REM SET RUST_BACKTRACE=1 & cargo build --examples
