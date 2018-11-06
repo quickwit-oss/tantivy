@@ -296,6 +296,7 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 #[cfg(test)]
 mod tests {
 
+    use DocAddress;
     use collector::tests::TestCollector;
     use core::SegmentReader;
     use docset::DocSet;
@@ -800,18 +801,9 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"af af af b");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a b c d");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"af af af b"));
+            index_writer.add_document(doc!(text_field=>"a b c"));
+            index_writer.add_document(doc!(text_field=>"a b c d"));
             index_writer.commit().unwrap();
         }
         {
@@ -821,36 +813,36 @@ mod tests {
                 let query = BooleanQuery::new_multiterms_query(terms);
                 let mut collector = TestCollector::default();
                 assert!(searcher.search(&query, &mut collector).is_ok());
-                collector.docs()
+                collector.docs().to_vec()
             };
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                    vec![1, 2]
+                    vec![DocAddress(0, 1), DocAddress(0, 2)]
                 );
             }
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                    vec![0]
+                    vec![DocAddress(0, 0)]
                 );
             }
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                    vec![0, 1, 2]
+                    vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
                 );
             }
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                    vec![1, 2]
+                    vec![DocAddress(0,1), DocAddress(0,2)]
                 );
             }
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                    vec![2]
+                    vec![DocAddress(0,2)]
                 );
             }
             {
@@ -859,7 +851,7 @@ mod tests {
                         Term::from_field_text(text_field, "b"),
                         Term::from_field_text(text_field, "a"),
                     ]),
-                    vec![0, 1, 2]
+                    vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
                 );
             }
         }

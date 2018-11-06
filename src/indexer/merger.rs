@@ -637,7 +637,7 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
     use collector::chain;
     use collector::tests::TestCollector;
-    use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
+    //use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
     use collector::FacetCollector;
     use core::Index;
     use futures::Future;
@@ -656,6 +656,7 @@ mod tests {
     use IndexWriter;
     use Searcher;
 
+    /*
     #[test]
     fn test_index_merger_no_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
@@ -811,7 +812,9 @@ mod tests {
             }
         }
     }
+    */
 
+    /*
     #[test]
     fn test_index_merger_with_deletes() {
         let mut schema_builder = schema::SchemaBuilder::default();
@@ -1137,6 +1140,7 @@ mod tests {
             assert_eq!(searcher.num_docs(), 0);
         }
     }
+    */
 
     #[test]
     fn test_merge_facets() {

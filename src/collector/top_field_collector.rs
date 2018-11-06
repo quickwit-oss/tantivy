@@ -230,7 +230,7 @@ mod tests {
             ));
         });
         let searcher = index.searcher();
-        let mut top_collector: TopFieldCollector<u64> =
+        let top_collector: TopFieldCollector<u64> =
             TopFieldCollector::with_limit(Field(2), 4);
         let segment_reader = searcher.segment_reader(0u32);
         top_collector.for_segment(0, segment_reader)
@@ -251,7 +251,7 @@ mod tests {
         });
         let searcher = index.searcher();
         let segment = searcher.segment_reader(0);
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(size, 4);
+        let top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(size, 4);
         assert_matches!(
             top_collector.for_segment(0, segment),
             Err(TantivyError::FastFieldError(_))

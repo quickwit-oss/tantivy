@@ -15,6 +15,8 @@ mod tests {
     use error::TantivyError;
     use schema::{SchemaBuilder, Term, TEXT};
     use tests::assert_nearly_equals;
+    use DocId;
+    use DocAddress;
 
     fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = SchemaBuilder::default();
@@ -57,6 +59,9 @@ mod tests {
                 .search(&phrase_query, &mut test_collector)
                 .expect("search should succeed");
             test_collector.docs()
+                .iter()
+                .map(|docaddr| docaddr.1)
+                .collect::<Vec<_>>()
         };
         assert_eq!(test_query(vec!["a", "b", "c"]), vec![2, 4]);
         assert_eq!(test_query(vec!["a", "b"]), vec![1, 2, 3, 4]);
@@ -122,7 +127,7 @@ mod tests {
             searcher
                 .search(&phrase_query, &mut test_collector)
                 .expect("search should succeed");
-            test_collector.scores()
+            test_collector.scores().to_vec()
         };
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals(scores[0], 0.40618482);
@@ -137,21 +142,9 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 2
-                let doc = doc!(text_field=>"b a");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"b"));
+            index_writer.add_document(doc!(text_field=>"a b"));
+            index_writer.add_document(doc!(text_field=>"b a"));
             assert!(index_writer.commit().is_ok());
         }
 
@@ -167,10 +160,10 @@ mod tests {
             searcher
                 .search(&phrase_query, &mut test_collector)
                 .expect("search should succeed");
-            test_collector.docs()
+            test_collector.docs().to_vec()
         };
-        assert_eq!(test_query(vec!["a", "b"]), vec![1]);
-        assert_eq!(test_query(vec!["b", "a"]), vec![2]);
+        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0,1)]);
+        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0,2)]);
     }
 
     #[test] // motivated by #234
@@ -197,6 +190,9 @@ mod tests {
                 .search(&phrase_query, &mut test_collector)
                 .expect("search should succeed");
             test_collector.docs()
+                .iter()
+                .map(|doc_address| doc_address.1)
+                .collect::<Vec<DocId>>()
         };
         assert_eq!(test_query(vec![(0, "a"), (1, "b")]), vec![0]);
         assert_eq!(test_query(vec![(1, "b"), (0, "a")]), vec![0]);

@@ -126,38 +126,37 @@ pub mod tests {
     use DocId;
     use Score;
     use SegmentLocalId;
+    use DocAddress;
 
     /// Stores all of the doc ids.
     /// This collector is only used for tests.
     /// It is unusable in practise, as it does not store
     /// the segment ordinals
     pub struct TestCollector {
-        next_offset: DocId,
-        docs: Vec<DocId>,
+        docs: Vec<DocAddress>,
         scores: Vec<Score>,
     }
 
     pub struct TestSegmentCollector {
-        offset: DocId,
+        segment_id: SegmentLocalId,
         docs: Vec<DocId>,
         scores: Vec<Score>,
     }
 
     impl TestCollector {
         /// Return the exhalist of documents.
-        pub fn docs(self) -> Vec<DocId> {
-            self.docs
+        pub fn docs(&self) ->&[DocAddress] {
+            &self.docs[..]
         }
 
-        pub fn scores(self) -> Vec<Score> {
-            self.scores
+        pub fn scores(&self) -> &[Score] {
+            &self.scores[..]
         }
     }
 
     impl Default for TestCollector {
         fn default() -> TestCollector {
             TestCollector {
-                next_offset: 0,
                 docs: Vec::new(),
                 scores: Vec::new(),
             }
@@ -167,11 +166,9 @@ pub mod tests {
     impl Collector for TestCollector {
         type Child = TestSegmentCollector;
 
-        fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<TestSegmentCollector> {
-            let offset = self.next_offset;
-            self.next_offset += reader.max_doc();
+        fn for_segment(&self, segment_id: SegmentLocalId, reader: &SegmentReader) -> Result<TestSegmentCollector> {
             Ok(TestSegmentCollector {
-                offset,
+                segment_id,
                 docs: Vec::new(),
                 scores: Vec::new(),
             })
@@ -182,9 +179,9 @@ pub mod tests {
         }
 
         fn merge_children(&mut self, mut children: Vec<TestSegmentCollector>) {
-            children.sort_by_key(|x| x.offset);
+            children.sort_by_key(|child| child.segment_id);
             for child in children.into_iter() {
-                self.docs.extend(child.docs);
+                self.docs.extend(child.doc_address());
                 self.scores.extend(child.scores);
             }
         }
@@ -192,11 +189,23 @@ pub mod tests {
 
     impl SegmentCollector for TestSegmentCollector {
         fn collect(&mut self, doc: DocId, score: Score) {
-            self.docs.push(doc + self.offset);
+            self.docs.push(doc );
             self.scores.push(score);
         }
     }
 
+    impl TestSegmentCollector {
+        fn doc_address<'a>(&'a self) -> impl Iterator<Item=DocAddress> + 'a {
+            let segment_id = self.segment_id;
+            self.docs
+                .iter()
+                .cloned()
+                .map(move |doc| DocAddress(segment_id, doc))
+        }
+    }
+
+
+    /*
     /// Collects in order all of the fast fields for all of the
     /// doc in the `DocSet`
     ///
@@ -247,7 +256,10 @@ pub mod tests {
         fn merge_children(&mut self, mut children: Vec<FastFieldSegmentCollector>) {
             children.sort_by_key(|x| x.counter);
             for child in children.into_iter() {
-                self.vals.extend(child.vals);
+                let segment_id = child.segment_id;
+                for doc in child.docs {
+                    self.vals.push(DocAddress(segment_id, doc));
+                }
             }
         }
     }
@@ -313,6 +325,7 @@ pub mod tests {
             self.vals.extend(val);
         }
     }
+    */
 }
 
 #[cfg(all(test, feature = "unstable"))]
