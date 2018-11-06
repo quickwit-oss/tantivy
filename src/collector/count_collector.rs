@@ -71,7 +71,7 @@ impl CountCollector {
 impl Collector for CountCollector {
     type Child = CountCollector;
 
-    fn for_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<CountCollector> {
+    fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<CountCollector> {
         Ok(CountCollector::default())
     }
 

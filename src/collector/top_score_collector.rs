@@ -119,7 +119,7 @@ impl Collector for TopScoreCollector {
 
     type Child = TopScoreCollector;
 
-    fn for_segment(&mut self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self::Child> {
+    fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self::Child> {
         let collector = self.collector.for_segment(segment_local_id, reader)?;
         Ok(TopScoreCollector { collector })
     }

@@ -131,7 +131,7 @@ impl<T: FastValue + PartialOrd + Clone + 'static> Collector for TopFieldCollecto
 
     type Child = Self;
 
-    fn for_segment(&mut self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self> {
+    fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self> {
         let collector = self.collector.for_segment(segment_local_id, reader)?;
         let fast_field = Some(reader.fast_field_reader(self.field)?);
         Ok(TopFieldCollector {

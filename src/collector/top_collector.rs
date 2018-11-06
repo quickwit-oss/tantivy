@@ -54,7 +54,7 @@ pub(crate) struct TopCollector<T> {
 
 impl<T: PartialOrd + Clone> TopCollector<T> {
 
-    pub(crate) fn for_segment(&mut self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<Self> {
+    pub(crate) fn for_segment(&self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<Self> {
         Ok(TopCollector {
             limit: self.limit,
             heap: BinaryHeap::new(),

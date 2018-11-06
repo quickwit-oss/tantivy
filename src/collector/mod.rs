@@ -67,7 +67,7 @@ pub trait Collector {
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
     fn for_segment(
-        &mut self,
+        &self,
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
     ) -> Result<Self::Child>;
@@ -112,26 +112,6 @@ pub trait SegmentCollector: downcast::Any + 'static {
 #[allow(missing_docs)]
 mod downcast_impl {
     downcast!(super::SegmentCollector);
-}
-
-impl<'a, C: Collector> Collector for &'a mut C {
-    type Child = C::Child;
-
-    fn for_segment(
-        &mut self, // TODO Ask Jason : why &mut self here!?
-        segment_local_id: SegmentLocalId,
-        segment: &SegmentReader,
-    ) -> Result<C::Child> {
-        (*self).for_segment(segment_local_id, segment)
-    }
-
-    fn requires_scoring(&self) -> bool {
-        C::requires_scoring(self)
-    }
-
-    fn merge_children(&mut self, children: Vec<C::Child>) {
-        (*self).merge_children(children);
-    }
 }
 
 

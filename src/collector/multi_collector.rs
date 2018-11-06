@@ -19,7 +19,7 @@ impl<'a, T: 'a + Collector> CollectorWrapper<'a, T> {
 impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
     type Child = T::Child;
 
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
         self.0.for_segment(segment_local_id, segment)
     }
 
@@ -33,7 +33,7 @@ impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
 }
 
 trait UntypedCollector {
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>>;
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>>;
 
     fn requires_scoring(&self) -> bool;
 
@@ -42,7 +42,7 @@ trait UntypedCollector {
 
 
 impl<'a, TCollector:'a + Collector> UntypedCollector for CollectorWrapper<'a, TCollector> {
-    fn for_segment(&mut self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>> {
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<SegmentCollector>> {
         let segment_collector = self.0.for_segment(segment_local_id, segment)?;
         Ok(Box::new(segment_collector))
     }
@@ -138,9 +138,9 @@ impl<'a> Collector for MultiCollector<'a> {
 
     type Child = MultiCollectorChild;
 
-    fn for_segment(&mut self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<MultiCollectorChild> {
+    fn for_segment(&self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<MultiCollectorChild> {
         let children = self.collector_wrappers
-            .iter_mut()
+            .iter()
             .map(|collector_wrapper| {
                 collector_wrapper.for_segment(segment_local_id, segment)
             })

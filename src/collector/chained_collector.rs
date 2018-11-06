@@ -14,7 +14,7 @@ pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
     type Child = DoNothingCollector;
     #[inline]
-    fn for_segment(&mut self, _: SegmentLocalId, _: &SegmentReader) -> Result<DoNothingCollector> {
+    fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<DoNothingCollector> {
         Ok(DoNothingCollector)
     }
     #[inline]
@@ -107,7 +107,7 @@ impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
 impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Right> {
     type Child = ChainedSegmentCollector<Left::Child, Right::Child>;
     fn for_segment(
-        &mut self,
+        &self,
         segment_local_id: SegmentLocalId,
         segment: &SegmentReader,
     ) -> Result<Self::Child> {

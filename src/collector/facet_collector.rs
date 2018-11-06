@@ -341,7 +341,7 @@ impl FacetSegmentCollector {
 impl Collector for FacetCollector {
     type Child = FacetSegmentCollector;
 
-    fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
+    fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
 
         let mut collapse_mapping = Vec::new();
