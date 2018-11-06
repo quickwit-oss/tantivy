@@ -144,12 +144,14 @@ impl SegmentCollector for TopScoreCollector {
 
 #[cfg(test)]
 mod tests {
+
+    // TODO fix tests
+
     use super::TopScoreCollector;
-    use collector::{Collector, SegmentCollector};
+    use collector::SegmentCollector;
     use DocId;
     use Score;
 
-    /*
     #[test]
     fn test_top_collector_not_at_capacity() {
         let mut top_collector = TopScoreCollector::with_limit(4);
@@ -192,7 +194,6 @@ mod tests {
             assert_eq!(docs, vec![7, 1, 5, 3]);
         }
     }
-    */
 
     #[test]
     #[should_panic]

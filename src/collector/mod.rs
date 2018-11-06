@@ -166,7 +166,7 @@ pub mod tests {
     impl Collector for TestCollector {
         type Child = TestSegmentCollector;
 
-        fn for_segment(&self, segment_id: SegmentLocalId, reader: &SegmentReader) -> Result<TestSegmentCollector> {
+        fn for_segment(&self, segment_id: SegmentLocalId, _reader: &SegmentReader) -> Result<TestSegmentCollector> {
             Ok(TestSegmentCollector {
                 segment_id,
                 docs: Vec::new(),
@@ -205,19 +205,16 @@ pub mod tests {
     }
 
 
-    /*
     /// Collects in order all of the fast fields for all of the
     /// doc in the `DocSet`
     ///
     /// This collector is mainly useful for tests.
     pub struct FastFieldTestCollector {
-        next_counter: usize,
         vals: Vec<u64>,
         field: Field,
     }
 
     pub struct FastFieldSegmentCollector {
-        counter: usize,
         vals: Vec<u64>,
         reader: FastFieldReader<u64>,
     }
@@ -225,7 +222,6 @@ pub mod tests {
     impl FastFieldTestCollector {
         pub fn for_field(field: Field) -> FastFieldTestCollector {
             FastFieldTestCollector {
-                next_counter: 0,
                 vals: Vec::new(),
                 field,
             }
@@ -239,11 +235,8 @@ pub mod tests {
     impl Collector for FastFieldTestCollector {
         type Child = FastFieldSegmentCollector;
 
-        fn for_segment(&mut self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FastFieldSegmentCollector> {
-            let counter = self.next_counter;
-            self.next_counter += 1;
+        fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FastFieldSegmentCollector> {
             Ok(FastFieldSegmentCollector {
-                counter,
                 vals: Vec::new(),
                 reader: reader.fast_field_reader(self.field)?,
             })
@@ -253,13 +246,9 @@ pub mod tests {
             false
         }
 
-        fn merge_children(&mut self, mut children: Vec<FastFieldSegmentCollector>) {
-            children.sort_by_key(|x| x.counter);
+        fn merge_children(&mut self, children: Vec<FastFieldSegmentCollector>) {
             for child in children.into_iter() {
-                let segment_id = child.segment_id;
-                for doc in child.docs {
-                    self.vals.push(DocAddress(segment_id, doc));
-                }
+                self.vals.extend(&child.vals[..]);
             }
         }
     }
@@ -301,7 +290,7 @@ pub mod tests {
     impl Collector for BytesFastFieldTestCollector {
         type Child = BytesFastFieldSegmentCollector;
 
-        fn for_segment(&mut self, _segment_local_id: u32, segment: &SegmentReader) -> Result<BytesFastFieldSegmentCollector> {
+        fn for_segment(&self, _segment_local_id: u32, segment: &SegmentReader) -> Result<BytesFastFieldSegmentCollector> {
             Ok(BytesFastFieldSegmentCollector {
                 vals: Vec::new(),
                 reader: segment.bytes_fast_field_reader(self.field)?,
@@ -325,7 +314,6 @@ pub mod tests {
             self.vals.extend(val);
         }
     }
-    */
 }
 
 #[cfg(all(test, feature = "unstable"))]
