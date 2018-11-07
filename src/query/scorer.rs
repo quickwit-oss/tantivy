@@ -1,4 +1,4 @@
-use collector::SegmentCollector;
+use collector::{CollectDocScore, SegmentCollector};
 use common::BitSet;
 use docset::{DocSet, SkipResult};
 use downcast;
@@ -18,7 +18,7 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
 
     /// Consumes the complete `DocSet` and
     /// push the scored documents to the collector.
-    fn collect(&mut self, collector: &mut SegmentCollector, delete_bitset_opt: Option<&DeleteBitSet>) {
+    fn collect(&mut self, collector: &mut CollectDocScore, delete_bitset_opt: Option<&DeleteBitSet>) {
         if let Some(delete_bitset) = delete_bitset_opt {
             while self.advance() {
                 let doc = self.doc();
@@ -44,7 +44,7 @@ impl Scorer for Box<Scorer> {
         self.deref_mut().score()
     }
 
-    fn collect(&mut self, collector: &mut SegmentCollector, delete_bitset: Option<&DeleteBitSet>) {
+    fn collect(&mut self, collector: &mut CollectDocScore, delete_bitset: Option<&DeleteBitSet>) {
         let scorer = self.deref_mut();
         scorer.collect(collector, delete_bitset);
     }

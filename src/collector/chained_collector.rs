@@ -4,7 +4,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::SegmentCollector;
+use collector::{CollectDocScore, SegmentCollector};
 use collector::multi_collector::CollectorWrapper;
 
 /// Collector that does nothing.
@@ -12,7 +12,9 @@ use collector::multi_collector::CollectorWrapper;
 /// be optimized away by the compiler.
 pub struct DoNothingCollector;
 impl Collector for DoNothingCollector {
+    type Fruit = ();
     type Child = DoNothingCollector;
+
     #[inline]
     fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<DoNothingCollector> {
         Ok(DoNothingCollector)
@@ -21,12 +23,21 @@ impl Collector for DoNothingCollector {
     fn requires_scoring(&self) -> bool {
         false
     }
+
     #[inline]
-    fn merge_children(&mut self, _children: Vec<DoNothingCollector>) {}
+    fn merge_fruits(&mut self, _children: Vec<()>) -> () {}
 }
 
 impl SegmentCollector for DoNothingCollector {
-    #[inline]
+    type Fruit = ();
+
+
+    fn harvest(self) -> () {
+        ()
+    }
+}
+
+impl CollectDocScore for DoNothingCollector {
     fn collect(&mut self, _doc: DocId, _score: Score) {}
 }
 
@@ -105,6 +116,7 @@ impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
 }
 
 impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Right> {
+    type Fruit = (Left::Fruit, Right::Fruit);
     type Child = ChainedSegmentCollector<Left::Child, Right::Child>;
     fn for_segment(
         &self,
@@ -121,21 +133,26 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
         self.left.requires_scoring() || self.right.requires_scoring()
     }
 
-    fn merge_children(&mut self, children: Vec<Self::Child>) {
+    fn merge_fruits(&self, fruit_pairs: Vec<Self::Fruit>) -> Self::Fruit {
         let mut lefts = Vec::new();
         let mut rights = Vec::new();
-
-        for child in children.into_iter() {
-            lefts.push(child.left);
-            rights.push(child.right);
+        for (left_fruit, right_fruit) in fruit_pairs {
+            lefts.push(left_fruit);
+            rights.push(right_fruit);
         }
-
-        self.left.merge_children(lefts);
-        self.right.merge_children(rights);
+        (self.left.merge_children(lefts), self.right.merge_children(rights))
     }
 }
 
 impl<Left: SegmentCollector, Right: SegmentCollector> SegmentCollector for ChainedSegmentCollector<Left, Right> {
+    type Fruit = (Left::Fruit, Right::Fruit);
+
+    fn harvest(self) -> (Left::Fruit, Right::Fruit) {
+        (self.left.harvest(), self.right.harvest())
+    }
+}
+
+impl<Left: SegmentCollector, Right: SegmentCollector> CollectDocScore for ChainedSegmentCollector<Left, Right> {
     fn collect(&mut self, doc: DocId, score: Score) {
         self.left.collect(doc, score);
         self.right.collect(doc, score);
@@ -150,6 +167,8 @@ pub fn chain() -> ChainedCollector<DoNothingCollector, DoNothingCollector> {
     }
 }
 
+
+/* TODO uncomment
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,3 +205,4 @@ mod tests {
         assert!(top_collector.at_capacity());
     }
 }
+*/

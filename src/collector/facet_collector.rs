@@ -11,7 +11,7 @@ use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
 use termdict::TermMerger;
-
+use collector::{CollectorFruit, CollectDocScore};
 use std::cmp::Ordering;
 use DocId;
 use Result;
@@ -192,11 +192,13 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     Ok(())
 /// }
 /// ```
-pub struct
-FacetCollector {
+pub struct FacetCollector {
     field: Field,
-    segment_counters: Vec<SegmentFacetCounter>,
     facets: BTreeSet<Facet>,
+    /*
+    segment_counters: Vec<SegmentFacetCounter>,
+    */
+
 }
 
 pub struct FacetSegmentCollector {
@@ -243,9 +245,8 @@ impl FacetCollector {
     /// is of the proper type.
     pub fn for_field(field: Field) -> FacetCollector {
         FacetCollector {
-            segment_counters: Vec::new(),
             field,
-            facets: BTreeSet::new(),
+            facets: BTreeSet::default()
         }
     }
 
@@ -275,71 +276,13 @@ impl FacetCollector {
         }
         self.facets.insert(facet);
     }
-
-    /// Returns the results of the collection.
-    ///
-    /// This method does not just return the counters,
-    /// it also translates the facet ordinals of the last segment.
-    pub fn harvest(self) -> FacetCounts {
-        let collapsed_facet_ords: Vec<&[u64]> = self.segment_counters
-            .iter()
-            .map(|segment_counter| &segment_counter.facet_ords[..])
-            .collect();
-        let collapsed_facet_counts: Vec<&[u64]> = self
-            .segment_counters
-            .iter()
-            .map(|segment_counter| &segment_counter.facet_counts[..])
-            .collect();
-
-        let facet_streams = self
-            .segment_counters
-            .iter()
-            .map(|seg_counts| seg_counts.facet_reader.facet_dict().range().into_stream())
-            .collect::<Vec<_>>();
-
-        let mut facet_merger = TermMerger::new(facet_streams);
-        let mut facet_counts = BTreeMap::new();
-
-        while facet_merger.advance() {
-            let count = facet_merger
-                .current_kvs()
-                .iter()
-                .map(|it| {
-                    let seg_ord = it.segment_ord;
-                    let term_ord = it.streamer.term_ord();
-                    collapsed_facet_ords[seg_ord]
-                        .binary_search(&term_ord)
-                        .map(|collapsed_term_id| {
-                            if collapsed_term_id == 0 {
-                                0
-                            } else {
-                                collapsed_facet_counts[seg_ord][collapsed_term_id]
-                            }
-                        }).unwrap_or(0)
-                }).sum();
-            if count > 0u64 {
-                let bytes: Vec<u8> = facet_merger.key().to_owned();
-                // may create an corrupted facet if the term dicitonary is corrupted
-                let facet = unsafe { Facet::from_encoded(bytes) };
-                facet_counts.insert(facet, count);
-            }
-        }
-        FacetCounts { facet_counts }
-    }
-}
-
-impl FacetSegmentCollector {
-    fn into_segment_facet_counter(self) -> SegmentFacetCounter {
-        SegmentFacetCounter {
-            facet_reader: self.reader,
-            facet_ords: self.collapse_facet_ords,
-            facet_counts: self.counts,
-        }
-    }
 }
 
 impl Collector for FacetCollector {
+
     type Child = FacetSegmentCollector;
+
+    type Fruit = FacetCounts;
 
     fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
@@ -404,24 +347,54 @@ impl Collector for FacetCollector {
         false
     }
 
-    fn merge_children(&mut self, children: Vec<FacetSegmentCollector>) {
-        for child in children.into_iter() {
-            self.segment_counters.push(child.into_segment_facet_counter());
+    fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> FacetCounts {
+        // OPTIMIZE
+        let mut facet_counts: BTreeMap<Facet, u64> = BTreeMap::new();
+        for segment_facet_counts in segments_facet_counts {
+            for (facet, count) in segment_facet_counts.facet_counts {
+                *(facet_counts.entry(facet).or_insert(0)) += count;
+            }
         }
+        FacetCounts { facet_counts }
     }
 }
 
 impl SegmentCollector for FacetSegmentCollector {
+
+    type Fruit = FacetCounts;
+
+    /// Returns the results of the collection.
+    ///
+    /// This method does not just return the counters,
+    /// it also translates the facet ordinals of the last segment.
+    fn harvest(self) -> FacetCounts {
+        let mut facet_counts = BTreeMap::new();
+        let facet_dict = self.reader.facet_dict();
+        for (facet_ord, count) in self.counts.iter().cloned().enumerate() {
+            if count == 0 {
+                continue;
+            }
+            let mut facet = vec![];
+            facet_dict.ord_to_term(facet_ord as u64, &mut facet);
+            facet_counts.insert(unsafe { Facet::from_encoded(facet) }, count);
+        }
+        FacetCounts { facet_counts }
+    }
+}
+
+impl CollectDocScore for FacetSegmentCollector {
+
     fn collect(&mut self, doc: DocId, _: Score) {
         self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords_buf {
             let collapsed_ord = self.collapse_mapping[facet_ord as usize];
-            self.counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord {
-                0
-            } else {
-                1
-            };
+            self.counts[collapsed_ord] +=
+                if collapsed_ord == previous_collapsed_ord {
+                    0
+                } else {
+                    1
+                };
             previous_collapsed_ord = collapsed_ord;
         }
     }
@@ -432,6 +405,8 @@ impl SegmentCollector for FacetSegmentCollector {
 pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
+
+impl CollectorFruit for FacetCounts {}
 
 pub struct FacetChildIterator<'a> {
     underlying: btree_map::Range<'a, Facet, u64>,

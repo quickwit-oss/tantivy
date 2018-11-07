@@ -4,7 +4,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::SegmentCollector;
+use collector::{SegmentCollector, CollectDocScore};
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
@@ -69,6 +69,9 @@ impl CountCollector {
 }
 
 impl Collector for CountCollector {
+
+    type Fruit = usize;
+
     type Child = CountCollector;
 
     fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<CountCollector> {
@@ -79,14 +82,21 @@ impl Collector for CountCollector {
         false
     }
 
-    fn merge_children(&mut self, children: Vec<CountCollector>) {
-        for child in children.into_iter() {
-            self.count += child.count;
-        }
+    fn merge_fruits(&self, segment_counts: Vec<usize>) -> usize {
+        segment_counts.into_iter().sum()
     }
 }
 
+
 impl SegmentCollector for CountCollector {
+    type Fruit = usize;
+
+    fn harvest(self) -> usize {
+        self.count
+    }
+}
+
+impl CollectDocScore for CountCollector {
     fn collect(&mut self, _: DocId, _: Score) {
         self.count += 1;
     }

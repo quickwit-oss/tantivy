@@ -129,6 +129,8 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
 
 impl<T: FastValue + PartialOrd + Clone + 'static> Collector for TopFieldCollector<T> {
 
+    type Fruit = ;
+
     type Child = Self;
 
     fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self> {

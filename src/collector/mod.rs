@@ -14,24 +14,36 @@ use downcast;
 mod count_collector;
 pub use self::count_collector::CountCollector;
 
-mod multi_collector;
-pub use self::multi_collector::MultiCollector;
+//mod multi_collector;
+//pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
+
+/*
+
+TODO uncomment
 
 mod top_score_collector;
 pub use self::top_score_collector::TopScoreCollector;
 #[deprecated]
 pub use self::top_score_collector::TopScoreCollector as TopCollector;
 
- mod top_field_collector;
- pub use self::top_field_collector::TopFieldCollector;
+mod top_field_collector;
+pub use self::top_field_collector::TopFieldCollector;
+*/
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
-mod chained_collector;
-pub use self::chained_collector::{chain, ChainedCollector};
+//mod chained_collector;
+//pub use self::chained_collector::{chain, ChainedCollector};
+
+
+pub trait CollectorFruit: Send + downcast::Any {
+}
+
+
+impl CollectorFruit for usize {}
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
@@ -63,7 +75,11 @@ pub use self::chained_collector::{chain, ChainedCollector};
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
-    type Child : SegmentCollector + 'static;
+
+    type Fruit: CollectorFruit;
+
+    type Child: SegmentCollector<Fruit=Self::Fruit> + 'static;
+
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
     fn for_segment(
@@ -75,7 +91,7 @@ pub trait Collector {
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
-    fn merge_children(&mut self, children: Vec<Self::Child>);
+    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit;
 
     /// Search works as follows :
     ///
@@ -89,29 +105,38 @@ pub trait Collector {
     ///
     /// Finally, the Collector merges each of the child collectors into itself for result usability
     /// by the caller.
-    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<()> {
+    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
         let scoring_enabled = self.requires_scoring();
         let weight = query.weight(searcher, scoring_enabled)?;
-        let mut children = Vec::new();
+        let mut fruits = Vec::new();
         for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
             let mut child: Self::Child = self.for_segment(segment_ord as SegmentLocalId, segment_reader)?;
             let mut scorer = weight.scorer(segment_reader)?;
             scorer.collect(&mut child, segment_reader.delete_bitset());
-            children.push(child);
+            fruits.push(child.harvest());
         }
-        self.merge_children(children);
-        Ok(())
+        Ok(self.merge_fruits(fruits))
     }
 }
 
-pub trait SegmentCollector: downcast::Any + 'static {
+
+pub trait CollectDocScore {
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 }
 
+pub trait SegmentCollector: 'static + CollectDocScore {
+
+    type Fruit;
+
+    fn harvest(self) -> Self::Fruit;
+}
+
+
+
 #[allow(missing_docs)]
 mod downcast_impl {
-    downcast!(super::SegmentCollector);
+    downcast!(super::CollectorFruit);
 }
 
 
