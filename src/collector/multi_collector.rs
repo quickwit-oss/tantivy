@@ -7,66 +7,77 @@ use SegmentLocalId;
 use SegmentReader;
 use collector::CollectDocScore;
 use downcast::Downcast;
-use super::CollectorFruit;
+use collector::Fruit;
 
-pub struct AnyFruit(Box<CollectorFruit>);
-impl CollectorFruit for AnyFruit {}
 
-pub struct CollectorWrapper<'a, TCollector: 'a + Collector>(&'a mut TCollector);
 
-impl<'a, T: 'a + Collector> CollectorWrapper<'a, T> {
-    pub fn new(collector: &'a mut T) -> CollectorWrapper<'a, T> {
-        CollectorWrapper(collector)
-    }
-}
+pub struct CollectorWrapper<'a, TCollector: Collector>(&'a mut TCollector);
 
-impl<'a, T: 'a + Collector> Collector for CollectorWrapper<'a, T> {
+impl<'a, TCollector: Collector> Collector for CollectorWrapper<'a , TCollector> {
+    type Fruit = Box<Fruit>;
+    type Child = Box<BoxableSegmentCollector>;
 
-    type Fruit = T::Fruit;
-
-    type Child = T::Child;
-
-    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<T::Child> {
-        self.0.for_segment(segment_local_id, segment)
+    fn for_segment(&self, segment_local_id: u32, reader: &SegmentReader) -> Result<Box<BoxableSegmentCollector>> {
+        let child = self.0.for_segment(segment_local_id, reader)?;
+        Ok(Box::new(SegmentCollectorWrapper(child)))
     }
 
     fn requires_scoring(&self) -> bool {
         self.0.requires_scoring()
     }
 
-    fn merge_fruits(&mut self, children: MultiAnyFruit) {
-        self.0.merge_fruits(children)
-    }
-}
-
-trait UntypedCollector {
-
-    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<UntypedSegmentCollector>>;
-
-    fn requires_scoring(&self) -> bool;
-
-    fn merge_children_anys(&self, segments_multifruits: Vec<Vec<AnyFruit>>)
-                      -> Vec<AnyFruit>;
-}
-
-impl<'a, TCollector:'a + Collector> UntypedCollector for CollectorWrapper<'a, TCollector> {
-    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Box<UntypedSegmentCollector>> {
-        let segment_collector = self.0.for_segment(segment_local_id, segment)?;
-        Ok(Box::new(segment_collector))
-    }
-
-    fn requires_scoring(&self) -> bool {
-        self.0.requires_scoring()
-    }
-
-    fn merge_children_anys(&mut self, childrens: Vec<AnyFruit>) -> AnyFruit {
-        let typed_children: Vec<TCollector::Child> = childrens.into_iter()
-            .map(|untyped_child_collector| {
-                *Downcast::<TCollector::Child>::downcast(untyped_child_collector).unwrap()
+    fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> <Self as Collector>::Fruit {
+        let typed_fruit: Vec<TCollector::Fruit> = children.into_iter()
+            .map(|untyped_fruit| {
+                // TODO errors?
+                *Downcast::<TCollector::Fruit>::downcast(untyped_fruit).unwrap()
             }).collect();
-        Box::new(self.0.merge_children(typed_children))
+        let merged_fruit = self.0.merge_fruits(typed_fruit);
+        Box::new(merged_fruit)
     }
 }
+
+
+impl SegmentCollector for Box<BoxableSegmentCollector> {
+
+    type Fruit = Box<Fruit>;
+
+    fn harvest(self) -> Box<Fruit> {
+        BoxableSegmentCollector::harvest_from_box(self)
+    }
+}
+
+impl CollectDocScore for Box<BoxableSegmentCollector> {
+    fn collect(&mut self, doc: u32, score: f32) {
+        (*self).collect(doc, score);
+    }
+}
+
+
+
+pub trait BoxableSegmentCollector: CollectDocScore {
+    fn harvest_from_box(self: Box<Self>) -> Box<Fruit>;
+}
+
+
+
+pub struct SegmentCollectorWrapper<TSegmentCollector: SegmentCollector>(TSegmentCollector);
+
+
+impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector for SegmentCollectorWrapper<TSegmentCollector> {
+    fn harvest_from_box(self: Box<Self>) -> Box<Fruit> {
+        Box::new(self.0.harvest())
+    }
+}
+
+impl<TSegmentCollector> CollectDocScore for SegmentCollectorWrapper<TSegmentCollector>
+    where TSegmentCollector: SegmentCollector {
+    fn collect(&mut self, doc: u32, score: f32) {
+        (*self).collect(doc, score);
+    }
+}
+
+
 
 /// Multicollector makes it possible to collect on more than one collector.
 /// It should only be used for use cases where the Collector types is unknown
@@ -126,7 +137,7 @@ impl<'a, TCollector:'a + Collector> UntypedCollector for CollectorWrapper<'a, TC
 /// }
 /// ```
 pub struct MultiCollector<'a> {
-    collector_wrappers: Vec<Box<UntypedCollector + 'a>>
+    collector_wrappers: Vec<Box<Collector<Child=Box<BoxableSegmentCollector>,Fruit=Box<Fruit>> + 'a>>
 }
 
 impl<'a> MultiCollector<'a> {
@@ -136,18 +147,13 @@ impl<'a> MultiCollector<'a> {
         }
     }
 
-    pub fn add_collector<TCollector: 'a + Collector>(&mut self, collector: &'a mut TCollector) {
-        let collector_wrapper = CollectorWrapper(collector);
-        self.collector_wrappers.push(Box::new(collector_wrapper));
+    pub fn add_collector<'b:'a, TCollector: Collector>(&mut self, collector: &'b mut TCollector) {
+        self.collector_wrappers.push(Box::new(CollectorWrapper(collector)));
     }
 }
 
-
-struct MultiAnyFruit(Vec<AnyFruit>);
-impl CollectorFruit for MultiAnyFruit {}
-
 impl<'a> Collector for MultiCollector<'a> {
-    type Fruit = MultiAnyFruit;
+    type Fruit = Vec<Box<Fruit>>;
     type Child = MultiCollectorChild;
 
     fn for_segment(&self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<MultiCollectorChild> {
@@ -168,9 +174,9 @@ impl<'a> Collector for MultiCollector<'a> {
             .any(|c| c.requires_scoring())
     }
 
-    fn merge_fruits(&self, segments_multifruits: Vec<Vec<AnyFruit>>)
-        -> Vec<AnyFruit> {
-        let mut segment_fruits_list: Vec<Vec<AnyFruit>> =
+    fn merge_fruits(&self, segments_multifruits: Vec<Vec<Box<Fruit>>>)
+        -> Vec<Box<Fruit>> {
+        let mut segment_fruits_list: Vec<Vec<Box<Fruit>>> =
             (0..self.collector_wrappers.len())
                 .map(|_| Vec::with_capacity(segments_multifruits.len()))
                 .collect::<Vec<_>>();
@@ -179,30 +185,28 @@ impl<'a> Collector for MultiCollector<'a> {
                 segment_fruits_list[idx].push(segment_fruit);
             }
         }
-        self.collector_wrappers.iter()
+        self.collector_wrappers
+            .iter()
             .zip(segment_fruits_list)
-            .map(|(child_collector, segment_fruits)| {
-                child_collector.merge_children_anys(segment_fruits)
-            })
+            .map(|(child_collector, segment_fruits)|
+                child_collector.merge_fruits(segment_fruits)
+            )
+            .collect()
     }
 
 }
 
-trait UntypedSegmentCollector {
-    fn collect();
-}
-
 
 pub struct MultiCollectorChild {
-    children: Vec<Box<SegmentCollector<Fruit=AnyFruit>>>,
+    children: Vec<Box<BoxableSegmentCollector>>
 }
 
 impl SegmentCollector for MultiCollectorChild {
-    type Fruit = Vec<AnyFruit>;
+    type Fruit = Vec<Box<Fruit>>;
 
-    fn harvest(self) -> Vec<AnyFruit> {
+    fn harvest(self) -> Vec<Box<Fruit>> {
         self.children.into_iter()
-            .map(|child| Box::new(child.harvest()))
+            .map(|child| child.harvest())
             .collect()
     }
 }

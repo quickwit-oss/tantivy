@@ -14,8 +14,8 @@ use downcast;
 mod count_collector;
 pub use self::count_collector::CountCollector;
 
-//mod multi_collector;
-//pub use self::multi_collector::MultiCollector;
+mod multi_collector;
+pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
 
@@ -35,15 +35,14 @@ pub use self::top_field_collector::TopFieldCollector;
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
-//mod chained_collector;
-//pub use self::chained_collector::{chain, ChainedCollector};
+    //mod chained_collector;
+    //pub use self::chained_collector::{chain, ChainedCollector};
 
 
-pub trait CollectorFruit: Send + downcast::Any {
-}
+pub trait Fruit: Send + downcast::Any {}
 
+impl<T> Fruit for T where T: Send + downcast::Any {}
 
-impl CollectorFruit for usize {}
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
@@ -76,7 +75,7 @@ impl CollectorFruit for usize {}
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
 
-    type Fruit: CollectorFruit;
+    type Fruit: Fruit;
 
     type Child: SegmentCollector<Fruit=Self::Fruit> + 'static;
 
@@ -127,16 +126,39 @@ pub trait CollectDocScore {
 
 pub trait SegmentCollector: 'static + CollectDocScore {
 
-    type Fruit;
+    type Fruit: Fruit;
 
     fn harvest(self) -> Self::Fruit;
 }
 
 
+/*
+trait BoxHarvest:  {
+    fn harvest_from_box() {
+
+    }
+}
+
+impl<T: Fruit> SegmentCollector for Box<SegmentCollector<Fruit=T> + BoxHarvest> {
+    type Fruit = T;
+
+    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+        let unboxed: SegmentCollector<Fruit=T> = self;
+        .into().harvest()
+    }
+}
+
+impl<T: Fruit> CollectDocScore for Box<SegmentCollector<Fruit=T>> {
+    fn collect(&mut self, doc: DocId, score: Score) {
+        (*self).collect(doc, score)
+    }
+}
+*/
+
 
 #[allow(missing_docs)]
 mod downcast_impl {
-    downcast!(super::CollectorFruit);
+    downcast!(super::Fruit);
 }
 
 

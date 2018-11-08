@@ -11,7 +11,7 @@ use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
 use termdict::TermMerger;
-use collector::{CollectorFruit, CollectDocScore};
+use collector::CollectDocScore;
 use std::cmp::Ordering;
 use DocId;
 use Result;
@@ -405,8 +405,6 @@ impl CollectDocScore for FacetSegmentCollector {
 pub struct FacetCounts {
     facet_counts: BTreeMap<Facet, u64>,
 }
-
-impl CollectorFruit for FacetCounts {}
 
 pub struct FacetChildIterator<'a> {
     underlying: btree_map::Range<'a, Facet, u64>,

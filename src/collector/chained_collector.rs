@@ -25,7 +25,7 @@ impl Collector for DoNothingCollector {
     }
 
     #[inline]
-    fn merge_fruits(&mut self, _children: Vec<()>) -> () {}
+    fn merge_fruits(&self, _children: Vec<()>) -> () {}
 }
 
 impl SegmentCollector for DoNothingCollector {
