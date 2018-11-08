@@ -35,8 +35,8 @@ pub use self::top_field_collector::TopFieldCollector;
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
-    //mod chained_collector;
-    //pub use self::chained_collector::{chain, ChainedCollector};
+mod chained_collector;
+pub use self::chained_collector::{chain, ChainedCollector};
 
 
 pub trait Fruit: Send + downcast::Any {}

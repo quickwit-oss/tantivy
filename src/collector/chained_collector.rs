@@ -7,6 +7,28 @@ use SegmentReader;
 use collector::{CollectDocScore, SegmentCollector};
 use collector::multi_collector::CollectorWrapper;
 
+
+
+
+
+impl<'a, TCollector: Collector> Collector for &'a mut TCollector {
+    type Fruit = TCollector::Fruit;
+    type Child = TCollector::Child;
+
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
+        TCollector::for_segment(*self, segment_local_id, segment)
+    }
+
+    fn requires_scoring(&self) -> bool {
+        TCollector::requires_scoring(*self)
+    }
+
+    fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> <Self as Collector>::Fruit {
+        TCollector::merge_fruits(*self, children)
+    }
+}
+
+
 /// Collector that does nothing.
 /// This is used in the chain Collector and will hopefully
 /// be optimized away by the compiler.
@@ -107,10 +129,10 @@ pub struct ChainedSegmentCollector<Left: SegmentCollector, Right: SegmentCollect
 
 impl<Left: Collector, Right: Collector> ChainedCollector<Left, Right> {
     /// Adds a collector
-    pub fn push<C: Collector>(self, new_collector: &mut C) -> ChainedCollector<Self, CollectorWrapper<C>> {
+    pub fn push<C: Collector>(self, new_collector: C) -> ChainedCollector<Self, C> {
         ChainedCollector {
             left: self,
-            right: CollectorWrapper::new(new_collector),
+            right: new_collector,
         }
     }
 }
@@ -140,7 +162,7 @@ impl<Left: Collector, Right: Collector> Collector for ChainedCollector<Left, Rig
             lefts.push(left_fruit);
             rights.push(right_fruit);
         }
-        (self.left.merge_children(lefts), self.right.merge_children(rights))
+        (self.left.merge_fruits(lefts), self.right.merge_fruits(rights))
     }
 }
 
