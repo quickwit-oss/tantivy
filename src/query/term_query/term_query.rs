@@ -23,7 +23,7 @@ use Term;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT, IndexRecordOption};
 /// use tantivy::{Index, Result, Term};
-/// use tantivy::collector::{CountCollector, TopCollector, chain};
+/// use tantivy::collector::{CountCollector, TopCollector};
 /// use tantivy::query::TermQuery;
 ///
 /// # fn main() { example().unwrap(); }
@@ -52,20 +52,12 @@ use Term;
 ///     index.load_searchers()?;
 ///     let searcher = index.searcher();
 ///
-///     {
-///         let mut top_collector = TopCollector::with_limit(2);
-///         let mut count_collector = CountCollector::default();
-///         {
-///             let mut collectors = chain().push(&mut top_collector).push(&mut count_collector);
-///             let query = TermQuery::new(
-///                 Term::from_field_text(title, "diary"),
-///                 IndexRecordOption::Basic,
-///             );
-///             searcher.search(&query, &mut collectors).unwrap();
-///         }
-///         assert_eq!(count_collector.count(), 2);
-///         assert!(top_collector.at_capacity());
-///     }
+///     let query = TermQuery::new(
+///         Term::from_field_text(title, "diary"),
+///         IndexRecordOption::Basic,
+///     );
+///     let (top_docs, count) = searcher.search(&query, (TopCollector::with_limit(2), CountCollector)).unwrap();
+///     assert_eq!(count, 2);
 ///
 ///     Ok(())
 /// }

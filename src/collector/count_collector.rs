@@ -44,38 +44,27 @@ use collector::{SegmentCollector, CollectDocScore};
 ///     let searcher = index.searcher();
 ///
 ///     {
-///	        let mut count_collector = CountCollector::default();
 ///         let query_parser = QueryParser::for_index(&index, vec![title]);
 ///         let query = query_parser.parse_query("diary")?;
-///         searcher.search(&*query, &mut count_collector).unwrap();
+///         let count = searcher.search(&*query, CountCollector).unwrap();
 ///
-///         assert_eq!(count_collector.count(), 2);
+///         assert_eq!(count, 2);
 ///     }
 ///
 ///     Ok(())
 /// }
 /// ```
-#[derive(Default)]
-pub struct CountCollector {
-    count: usize,
-}
+pub struct CountCollector;
 
-impl CountCollector {
-    /// Returns the count of documents that were
-    /// collected.
-    pub fn count(&self) -> usize {
-        self.count
-    }
-}
 
 impl Collector for CountCollector {
 
     type Fruit = usize;
 
-    type Child = CountCollector;
+    type Child = SegmentCountCollector;
 
-    fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<CountCollector> {
-        Ok(CountCollector::default())
+    fn for_segment(&self, _: SegmentLocalId, _: &SegmentReader) -> Result<SegmentCountCollector> {
+        Ok(SegmentCountCollector::default())
     }
 
     fn requires_scoring(&self) -> bool {
@@ -88,7 +77,13 @@ impl Collector for CountCollector {
 }
 
 
-impl SegmentCollector for CountCollector {
+#[derive(Default)]
+pub struct SegmentCountCollector {
+    count: usize,
+}
+
+
+impl SegmentCollector for SegmentCountCollector {
     type Fruit = usize;
 
     fn harvest(self) -> usize {
@@ -96,7 +91,7 @@ impl SegmentCollector for CountCollector {
     }
 }
 
-impl CollectDocScore for CountCollector {
+impl CollectDocScore for SegmentCountCollector {
     fn collect(&mut self, _: DocId, _: Score) {
         self.count += 1;
     }
@@ -104,20 +99,38 @@ impl CollectDocScore for CountCollector {
 
 #[cfg(test)]
 mod tests {
-
-    use collector::{Collector, CountCollector, SegmentCollector};
-    use collector::CollectDocScore;
+    use super::{CountCollector, SegmentCountCollector};
+    use collector::{SegmentCollector, CollectDocScore};
+    use collector::Collector;
 
     #[test]
-    fn test_count_collector() {
-        let mut count_collector = CountCollector::default();
-        assert_eq!(count_collector.count(), 0);
-        count_collector.collect(0u32, 1f32);
-        assert_eq!(count_collector.count(), 1);
-        assert_eq!(count_collector.count(), 1);
-        count_collector.collect(1u32, 1f32);
-        assert_eq!(count_collector.count(), 2);
-        assert!(!count_collector.requires_scoring());
+    fn test_count_collect_does_not_requires_scoring() {
+        assert!(!CountCollector.requires_scoring());
+    }
+
+    #[test]
+    fn test_segment_count_collector() {
+        {
+            let count_collector = SegmentCountCollector::default();
+            assert_eq!(count_collector.harvest(), 0);
+        }
+        {
+            let mut count_collector = SegmentCountCollector::default();
+            count_collector.collect(0u32, 1f32);
+            assert_eq!(count_collector.harvest(), 1);
+        }
+        {
+            let mut count_collector = SegmentCountCollector::default();
+            count_collector.collect(0u32, 1f32);
+            assert_eq!(count_collector.harvest(), 1);
+        }
+        {
+            let mut count_collector = SegmentCountCollector::default();
+            count_collector.collect(0u32, 1f32);
+            count_collector.collect(1u32, 1f32);
+            assert_eq!(count_collector.harvest(), 2);
+        }
+
     }
 
 }

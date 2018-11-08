@@ -27,7 +27,7 @@ lazy_static! {
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result, Term};
-/// use tantivy::collector::{CountCollector, TopCollector, chain};
+/// use tantivy::collector::{CountCollector, TopCollector};
 /// use tantivy::query::FuzzyTermQuery;
 ///
 /// # fn main() { example().unwrap(); }
@@ -57,16 +57,12 @@ lazy_static! {
 ///     let searcher = index.searcher();
 ///
 ///     {
-///         let mut top_collector = TopCollector::with_limit(2);
-///         let mut count_collector = CountCollector::default();
-///         {
-///             let mut collectors = chain().push(&mut top_collector).push(&mut count_collector);
-///             let term = Term::from_field_text(title, "Diary");
-///             let query = FuzzyTermQuery::new(term, 1, true);
-///             searcher.search(&query, &mut collectors).unwrap();
-///         }
-///         assert_eq!(count_collector.count(), 2);
-///         assert!(top_collector.at_capacity());
+///
+///         let term = Term::from_field_text(title, "Diary");
+///         let query = FuzzyTermQuery::new(term, 1, true);
+///         let (top_docs, count) = searcher.search(&query, (TopCollector::with_limit(2), CountCollector)).unwrap();
+///         assert_eq!(count, 2);
+///         assert_eq!(top_docs.len(), 2);
 ///     }
 ///
 ///     Ok(())
@@ -148,11 +144,10 @@ mod test {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         {
-            let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(country_field, "japon");
 
             let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
-            let top_docs = searcher.search(&fuzzy_query, &mut collector).unwrap();
+            let top_docs = searcher.search(&fuzzy_query, TopCollector::with_limit(2)).unwrap();
             let scored_docs = top_docs.top_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];

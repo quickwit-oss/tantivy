@@ -131,8 +131,7 @@ mod tests {
 
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
-            let mut test_collector = TestCollector::default();
-            let test_docs = searcher.search(boolean_query, &mut test_collector).unwrap();
+            let test_docs = searcher.search(boolean_query, TestCollector::default()).unwrap();
             test_docs.docs()
                 .iter()
                 .cloned()

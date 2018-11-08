@@ -86,12 +86,11 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let mut top_collector = TopCollector::with_limit(10);
-//! searcher.search(&*query, &mut top_collector)?;
+//! let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
 //!
 //! // Our top collector now contains the 10
 //! // most relevant doc ids...
-//! let doc_addresses = top_collector.docs();
+//! let doc_addresses = top_docs.docs();
 //! for doc_address in doc_addresses {
 //!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
@@ -811,8 +810,7 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let mut collector = TestCollector::default();
-                let topdocs = searcher.search(&query, &mut collector).unwrap();
+                let topdocs = searcher.search(&query, TestCollector::default()).unwrap();
                 topdocs.docs().to_vec()
             };
             {

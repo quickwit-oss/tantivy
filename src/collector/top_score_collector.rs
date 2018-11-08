@@ -23,8 +23,9 @@ use collector::top_collector::TopCollector;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
+/// use tantivy::DocAddress;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
-/// use tantivy::{Index, Result, DocId, Score};
+/// use tantivy::{Index, Result};
 /// use tantivy::collector::TopScoreCollector;
 /// use tantivy::query::QueryParser;
 ///
@@ -54,20 +55,12 @@ use collector::top_collector::TopCollector;
 ///     index.load_searchers()?;
 ///     let searcher = index.searcher();
 ///
-///     {
-///	        let mut top_collector = TopScoreCollector::with_limit(2);
-///         let query_parser = QueryParser::for_index(&index, vec![title]);
-///         let query = query_parser.parse_query("diary")?;
-///         searcher.search(&*query, &mut top_collector).unwrap();
+///     let query_parser = QueryParser::for_index(&index, vec![title]);
+///     let query = query_parser.parse_query("diary")?;
+///     let top_docs = searcher.search(&*query, TopScoreCollector::with_limit(2))?.top_docs();
 ///
-///         let score_docs: Vec<(Score, DocId)> = top_collector
-///           .top_docs()
-///           .into_iter()
-///           .map(|(score, doc_address)| (score, doc_address.doc()))
-///           .collect();
-///
-///         assert_eq!(score_docs, vec![(0.7261542, 1), (0.6099695, 3)]);
-///     }
+///     assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
+///     assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
 ///
 ///     Ok(())
 /// }
@@ -83,45 +76,17 @@ impl TopScoreCollector {
     pub fn with_limit(limit: usize) -> TopScoreCollector {
         TopScoreCollector(TopCollector::with_limit(limit))
     }
-
-// / Return true iff at least K documents have gone through
-// / the collector.
-//    #[inline]
-//    pub fn at_capacity(&self) -> bool {
-//        self.collector.at_capacity()
-//    }
 }
 
 
-pub struct TopScoreDocs(TopDocs<Score>);
-
-impl TopScoreDocs {
-
-    /// Returns K best scored documents sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn docs(&self) -> Vec<DocAddress> {
-        self.0.docs()
-    }
-
-    /// Returns K best ScoredDocuments sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn top_docs(&self) -> Vec<(Score, DocAddress)> {
-        self.0.top_docs()
-    }
-
-}
 
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 
 impl SegmentCollector for TopScoreSegmentCollector {
-    type Fruit = TopScoreDocs;
+    type Fruit = TopDocs<Score>;
 
-    fn harvest(self) -> TopScoreDocs {
-        TopScoreDocs(self.0.harvest())
+    fn harvest(self) -> TopDocs<Score> {
+        self.0.harvest()
     }
 }
 
@@ -135,7 +100,7 @@ impl CollectDocScore for TopScoreSegmentCollector {
 
 impl Collector for TopScoreCollector {
 
-    type Fruit = TopScoreDocs;
+    type Fruit = TopDocs<Score>;
     type Child = TopScoreSegmentCollector;
 
     fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self::Child> {
@@ -147,11 +112,8 @@ impl Collector for TopScoreCollector {
         true
     }
 
-    fn merge_fruits(&self, children: Vec<TopScoreDocs>) -> Self::Fruit {
-        let children = children.into_iter()
-            .map(|top_score_docs| top_score_docs.0)
-            .collect();
-        TopScoreDocs(self.0.merge_fruits(children))
+    fn merge_fruits(&self, children: Vec<TopDocs<Score>>) -> Self::Fruit {
+        self.0.merge_fruits(children)
     }
 }
 

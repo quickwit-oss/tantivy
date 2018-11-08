@@ -213,10 +213,9 @@ fn main() -> tantivy::Result<()> {
     // We are not interested in all of the documents but
     // only in the top 10. Keeping track of our top 10 best documents
     // is the role of the TopCollector.
-    let mut top_collector = TopCollector::with_limit(10);
 
     // We can now perform our query.
-    let top_docs = searcher.search(&*query, &mut top_collector)?;
+    let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.

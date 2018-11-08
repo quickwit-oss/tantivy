@@ -104,8 +104,7 @@ fn main() -> tantivy::Result<()> {
     // here we want to get a hit on the 'ken' in Frankenstein
     let query = query_parser.parse_query("ken")?;
 
-    let mut top_collector = TopCollector::with_limit(10);
-    let top_docs = searcher.search(&*query, &mut top_collector)?;
+    let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
 
     let doc_addresses = top_docs.docs();
     for doc_address in doc_addresses {

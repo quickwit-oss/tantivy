@@ -19,28 +19,16 @@ pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
 
-
 mod top_score_collector;
 pub use self::top_score_collector::TopScoreCollector;
 #[deprecated]
 pub use self::top_score_collector::TopScoreCollector as TopCollector;
 
-/*
-
-TODO uncomment
-
-
-
 mod top_field_collector;
 pub use self::top_field_collector::TopFieldCollector;
-*/
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
-
-mod chained_collector;
-pub use self::chained_collector::{chain, ChainedCollector};
-
 
 pub trait Fruit: Send + downcast::Any {}
 
@@ -215,3 +203,4 @@ mod bench {
         });
     }
 }
+

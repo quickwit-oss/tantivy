@@ -55,18 +55,22 @@ impl<T> TopDocs<T> where T: PartialOrd + Clone {
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
-    pub(crate) fn docs(&self) -> Vec<DocAddress> {
+    pub fn docs(&self) -> Vec<DocAddress> {
         self.top_docs()
             .into_iter()
             .map(|(_feature, doc)| doc)
             .collect()
     }
 
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Returns K best FeatureDocuments sorted in decreasing order.
     ///
     /// Calling this method triggers the sort.
     /// The result of the sort is not cached.
-    pub(crate) fn top_docs(&self) -> Vec<(T, DocAddress)> {
+    pub fn top_docs(&self) -> Vec<(T, DocAddress)> {
         let mut feature_docs: Vec<ComparableDoc<T>> = self.0.iter().cloned().collect();
         feature_docs.sort();
         feature_docs

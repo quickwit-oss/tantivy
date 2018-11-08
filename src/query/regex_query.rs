@@ -18,7 +18,7 @@ use Searcher;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result, Term};
-/// use tantivy::collector::{CountCollector, TopCollector, chain};
+/// use tantivy::collector::CountCollector;
 /// use tantivy::query::RegexQuery;
 ///
 /// # fn main() { example().unwrap(); }
@@ -47,19 +47,10 @@ use Searcher;
 ///     index.load_searchers()?;
 ///     let searcher = index.searcher();
 ///
-///     {
-///         let mut top_collector = TopCollector::with_limit(2);
-///         let mut count_collector = CountCollector::default();
-///         {
-///             let mut collectors = chain().push(&mut top_collector).push(&mut count_collector);
-///             let term = Term::from_field_text(title, "Diary");
-///             let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
-///             searcher.search(&query, &mut collectors).unwrap();
-///         }
-///         assert_eq!(count_collector.count(), 3);
-///         assert!(top_collector.at_capacity());
-///     }
-///
+///     let term = Term::from_field_text(title, "Diary");
+///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
+///     let count = searcher.search(&query, CountCollector)?;
+///     assert_eq!(count, 3);
 ///     Ok(())
 /// }
 /// ```
@@ -120,20 +111,16 @@ mod test {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         {
-            let mut collector = TopCollector::with_limit(2);
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             let scored_docs = searcher
-                .search(&regex_query, &mut collector).unwrap()
+                .search(&regex_query, TopCollector::with_limit(2)).unwrap()
                 .top_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
         }
-        {
-            let mut collector = TopCollector::with_limit(2);
-            let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
-            let top_docs = searcher.search(&regex_query, &mut collector).unwrap();
-            assert_eq!(top_docs.docs().len(), 0, "Expected ZERO document");
-        }
+        let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
+        let top_docs = searcher.search(&regex_query, TopCollector::with_limit(2)).unwrap();
+        assert_eq!(top_docs.docs().len(), 0, "Expected ZERO document");
     }
 }

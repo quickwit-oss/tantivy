@@ -140,13 +140,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/lang");
 ///         facet_collector.add_facet("/category");
-///         searcher.search(&AllQuery, &mut facet_collector).unwrap();
-///
-///         // this object contains count aggregate for all of the facets.
-///         let counts = facet_collector.harvest();
+///         let facet_counts = searcher.search(&AllQuery, facet_collector).unwrap();
 ///
 ///         // This lists all of the facet counts
-///         let facets: Vec<(&Facet, u64)> = counts
+///         let facets: Vec<(&Facet, u64)> = facet_counts
 ///             .get("/category")
 ///             .collect();
 ///         assert_eq!(facets, vec![
@@ -158,13 +155,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
-///         searcher.search(&AllQuery, &mut facet_collector).unwrap();
-///
-///         // this object contains count aggregate for all of the facets.
-///         let counts = facet_collector.harvest();
+///         let facet_counts = searcher.search(&AllQuery, facet_collector).unwrap();
 ///
 ///         // This lists all of the facet counts
-///         let facets: Vec<(&Facet, u64)> = counts
+///         let facets: Vec<(&Facet, u64)> = facet_counts
 ///             .get("/category/fiction")
 ///             .collect();
 ///         assert_eq!(facets, vec![
@@ -177,13 +171,10 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///    {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
-///         searcher.search(&AllQuery, &mut facet_collector).unwrap();
-///
-///         // this object contains count aggregate for all of the facets.
-///         let counts = facet_collector.harvest();
+///         let facet_counts = searcher.search(&AllQuery, facet_collector).unwrap();
 ///
 ///         // This lists all of the facet counts
-///         let facets: Vec<(&Facet, u64)> = counts.top_k("/category/fiction", 1);
+///         let facets: Vec<(&Facet, u64)> = facet_counts.top_k("/category/fiction", 1);
 ///         assert_eq!(facets, vec![
 ///             (&Facet::from("/category/fiction/fantasy"), 2)
 ///         ]);
@@ -195,17 +186,11 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 pub struct FacetCollector {
     field: Field,
     facets: BTreeSet<Facet>,
-    /*
-    segment_counters: Vec<SegmentFacetCounter>,
-    */
-
 }
 
 pub struct FacetSegmentCollector {
     reader: FacetReader,
-
     facet_ords_buf: Vec<u64>,
-
     // facet_ord -> collapse facet_id
     collapse_mapping: Vec<usize>,
     // collapse facet_id -> count
@@ -279,10 +264,9 @@ impl FacetCollector {
 }
 
 impl Collector for FacetCollector {
+    type Fruit = FacetCounts;
 
     type Child = FacetSegmentCollector;
-
-    type Fruit = FacetCounts;
 
     fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
@@ -348,7 +332,6 @@ impl Collector for FacetCollector {
     }
 
     fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> FacetCounts {
-        // OPTIMIZE
         let mut facet_counts: BTreeMap<Facet, u64> = BTreeMap::new();
         for segment_facet_counts in segments_facet_counts {
             for (facet, count) in segment_facet_counts.facet_counts {
@@ -370,11 +353,12 @@ impl SegmentCollector for FacetSegmentCollector {
     fn harvest(self) -> FacetCounts {
         let mut facet_counts = BTreeMap::new();
         let facet_dict = self.reader.facet_dict();
-        for (facet_ord, count) in self.counts.iter().cloned().enumerate() {
+        for (collapsed_facet_ord, count) in self.counts.iter().cloned().enumerate() {
             if count == 0 {
                 continue;
             }
             let mut facet = vec![];
+            let facet_ord = self.collapse_facet_ords[collapsed_facet_ord];
             facet_dict.ord_to_term(facet_ord as u64, &mut facet);
             facet_counts.insert(unsafe { Facet::from_encoded(facet) }, count);
         }
@@ -508,10 +492,9 @@ mod tests {
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-
-        let mut facet_collector = FacetCollector::for_field(facet_field);
+        let mut facet_collector= FacetCollector::for_field(facet_field);
         facet_collector.add_facet(Facet::from("/top1"));
-        let counts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts = searcher.search(&AllQuery, facet_collector).unwrap();
 
         {
             let facets: Vec<(String, u64)> = counts
@@ -563,7 +546,7 @@ mod tests {
         assert_eq!(searcher.num_docs(), 1);
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/subjects");
-        let counts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts = searcher.search(&AllQuery, facet_collector).unwrap();
         let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
         assert_eq!(facets[0].1, 1);
     }
@@ -609,7 +592,7 @@ mod tests {
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/facet");
-        let counts: FacetCounts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts: FacetCounts = searcher.search(&AllQuery, facet_collector).unwrap();
 
         {
             let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 3);

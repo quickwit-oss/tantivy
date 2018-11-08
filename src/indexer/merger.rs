@@ -635,7 +635,6 @@ impl SerializableSegment for IndexMerger {
 #[cfg(test)]
 mod tests {
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
-    use collector::chain;
     use collector::tests::TestCollector;
     use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
     use collector::FacetCollector;
@@ -742,9 +741,8 @@ mod tests {
             index.load_searchers().unwrap();
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
-                let mut collector = TestCollector::default();
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let top_docs = searcher.search(&query, &mut collector).unwrap();
+                let top_docs = searcher.search(&query, TestCollector::default()).unwrap();
                 top_docs.docs().to_vec()
             };
             {
@@ -791,15 +789,12 @@ mod tests {
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    let mut collector = FastFieldTestCollector::for_field(score_field);
-                    assert!(searcher.search(&query, &mut collector).is_ok());
-                    collector.vals()
+                    searcher.search(&query, FastFieldTestCollector::for_field(score_field)).unwrap()
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    let mut collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
                     searcher
-                        .search(&query, &mut collector)
+                        .search(&query, BytesFastFieldTestCollector::for_field(bytes_score_field))
                         .expect("failed to search")
                 };
                 assert_eq!(

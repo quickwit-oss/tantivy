@@ -54,8 +54,7 @@ fn main() -> tantivy::Result<()> {
     let query_parser = QueryParser::for_index(&index, vec![title, body]);
     let query = query_parser.parse_query("sycamore spring")?;
 
-    let mut top_collector = TopCollector::with_limit(10);
-    let top_docs = searcher.search(&*query, &mut top_collector)?;
+    let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
 
     let snippet_generator = SnippetGenerator::new(&searcher, &*query, body)?;
 

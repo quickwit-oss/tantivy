@@ -66,10 +66,7 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 ///
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
 ///
-/// let count_collector = CountCollector::default();
-/// count_collector.search(&searcher, &docs_in_the_sixties)?;
-///
-/// let num_60s_books = count_collector.count();
+/// let num_60s_books = CountCollector.search(&searcher, &docs_in_the_sixties)?;
 ///
 /// #     assert_eq!(num_60s_books, 2285);
 /// #     Ok(())
@@ -321,9 +318,8 @@ mod tests {
             let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
 
             // ... or `1960..=1969` if inclusive range is enabled.
-            let count_collector = CountCollector::default();
-            count_collector.search(&searcher, &docs_in_the_sixties)?;
-            assert_eq!(count_collector.count(), 2285);
+            let count = CountCollector.search(&searcher, &docs_in_the_sixties)?;
+            assert_eq!(count, 2285);
             Ok(())
         }
 
@@ -358,9 +354,7 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let count_multiples = |range_query: RangeQuery| {
-            let count_collector = CountCollector::default();
-            count_collector.search(&*searcher, &range_query).unwrap();
-            count_collector.count()
+            CountCollector.search(&*searcher, &range_query).unwrap()
         };
 
         assert_eq!(count_multiples(RangeQuery::new_i64(int_field, 10..11)), 9);

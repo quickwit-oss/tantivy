@@ -62,7 +62,7 @@ fn main() -> tantivy::Result<()> {
     let mut facet_collector = FacetCollector::for_field(tags);
     facet_collector.add_facet("/pools");
 
-    let facet_counts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
+    let facet_counts = searcher.search(&AllQuery, facet_collector).unwrap();
 
     // This lists all of the facet counts
     let facets: Vec<(&Facet, u64)> = facet_counts.get("/pools").collect();

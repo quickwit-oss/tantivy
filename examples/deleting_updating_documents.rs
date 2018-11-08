@@ -27,8 +27,7 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     // The second argument is here to tell we don't care about decoding positions,
     // or term frequencies.
     let term_query = TermQuery::new(isbn_term.clone(), IndexRecordOption::Basic);
-    let mut top_collector = TopCollector::with_limit(1);
-    let top_docs = searcher.search(&term_query, &mut top_collector)?;
+    let top_docs = searcher.search(&term_query, TopCollector::with_limit(1))?;
 
     if let Some(doc_address) = top_docs.docs().first() {
         let doc = searcher.doc(*doc_address)?;

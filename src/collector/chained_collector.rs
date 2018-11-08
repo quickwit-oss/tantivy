@@ -8,9 +8,6 @@ use collector::{CollectDocScore, SegmentCollector};
 use collector::multi_collector::CollectorWrapper;
 
 
-
-
-
 impl<'a, TCollector: Collector> Collector for &'a mut TCollector {
     type Fruit = TCollector::Fruit;
     type Child = TCollector::Child;
