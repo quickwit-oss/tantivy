@@ -106,6 +106,7 @@ impl CollectDocScore for CountCollector {
 mod tests {
 
     use collector::{Collector, CountCollector, SegmentCollector};
+    use collector::CollectDocScore;
 
     #[test]
     fn test_count_collector() {

@@ -1,4 +1,4 @@
-mod term_query;
+    mod term_query;
 mod term_scorer;
 mod term_weight;
 
@@ -71,8 +71,8 @@ mod tests {
             let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            searcher.search(&term_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
+            let topdocs = searcher.search(&term_query, &mut collector).unwrap();
+            let scored_docs = topdocs.top_docs();
             assert_eq!(scored_docs.len(), 1);
             let (score, _) = scored_docs[0];
             assert_nearly_equals(0.77802235, score);
@@ -81,8 +81,8 @@ mod tests {
             let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(left_field, "left1");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            searcher.search(&term_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
+            let top_docs = searcher.search(&term_query, &mut collector).unwrap();
+            let scored_docs = top_docs.top_docs();
             assert_eq!(scored_docs.len(), 2);
             let (score1, _) = scored_docs[0];
             assert_nearly_equals(0.27101856, score1);
@@ -93,8 +93,8 @@ mod tests {
             let query_parser = QueryParser::for_index(&index, vec![]);
             let query = query_parser.parse_query("left:left2 left:left1").unwrap();
             let mut collector = TopCollector::with_limit(2);
-            searcher.search(&*query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
+            let top_docs = searcher.search(&*query, &mut collector).unwrap();
+            let scored_docs = top_docs.top_docs();
             assert_eq!(scored_docs.len(), 2);
             let (score1, _) = scored_docs[0];
             assert_nearly_equals(0.9153879, score1);

@@ -87,7 +87,7 @@ impl Searcher {
     }
 
     /// Runs a query on the segment readers wrapped by the searcher
-    pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<C::Fruit> {
+    pub fn search<C: Collector>(&self, query: &Query, collector: C) -> Result<C::Fruit> {
         collector.search(self, query)
     }
 

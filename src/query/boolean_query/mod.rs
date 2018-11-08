@@ -132,8 +132,8 @@ mod tests {
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
             let mut test_collector = TestCollector::default();
-            searcher.search(boolean_query, &mut test_collector).unwrap();
-            test_collector.docs()
+            let test_docs = searcher.search(boolean_query, &mut test_collector).unwrap();
+            test_docs.docs()
                 .iter()
                 .cloned()
                 .map(|doc| doc.1)
@@ -191,9 +191,8 @@ mod tests {
 
         let score_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
-            let mut test_collector = TestCollector::default();
-            searcher.search(boolean_query, &mut test_collector).unwrap();
-            test_collector.scores().to_vec()
+            let fruit = searcher.search(boolean_query, TestCollector::default()).unwrap();
+            fruit.scores().to_vec()
         };
 
         {

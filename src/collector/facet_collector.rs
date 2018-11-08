@@ -511,9 +511,8 @@ mod tests {
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet(Facet::from("/top1"));
-        searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
 
-        let counts: FacetCounts = facet_collector.harvest();
         {
             let facets: Vec<(String, u64)> = counts
                 .get("/top1")
@@ -564,8 +563,7 @@ mod tests {
         assert_eq!(searcher.num_docs(), 1);
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/subjects");
-        searcher.search(&AllQuery, &mut facet_collector).unwrap();
-        let counts = facet_collector.harvest();
+        let counts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
         let facets: Vec<(&Facet, u64)> = counts.get("/subjects").collect();
         assert_eq!(facets[0].1, 1);
     }
@@ -611,9 +609,8 @@ mod tests {
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/facet");
-        searcher.search(&AllQuery, &mut facet_collector).unwrap();
+        let counts: FacetCounts = searcher.search(&AllQuery, &mut facet_collector).unwrap();
 
-        let counts: FacetCounts = facet_collector.harvest();
         {
             let facets: Vec<(&Facet, u64)> = counts.top_k("/facet", 3);
             assert_eq!(

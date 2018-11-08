@@ -19,14 +19,17 @@ pub use self::multi_collector::MultiCollector;
 
 mod top_collector;
 
-/*
-
-TODO uncomment
 
 mod top_score_collector;
 pub use self::top_score_collector::TopScoreCollector;
 #[deprecated]
 pub use self::top_score_collector::TopScoreCollector as TopCollector;
+
+/*
+
+TODO uncomment
+
+
 
 mod top_field_collector;
 pub use self::top_field_collector::TopFieldCollector;
@@ -104,7 +107,7 @@ pub trait Collector {
     ///
     /// Finally, the Collector merges each of the child collectors into itself for result usability
     /// by the caller.
-    fn search(&mut self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
+    fn search(&self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
         let scoring_enabled = self.requires_scoring();
         let weight = query.weight(searcher, scoring_enabled)?;
         let mut fruits = Vec::new();
@@ -132,29 +135,57 @@ pub trait SegmentCollector: 'static + CollectDocScore {
 }
 
 
-/*
-trait BoxHarvest:  {
-    fn harvest_from_box() {
+impl<Left, Right> Collector for (Left, Right)
+where
+    Left: Collector,
+    Right: Collector
+{
+    type Fruit = (Left::Fruit, Right::Fruit);
+    type Child = (Left::Child, Right::Child);
 
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
+        let left = self.0.for_segment(segment_local_id, segment)?;
+        let right = self.1.for_segment(segment_local_id, segment)?;
+        Ok((left, right))
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring() || self.1.requires_scoring()
+    }
+
+    fn merge_fruits(&self, children: Vec<(Left::Fruit, Right::Fruit)>) -> (Left::Fruit, Right::Fruit) {
+        let mut left_fruits = vec![];
+        let mut right_fruits = vec![];
+        for (left_fruit, right_fruit) in children {
+            left_fruits.push(left_fruit);
+            right_fruits.push(right_fruit);
+        }
+        (self.0.merge_fruits(left_fruits), self.1.merge_fruits(right_fruits))
     }
 }
 
-impl<T: Fruit> SegmentCollector for Box<SegmentCollector<Fruit=T> + BoxHarvest> {
-    type Fruit = T;
+impl<Left, Right> SegmentCollector for (Left, Right)
+    where
+        Left: SegmentCollector,
+        Right: SegmentCollector
+{
+    type Fruit = (Left::Fruit, Right::Fruit);
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        let unboxed: SegmentCollector<Fruit=T> = self;
-        .into().harvest()
+        (self.0.harvest(), self.1.harvest())
     }
 }
 
-impl<T: Fruit> CollectDocScore for Box<SegmentCollector<Fruit=T>> {
+impl<Left, Right> CollectDocScore for (Left, Right)
+    where
+        Left: CollectDocScore,
+        Right: CollectDocScore
+{
     fn collect(&mut self, doc: DocId, score: Score) {
-        (*self).collect(doc, score)
+        self.0.collect(doc, score);
+        self.1.collect(doc, score);
     }
 }
-*/
-
 
 #[allow(missing_docs)]
 mod downcast_impl {
@@ -163,220 +194,24 @@ mod downcast_impl {
 
 
 #[cfg(test)]
-pub mod tests {
-
-    use super::*;
-    use core::SegmentReader;
-    use fastfield::BytesFastFieldReader;
-    use fastfield::FastFieldReader;
-    use schema::Field;
-    use DocId;
-    use Score;
-    use SegmentLocalId;
-    use DocAddress;
-
-    /// Stores all of the doc ids.
-    /// This collector is only used for tests.
-    /// It is unusable in practise, as it does not store
-    /// the segment ordinals
-    pub struct TestCollector {
-        docs: Vec<DocAddress>,
-        scores: Vec<Score>,
-    }
-
-    pub struct TestSegmentCollector {
-        segment_id: SegmentLocalId,
-        docs: Vec<DocId>,
-        scores: Vec<Score>,
-    }
-
-    impl TestCollector {
-        /// Return the exhalist of documents.
-        pub fn docs(&self) ->&[DocAddress] {
-            &self.docs[..]
-        }
-
-        pub fn scores(&self) -> &[Score] {
-            &self.scores[..]
-        }
-    }
-
-    impl Default for TestCollector {
-        fn default() -> TestCollector {
-            TestCollector {
-                docs: Vec::new(),
-                scores: Vec::new(),
-            }
-        }
-    }
-
-    impl Collector for TestCollector {
-        type Child = TestSegmentCollector;
-
-        fn for_segment(&self, segment_id: SegmentLocalId, _reader: &SegmentReader) -> Result<TestSegmentCollector> {
-            Ok(TestSegmentCollector {
-                segment_id,
-                docs: Vec::new(),
-                scores: Vec::new(),
-            })
-        }
-
-        fn requires_scoring(&self) -> bool {
-            true
-        }
-
-        fn merge_children(&mut self, mut children: Vec<TestSegmentCollector>) {
-            children.sort_by_key(|child| child.segment_id);
-            for child in children.into_iter() {
-                self.docs.extend(child.doc_address());
-                self.scores.extend(child.scores);
-            }
-        }
-    }
-
-    impl SegmentCollector for TestSegmentCollector {
-        fn collect(&mut self, doc: DocId, score: Score) {
-            self.docs.push(doc );
-            self.scores.push(score);
-        }
-    }
-
-    impl TestSegmentCollector {
-        fn doc_address<'a>(&'a self) -> impl Iterator<Item=DocAddress> + 'a {
-            let segment_id = self.segment_id;
-            self.docs
-                .iter()
-                .cloned()
-                .map(move |doc| DocAddress(segment_id, doc))
-        }
-    }
-
-
-    /// Collects in order all of the fast fields for all of the
-    /// doc in the `DocSet`
-    ///
-    /// This collector is mainly useful for tests.
-    pub struct FastFieldTestCollector {
-        vals: Vec<u64>,
-        field: Field,
-    }
-
-    pub struct FastFieldSegmentCollector {
-        vals: Vec<u64>,
-        reader: FastFieldReader<u64>,
-    }
-
-    impl FastFieldTestCollector {
-        pub fn for_field(field: Field) -> FastFieldTestCollector {
-            FastFieldTestCollector {
-                vals: Vec::new(),
-                field,
-            }
-        }
-
-        pub fn vals(self) -> Vec<u64> {
-            self.vals
-        }
-    }
-
-    impl Collector for FastFieldTestCollector {
-        type Child = FastFieldSegmentCollector;
-
-        fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FastFieldSegmentCollector> {
-            Ok(FastFieldSegmentCollector {
-                vals: Vec::new(),
-                reader: reader.fast_field_reader(self.field)?,
-            })
-        }
-
-        fn requires_scoring(&self) -> bool {
-            false
-        }
-
-        fn merge_children(&mut self, children: Vec<FastFieldSegmentCollector>) {
-            for child in children.into_iter() {
-                self.vals.extend(&child.vals[..]);
-            }
-        }
-    }
-
-    impl SegmentCollector for FastFieldSegmentCollector {
-        fn collect(&mut self, doc: DocId, _score: Score) {
-            let val = self.reader.get(doc);
-            self.vals.push(val);
-        }
-    }
-
-    /// Collects in order all of the fast field bytes for all of the
-    /// docs in the `DocSet`
-    ///
-    /// This collector is mainly useful for tests.
-    pub struct BytesFastFieldTestCollector {
-        vals: Vec<u8>,
-        field: Field,
-    }
-
-    pub struct BytesFastFieldSegmentCollector {
-        vals: Vec<u8>,
-        reader: BytesFastFieldReader,
-    }
-
-    impl BytesFastFieldTestCollector {
-        pub fn for_field(field: Field) -> BytesFastFieldTestCollector {
-            BytesFastFieldTestCollector {
-                vals: Vec::new(),
-                field,
-            }
-        }
-
-        pub fn vals(self) -> Vec<u8> {
-            self.vals
-        }
-    }
-
-    impl Collector for BytesFastFieldTestCollector {
-        type Child = BytesFastFieldSegmentCollector;
-
-        fn for_segment(&self, _segment_local_id: u32, segment: &SegmentReader) -> Result<BytesFastFieldSegmentCollector> {
-            Ok(BytesFastFieldSegmentCollector {
-                vals: Vec::new(),
-                reader: segment.bytes_fast_field_reader(self.field)?,
-            })
-        }
-
-        fn requires_scoring(&self) -> bool {
-            false
-        }
-
-        fn merge_children(&mut self, children: Vec<<Self as Collector>::Child>) {
-            for child in children.into_iter() {
-                self.vals.extend(child.vals);
-            }
-        }
-    }
-
-    impl SegmentCollector for BytesFastFieldSegmentCollector {
-        fn collect(&mut self, doc: u32, _score: f32) {
-            let val = self.reader.get_val(doc);
-            self.vals.extend(val);
-        }
-    }
-}
+pub mod tests;
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use collector::{Collector, CountCollector};
     use test::Bencher;
+    use collector::CollectDocScore;
+    use super::CountCollector;
 
     #[bench]
     fn build_collector(b: &mut Bencher) {
         b.iter(|| {
-            let mut count_collector = CountCollector::default();
+            let mut count_collector = SegmentCountCollector::default();
             let docs: Vec<u32> = (0..1_000_000).collect();
             for doc in docs {
                 count_collector.collect(doc, 1f32);
             }
-            count_collector.count()
+            count_collector.harvest()
         });
     }
 }

@@ -49,7 +49,7 @@ impl SegmentCollector for Box<BoxableSegmentCollector> {
 
 impl CollectDocScore for Box<BoxableSegmentCollector> {
     fn collect(&mut self, doc: u32, score: f32) {
-        (*self).collect(doc, score);
+        self.as_mut().collect(doc, score);
     }
 }
 
@@ -73,7 +73,7 @@ impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector for SegmentCol
 impl<TSegmentCollector> CollectDocScore for SegmentCollectorWrapper<TSegmentCollector>
     where TSegmentCollector: SegmentCollector {
     fn collect(&mut self, doc: u32, score: f32) {
-        (*self).collect(doc, score);
+        self.0.collect(doc, score);
     }
 }
 
@@ -231,8 +231,7 @@ mod tests {
     use Term;
     use schema::IndexRecordOption;
 
-    /*
-    TODO uncomment
+
     #[test]
     fn test_multi_collector() {
         let mut schema_builder = SchemaBuilder::new();
@@ -265,5 +264,4 @@ mod tests {
         }
         assert_eq!(count_collector.count(), 5);
     }
-    */
 }

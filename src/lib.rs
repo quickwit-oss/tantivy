@@ -812,8 +812,8 @@ mod tests {
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
                 let mut collector = TestCollector::default();
-                assert!(searcher.search(&query, &mut collector).is_ok());
-                collector.docs().to_vec()
+                let topdocs = searcher.search(&query, &mut collector).unwrap();
+                topdocs.docs().to_vec()
             };
             {
                 assert_eq!(

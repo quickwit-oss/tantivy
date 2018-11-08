@@ -28,9 +28,9 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     // or term frequencies.
     let term_query = TermQuery::new(isbn_term.clone(), IndexRecordOption::Basic);
     let mut top_collector = TopCollector::with_limit(1);
-    searcher.search(&term_query, &mut top_collector)?;
+    let top_docs = searcher.search(&term_query, &mut top_collector)?;
 
-    if let Some(doc_address) = top_collector.docs().first() {
+    if let Some(doc_address) = top_docs.docs().first() {
         let doc = searcher.doc(*doc_address)?;
         Ok(Some(doc))
     } else {

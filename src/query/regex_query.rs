@@ -122,8 +122,9 @@ mod test {
         {
             let mut collector = TopCollector::with_limit(2);
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
-            searcher.search(&regex_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
+            let scored_docs = searcher
+                .search(&regex_query, &mut collector).unwrap()
+                .top_docs();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
@@ -131,9 +132,8 @@ mod test {
         {
             let mut collector = TopCollector::with_limit(2);
             let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
-            searcher.search(&regex_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
-            assert_eq!(scored_docs.len(), 0, "Expected ZERO document");
+            let top_docs = searcher.search(&regex_query, &mut collector).unwrap();
+            assert_eq!(top_docs.docs().len(), 0, "Expected ZERO document");
         }
     }
 }

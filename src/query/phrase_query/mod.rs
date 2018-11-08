@@ -49,16 +49,15 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<&str>| {
-            let mut test_collector = TestCollector::default();
             let terms: Vec<Term> = texts
                 .iter()
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
-            searcher
-                .search(&phrase_query, &mut test_collector)
+            let test_fruits = searcher
+                .search(&phrase_query, TestCollector::default())
                 .expect("search should succeed");
-            test_collector.docs()
+            test_fruits.docs()
                 .iter()
                 .map(|docaddr| docaddr.1)
                 .collect::<Vec<_>>()
@@ -99,6 +98,7 @@ mod tests {
         let mut test_collector = TestCollector::default();
         if let TantivyError::SchemaError(ref msg) = searcher
             .search(&phrase_query, &mut test_collector)
+            .map(|_| ())
             .unwrap_err()
         {
             assert_eq!(
@@ -126,8 +126,8 @@ mod tests {
             let phrase_query = PhraseQuery::new(terms);
             searcher
                 .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.scores().to_vec()
+                .expect("search should succeed")
+                .scores().to_vec()
         };
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals(scores[0], 0.40618482);
@@ -159,8 +159,9 @@ mod tests {
             let phrase_query = PhraseQuery::new(terms);
             searcher
                 .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.docs().to_vec()
+                .expect("search should succeed")
+                .docs()
+                .to_vec()
         };
         assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0,1)]);
         assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0,2)]);
@@ -188,8 +189,8 @@ mod tests {
             let phrase_query = PhraseQuery::new_with_offset(terms);
             searcher
                 .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.docs()
+                .expect("search should succeed")
+                .docs()
                 .iter()
                 .map(|doc_address| doc_address.1)
                 .collect::<Vec<DocId>>()

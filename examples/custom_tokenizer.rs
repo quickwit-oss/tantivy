@@ -105,9 +105,9 @@ fn main() -> tantivy::Result<()> {
     let query = query_parser.parse_query("ken")?;
 
     let mut top_collector = TopCollector::with_limit(10);
-    searcher.search(&*query, &mut top_collector)?;
+    let top_docs = searcher.search(&*query, &mut top_collector)?;
 
-    let doc_addresses = top_collector.docs();
+    let doc_addresses = top_docs.docs();
     for doc_address in doc_addresses {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));

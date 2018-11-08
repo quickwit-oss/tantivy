@@ -216,11 +216,7 @@ fn main() -> tantivy::Result<()> {
     let mut top_collector = TopCollector::with_limit(10);
 
     // We can now perform our query.
-    searcher.search(&*query, &mut top_collector)?;
-
-    // Our top collector now contains the 10
-    // most relevant doc ids...
-    let doc_addresses = top_collector.docs();
+    let top_docs = searcher.search(&*query, &mut top_collector)?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.
@@ -229,7 +225,7 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
 
-    for doc_address in doc_addresses {
+    for doc_address in top_docs.docs() {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }
