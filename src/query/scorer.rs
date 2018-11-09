@@ -1,4 +1,3 @@
-use collector::CollectDocScore;
 use common::BitSet;
 use docset::{DocSet, SkipResult};
 use downcast;

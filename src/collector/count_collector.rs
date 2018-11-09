@@ -4,7 +4,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::{SegmentCollector, CollectDocScore};
+use collector::SegmentCollector;
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
@@ -86,21 +86,20 @@ pub struct SegmentCountCollector {
 impl SegmentCollector for SegmentCountCollector {
     type Fruit = usize;
 
+    fn collect(&mut self, _: DocId, _: Score) {
+        self.count += 1;
+    }
+
     fn harvest(self) -> usize {
         self.count
     }
 }
 
-impl CollectDocScore for SegmentCountCollector {
-    fn collect(&mut self, _: DocId, _: Score) {
-        self.count += 1;
-    }
-}
 
 #[cfg(test)]
 mod tests {
     use super::{CountCollector, SegmentCountCollector};
-    use collector::{SegmentCollector, CollectDocScore};
+    use collector::SegmentCollector;
     use collector::Collector;
 
     #[test]

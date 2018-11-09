@@ -5,7 +5,6 @@ use Score;
 use Result;
 use SegmentLocalId;
 use SegmentReader;
-use collector::CollectDocScore;
 use downcast::Downcast;
 use collector::Fruit;
 use std::marker::PhantomData;
@@ -47,20 +46,17 @@ impl SegmentCollector for Box<BoxableSegmentCollector> {
 
     type Fruit = Box<Fruit>;
 
+    fn collect(&mut self, doc: u32, score: f32) {
+        self.as_mut().collect(doc, score);
+    }
+
     fn harvest(self) -> Box<Fruit> {
         BoxableSegmentCollector::harvest_from_box(self)
     }
 }
 
-impl CollectDocScore for Box<BoxableSegmentCollector> {
-    fn collect(&mut self, doc: u32, score: f32) {
-        self.as_mut().collect(doc, score);
-    }
-}
-
-
-
-pub trait BoxableSegmentCollector: CollectDocScore {
+pub trait BoxableSegmentCollector {
+    fn collect(&mut self, doc: u32, score: f32);
     fn harvest_from_box(self: Box<Self>) -> Box<Fruit>;
 }
 
@@ -70,15 +66,13 @@ pub struct SegmentCollectorWrapper<TSegmentCollector: SegmentCollector>(TSegment
 
 
 impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector for SegmentCollectorWrapper<TSegmentCollector> {
-    fn harvest_from_box(self: Box<Self>) -> Box<Fruit> {
-        Box::new(self.0.harvest())
-    }
-}
 
-impl<TSegmentCollector> CollectDocScore for SegmentCollectorWrapper<TSegmentCollector>
-    where TSegmentCollector: SegmentCollector {
     fn collect(&mut self, doc: u32, score: f32) {
         self.0.collect(doc, score);
+    }
+
+    fn harvest_from_box(self: Box<Self>) -> Box<Fruit> {
+        Box::new(self.0.harvest())
     }
 }
 
@@ -230,20 +224,18 @@ pub struct MultiCollectorChild {
 impl SegmentCollector for MultiCollectorChild {
     type Fruit = MultiFruit;
 
+    fn collect(&mut self, doc: DocId, score: Score) {
+        for child in &mut self.children {
+            child.collect(doc, score);
+        }
+    }
+
     fn harvest(self) -> MultiFruit {
         MultiFruit {
             sub_fruits: self.children
                 .into_iter()
                 .map(|child| Some(child.harvest()) )
                 .collect()
-        }
-    }
-}
-
-impl CollectDocScore for MultiCollectorChild {
-    fn collect(&mut self, doc: DocId, score: Score) {
-        for child in &mut self.children {
-            child.collect(doc, score);
         }
     }
 }

@@ -119,15 +119,12 @@ pub trait Collector {
     }
 }
 
-
-pub trait CollectDocScore {
-    /// The query pushes the scored document to the collector via this method.
-    fn collect(&mut self, doc: DocId, score: Score);
-}
-
-pub trait SegmentCollector: 'static + CollectDocScore {
+pub trait SegmentCollector: 'static {
 
     type Fruit: Fruit;
+
+    /// The query pushes the scored document to the collector via this method.
+    fn collect(&mut self, doc: DocId, score: Score);
 
     fn harvest(self) -> Self::Fruit;
 }
@@ -169,19 +166,13 @@ impl<Left, Right> SegmentCollector for (Left, Right)
 {
     type Fruit = (Left::Fruit, Right::Fruit);
 
-    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        (self.0.harvest(), self.1.harvest())
-    }
-}
-
-impl<Left, Right> CollectDocScore for (Left, Right)
-    where
-        Left: CollectDocScore,
-        Right: CollectDocScore
-{
     fn collect(&mut self, doc: DocId, score: Score) {
         self.0.collect(doc, score);
         self.1.collect(doc, score);
+    }
+
+    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+        (self.0.harvest(), self.1.harvest())
     }
 }
 
@@ -198,7 +189,6 @@ pub mod tests;
 mod bench {
     use collector::{Collector, CountCollector};
     use test::Bencher;
-    use collector::CollectDocScore;
     use super::CountCollector;
 
     #[bench]

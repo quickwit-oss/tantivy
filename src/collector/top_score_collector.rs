@@ -6,7 +6,6 @@ use Score;
 use SegmentLocalId;
 use SegmentReader;
 use collector::SegmentCollector;
-use collector::CollectDocScore;
 use collector::top_collector::TopDocs;
 use collector::top_collector::TopCollector;
 
@@ -82,17 +81,14 @@ pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 impl SegmentCollector for TopScoreSegmentCollector {
     type Fruit = TopDocs<Score>;
 
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.0.collect(doc, score)
+    }
+
     fn harvest(self) -> TopDocs<Score> {
         self.0.harvest()
     }
 }
-
-impl CollectDocScore for TopScoreSegmentCollector {
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score)
-    }
-}
-
 
 
 impl Collector for TopScoreCollector {

@@ -10,7 +10,6 @@ use std::collections::BinaryHeap;
 use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
-use collector::CollectDocScore;
 use std::cmp::Ordering;
 use DocId;
 use Result;
@@ -339,6 +338,22 @@ impl SegmentCollector for FacetSegmentCollector {
 
     type Fruit = FacetCounts;
 
+
+    fn collect(&mut self, doc: DocId, _: Score) {
+        self.reader.facet_ords(doc, &mut self.facet_ords_buf);
+        let mut previous_collapsed_ord: usize = usize::MAX;
+        for &facet_ord in &self.facet_ords_buf {
+            let collapsed_ord = self.collapse_mapping[facet_ord as usize];
+            self.counts[collapsed_ord] +=
+                if collapsed_ord == previous_collapsed_ord {
+                    0
+                } else {
+                    1
+                };
+            previous_collapsed_ord = collapsed_ord;
+        }
+    }
+
     /// Returns the results of the collection.
     ///
     /// This method does not just return the counters,
@@ -356,24 +371,6 @@ impl SegmentCollector for FacetSegmentCollector {
             facet_counts.insert(unsafe { Facet::from_encoded(facet) }, count);
         }
         FacetCounts { facet_counts }
-    }
-}
-
-impl CollectDocScore for FacetSegmentCollector {
-
-    fn collect(&mut self, doc: DocId, _: Score) {
-        self.reader.facet_ords(doc, &mut self.facet_ords_buf);
-        let mut previous_collapsed_ord: usize = usize::MAX;
-        for &facet_ord in &self.facet_ords_buf {
-            let collapsed_ord = self.collapse_mapping[facet_ord as usize];
-            self.counts[collapsed_ord] +=
-                if collapsed_ord == previous_collapsed_ord {
-                    0
-                } else {
-                    1
-                };
-            previous_collapsed_ord = collapsed_ord;
-        }
     }
 }
 

@@ -75,15 +75,13 @@ impl SegmentCollector for TestSegmentCollector {
 
     type Fruit = TestFruit;
 
-    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        self.fruit
-    }
-}
-
-impl CollectDocScore for TestSegmentCollector {
     fn collect(&mut self, doc: DocId, score: Score) {
         self.fruit.docs.push(DocAddress(self.segment_id, doc ));
         self.fruit.scores.push(score);
+    }
+
+    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+        self.fruit
     }
 }
 
@@ -133,15 +131,13 @@ impl Collector for FastFieldTestCollector {
     }
 }
 
-impl CollectDocScore for FastFieldSegmentCollector {
+impl SegmentCollector for FastFieldSegmentCollector {
+    type Fruit = Vec<u64>;
+
     fn collect(&mut self, doc: DocId, _score: Score) {
         let val = self.reader.get(doc);
         self.vals.push(val);
     }
-}
-
-impl SegmentCollector for FastFieldSegmentCollector {
-    type Fruit = Vec<u64>;
 
     fn harvest(self) -> Vec<u64> {
         self.vals
@@ -195,14 +191,12 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
 
     type Fruit = Vec<u8>;
 
-    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        self.vals
-    }
-}
-
-impl CollectDocScore for BytesFastFieldSegmentCollector {
     fn collect(&mut self, doc: u32, _score: f32) {
         let data = self.reader.get_val(doc);
         self.vals.extend(data);
+    }
+
+    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+        self.vals
     }
 }

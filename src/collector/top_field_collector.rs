@@ -1,6 +1,6 @@
 use super::Collector;
 use collector::top_collector::TopCollector;
-use collector::{SegmentCollector, CollectDocScore};
+use collector::SegmentCollector;
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
 use schema::Field;
@@ -126,15 +126,13 @@ impl<T: FastValue + PartialOrd + Send + 'static> SegmentCollector for TopFieldSe
 
     type Fruit = TopDocs<T>;
 
-    fn harvest(self) -> TopDocs<T> {
-        self.collector.harvest()
-    }
-}
-
-impl<T: FastValue + PartialOrd + Send + 'static> CollectDocScore for TopFieldSegmentCollector<T> {
     fn collect(&mut self, doc: u32, _score: f32) {
         let field_value = self.reader.get(doc);
         self.collector.collect(doc, field_value);
+    }
+
+    fn harvest(self) -> TopDocs<T> {
+        self.collector.harvest()
     }
 }
 
