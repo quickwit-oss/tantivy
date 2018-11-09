@@ -7,83 +7,44 @@ use SegmentReader;
 use Result;
 use serde::export::PhantomData;
 
+
 /// Contains a feature (field, score, etc.) of a document along with the document address.
 ///
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
+///
+/// WARNING: equality is not what you would expect here.
+
 #[derive(Clone, Copy)]
-pub struct ComparableDoc<T> {
+struct ComparableDoc<T, D> {
     feature: T,
-    doc_address: DocAddress,
+    doc: D,
 }
 
-impl<T: PartialOrd> PartialOrd for ComparableDoc<T> {
+impl<T: PartialOrd, D> PartialOrd for ComparableDoc<T, D> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<T: PartialOrd> Ord for ComparableDoc<T> {
+impl<T: PartialOrd, D> Ord for ComparableDoc<T,D> {
     #[inline]
     fn cmp(&self, other: &Self) -> Ordering {
         other
             .feature
             .partial_cmp(&self.feature)
-            .unwrap_or_else(|| other.doc_address.cmp(&self.doc_address))
+            .unwrap_or_else(|| Ordering::Equal)
     }
 }
 
-impl<T: PartialOrd> PartialEq for ComparableDoc<T> {
+impl<T: PartialOrd, D> PartialEq for ComparableDoc<T, D> {
     fn eq(&self, other: &Self) -> bool {
         self.cmp(other) == Ordering::Equal
     }
 }
 
-impl<T: PartialOrd> Eq for ComparableDoc<T> {}
+impl<T: PartialOrd, D> Eq for ComparableDoc<T, D> {}
 
-
-pub struct TopDocs<T>(BinaryHeap<ComparableDoc<T>>);
-
-
-impl<T> TopDocs<T> where T: PartialOrd + Clone {
-    fn empty() -> Self {
-        let heap = BinaryHeap::new();
-        TopDocs(heap)
-    }
-
-    /// Returns K best documents sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn docs(&self) -> Vec<DocAddress> {
-        self.top_docs()
-            .into_iter()
-            .map(|(_feature, doc)| doc)
-            .collect()
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    /// Returns K best FeatureDocuments sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn top_docs(&self) -> Vec<(T, DocAddress)> {
-        let mut feature_docs: Vec<ComparableDoc<T>> = self.0.iter().cloned().collect();
-        feature_docs.sort();
-        feature_docs
-            .into_iter()
-            .map(
-                |ComparableDoc {
-                     feature,
-                     doc_address,
-                 }| (feature, doc_address),
-            ).collect()
-    }
-
-}
 
 pub(crate) struct TopCollector<T> {
     limit: usize,
@@ -106,25 +67,35 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
         }
     }
 
-    pub fn merge_fruits(&self, children: Vec<TopDocs<T>>) -> TopDocs<T> {
+    pub fn merge_fruits(&self, children: Vec<Vec<(T, DocAddress)>>) -> Vec<(T, DocAddress)> {
         if self.limit == 0 {
-            return TopDocs::empty();
+            return Vec::new();
         }
         let mut top_collector = BinaryHeap::new();
-        for TopDocs(mut child) in children {
-            for comparable_doc in child {
+        for child_fruit in children {
+            for (feature, doc) in child_fruit {
                 if top_collector.len() < self.limit {
-                    top_collector.push(comparable_doc);
+                    top_collector.push(ComparableDoc {
+                        feature,
+                        doc
+                    });
                 } else {
                     if let Some(mut head) = top_collector.peek_mut() {
-                        if head.feature < comparable_doc.feature {
-                            *head = comparable_doc;
+                        if head.feature < feature {
+                            *head = ComparableDoc {
+                                feature,
+                                doc
+                            };
                         }
                     }
                 }
             }
         }
-        TopDocs(top_collector)
+        top_collector
+            .into_sorted_vec()
+            .into_iter()
+            .map(|cdoc| (cdoc.feature, cdoc.doc))
+            .collect()
     }
 
     pub(crate) fn for_segment(&self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<TopSegmentCollector<T>> {
@@ -141,7 +112,7 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
 /// is `O(n log K)`.
 pub(crate) struct TopSegmentCollector<T> {
     limit: usize,
-    heap: BinaryHeap<ComparableDoc<T>>,
+    heap: BinaryHeap<ComparableDoc<T, DocId>>,
     segment_id: u32,
 }
 
@@ -156,8 +127,13 @@ impl<T: PartialOrd> TopSegmentCollector<T> {
 }
 
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
-    pub fn harvest(self) -> TopDocs<T> {
-        TopDocs(self.heap)
+    pub fn harvest(self) -> Vec<(T, DocAddress)> {
+        let segment_id = self.segment_id;
+        self.heap.into_sorted_vec()
+            .into_iter()
+            .map(|comparable_doc|
+                (comparable_doc.feature, DocAddress(segment_id, comparable_doc.doc)) )
+            .collect()
     }
 
 
@@ -175,7 +151,7 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub(crate) fn collect(&mut self, doc: DocId, feature: T) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: ComparableDoc<T> = self
+            let limit_doc: ComparableDoc<T, DocId> = self
                 .heap
                 .peek()
                 .expect("Top collector with size 0 is forbidden")
@@ -186,12 +162,12 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
                     .peek_mut()
                     .expect("Top collector with size 0 is forbidden");
                 mut_head.feature = feature;
-                mut_head.doc_address = DocAddress(self.segment_id, doc);
+                mut_head.doc = doc;
             }
         } else {
             let wrapped_doc = ComparableDoc {
                 feature,
-                doc_address: DocAddress(self.segment_id, doc),
+                doc,
             };
             self.heap.push(wrapped_doc);
         }
@@ -211,13 +187,12 @@ mod tests {
         top_collector.collect(1, 0.8);
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
-        let top_docs = top_collector.harvest();
-        let score_docs: Vec<(Score, DocId)> = top_docs
-            .top_docs()
-            .into_iter()
-            .map(|(score, doc_address)| (score, doc_address.doc()))
-            .collect();
-        assert_eq!(score_docs, vec![(0.8, 1), (0.3, 5), (0.2, 3)]);
+        assert_eq!(
+            top_collector.harvest(),
+            vec![(0.8, DocAddress(0,1)),
+                 (0.3, DocAddress(0,5)),
+                 (0.2, DocAddress(0,3))]
+        );
     }
 
     #[test]
@@ -228,21 +203,12 @@ mod tests {
         top_collector.collect(5, 0.3);
         top_collector.collect(7, 0.9);
         top_collector.collect(9, -0.2);
-        let top_docs = top_collector.harvest();
         {
-            let score_docs: Vec<(Score, DocId)> = top_docs
-                .top_docs()
-                .into_iter()
-                .map(|(score, doc_address)| (score, doc_address.doc()))
-                .collect();
-            assert_eq!(score_docs, vec![(0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)]);
-        }
-        {
-            assert_eq!(top_docs.docs(), vec![
-                    DocAddress(0, 7),
-                    DocAddress(0, 1),
-                    DocAddress(0, 5),
-                    DocAddress(0, 3)]);
+            assert_eq!(top_collector.harvest(),
+                       vec![(0.9, DocAddress(0,7)),
+                            (0.8, DocAddress(0,1)),
+                            (0.3, DocAddress(0,5)),
+                            (0.2, DocAddress(0,3))]);
         }
     }
 

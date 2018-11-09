@@ -29,7 +29,7 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     let term_query = TermQuery::new(isbn_term.clone(), IndexRecordOption::Basic);
     let top_docs = searcher.search(&term_query, TopCollector::with_limit(1))?;
 
-    if let Some(doc_address) = top_docs.docs().first() {
+    if let Some((_score, doc_address)) = top_docs.first() {
         let doc = searcher.doc(*doc_address)?;
         Ok(Some(doc))
     } else {

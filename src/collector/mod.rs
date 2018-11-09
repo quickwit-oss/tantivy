@@ -91,7 +91,7 @@ pub trait Collector {
     /// - setup the collector and informs it that the segment being processed has changed.
     /// - creates a SegmentCollector for collecting documents associated to the segment
     /// - creates a `Scorer` object associated for this segment
-    /// - iterate throw the matched documents and push them to the segment collector.
+    /// - iterate through the matched documents and push them to the segment collector.
     ///
     /// Finally, the Collector merges each of the child collectors into itself for result usability
     /// by the caller.

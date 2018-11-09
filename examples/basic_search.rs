@@ -215,7 +215,7 @@ fn main() -> tantivy::Result<()> {
     // is the role of the TopCollector.
 
     // We can now perform our query.
-    let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
+    let top_docs = searcher.search(&query, TopCollector::with_limit(10))?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.
@@ -224,7 +224,7 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
 
-    for doc_address in top_docs.docs() {
+    for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }

@@ -61,29 +61,6 @@ pub trait Query: QueryClone + downcast::Any + fmt::Debug {
     /// Extract all of the terms associated to the query and insert them in the
     /// term set given in arguments.
     fn query_terms(&self, _term_set: &mut BTreeSet<Term>) {}
-
-
-    /*
-    /// Search works as follows :
-    ///
-    /// First the weight object associated to the query is created.
-    ///
-    /// Then, the query loops over the segments and for each segment :
-    /// - setup the collector and informs it that the segment being processed has changed.
-    /// - creates a `Scorer` object associated for this segment
-    /// - iterate throw the matched documents and push them to the collector.
-    ///
-    fn search(&self, searcher: &Searcher, collector: &mut Collector) -> Result<()> {
-        let scoring_enabled = collector.requires_scoring();
-        let weight = self.weight(searcher, scoring_enabled)?;
-        for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
-            collector.set_segment(segment_ord as SegmentLocalId, segment_reader)?;
-            let mut scorer = weight.scorer(segment_reader)?;
-            scorer.collect(collector, segment_reader.delete_bitset());
-        }
-        Ok(())
-    }
-    */
 }
 
 pub trait QueryClone {
@@ -96,6 +73,26 @@ where
 {
     fn box_clone(&self) -> Box<Query> {
         Box::new(self.clone())
+    }
+}
+
+impl Query for Box<Query> {
+    fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>> {
+        self.as_ref().weight(searcher, scoring_enabled)
+    }
+
+    fn count(&self, searcher: &Searcher) -> Result<usize> {
+        self.as_ref().count(searcher)
+    }
+
+    fn query_terms(&self, term_set: &mut BTreeSet<Term<Vec<u8>>>) {
+        self.as_ref().query_terms(term_set);
+    }
+}
+
+impl QueryClone for Box<Query> {
+    fn box_clone(&self) -> Box<Query> {
+        self.as_ref().box_clone()
     }
 }
 

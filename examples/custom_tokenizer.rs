@@ -106,8 +106,7 @@ fn main() -> tantivy::Result<()> {
 
     let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
 
-    let doc_addresses = top_docs.docs();
-    for doc_address in doc_addresses {
+    for (_, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }

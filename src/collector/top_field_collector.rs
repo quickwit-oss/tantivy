@@ -8,7 +8,7 @@ use Result;
 use SegmentReader;
 use SegmentLocalId;
 use collector::top_collector::TopSegmentCollector;
-use collector::top_collector::TopDocs;
+use DocAddress;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -21,7 +21,7 @@ use collector::top_collector::TopDocs;
 /// #[macro_use]
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT, FAST};
-/// use tantivy::{Index, Result, DocId};
+/// use tantivy::{Index, Result, DocAddress};
 /// use tantivy::collector::TopFieldCollector;
 /// use tantivy::query::QueryParser;
 ///
@@ -62,13 +62,9 @@ use collector::top_collector::TopDocs;
 ///         let query = query_parser.parse_query("diary")?;
 ///         let top_docs = searcher.search(&*query, top_collector).unwrap();
 ///
-///         let score_docs: Vec<(u64, DocId)> = top_docs
-///           .top_docs()
-///           .into_iter()
-///           .map(|(field, doc_address)| (field, doc_address.doc()))
-///           .collect();
-///
-///         assert_eq!(score_docs, vec![(97u64, 1), (80, 3)]);
+///         assert_eq!(top_docs,
+///             vec![(97u64, DocAddress(0u32, 1)),
+///                  (80u64, DocAddress(0u32, 3))]);
 ///     }
 ///
 ///     Ok(())
@@ -98,7 +94,7 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
 
 impl<T: FastValue + PartialOrd + Send + 'static> Collector for TopFieldCollector<T> {
 
-    type Fruit = TopDocs<T>;
+    type Fruit = Vec<(T, DocAddress)>;
 
     type Child = TopFieldSegmentCollector<T>;
 
@@ -112,7 +108,7 @@ impl<T: FastValue + PartialOrd + Send + 'static> Collector for TopFieldCollector
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<TopDocs<T>>) -> TopDocs<T> {
+    fn merge_fruits(&self, segment_fruits: Vec<Vec<(T, DocAddress)>>) -> Vec<(T, DocAddress)> {
         self.collector.merge_fruits(segment_fruits)
     }
 }
@@ -124,14 +120,14 @@ pub struct TopFieldSegmentCollector<T: FastValue + PartialOrd> {
 
 impl<T: FastValue + PartialOrd + Send + 'static> SegmentCollector for TopFieldSegmentCollector<T> {
 
-    type Fruit = TopDocs<T>;
+    type Fruit = Vec<(T, DocAddress)>;
 
     fn collect(&mut self, doc: u32, _score: f32) {
         let field_value = self.reader.get(doc);
         self.collector.collect(doc, field_value);
     }
 
-    fn harvest(self) -> TopDocs<T> {
+    fn harvest(self) -> Vec<(T, DocAddress)> {
         self.collector.harvest()
     }
 }
@@ -150,6 +146,7 @@ mod tests {
     use TantivyError;
     use DocId;
     use collector::Collector;
+    use DocAddress;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
@@ -177,15 +174,11 @@ mod tests {
         let searcher = index.searcher();
 
         let top_collector = TopFieldCollector::with_limit(size, 4);
-        let top_docs = searcher.search(&*query, top_collector).unwrap();
-        assert_eq!(top_docs.len(), 3);
-
-        let score_docs: Vec<(u64, DocId)> = top_docs
-            .top_docs()
-            .into_iter()
-            .map(|(field, doc_address)| (field, doc_address.doc()))
-            .collect();
-        assert_eq!(score_docs, vec![(64, 1), (16, 2), (12, 0)]);
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&*query, top_collector).unwrap();
+        assert_eq!(top_docs, vec![
+            (64, DocAddress(0,1)),
+            (16, DocAddress(0,2)),
+            (12, DocAddress(0,0))]);
     }
 
     #[test]

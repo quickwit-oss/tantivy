@@ -148,9 +148,8 @@ mod test {
 
             let fuzzy_query = FuzzyTermQuery::new(term, 1, true);
             let top_docs = searcher.search(&fuzzy_query, TopCollector::with_limit(2)).unwrap();
-            let scored_docs = top_docs.top_docs();
-            assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
-            let (score, _) = scored_docs[0];
+            assert_eq!(top_docs.len(), 1, "Expected only 1 document");
+            let (score, _) = top_docs[0];
             assert_nearly_equals(1f32, score);
         }
     }

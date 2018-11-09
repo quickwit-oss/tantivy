@@ -24,7 +24,8 @@
 //! # use tempdir::TempDir;
 //! # use tantivy::Index;
 //! # use tantivy::schema::*;
-//! # use tantivy::collector::TopCollector;
+//!
+//! # use tantivy::collector::TopScoreCollector;
 //! # use tantivy::query::QueryParser;
 //! #
 //! # fn main() {
@@ -86,12 +87,10 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
+//! let top_docs = searcher.search(&*query, TopScoreCollector::with_limit(10))?;
 //!
-//! // Our top collector now contains the 10
-//! // most relevant doc ids...
-//! let doc_addresses = top_docs.docs();
-//! for doc_address in doc_addresses {
+//! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
+//! for (_score, doc_address) in top_docs {
 //!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }

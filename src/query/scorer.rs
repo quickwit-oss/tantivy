@@ -1,7 +1,6 @@
 use common::BitSet;
 use docset::{DocSet, SkipResult};
 use downcast;
-use fastfield::DeleteBitSet;
 use std::ops::DerefMut;
 use DocId;
 use Score;

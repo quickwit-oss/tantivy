@@ -135,7 +135,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///     let count_handle = collectors.add_collector(CountCollector);
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
-///     let mut multi_fruit = searcher.search(&*query, collectors)?;
+///     let mut multi_fruit = searcher.search(&query, collectors)?;
 ///
 ///     let count = count_handle.extract(&mut multi_fruit);
 ///     let top_docs = top_docs_handle.extract(&mut multi_fruit);
@@ -278,11 +278,10 @@ mod tests {
         let mut collectors = MultiCollector::new();
         let topdocs_handler = collectors.add_collector(TopCollector::with_limit(2));
         let count_handler = collectors.add_collector(CountCollector);
-        let mut multifruits = collectors.search(&*searcher, &query).unwrap();
+        let mut multifruits = collectors.search(&searcher, &query).unwrap();
 
         assert_eq!(count_handler.extract(&mut multifruits), 5);
-        let topdocs = topdocs_handler.extract(&mut multifruits).top_docs();
-        assert_eq!(topdocs.len(), 2);
+        assert_eq!(topdocs_handler.extract(&mut multifruits).len(), 2);
     }
 }
 

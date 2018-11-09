@@ -46,7 +46,7 @@ use collector::SegmentCollector;
 ///     {
 ///         let query_parser = QueryParser::for_index(&index, vec![title]);
 ///         let query = query_parser.parse_query("diary")?;
-///         let count = searcher.search(&*query, CountCollector).unwrap();
+///         let count = searcher.search(&query, CountCollector).unwrap();
 ///
 ///         assert_eq!(count, 2);
 ///     }
