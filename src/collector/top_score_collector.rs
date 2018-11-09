@@ -8,6 +8,9 @@ use SegmentReader;
 use collector::SegmentCollector;
 use collector::top_collector::TopCollector;
 use DocAddress;
+use collector::TopDocsByField;
+use schema::Field;
+use fastfield::FastValue;
 
 /// The Top Score Collector keeps track of the K documents
 /// sorted by their score.
@@ -22,7 +25,7 @@ use DocAddress;
 /// use tantivy::DocAddress;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result};
-/// use tantivy::collector::TopScoreCollector;
+/// use tantivy::collector::TopDocs;
 /// use tantivy::query::QueryParser;
 ///
 /// # fn main() { example().unwrap(); }
@@ -53,7 +56,7 @@ use DocAddress;
 ///
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
-///     let top_docs = searcher.search(&*query, TopScoreCollector::with_limit(2))?;
+///     let top_docs = searcher.search(&query, TopDocs::with_limit(2))?;
 ///
 ///     assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
 ///     assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
@@ -61,16 +64,20 @@ use DocAddress;
 ///     Ok(())
 /// }
 /// ```
-pub struct TopScoreCollector(TopCollector<Score>);
+pub struct TopDocs(TopCollector<Score>);
 
 
-impl TopScoreCollector {
+impl TopDocs {
     /// Creates a top score collector, with a number of documents equal to "limit".
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(limit: usize) -> TopScoreCollector {
-        TopScoreCollector(TopCollector::with_limit(limit))
+    pub fn with_limit(limit: usize) -> TopDocs {
+        TopDocs(TopCollector::with_limit(limit))
+    }
+
+    pub fn order_by_field<T: PartialOrd + FastValue + Clone>(self, field: Field) -> TopDocsByField<T> {
+        TopDocsByField::new(field, self.0.limit())
     }
 }
 
@@ -91,7 +98,7 @@ impl SegmentCollector for TopScoreSegmentCollector {
 }
 
 
-impl Collector for TopScoreCollector {
+impl Collector for TopDocs {
 
     type Fruit = Vec<(Score, DocAddress)>;
     type Child = TopScoreSegmentCollector;
@@ -115,9 +122,8 @@ impl Collector for TopScoreCollector {
 mod tests {
     // TODO fix tests
 
-    use super::{TopScoreCollector, TopScoreSegmentCollector};
+    use super::TopDocs;
     use collector::SegmentCollector;
-    use DocId;
     use Score;
     use schema::SchemaBuilder;
     use Index;
@@ -149,7 +155,7 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, TopScoreCollector::with_limit(4)).unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, TopDocs::with_limit(4)).unwrap();
         assert_eq!(score_docs, vec![
             (0.81221175, DocAddress(0u32, 1)),
             (0.5376842, DocAddress(0u32, 2)),
@@ -164,7 +170,7 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&*text_query, TopScoreCollector::with_limit(2)).unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, TopDocs::with_limit(2)).unwrap();
         assert_eq!(score_docs, vec![
             (0.81221175, DocAddress(0u32, 1)),
             (0.5376842, DocAddress(0u32, 2)),
@@ -174,7 +180,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_top_0() {
-        TopScoreCollector::with_limit(0);
+        TopDocs::with_limit(0);
     }
 
 }

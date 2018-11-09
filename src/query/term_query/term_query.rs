@@ -23,7 +23,7 @@ use Term;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT, IndexRecordOption};
 /// use tantivy::{Index, Result, Term};
-/// use tantivy::collector::{CountCollector, TopCollector};
+/// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::TermQuery;
 ///
 /// # fn main() { example().unwrap(); }
@@ -56,7 +56,7 @@ use Term;
 ///         Term::from_field_text(title, "diary"),
 ///         IndexRecordOption::Basic,
 ///     );
-///     let (top_docs, count) = searcher.search(&query, (TopCollector::with_limit(2), CountCollector)).unwrap();
+///     let (top_docs, count) = searcher.search(&query, (TopDocs::with_limit(2), Count)).unwrap();
 ///     assert_eq!(count, 2);
 ///
 ///     Ok(())

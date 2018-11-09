@@ -22,8 +22,8 @@ use DocAddress;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT, FAST};
 /// use tantivy::{Index, Result, DocAddress};
-/// use tantivy::collector::TopFieldCollector;
 /// use tantivy::query::QueryParser;
+/// use tantivy::collector::TopDocs;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
@@ -57,11 +57,12 @@ use DocAddress;
 ///     let searcher = index.searcher();
 ///
 ///     {
-///	        let top_collector = TopFieldCollector::with_limit(rating, 2);
-///         let query_parser = QueryParser::for_index(&index, vec![title]);
+///	        let query_parser = QueryParser::for_index(&index, vec![title]);
 ///         let query = query_parser.parse_query("diary")?;
-///         let top_docs = searcher.search(&*query, top_collector).unwrap();
-///
+///         let top_docs = searcher.search(
+///             &query,
+///             TopDocs::with_limit(2).order_by_field(rating)
+///         )?;
 ///         assert_eq!(top_docs,
 ///             vec![(97u64, DocAddress(0u32, 1)),
 ///                  (80u64, DocAddress(0u32, 3))]);
@@ -70,12 +71,12 @@ use DocAddress;
 ///     Ok(())
 /// }
 /// ```
-pub struct TopFieldCollector<T> {
+pub struct TopDocsByField<T> {
     collector: TopCollector<T>,
     field: Field
 }
 
-impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
+impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
     /// Creates a top field collector, with a number of documents equal to "limit".
     ///
     /// The given field name must be a fast field, otherwise the collector have an error while
@@ -83,8 +84,8 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(field: Field, limit: usize) -> TopFieldCollector<T> {
-        TopFieldCollector {
+    pub(crate) fn new(field: Field, limit: usize) -> TopDocsByField<T> {
+        TopDocsByField {
             collector: TopCollector::with_limit(limit),
             field
         }
@@ -92,7 +93,7 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
 }
 
 
-impl<T: FastValue + PartialOrd + Send + 'static> Collector for TopFieldCollector<T> {
+impl<T: FastValue + PartialOrd + Send + 'static> Collector for TopDocsByField<T> {
 
     type Fruit = Vec<(T, DocAddress)>;
 
@@ -134,7 +135,7 @@ impl<T: FastValue + PartialOrd + Send + 'static> SegmentCollector for TopFieldSe
 
 #[cfg(test)]
 mod tests {
-    use super::TopFieldCollector;
+    use super::TopDocsByField;
     use query::Query;
     use query::QueryParser;
     use schema::Field;
@@ -144,9 +145,9 @@ mod tests {
     use Index;
     use IndexWriter;
     use TantivyError;
-    use DocId;
     use collector::Collector;
     use DocAddress;
+    use collector::TopDocs;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
@@ -173,7 +174,7 @@ mod tests {
         });
         let searcher = index.searcher();
 
-        let top_collector = TopFieldCollector::with_limit(size, 4);
+        let top_collector = TopDocs::with_limit(4).order_by_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&*query, top_collector).unwrap();
         assert_eq!(top_docs, vec![
             (64, DocAddress(0,1)),
@@ -195,8 +196,8 @@ mod tests {
             ));
         });
         let searcher = index.searcher();
-        let top_collector: TopFieldCollector<u64> =
-            TopFieldCollector::with_limit(Field(2), 4);
+        let top_collector: TopDocsByField<u64> =
+            TopDocs::with_limit(4).order_by_field(Field(2));
         let segment_reader = searcher.segment_reader(0u32);
         top_collector.for_segment(0, segment_reader)
                 .expect("should panic");
@@ -216,17 +217,11 @@ mod tests {
         });
         let searcher = index.searcher();
         let segment = searcher.segment_reader(0);
-        let top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(size, 4);
+        let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(size);
         assert_matches!(
             top_collector.for_segment(0, segment).map(|_| ()).unwrap_err(),
             TantivyError::FastFieldError(_)
         );
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_top_0() {
-        let _: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 0);
     }
 
     fn index(

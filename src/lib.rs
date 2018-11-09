@@ -25,7 +25,7 @@
 //! # use tantivy::Index;
 //! # use tantivy::schema::*;
 //!
-//! # use tantivy::collector::TopScoreCollector;
+//! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
 //! #
 //! # fn main() {
@@ -87,7 +87,7 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let top_docs = searcher.search(&*query, TopScoreCollector::with_limit(10))?;
+//! let top_docs = searcher.search(&query, TopDocs::with_limit(10))?;
 //!
 //! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
 //! for (_score, doc_address) in top_docs {

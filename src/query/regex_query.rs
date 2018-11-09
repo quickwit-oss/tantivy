@@ -18,7 +18,7 @@ use Searcher;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result, Term};
-/// use tantivy::collector::CountCollector;
+/// use tantivy::collector::Count;
 /// use tantivy::query::RegexQuery;
 ///
 /// # fn main() { example().unwrap(); }
@@ -49,7 +49,7 @@ use Searcher;
 ///
 ///     let term = Term::from_field_text(title, "Diary");
 ///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
-///     let count = searcher.search(&query, CountCollector)?;
+///     let count = searcher.search(&query, Count)?;
 ///     assert_eq!(count, 3);
 ///     Ok(())
 /// }

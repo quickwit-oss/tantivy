@@ -12,7 +12,7 @@ use Searcher;
 use downcast;
 
 mod count_collector;
-pub use self::count_collector::CountCollector;
+pub use self::count_collector::Count;
 
 mod multi_collector;
 pub use self::multi_collector::MultiCollector;
@@ -20,12 +20,12 @@ pub use self::multi_collector::MultiCollector;
 mod top_collector;
 
 mod top_score_collector;
-pub use self::top_score_collector::TopScoreCollector;
+pub use self::top_score_collector::TopDocs;
 #[deprecated]
-pub use self::top_score_collector::TopScoreCollector as TopCollector;
+pub use self::top_score_collector::TopDocs as TopCollector;
 
 mod top_field_collector;
-pub use self::top_field_collector::TopFieldCollector;
+pub use self::top_field_collector::TopDocsByField;
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
@@ -83,18 +83,7 @@ pub trait Collector {
 
     fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit;
 
-    /// Search works as follows :
-    ///
-    /// First the weight object associated to the query is created.
-    ///
-    /// Then, the query loops over the segments and for each segment :
-    /// - setup the collector and informs it that the segment being processed has changed.
-    /// - creates a SegmentCollector for collecting documents associated to the segment
-    /// - creates a `Scorer` object associated for this segment
-    /// - iterate through the matched documents and push them to the segment collector.
-    ///
-    /// Finally, the Collector merges each of the child collectors into itself for result usability
-    /// by the caller.
+
     fn search(&self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
         let scoring_enabled = self.requires_scoring();
         let weight = query.weight(searcher, scoring_enabled)?;
@@ -176,6 +165,70 @@ impl<Left, Right> SegmentCollector for (Left, Right)
     }
 }
 
+
+/// Tuple implementations.
+/// ---------------------------------
+/// TODO: can we macro this out
+
+impl<One, Two, Three> Collector for (One, Two, Three)
+    where One: Collector,
+          Two: Collector,
+          Three: Collector
+{
+    type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
+    type Child = (One::Child, Two::Child, Three::Child);
+
+    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
+        let one = self.0.for_segment(segment_local_id, segment)?;
+        let two = self.1.for_segment(segment_local_id, segment)?;
+        let three = self.2.for_segment(segment_local_id, segment)?;
+        Ok((one, two, three))
+    }
+
+    fn requires_scoring(&self) -> bool {
+        self.0.requires_scoring() ||
+        self.1.requires_scoring() ||
+        self.2.requires_scoring()
+    }
+
+    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit {
+        let mut one_fruits = vec![];
+        let mut two_fruits = vec![];
+        let mut three_fruits = vec![];
+        for (one_fruit, two_fruit, three_fruit) in children {
+            one_fruits.push(one_fruit);
+            two_fruits.push(two_fruit);
+            three_fruits.push(three_fruit);
+        }
+        (self.0.merge_fruits(one_fruits),
+         self.1.merge_fruits(two_fruits),
+         self.2.merge_fruits(three_fruits))
+    }
+}
+
+impl<One, Two, Three> SegmentCollector for (One, Two, Three)
+    where
+        One: SegmentCollector,
+        Two: SegmentCollector,
+        Three: SegmentCollector
+{
+    type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
+
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.0.collect(doc, score);
+        self.1.collect(doc, score);
+        self.2.collect(doc, score);
+    }
+
+    fn harvest(self) -> <Self as SegmentCollector>::Fruit {
+        (self.0.harvest(), self.1.harvest(), self.2.harvest())
+    }
+}
+
+
+
+
+
 #[allow(missing_docs)]
 mod downcast_impl {
     downcast!(super::Fruit);
@@ -187,9 +240,9 @@ pub mod tests;
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use collector::{Collector, CountCollector};
+    use collector::{Collector, Count};
     use test::Bencher;
-    use super::CountCollector;
+    use super::Count;
 
     #[bench]
     fn build_collector(b: &mut Bencher) {

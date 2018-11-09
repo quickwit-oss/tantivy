@@ -14,7 +14,7 @@ use collector::SegmentCollector;
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result};
-/// use tantivy::collector::CountCollector;
+/// use tantivy::collector::Count;
 /// use tantivy::query::QueryParser;
 ///
 /// # fn main() { example().unwrap(); }
@@ -46,7 +46,7 @@ use collector::SegmentCollector;
 ///     {
 ///         let query_parser = QueryParser::for_index(&index, vec![title]);
 ///         let query = query_parser.parse_query("diary")?;
-///         let count = searcher.search(&query, CountCollector).unwrap();
+///         let count = searcher.search(&query, Count).unwrap();
 ///
 ///         assert_eq!(count, 2);
 ///     }
@@ -54,10 +54,10 @@ use collector::SegmentCollector;
 ///     Ok(())
 /// }
 /// ```
-pub struct CountCollector;
+pub struct Count;
 
 
-impl Collector for CountCollector {
+impl Collector for Count {
 
     type Fruit = usize;
 
@@ -98,13 +98,13 @@ impl SegmentCollector for SegmentCountCollector {
 
 #[cfg(test)]
 mod tests {
-    use super::{CountCollector, SegmentCountCollector};
+    use super::{Count, SegmentCountCollector};
     use collector::SegmentCollector;
     use collector::Collector;
 
     #[test]
     fn test_count_collect_does_not_requires_scoring() {
-        assert!(!CountCollector.requires_scoring());
+        assert!(!Count.requires_scoring());
     }
 
     #[test]

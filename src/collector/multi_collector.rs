@@ -101,7 +101,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// extern crate tantivy;
 /// use tantivy::schema::{SchemaBuilder, TEXT};
 /// use tantivy::{Index, Result};
-/// use tantivy::collector::{CountCollector, TopScoreCollector, MultiCollector};
+/// use tantivy::collector::{Count, TopDocs, MultiCollector};
 /// use tantivy::query::QueryParser;
 ///
 /// # fn main() { example().unwrap(); }
@@ -131,8 +131,8 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///     let searcher = index.searcher();
 ///
 ///     let mut collectors = MultiCollector::new();
-///     let top_docs_handle = collectors.add_collector(TopScoreCollector::with_limit(2));
-///     let count_handle = collectors.add_collector(CountCollector);
+///     let top_docs_handle = collectors.add_collector(TopDocs::with_limit(2));
+///     let count_handle = collectors.add_collector(Count);
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
 ///     let mut multi_fruit = searcher.search(&query, collectors)?;
@@ -245,7 +245,7 @@ impl SegmentCollector for MultiCollectorChild {
 mod tests {
 
     use super::*;
-    use collector::{Collector, CountCollector, TopCollector};
+    use collector::{Collector, Count, TopCollector};
     use schema::{TEXT, SchemaBuilder};
     use query::TermQuery;
     use Index;
@@ -277,7 +277,7 @@ mod tests {
 
         let mut collectors = MultiCollector::new();
         let topdocs_handler = collectors.add_collector(TopCollector::with_limit(2));
-        let count_handler = collectors.add_collector(CountCollector);
+        let count_handler = collectors.add_collector(Count);
         let mut multifruits = collectors.search(&searcher, &query).unwrap();
 
         assert_eq!(count_handler.extract(&mut multifruits), 5);

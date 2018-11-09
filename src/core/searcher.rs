@@ -86,7 +86,21 @@ impl Searcher {
         &self.segment_readers[segment_ord as usize]
     }
 
-    /// Runs a query on the segment readers wrapped by the searcher
+    /// Runs a query on the segment readers wrapped by the searcher.
+    ///
+    ///
+    /// Search works as follows :
+    //
+    //  First the weight object associated to the query is created.
+    //
+    //  Then, the query loops over the segments and for each segment :
+    //  - setup the collector and informs it that the segment being processed has changed.
+    //  - creates a SegmentCollector for collecting documents associated to the segment
+    //  - creates a `Scorer` object associated for this segment
+    //  - iterate through the matched documents and push them to the segment collector.
+    //
+    //  Finally, the Collector merges each of the child collectors into itself for result usability
+    //  by the caller.
     pub fn search<C: Collector>(&self, query: &Query, collector: C) -> Result<C::Fruit> {
         collector.search(self, query)
     }

@@ -67,6 +67,10 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
         }
     }
 
+    pub fn limit(&self) -> usize {
+        self.limit
+    }
+
     pub fn merge_fruits(&self, children: Vec<Vec<(T, DocAddress)>>) -> Vec<(T, DocAddress)> {
         if self.limit == 0 {
             return Vec::new();
@@ -176,8 +180,8 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use DocId;
+    use super::{TopCollector, TopSegmentCollector};
+    use DocAddress;
     use Score;
 
 
