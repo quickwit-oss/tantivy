@@ -102,8 +102,18 @@ pub trait Collector {
         for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
             let mut child: Self::Child = self.for_segment(segment_ord as SegmentLocalId, segment_reader)?;
             let mut scorer = weight.scorer(segment_reader)?;
-            scorer.collect(&mut child, segment_reader.delete_bitset());
-            fruits.push(child.harvest());
+            let delete_bitset_opt = segment_reader.delete_bitset();
+            if let Some(delete_bitset) = delete_bitset_opt {
+                scorer.for_each(&mut |doc, score|
+                    if !delete_bitset.is_deleted(doc) {
+                        child.collect(doc, score);
+                    });
+                fruits.push(child.harvest());
+            } else {
+                scorer.for_each(&mut |doc, score| child.collect(doc, score));
+                fruits.push(child.harvest());
+            }
+
         }
         Ok(self.merge_fruits(fruits))
     }
