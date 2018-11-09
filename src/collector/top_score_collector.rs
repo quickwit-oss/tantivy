@@ -1,6 +1,5 @@
 use super::Collector;
 use collector::top_collector::TopSegmentCollector;
-use DocAddress;
 use DocId;
 use Result;
 use Score;
@@ -8,8 +7,6 @@ use SegmentLocalId;
 use SegmentReader;
 use collector::SegmentCollector;
 use collector::CollectDocScore;
-use collector::top_collector::ComparableDoc;
-use std::collections::BinaryHeap;
 use collector::top_collector::TopDocs;
 use collector::top_collector::TopCollector;
 
@@ -129,7 +126,6 @@ mod tests {
 
     /*
     TODO uncomment
-
     #[test]
     fn test_top_collector_not_at_capacity() {
         let mut top_collector = TopScoreSegmentCollector::with_limit(4);

@@ -157,13 +157,15 @@ pub struct MultiCollector<'a> {
 }
 
 impl<'a> MultiCollector<'a> {
+
+    /// Create a new `MultiCollector`
     pub fn new() -> MultiCollector<'a> {
         MultiCollector {
             collector_wrappers: Vec::new()
         }
     }
 
-    pub fn add_collector<TCollector: Collector + 'static>(&mut self, collector: TCollector) -> FruitHandle<TCollector::Fruit> {
+    pub fn add_collector<'b: 'a, TCollector: Collector + 'b>(&mut self, collector: TCollector) -> FruitHandle<TCollector::Fruit> {
         let pos = self.collector_wrappers.len();
         self.collector_wrappers.push(Box::new(CollectorWrapper(collector)));
         FruitHandle {

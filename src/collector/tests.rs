@@ -10,12 +10,11 @@ use DocAddress;
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
-/// It is unusable in practise, as it does not store
+/// It is unusable in pr
+///
+/// actise, as it does not store
 /// the segment ordinals
-pub struct TestCollector {
-    docs: Vec<DocAddress>,
-    scores: Vec<Score>,
-}
+pub struct TestCollector;
 
 pub struct TestSegmentCollector {
     segment_id: SegmentLocalId,
@@ -36,15 +35,6 @@ impl TestFruit {
 
     pub fn scores(&self) -> &[Score] {
         &self.scores[..]
-    }
-}
-
-impl Default for TestCollector {
-    fn default() -> TestCollector {
-        TestCollector {
-            docs: Vec::new(),
-            scores: Vec::new(),
-        }
     }
 }
 

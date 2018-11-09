@@ -4,8 +4,6 @@ use collector::{SegmentCollector, CollectDocScore};
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
 use schema::Field;
-use DocAddress;
-use std::fmt;
 use Result;
 use SegmentReader;
 use SegmentLocalId;

@@ -55,7 +55,7 @@ mod tests {
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
             let test_fruits = searcher
-                .search(&phrase_query, TestCollector::default())
+                .search(&phrase_query, TestCollector)
                 .expect("search should succeed");
             test_fruits.docs()
                 .iter()
@@ -96,7 +96,7 @@ mod tests {
             Term::from_field_text(text_field, "b"),
         ]);
         if let TantivyError::SchemaError(ref msg) = searcher
-            .search(&phrase_query, TestCollector::default())
+            .search(&phrase_query, TestCollector)
             .map(|_| ())
             .unwrap_err()
         {
@@ -123,7 +123,7 @@ mod tests {
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
             searcher
-                .search(&phrase_query, TestCollector::default())
+                .search(&phrase_query, TestCollector)
                 .expect("search should succeed")
                 .scores().to_vec()
         };
@@ -155,7 +155,7 @@ mod tests {
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
             searcher
-                .search(&phrase_query, TestCollector::default())
+                .search(&phrase_query, TestCollector)
                 .expect("search should succeed")
                 .docs()
                 .to_vec()
@@ -184,7 +184,7 @@ mod tests {
                 .collect();
             let phrase_query = PhraseQuery::new_with_offset(terms);
             searcher
-                .search(&phrase_query, TestCollector::default())
+                .search(&phrase_query, TestCollector)
                 .expect("search should succeed")
                 .docs()
                 .iter()

@@ -810,7 +810,7 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let topdocs = searcher.search(&query, TestCollector::default()).unwrap();
+                let topdocs = searcher.search(&query, TestCollector).unwrap();
                 topdocs.docs().to_vec()
             };
             {

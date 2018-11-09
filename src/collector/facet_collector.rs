@@ -10,7 +10,6 @@ use std::collections::BinaryHeap;
 use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
-use termdict::TermMerger;
 use collector::CollectDocScore;
 use std::cmp::Ordering;
 use DocId;
@@ -43,12 +42,6 @@ impl<'a> Ord for Hit<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
         other.count.cmp(&self.count)
     }
-}
-
-struct SegmentFacetCounter {
-    pub facet_reader: FacetReader,
-    pub facet_ords: Vec<u64>,
-    pub facet_counts: Vec<u64>,
 }
 
 fn facet_depth(facet_bytes: &[u8]) -> usize {
