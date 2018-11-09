@@ -128,6 +128,7 @@ mod tests {
     use Score;
 
     /*
+    TODO uncomment
 
     #[test]
     fn test_top_collector_not_at_capacity() {

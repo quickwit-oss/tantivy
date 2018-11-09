@@ -258,8 +258,6 @@ mod tests {
     use Term;
     use schema::IndexRecordOption;
 
-    /*
-    TODO uncomment
     #[test]
     fn test_multi_collector() {
         let mut schema_builder = SchemaBuilder::new();
@@ -282,15 +280,15 @@ mod tests {
         let searcher = index.searcher();
         let term = Term::from_field_text(text, "abc");
         let query = TermQuery::new(term, IndexRecordOption::Basic);
-        let mut top_collector = TopCollector::with_limit(2);
-        {
-            let mut collectors = MultiCollector::new();
-            collectors.add_collector(&mut top_collector);
-            collectors.add_collector(&mut CountCollector);
-            collectors.search(&*searcher, &query).unwrap();
-        }
-        assert_eq!(count_collector.count(), 5);
+
+        let mut collectors = MultiCollector::new();
+        let topdocs_handler = collectors.add_collector(TopCollector::with_limit(2));
+        let count_handler = collectors.add_collector(CountCollector);
+        let mut multifruits = collectors.search(&*searcher, &query).unwrap();
+
+        assert_eq!(count_handler.extract(&mut multifruits), 5);
+        let topdocs = topdocs_handler.extract(&mut multifruits).top_docs();
+        assert_eq!(topdocs.len(), 2);
     }
-    */
 }
 

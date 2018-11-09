@@ -153,7 +153,7 @@ mod tests {
     use IndexWriter;
     use TantivyError;
     use DocId;
-    use collector::{SegmentCollector, Collector};
+    use collector::Collector;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
@@ -234,21 +234,11 @@ mod tests {
         );
     }
 
-    /*
-    TODO uncomment
-    #[test]
-    #[should_panic]
-    fn test_collect_before_set_segment() {
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 4);
-        top_collector.collect(0, 0f32);
-    }
-
     #[test]
     #[should_panic]
     fn test_top_0() {
         let _: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 0);
     }
-    */
 
     fn index(
         query: &str,

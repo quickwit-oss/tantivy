@@ -106,7 +106,6 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
         }
     }
 
-
     pub fn merge_fruits(&self, children: Vec<TopDocs<T>>) -> TopDocs<T> {
         if self.limit == 0 {
             return TopDocs::empty();
@@ -128,13 +127,8 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
         TopDocs(top_collector)
     }
 
-
     pub(crate) fn for_segment(&self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<TopSegmentCollector<T>> {
-        Ok(TopSegmentCollector {
-            limit: self.limit,
-            heap: BinaryHeap::with_capacity(self.limit),
-            segment_id,
-        })
+        Ok(TopSegmentCollector::new(segment_id, self.limit))
     }
 }
 
@@ -151,9 +145,17 @@ pub(crate) struct TopSegmentCollector<T> {
     segment_id: u32,
 }
 
+impl<T: PartialOrd> TopSegmentCollector<T> {
+    fn new(segment_id: SegmentLocalId, limit: usize) -> TopSegmentCollector<T> {
+        TopSegmentCollector {
+            limit,
+            heap: BinaryHeap::with_capacity(limit),
+            segment_id
+        }
+    }
+}
+
 impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
-
-
     pub fn harvest(self) -> TopDocs<T> {
         TopDocs(self.heap)
     }
@@ -202,17 +204,15 @@ mod tests {
     use DocId;
     use Score;
 
-    /*
-    TODO uncomment
 
     #[test]
     fn test_top_collector_not_at_capacity() {
-        let mut top_collector = TopCollector::with_limit(4);
+        let mut top_collector = TopSegmentCollector::new(0, 4);
         top_collector.collect(1, 0.8);
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
-        assert!(!top_collector.at_capacity());
-        let score_docs: Vec<(Score, DocId)> = top_collector
+        let top_docs = top_collector.harvest();
+        let score_docs: Vec<(Score, DocId)> = top_docs
             .top_docs()
             .into_iter()
             .map(|(score, doc_address)| (score, doc_address.doc()))
@@ -222,15 +222,15 @@ mod tests {
 
     #[test]
     fn test_top_collector_at_capacity() {
-        let mut top_collector = TopCollector::with_limit(4);
+        let mut top_collector = TopSegmentCollector::new(0, 4);
         top_collector.collect(1, 0.8);
         top_collector.collect(3, 0.2);
         top_collector.collect(5, 0.3);
         top_collector.collect(7, 0.9);
         top_collector.collect(9, -0.2);
-        assert!(top_collector.at_capacity());
+        let top_docs = top_collector.harvest();
         {
-            let score_docs: Vec<(Score, DocId)> = top_collector
+            let score_docs: Vec<(Score, DocId)> = top_docs
                 .top_docs()
                 .into_iter()
                 .map(|(score, doc_address)| (score, doc_address.doc()))
@@ -238,15 +238,13 @@ mod tests {
             assert_eq!(score_docs, vec![(0.9, 7), (0.8, 1), (0.3, 5), (0.2, 3)]);
         }
         {
-            let docs: Vec<DocId> = top_collector
-                .docs()
-                .into_iter()
-                .map(|doc_address| doc_address.doc())
-                .collect();
-            assert_eq!(docs, vec![7, 1, 5, 3]);
+            assert_eq!(top_docs.docs(), vec![
+                    DocAddress(0, 7),
+                    DocAddress(0, 1),
+                    DocAddress(0, 5),
+                    DocAddress(0, 3)]);
         }
     }
-    */
 
     #[test]
     #[should_panic]
