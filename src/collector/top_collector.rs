@@ -13,9 +13,7 @@ use serde::export::PhantomData;
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
 ///
-/// WARNING: equality is not what you would expect here.
-
-#[derive(Clone, Copy)]
+/// WARNING: equality is not what you would expect here
 struct ComparableDoc<T, D> {
     feature: T,
     doc: D,
@@ -155,25 +153,23 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
     pub(crate) fn collect(&mut self, doc: DocId, feature: T) {
         if self.at_capacity() {
             // It's ok to unwrap as long as a limit of 0 is forbidden.
-            let limit_doc: ComparableDoc<T, DocId> = self
-                .heap
+            if let Some(limit_feature) = self.heap
                 .peek()
-                .expect("Top collector with size 0 is forbidden")
-                .clone();
-            if limit_doc.feature < feature {
-                let mut mut_head = self
-                    .heap
-                    .peek_mut()
-                    .expect("Top collector with size 0 is forbidden");
-                mut_head.feature = feature;
-                mut_head.doc = doc;
+                .map(|head| head.feature.clone()) {
+                if limit_feature < feature {
+                    if let Some(mut head) = self.heap.peek_mut() {
+                        head.feature = feature;
+                        head.doc = doc;
+                    }
+                }
             }
         } else {
-            let wrapped_doc = ComparableDoc {
+            // we have not reached capacity yet, so we can just push the
+            // element.
+            self.heap.push(ComparableDoc {
                 feature,
                 doc,
-            };
-            self.heap.push(wrapped_doc);
+            });
         }
     }
 }
