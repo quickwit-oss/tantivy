@@ -5,7 +5,7 @@
 
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::NgramTokenizer;
@@ -104,7 +104,7 @@ fn main() -> tantivy::Result<()> {
     // here we want to get a hit on the 'ken' in Frankenstein
     let query = query_parser.parse_query("ken")?;
 
-    let top_docs = searcher.search(&*query, TopCollector::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     for (_, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;

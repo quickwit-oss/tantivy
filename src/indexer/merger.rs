@@ -742,7 +742,7 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let top_docs = searcher.search(&query, TestCollector).unwrap();
+                let top_docs = searcher.search(&query, &TestCollector).unwrap();
                 top_docs.docs().to_vec()
             };
             {
@@ -789,12 +789,12 @@ mod tests {
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    searcher.search(&query, FastFieldTestCollector::for_field(score_field)).unwrap()
+                    searcher.search(&query, &FastFieldTestCollector::for_field(score_field)).unwrap()
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
                     searcher
-                        .search(&query, BytesFastFieldTestCollector::for_field(bytes_score_field))
+                        .search(&query, &BytesFastFieldTestCollector::for_field(bytes_score_field))
                         .expect("failed to search")
                 };
                 assert_eq!(
@@ -830,7 +830,7 @@ mod tests {
             let term_query = TermQuery::new(term, IndexRecordOption::Basic);
             let (scores, bytes) =
                 searcher
-                    .search(&term_query, (collector, bytes_collector))
+                    .search(&term_query, &(collector, bytes_collector))
                     .unwrap();
             let mut score_bytes = Cursor::new(bytes);
             for &score in &scores {

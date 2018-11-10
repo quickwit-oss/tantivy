@@ -56,7 +56,7 @@ use fastfield::FastValue;
 ///
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
-///     let top_docs = searcher.search(&query, TopDocs::with_limit(2))?;
+///     let top_docs = searcher.search(&query, &TopDocs::with_limit(2))?;
 ///
 ///     assert_eq!(&top_docs[0], &(0.7261542, DocAddress(0, 1)));
 ///     assert_eq!(&top_docs[1], &(0.6099695, DocAddress(0, 3)));
@@ -155,7 +155,7 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, TopDocs::with_limit(4)).unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, &TopDocs::with_limit(4)).unwrap();
         assert_eq!(score_docs, vec![
             (0.81221175, DocAddress(0u32, 1)),
             (0.5376842, DocAddress(0u32, 2)),
@@ -170,7 +170,7 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, TopDocs::with_limit(2)).unwrap();
+        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, &TopDocs::with_limit(2)).unwrap();
         assert_eq!(score_docs, vec![
             (0.81221175, DocAddress(0u32, 1)),
             (0.5376842, DocAddress(0u32, 2)),

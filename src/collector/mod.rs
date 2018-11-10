@@ -1,5 +1,33 @@
 /*!
-Defines how the documents matching a search query should be processed.
+
+# Collectors
+
+Collectors define the information you want to extract from the documents matching the queries.
+In tantivy jargon, we call this information your search "fruit".
+
+Your fruit could for instance be :
+- [the count of matching documents](./struct.Count.html)
+- [the top 10 documents, by relevancy or by a fast field](./struct.TopDocs.html)
+- facet counts
+
+At one point in your code, you will trigger the actual search operation by calling
+[the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).
+This call will look like this.
+
+```verbatim
+let fruit = searcher.search(&query, &collector)?;
+```
+
+Here the type of fruit is actually determined as an associated type of the collector (`Collector::Fruit`).
+
+
+# Combining several collectors
+
+
+# Implementing your own collectors.
+
+
+
 */
 
 use DocId;
@@ -21,8 +49,6 @@ mod top_collector;
 
 mod top_score_collector;
 pub use self::top_score_collector::TopDocs;
-#[deprecated]
-pub use self::top_score_collector::TopDocs as TopCollector;
 
 mod top_field_collector;
 pub use self::top_field_collector::TopDocsByField;
@@ -38,30 +64,17 @@ impl<T> Fruit for T where T: Send + downcast::Any {}
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
 ///
-///
 /// For instance,
 ///
 /// - keeping track of the top 10 best documents
 /// - computing a breakdown over a fast field
 /// - computing the number of documents matching the query
 ///
-/// Queries are in charge of pushing the `DocSet` to the collector.
+/// Our search index is in fact a collection of segments, so
+/// a `Collector` trait is actually more of a factory to instance
+/// `SegmentCollector`s for each segments.
 ///
-/// As they work on multiple segments, they first inform
-/// the collector of a change in a segment and then
-/// call the `collect` method to push the document to the collector.
-///
-/// Temporally, our collector will receive calls
-/// - `.set_segment(0, segment_reader_0)`
-/// - `.collect(doc0_of_segment_0)`
-/// - `.collect(...)`
-/// - `.collect(last_doc_of_segment_0)`
-/// - `.set_segment(1, segment_reader_1)`
-/// - `.collect(doc0_of_segment_1)`
-/// - `.collect(...)`
-/// - `.collect(last_doc_of_segment_1)`
-/// - `...`
-/// - `.collect(last_doc_of_last_segment)`
+/// The collection logic itself is in the `SegmentCollector`.
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
@@ -83,7 +96,10 @@ pub trait Collector {
 
     fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit;
 
-
+    /// You should not use this method.
+    ///
+    /// Instead, please use [the `Searcher`'s search(...) method](../struct.Searcher.html#method.search).
+    #[doc(hidden)]
     fn search(&self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
         let scoring_enabled = self.requires_scoring();
         let weight = query.weight(searcher, scoring_enabled)?;

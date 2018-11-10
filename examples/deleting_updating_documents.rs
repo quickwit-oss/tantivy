@@ -10,7 +10,7 @@
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::TermQuery;
 use tantivy::schema::*;
 use tantivy::Index;
@@ -27,7 +27,7 @@ fn extract_doc_given_isbn(index: &Index, isbn_term: &Term) -> tantivy::Result<Op
     // The second argument is here to tell we don't care about decoding positions,
     // or term frequencies.
     let term_query = TermQuery::new(isbn_term.clone(), IndexRecordOption::Basic);
-    let top_docs = searcher.search(&term_query, TopCollector::with_limit(1))?;
+    let top_docs = searcher.search(&term_query, &TopDocs::with_limit(1))?;
 
     if let Some((_score, doc_address)) = top_docs.first() {
         let doc = searcher.doc(*doc_address)?;

@@ -49,7 +49,7 @@ use Searcher;
 ///
 ///     let term = Term::from_field_text(title, "Diary");
 ///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
-///     let count = searcher.search(&query, Count)?;
+///     let count = searcher.search(&query, &Count)?;
 ///     assert_eq!(count, 3);
 ///     Ok(())
 /// }
@@ -86,7 +86,7 @@ impl Query for RegexQuery {
 #[cfg(test)]
 mod test {
     use super::RegexQuery;
-    use collector::TopCollector;
+    use collector::TopDocs;
     use schema::SchemaBuilder;
     use schema::TEXT;
     use tests::assert_nearly_equals;
@@ -113,13 +113,13 @@ mod test {
         {
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             let scored_docs = searcher
-                .search(&regex_query, TopCollector::with_limit(2)).unwrap();
+                .search(&regex_query, &TopDocs::with_limit(2)).unwrap();
             assert_eq!(scored_docs.len(), 1, "Expected only 1 document");
             let (score, _) = scored_docs[0];
             assert_nearly_equals(1f32, score);
         }
         let regex_query = RegexQuery::new("jap[A-Z]n".to_string(), country_field);
-        let top_docs = searcher.search(&regex_query, TopCollector::with_limit(2)).unwrap();
+        let top_docs = searcher.search(&regex_query, &TopDocs::with_limit(2)).unwrap();
         assert!(top_docs.is_empty(), "Expected ZERO document");
     }
 }

@@ -16,7 +16,7 @@ extern crate tempdir;
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
@@ -212,10 +212,10 @@ fn main() -> tantivy::Result<()> {
     //
     // We are not interested in all of the documents but
     // only in the top 10. Keeping track of our top 10 best documents
-    // is the role of the TopCollector.
+    // is the role of the TopDocs.
 
     // We can now perform our query.
-    let top_docs = searcher.search(&query, TopCollector::with_limit(10))?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.

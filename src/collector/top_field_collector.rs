@@ -20,55 +20,49 @@ use DocAddress;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT, FAST};
-/// use tantivy::{Index, Result, DocAddress};
-/// use tantivy::query::QueryParser;
+/// # use tantivy::schema::{SchemaBuilder, Field, FAST, TEXT};
+/// # use tantivy::{Index, Result, DocAddress};
+/// # use tantivy::query::{Query, QueryParser};
 /// use tantivy::collector::TopDocs;
 ///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let rating = schema_builder.add_u64_field("rating", FAST);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///             rating => 92u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///             rating => 97u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///             rating => 63u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///             rating => 80u64,
-///         ));
-///         index_writer.commit().unwrap();
-///     }
+/// # fn main() {
+/// #   let mut schema_builder = SchemaBuilder::new();
+/// #   let title = schema_builder.add_text_field("title", TEXT);
+/// #   let rating = schema_builder.add_u64_field("rating", FAST);
+/// #   let schema = schema_builder.build();
+/// #   let index = Index::create_in_ram(schema);
+/// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+/// #   index_writer.add_document(doc!(
+/// #       title => "The Name of the Wind",
+/// #       rating => 92u64,
+/// #   ));
+/// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
+/// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
+/// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
+/// #   index_writer.commit().unwrap();
+/// #   index.load_searchers().unwrap();
+///	#   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary").unwrap();
+/// #   let top_docs = docs_sorted_by_rating(&index, &query, rating).unwrap();
+/// #   assert_eq!(top_docs,
+/// #            vec![(97u64, DocAddress(0u32, 1)),
+/// #                 (80u64, DocAddress(0u32, 3))]);
+/// # }
+/// #
+/// /// Searches the document matching the given query, and
+/// /// collects the top 10 documents, order by the `field`
+/// /// given in argument.
+/// ///
+/// /// `field` is required to be a FAST field.
+/// fn docs_sorted_by_rating(index: &Index, query: &Query, sort_by_field: Field)
+///     -> Result<Vec<(u64, DocAddress)>> {
 ///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     // This is where we build our collector!
+///     let top_docs_by_rating = TopDocs::with_limit(2).order_by_field(sort_by_field);
 ///
-///     {
-///	        let query_parser = QueryParser::for_index(&index, vec![title]);
-///         let query = query_parser.parse_query("diary")?;
-///         let top_docs = searcher.search(
-///             &query,
-///             TopDocs::with_limit(2).order_by_field(rating)
-///         )?;
-///         assert_eq!(top_docs,
-///             vec![(97u64, DocAddress(0u32, 1)),
-///                  (80u64, DocAddress(0u32, 3))]);
-///     }
-///
-///     Ok(())
+///     // ... and here is our documents. Not this is a simple vec.
+///     // The `u64` in the pair is the value of our fast field for each documents.
+///     index.searcher()
+///          .search(query, &top_docs_by_rating)
 /// }
 /// ```
 pub struct TopDocsByField<T> {
@@ -175,7 +169,7 @@ mod tests {
         let searcher = index.searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_field(size);
-        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&*query, top_collector).unwrap();
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
         assert_eq!(top_docs, vec![
             (64, DocAddress(0,1)),
             (16, DocAddress(0,2)),

@@ -101,7 +101,7 @@ impl Searcher {
     //
     //  Finally, the Collector merges each of the child collectors into itself for result usability
     //  by the caller.
-    pub fn search<C: Collector>(&self, query: &Query, collector: C) -> Result<C::Fruit> {
+    pub fn search<C: Collector>(&self, query: &Query, collector: &C) -> Result<C::Fruit> {
         collector.search(self, query)
     }
 

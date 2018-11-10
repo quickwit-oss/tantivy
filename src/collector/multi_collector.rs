@@ -135,7 +135,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///     let count_handle = collectors.add_collector(Count);
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
-///     let mut multi_fruit = searcher.search(&query, collectors)?;
+///     let mut multi_fruit = searcher.search(&query, &collectors)?;
 ///
 ///     let count = count_handle.extract(&mut multi_fruit);
 ///     let top_docs = top_docs_handle.extract(&mut multi_fruit);
@@ -245,7 +245,7 @@ impl SegmentCollector for MultiCollectorChild {
 mod tests {
 
     use super::*;
-    use collector::{Collector, Count, TopCollector};
+    use collector::{Collector, Count, TopDocs};
     use schema::{TEXT, SchemaBuilder};
     use query::TermQuery;
     use Index;
@@ -276,7 +276,7 @@ mod tests {
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 
         let mut collectors = MultiCollector::new();
-        let topdocs_handler = collectors.add_collector(TopCollector::with_limit(2));
+        let topdocs_handler = collectors.add_collector(TopDocs::with_limit(2));
         let count_handler = collectors.add_collector(Count);
         let mut multifruits = collectors.search(&searcher, &query).unwrap();
 

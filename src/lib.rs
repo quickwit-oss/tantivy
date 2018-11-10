@@ -87,7 +87,7 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let top_docs = searcher.search(&query, TopDocs::with_limit(10))?;
+//! let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 //!
 //! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
 //! for (_score, doc_address) in top_docs {
@@ -809,48 +809,37 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let topdocs = searcher.search(&query, TestCollector).unwrap();
+                let topdocs = searcher.search(&query, &TestCollector).unwrap();
                 topdocs.docs().to_vec()
             };
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                    vec![DocAddress(0, 1), DocAddress(0, 2)]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                    vec![DocAddress(0, 0)]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                    vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                    vec![DocAddress(0,1), DocAddress(0,2)]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                    vec![DocAddress(0,2)]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![
-                        Term::from_field_text(text_field, "b"),
-                        Term::from_field_text(text_field, "a"),
-                    ]),
-                    vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
-                );
-            }
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                vec![DocAddress(0, 1), DocAddress(0, 2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                vec![DocAddress(0, 0)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
+                vec![DocAddress(0,1), DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
+                vec![DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![
+                    Term::from_field_text(text_field, "b"),
+                    Term::from_field_text(text_field, "a"),
+                ]),
+                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+            );
+
         }
     }
 
