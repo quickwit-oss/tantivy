@@ -159,6 +159,7 @@ impl<'a> MultiCollector<'a> {
         }
     }
 
+    /// Add a new collector to our `MultiCollector`.
     pub fn add_collector<'b: 'a, TCollector: Collector + 'b>(&mut self, collector: TCollector) -> FruitHandle<TCollector::Fruit> {
         let pos = self.collector_wrappers.len();
         self.collector_wrappers.push(Box::new(CollectorWrapper(collector)));

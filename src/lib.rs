@@ -87,10 +87,13 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
-//!
+//! /// Perform search.
 //! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
+//! let top_docs: Vec<(Score, DocAddress)> =
+//!     searcher.search(&query, &TopDocs::with_limit(10))?;
+//!
 //! for (_score, doc_address) in top_docs {
+//!     // Retrieve the actual content of documents given its `doc_address`.
 //!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }

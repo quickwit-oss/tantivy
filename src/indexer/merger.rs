@@ -637,10 +637,11 @@ mod tests {
     use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
     use collector::tests::TestCollector;
     use collector::tests::{BytesFastFieldTestCollector, FastFieldTestCollector};
-    use collector::FacetCollector;
+    use collector::{Count, FacetCollector};
     use core::Index;
     use futures::Future;
     use query::AllQuery;
+    use schema::Facet;
     use query::BooleanQuery;
     use query::TermQuery;
     use schema;
@@ -1129,16 +1130,11 @@ mod tests {
         }
     }
 
-    /*
-
-    // uncomment
-
     #[test]
     fn test_merge_facets() {
         let mut schema_builder = schema::SchemaBuilder::default();
         let facet_field = schema_builder.add_facet_field("facet");
         let index = Index::create_in_ram(schema_builder.build());
-        use schema::Facet;
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
@@ -1167,21 +1163,14 @@ mod tests {
             index_doc(&mut index_writer, &["/top/e", "/top/f"]);
             index_writer.commit().expect("committed");
         }
+
         index.load_searchers().unwrap();
         let test_searcher = |expected_num_docs: usize, expected: &[(&str, u64)]| {
             let searcher = index.searcher();
             let mut facet_collector = FacetCollector::for_field(facet_field);
             facet_collector.add_facet(Facet::from("/top"));
-            use collector::{CountCollector, MultiCollector};
-            let mut count_collector = CountCollector::default();
-            {
-                let mut multi_collectors = MultiCollector::new();
-                multi_collectors.add_collector(&mut count_collector);
-                multi_collectors.add_collector(&mut facet_collector);
-                searcher.search(&AllQuery, &multi_collectors).unwrap();
-            }
-            assert_eq!(count_collector.count(), expected_num_docs);
-            let facet_counts = facet_collector.harvest();
+            let (count, facet_counts) = searcher.search(&AllQuery, &(Count, facet_collector)).unwrap();
+            assert_eq!(count, expected_num_docs);
             let facets: Vec<(String, u64)> = facet_counts
                 .get("/top")
                 .map(|(facet, count)| (facet.to_string(), count))
@@ -1205,7 +1194,6 @@ mod tests {
                 ("/top/f", 1),
             ],
         );
-
         // Merging the segments
         {
             let segment_ids = index
@@ -1218,7 +1206,6 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
-
             index.load_searchers().unwrap();
             test_searcher(
                 11,
@@ -1241,20 +1228,15 @@ mod tests {
             index_writer.delete_term(facet_term);
             index_writer.commit().unwrap();
             index.load_searchers().unwrap();
-            test_searcher(
-                9,
-                &[
+            test_searcher(9, &[
                     ("/top/a", 3),
                     ("/top/b", 3),
                     ("/top/c", 1),
                     ("/top/d", 2),
                     ("/top/e", 2),
-                    ("/top/f", 1),
-                ],
-            );
+                    ("/top/f", 1)]);
         }
     }
-    */
 
     #[test]
     fn test_merge_multivalued_int_fields_all_deleted() {

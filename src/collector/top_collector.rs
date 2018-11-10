@@ -180,7 +180,6 @@ mod tests {
     use DocAddress;
     use Score;
 
-
     #[test]
     fn test_top_collector_not_at_capacity() {
         let mut top_collector = TopSegmentCollector::new(0, 4);
@@ -203,13 +202,12 @@ mod tests {
         top_collector.collect(5, 0.3);
         top_collector.collect(7, 0.9);
         top_collector.collect(9, -0.2);
-        {
-            assert_eq!(top_collector.harvest(),
-                       vec![(0.9, DocAddress(0,7)),
-                            (0.8, DocAddress(0,1)),
-                            (0.3, DocAddress(0,5)),
-                            (0.2, DocAddress(0,3))]);
-        }
+        assert_eq!(
+            top_collector.harvest(),
+            vec![(0.9, DocAddress(0,7)),
+                 (0.8, DocAddress(0,1)),
+                 (0.3, DocAddress(0,5)),
+                 (0.2, DocAddress(0,3))]);
     }
 
     #[test]
@@ -217,5 +215,4 @@ mod tests {
     fn test_top_0() {
         let _collector: TopCollector<Score> = TopCollector::with_limit(0);
     }
-
 }

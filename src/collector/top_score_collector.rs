@@ -76,13 +76,17 @@ impl TopDocs {
         TopDocs(TopCollector::with_limit(limit))
     }
 
+    /// Set top-K to rank documents by a given fast field.
+    ///
+    /// (By default, `TopDocs` collects the top-K documents sorted by
+    /// the similarity score.)
     pub fn order_by_field<T: PartialOrd + FastValue + Clone>(self, field: Field) -> TopDocsByField<T> {
         TopDocsByField::new(field, self.0.limit())
     }
 }
 
 
-
+/// Segment Collector associated to `TopDocs`.
 pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
 
 impl SegmentCollector for TopScoreSegmentCollector {
@@ -101,6 +105,7 @@ impl SegmentCollector for TopScoreSegmentCollector {
 impl Collector for TopDocs {
 
     type Fruit = Vec<(Score, DocAddress)>;
+
     type Child = TopScoreSegmentCollector;
 
     fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self::Child> {
@@ -120,10 +125,7 @@ impl Collector for TopDocs {
 
 #[cfg(test)]
 mod tests {
-    // TODO fix tests
-
     use super::TopDocs;
-    use collector::SegmentCollector;
     use Score;
     use schema::SchemaBuilder;
     use Index;

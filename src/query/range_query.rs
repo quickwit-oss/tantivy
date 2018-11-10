@@ -288,7 +288,7 @@ impl Weight for RangeWeight {
 mod tests {
 
     use super::RangeQuery;
-    use collector::{Collector, Count};
+    use collector::Count;
     use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
     use std::collections::Bound;
     use Index;

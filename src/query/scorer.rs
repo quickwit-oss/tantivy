@@ -14,8 +14,8 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
     /// This method will perform a bit of computation and is not cached.
     fn score(&mut self) -> Score;
 
-    /// Consumes the complete `DocSet` and
-    /// push the scored documents to the collector.
+    /// Iterates through all of the document matched by the DocSet
+    /// `DocSet` and push the scored documents to the collector.
     fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
         while self.advance() {
             callback(self.doc(), self.score());

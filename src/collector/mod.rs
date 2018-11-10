@@ -56,10 +56,11 @@ pub use self::top_field_collector::TopDocsByField;
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
 
+/// `Fruit` is the type for the result of our collection.
+/// e.g. `usize` for the `Count` collector.
 pub trait Fruit: Send + downcast::Any {}
 
 impl<T> Fruit for T where T: Send + downcast::Any {}
-
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
@@ -79,8 +80,11 @@ impl<T> Fruit for T where T: Send + downcast::Any {}
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector {
 
+    /// `Fruit` is the type for the result of our collection.
+    /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
+    /// Type of the `SegmentCollector` associated to this collector.
     type Child: SegmentCollector<Fruit=Self::Fruit> + 'static;
 
     /// `set_segment` is called before beginning to enumerate
@@ -94,6 +98,8 @@ pub trait Collector {
     /// Returns true iff the collector requires to compute scores for documents.
     fn requires_scoring(&self) -> bool;
 
+    /// Combines the fruit associated to the collection of each segments
+    /// into one fruit.
     fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit;
 
     /// You should not use this method.
@@ -124,13 +130,21 @@ pub trait Collector {
     }
 }
 
-pub trait SegmentCollector: 'static {
 
+/// The `SegmentCollector` is the trait in charge of defining the
+/// collect operation at the scale of the segment.
+///
+/// `.collect(doc, score)` will be called for every documents
+/// matching the query.
+pub trait SegmentCollector: 'static {
+    /// `Fruit` is the type for the result of our collection.
+    /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
     /// The query pushes the scored document to the collector via this method.
     fn collect(&mut self, doc: DocId, score: Score);
 
+    /// Extract the fruit of the collection from the `SegmentCollector`.
     fn harvest(self) -> Self::Fruit;
 }
 
