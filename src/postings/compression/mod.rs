@@ -266,21 +266,20 @@ pub mod tests {
 mod bench {
 
     use super::*;
-    use rand::Rng;
     use rand::SeedableRng;
-    use rand::XorShiftRng;
+    use rand::{Rng, XorShiftRng};
     use test::Bencher;
 
-    fn generate_array_with_seed(n: usize, ratio: f32, seed_val: u32) -> Vec<u32> {
-        let seed: &[u32; 4] = &[1, 2, 3, seed_val];
+    fn generate_array_with_seed(n: usize, ratio: f64, seed_val: u8) -> Vec<u32> {
+        let seed: &[u8; 16] = &[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,seed_val];
         let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0..u32::max_value())
-            .filter(|_| rng.next_f32() < ratio)
+        (0u32..)
+            .filter(|_| rng.gen_bool(ratio))
             .take(n)
             .collect()
     }
 
-    pub fn generate_array(n: usize, ratio: f32) -> Vec<u32> {
+    pub fn generate_array(n: usize, ratio: f64) -> Vec<u32> {
         generate_array_with_seed(n, ratio, 4)
     }
 
@@ -297,24 +296,23 @@ mod bench {
     fn bench_uncompress(b: &mut Bencher) {
         let mut encoder = BlockEncoder::new();
         let data = generate_array(COMPRESSION_BLOCK_SIZE, 0.1);
-        let (_, compressed) = encoder.compress_block_sorted(&data, 0u32);
+        let (num_bits, compressed) = encoder.compress_block_sorted(&data, 0u32);
         let mut decoder = BlockDecoder::new();
         b.iter(|| {
-            decoder.uncompress_block_sorted(compressed, 0u32);
+            decoder.uncompress_block_sorted(compressed, 0u32, num_bits);
         });
     }
 
     #[test]
     fn test_all_docs_compression_numbits() {
-        for num_bits in 0..33 {
+        for expected_num_bits in 0u8.. {
             let mut data = [0u32; 128];
-            if num_bits > 0 {
-                data[0] = 1 << (num_bits - 1);
+            if expected_num_bits > 0 {
+                data[0] = (1u64 << (expected_num_bits as usize) - 1) as u32;
             }
             let mut encoder = BlockEncoder::new();
-            let compressed = encoder.compress_block_unsorted(&data);
-            assert_eq!(compressed[0] as usize, num_bits);
-            assert_eq!(compressed.len(), compressed_block_size(compressed[0]));
+            let (num_bits, compressed) = encoder.compress_block_unsorted(&data);
+            assert_eq!(compressed.len(), compressed_block_size(num_bits));
         }
     }
 

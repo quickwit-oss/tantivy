@@ -175,7 +175,7 @@ mod tests {
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::ExpUnrolledLinkedList;
-    use tantivy_memory_arena::MemoryArena;
+    use super::super::MemoryArena;
     use test::Bencher;
 
     const NUM_STACK: usize = 10_000;
@@ -199,20 +199,19 @@ mod bench {
 
     #[bench]
     fn bench_push_stack(bench: &mut Bencher) {
-        let heap = MemoryArena::new();
         bench.iter(|| {
+            let mut heap = MemoryArena::new();
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {
-                let (_, stack) = heap.allocate_object::<ExpUnrolledLinkedList>();
+                let mut stack = ExpUnrolledLinkedList::new(&mut heap);
                 stacks.push(stack);
             }
             for s in 0..NUM_STACK {
                 for i in 0u32..STACK_SIZE {
                     let t = s * 392017 % NUM_STACK;
-                    stacks[t].push(i, &heap);
+                    stacks[t].push(i, &mut heap);
                 }
             }
-            heap.clear();
         });
     }
 }
