@@ -614,7 +614,7 @@ impl IndexMerger {
                     store_writer.store(&doc)?;
                 }
             } else {
-                store_writer.stack(store_reader)?;
+                store_writer.stack(&store_reader)?;
             }
         }
         Ok(())

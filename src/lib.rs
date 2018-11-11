@@ -24,7 +24,7 @@
 //! # use tempdir::TempDir;
 //! # use tantivy::Index;
 //! # use tantivy::schema::*;
-//!
+//! # use tantivy::{Score, DocAddress};
 //! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
 //! #
@@ -87,7 +87,7 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! /// Perform search.
+//! // Perform search.
 //! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
 //! let top_docs: Vec<(Score, DocAddress)> =
 //!     searcher.search(&query, &TopDocs::with_limit(10))?;
@@ -177,6 +177,8 @@ extern crate downcast;
 
 #[macro_use]
 extern crate fail;
+
+extern crate rayon;
 
 #[cfg(test)]
 mod functional_test;

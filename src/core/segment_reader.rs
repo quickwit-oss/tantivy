@@ -12,7 +12,6 @@ use fastfield::{self, FastFieldNotAvailableError};
 use fastfield::{BytesFastFieldReader, FastValue, MultiValueIntFastFieldReader};
 use fieldnorm::FieldNormReader;
 use schema::Cardinality;
-use schema::Document;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -25,6 +24,7 @@ use store::StoreReader;
 use termdict::TermDictionary;
 use DocId;
 use Result;
+use directory::ReadOnlySource;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -54,7 +54,7 @@ pub struct SegmentReader {
     fast_fields_composite: CompositeFile,
     fieldnorms_composite: CompositeFile,
 
-    store_reader: StoreReader,
+    store_source: ReadOnlySource,
     delete_bitset_opt: Option<DeleteBitSet>,
     schema: Schema,
 }
@@ -197,8 +197,7 @@ impl SegmentReader {
     /// Accessor to the segment's `Field norms`'s reader.
     ///
     /// Field norms are the length (in tokens) of the fields.
-    /// It is used in the computation of the [TfIdf]
-    /// (https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
+    /// It is used in the computation of the [TfIdf](https://fulmicoton.gitbooks.io/tantivy-doc/content/tfidf.html).
     ///
     /// They are simply stored as a fast field, serialized in
     /// the `.fieldnorm` file of the segment.
@@ -216,8 +215,8 @@ impl SegmentReader {
     }
 
     /// Accessor to the segment's `StoreReader`.
-    pub fn get_store_reader(&self) -> &StoreReader {
-        &self.store_reader
+    pub fn get_store_reader(&self) -> StoreReader {
+        StoreReader::from_source(self.store_source.clone())
     }
 
     /// Open a new segment for reading.
@@ -226,7 +225,6 @@ impl SegmentReader {
         let termdict_composite = CompositeFile::open(&termdict_source)?;
 
         let store_source = segment.open_read(SegmentComponent::STORE)?;
-        let store_reader = StoreReader::from_source(store_source);
 
         fail_point!("SegmentReader::open#middle");
 
@@ -272,7 +270,7 @@ impl SegmentReader {
             fast_fields_composite,
             fieldnorms_composite,
             segment_id: segment.id(),
-            store_reader,
+            store_source,
             delete_bitset_opt,
             positions_composite,
             positions_idx_composite,
@@ -351,14 +349,6 @@ impl SegmentReader {
         inv_idx_reader
     }
 
-    /// Returns the document (or to be accurate, its stored field)
-    /// bearing the given doc id.
-    /// This method is slow and should seldom be called from
-    /// within a collector.
-    pub fn doc(&self, doc_id: DocId) -> Result<Document> {
-        self.store_reader.get(doc_id)
-    }
-
     /// Returns the segment id
     pub fn segment_id(&self) -> SegmentId {
         self.segment_id
@@ -393,7 +383,7 @@ impl SegmentReader {
             self.positions_idx_composite.space_usage(),
             self.fast_fields_composite.space_usage(),
             self.fieldnorms_composite.space_usage(),
-            self.store_reader.space_usage(),
+            self.get_store_reader().space_usage(),
             self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(0),
         )
     }

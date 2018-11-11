@@ -44,11 +44,11 @@ We can split the problem of generating a search result page into two phases :
   the search results page. (`doc_ids[] -> Document[]`)
 
 In the first phase, the ability to search for documents by the given field is determined by the
-[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our [`TextOptions`]
-(struct.TextOptions.html).
+[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
+[`TextOptions`](struct.TextOptions.html).
 
-The effect of each possible setting is described more in detail [`TextIndexingOptions`]
-(enum.TextIndexingOptions.html).
+The effect of each possible setting is described more in detail
+[`TextIndexingOptions`](enum.TextIndexingOptions.html).
 
 On the other hand setting the field as stored or not determines whether the field should be returned
 when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called.

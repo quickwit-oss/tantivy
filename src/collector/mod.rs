@@ -38,6 +38,8 @@ use SegmentReader;
 use query::Query;
 use Searcher;
 use downcast;
+use rayon;
+use rayon::prelude::*;
 
 mod count_collector;
 pub use self::count_collector::Count;
@@ -55,6 +57,7 @@ pub use self::top_field_collector::TopDocsByField;
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
+use TantivyError;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -78,7 +81,7 @@ impl<T> Fruit for T where T: Send + downcast::Any {}
 /// The collection logic itself is in the `SegmentCollector`.
 ///
 /// Segments are not guaranteed to be visited in any specific order.
-pub trait Collector {
+pub trait Collector: Sync {
 
     /// `Fruit` is the type for the result of our collection.
     /// e.g. `usize` for the `Count` collector.
@@ -128,6 +131,48 @@ pub trait Collector {
         }
         Ok(self.merge_fruits(fruits))
     }
+
+    /// You should not use this method.
+    ///
+    /// Instead, please use [the `Searcher`'s search(...) method](../struct.Searcher.html#method.search).
+    #[doc(hidden)]
+    fn search_multithreads(&self, searcher: &Searcher, query: &Query, num_threads: usize) -> Result<Self::Fruit> {
+        let segment_readers = searcher.segment_readers();
+        let actual_num_threads = (segment_readers.len() + 1).max(num_threads);
+        let scoring_enabled = self.requires_scoring();
+        let weight = query.weight(searcher, scoring_enabled)?;
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(actual_num_threads)
+            .thread_name(|thread_id|
+                format!("SearchThread-{}", thread_id))
+            .build()
+            .map_err(|_| TantivyError::SystemError("Failed to spawn a search thread".to_string()))?;
+        let segment_fruits: Vec<Self::Fruit> = thread_pool.install(|| {
+            (0..segment_readers.len())
+                .into_par_iter()
+                .map(|segment_ord| {
+                    let segment_reader = &segment_readers[segment_ord];
+                    let mut scorer = weight.scorer(segment_reader).unwrap();
+                    let mut child = self
+                        .for_segment(segment_ord as u32, segment_reader)?;
+
+                    let delete_bitset_opt = segment_reader.delete_bitset();
+                    if let Some(delete_bitset) = delete_bitset_opt {
+                        scorer.for_each(&mut |doc, score|
+                            if !delete_bitset.is_deleted(doc) {
+                                child.collect(doc, score);
+                            });
+
+                    } else {
+                        scorer.for_each(&mut |doc, score|
+                            child.collect(doc, score));
+                    }
+                    Ok(child.harvest())
+                })
+                .collect::<Result<_>>()
+        })?;
+        Ok(self.merge_fruits(segment_fruits))
+    }
 }
 
 
@@ -136,7 +181,7 @@ pub trait Collector {
 ///
 /// `.collect(doc, score)` will be called for every documents
 /// matching the query.
-pub trait SegmentCollector: 'static {
+pub trait SegmentCollector: Sync + 'static {
     /// `Fruit` is the type for the result of our collection.
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
@@ -267,4 +312,3 @@ mod downcast_impl {
 
 #[cfg(test)]
 pub mod tests;
-

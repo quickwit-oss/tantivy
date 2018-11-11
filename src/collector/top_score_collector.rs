@@ -85,23 +85,6 @@ impl TopDocs {
     }
 }
 
-
-/// Segment Collector associated to `TopDocs`.
-pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
-
-impl SegmentCollector for TopScoreSegmentCollector {
-    type Fruit = Vec<(Score, DocAddress)>;
-
-    fn collect(&mut self, doc: DocId, score: Score) {
-        self.0.collect(doc, score)
-    }
-
-    fn harvest(self) -> Vec<(Score, DocAddress)> {
-        self.0.harvest()
-    }
-}
-
-
 impl Collector for TopDocs {
 
     type Fruit = Vec<(Score, DocAddress)>;
@@ -121,6 +104,23 @@ impl Collector for TopDocs {
         self.0.merge_fruits(child_fruits)
     }
 }
+
+/// Segment Collector associated to `TopDocs`.
+pub struct TopScoreSegmentCollector(TopSegmentCollector<Score>);
+
+impl SegmentCollector for TopScoreSegmentCollector {
+    type Fruit = Vec<(Score, DocAddress)>;
+
+    fn collect(&mut self, doc: DocId, score: Score) {
+        self.0.collect(doc, score)
+    }
+
+    fn harvest(self) -> Vec<(Score, DocAddress)> {
+        self.0.harvest()
+    }
+}
+
+
 
 
 #[cfg(test)]

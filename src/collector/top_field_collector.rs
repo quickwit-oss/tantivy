@@ -70,7 +70,7 @@ pub struct TopDocsByField<T> {
     field: Field
 }
 
-impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
+impl<T: FastValue + PartialOrd + Clone > TopDocsByField<T> {
     /// Creates a top field collector, with a number of documents equal to "limit".
     ///
     /// The given field name must be a fast field, otherwise the collector have an error while
@@ -87,7 +87,7 @@ impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
 }
 
 
-impl<T: FastValue + PartialOrd + Send + 'static> Collector for TopDocsByField<T> {
+impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByField<T> {
 
     type Fruit = Vec<(T, DocAddress)>;
 
@@ -113,7 +113,7 @@ pub struct TopFieldSegmentCollector<T: FastValue + PartialOrd> {
     reader: FastFieldReader<T>,
 }
 
-impl<T: FastValue + PartialOrd + Send + 'static> SegmentCollector for TopFieldSegmentCollector<T> {
+impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector for TopFieldSegmentCollector<T> {
 
     type Fruit = Vec<(T, DocAddress)>;
 
