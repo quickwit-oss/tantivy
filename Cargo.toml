@@ -72,6 +72,7 @@ default = ["mmap", "no_fail"]
 mmap = ["fst/mmap", "atomicwrites"]
 lz4-compression = ["lz4"]
 no_fail = ["fail/no_fail"]
+unstable = [] # useful for benches.
 
 [badges]
 travis-ci = { repository = "tantivy-search/tantivy" }

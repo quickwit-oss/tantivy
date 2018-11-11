@@ -654,7 +654,7 @@ mod bench {
         });
     }
 
-    fn bench_skip_next(p: f32, b: &mut Bencher) {
+    fn bench_skip_next(p: f64, b: &mut Bencher) {
         let searcher = INDEX.searcher();
         let segment_reader = searcher.segment_reader(0);
         let docs = tests::sample(segment_reader.num_docs(), p);
