@@ -268,22 +268,3 @@ mod downcast_impl {
 #[cfg(test)]
 pub mod tests;
 
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-    use collector::{Collector, Count};
-    use test::Bencher;
-    use super::Count;
-
-    #[bench]
-    fn build_collector(b: &mut Bencher) {
-        b.iter(|| {
-            let mut count_collector = SegmentCountCollector::default();
-            let docs: Vec<u32> = (0..1_000_000).collect();
-            for doc in docs {
-                count_collector.collect(doc, 1f32);
-            }
-            count_collector.harvest()
-        });
-    }
-}
-
