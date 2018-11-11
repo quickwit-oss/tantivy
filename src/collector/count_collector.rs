@@ -71,8 +71,8 @@ impl Collector for Count {
         false
     }
 
-    fn merge_fruits(&self, segment_counts: Vec<usize>) -> usize {
-        segment_counts.into_iter().sum()
+    fn merge_fruits(&self, segment_counts: Vec<usize>) -> Result<usize> {
+        Ok(segment_counts.into_iter().sum())
     }
 }
 

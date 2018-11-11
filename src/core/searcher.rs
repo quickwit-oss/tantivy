@@ -13,6 +13,32 @@ use DocAddress;
 use Index;
 use Result;
 use store::StoreReader;
+use query::Weight;
+use rayon;
+use rayon::prelude::*;
+use TantivyError;
+use query::Scorer;
+use collector::SegmentCollector;
+
+fn collect_segment<C: Collector>(collector: &C,
+                                 weight: &Weight,
+                                 segment_ord: u32,
+                                 segment_reader: &SegmentReader) -> Result<C::Fruit> {
+    let mut scorer = weight.scorer(segment_reader)?;
+    let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
+    if let Some(delete_bitset) = segment_reader.delete_bitset() {
+        scorer.for_each(&mut |doc, score|
+            if !delete_bitset.is_deleted(doc) {
+                segment_collector.collect(doc, score);
+            });
+    } else {
+        scorer.for_each(&mut |doc, score|
+            segment_collector.collect(doc, score));
+    }
+    Ok(segment_collector.harvest())
+}
+
+
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -106,7 +132,20 @@ impl Searcher {
     ///  Finally, the Collector merges each of the child collectors into itself for result usability
     ///  by the caller.
     pub fn search<C: Collector>(&self, query: &Query, collector: &C) -> Result<C::Fruit> {
-        collector.search(self, query)
+        let scoring_enabled = collector.requires_scoring();
+        let weight = query.weight(self, scoring_enabled)?;
+        let segment_fruits: Vec<C::Fruit> = self
+            .segment_readers()
+            .iter()
+            .enumerate()
+            .map(|(segment_ord, segment_reader)|
+                collect_segment(collector,
+                                weight.as_ref(),
+                                segment_ord as u32,
+                                segment_reader)
+            )
+            .collect::<Result<_>>()?;
+        collector.merge_fruits(segment_fruits)
     }
 
     /// Same as [`search(...)`](#method.search) but multithreaded.
@@ -118,7 +157,25 @@ impl Searcher {
     /// It is powerless at making search faster if your index consists in
     /// one large segment.
     pub fn search_multithreads<C: Collector>(&self, query: &Query, collector: &C, num_threads: usize) -> Result<C::Fruit> {
-        collector.search_multithreads(self, query, num_threads)
+        let scoring_enabled = collector.requires_scoring();
+        let weight = query.weight(self, scoring_enabled)?;
+        let segment_readers = self.segment_readers();
+        let actual_num_threads = (segment_readers.len() + 1).max(num_threads);
+        let thread_pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(actual_num_threads)
+            .thread_name(|thread_id|
+                format!("SearchThread-{}", thread_id))
+            .build()
+            .map_err(|_| TantivyError::SystemError("Failed to spawn a search thread".to_string()))?;
+        let segment_fruits: Vec<C::Fruit> = thread_pool.install(|| {
+            (0..segment_readers.len())
+                .into_par_iter()
+                .map(|segment_ord|
+                    collect_segment(collector, weight.as_ref(), segment_ord as u32, &segment_readers[segment_ord])
+                )
+                .collect::<Result<_>>()
+            })?;
+        collector.merge_fruits(segment_fruits)
     }
 
     /// Return the field searcher associated to a `Field`.

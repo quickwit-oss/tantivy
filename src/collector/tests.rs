@@ -53,7 +53,7 @@ impl Collector for TestCollector {
         true
     }
 
-    fn merge_fruits(&self, mut children: Vec<TestFruit>) -> TestFruit {
+    fn merge_fruits(&self, mut children: Vec<TestFruit>) -> Result<TestFruit> {
         children
             .sort_by_key(|fruit|
                 if fruit.docs().is_empty() {
@@ -67,7 +67,7 @@ impl Collector for TestCollector {
             docs.extend(child.docs());
             scores.extend(child.scores);
         }
-        TestFruit { docs, scores }
+        Ok(TestFruit { docs, scores })
     }
 }
 
@@ -123,11 +123,11 @@ impl Collector for FastFieldTestCollector {
         false
     }
 
-    fn merge_fruits(&self, children: Vec<Vec<u64>>) -> Vec<u64> {
-        children
+    fn merge_fruits(&self, children: Vec<Vec<u64>>) -> Result<Vec<u64>> {
+        Ok(children
             .into_iter()
             .flat_map(|v| v.into_iter())
-            .collect()
+            .collect())
     }
 }
 
@@ -179,11 +179,11 @@ impl Collector for BytesFastFieldTestCollector {
         false
     }
 
-    fn merge_fruits(&self, children: Vec<Vec<u8>>) -> Vec<u8> {
-        children
+    fn merge_fruits(&self, children: Vec<Vec<u8>>) -> Result<Vec<u8>> {
+        Ok(children
             .into_iter()
             .flat_map(|c| c.into_iter())
-            .collect()
+            .collect())
     }
 }
 

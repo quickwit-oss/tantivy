@@ -35,11 +35,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use query::Query;
-use Searcher;
 use downcast;
-use rayon;
-use rayon::prelude::*;
 
 mod count_collector;
 pub use self::count_collector::Count;
@@ -57,7 +53,6 @@ pub use self::top_field_collector::TopDocsByField;
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
-use TantivyError;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
@@ -103,76 +98,7 @@ pub trait Collector: Sync {
 
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit;
-
-    /// You should not use this method.
-    ///
-    /// Instead, please use [the `Searcher`'s search(...) method](../struct.Searcher.html#method.search).
-    #[doc(hidden)]
-    fn search(&self, searcher: &Searcher, query: &Query) -> Result<Self::Fruit> {
-        let scoring_enabled = self.requires_scoring();
-        let weight = query.weight(searcher, scoring_enabled)?;
-        let mut fruits = Vec::new();
-        for (segment_ord, segment_reader) in searcher.segment_readers().iter().enumerate() {
-            let mut child: Self::Child = self.for_segment(segment_ord as SegmentLocalId, segment_reader)?;
-            let mut scorer = weight.scorer(segment_reader)?;
-            let delete_bitset_opt = segment_reader.delete_bitset();
-            if let Some(delete_bitset) = delete_bitset_opt {
-                scorer.for_each(&mut |doc, score|
-                    if !delete_bitset.is_deleted(doc) {
-                        child.collect(doc, score);
-                    });
-                fruits.push(child.harvest());
-            } else {
-                scorer.for_each(&mut |doc, score| child.collect(doc, score));
-                fruits.push(child.harvest());
-            }
-
-        }
-        Ok(self.merge_fruits(fruits))
-    }
-
-    /// You should not use this method.
-    ///
-    /// Instead, please use [the `Searcher`'s search(...) method](../struct.Searcher.html#method.search).
-    #[doc(hidden)]
-    fn search_multithreads(&self, searcher: &Searcher, query: &Query, num_threads: usize) -> Result<Self::Fruit> {
-        let segment_readers = searcher.segment_readers();
-        let actual_num_threads = (segment_readers.len() + 1).max(num_threads);
-        let scoring_enabled = self.requires_scoring();
-        let weight = query.weight(searcher, scoring_enabled)?;
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(actual_num_threads)
-            .thread_name(|thread_id|
-                format!("SearchThread-{}", thread_id))
-            .build()
-            .map_err(|_| TantivyError::SystemError("Failed to spawn a search thread".to_string()))?;
-        let segment_fruits: Vec<Self::Fruit> = thread_pool.install(|| {
-            (0..segment_readers.len())
-                .into_par_iter()
-                .map(|segment_ord| {
-                    let segment_reader = &segment_readers[segment_ord];
-                    let mut scorer = weight.scorer(segment_reader).unwrap();
-                    let mut child = self
-                        .for_segment(segment_ord as u32, segment_reader)?;
-
-                    let delete_bitset_opt = segment_reader.delete_bitset();
-                    if let Some(delete_bitset) = delete_bitset_opt {
-                        scorer.for_each(&mut |doc, score|
-                            if !delete_bitset.is_deleted(doc) {
-                                child.collect(doc, score);
-                            });
-
-                    } else {
-                        scorer.for_each(&mut |doc, score|
-                            child.collect(doc, score));
-                    }
-                    Ok(child.harvest())
-                })
-                .collect::<Result<_>>()
-        })?;
-        Ok(self.merge_fruits(segment_fruits))
-    }
+    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit>;
 }
 
 
@@ -212,14 +138,15 @@ where
         self.0.requires_scoring() || self.1.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<(Left::Fruit, Right::Fruit)>) -> (Left::Fruit, Right::Fruit) {
+    fn merge_fruits(&self, children: Vec<(Left::Fruit, Right::Fruit)>) -> Result<(Left::Fruit, Right::Fruit)> {
         let mut left_fruits = vec![];
         let mut right_fruits = vec![];
         for (left_fruit, right_fruit) in children {
             left_fruits.push(left_fruit);
             right_fruits.push(right_fruit);
         }
-        (self.0.merge_fruits(left_fruits), self.1.merge_fruits(right_fruits))
+        Ok((self.0.merge_fruits(left_fruits)?,
+            self.1.merge_fruits(right_fruits)?))
     }
 }
 
@@ -266,7 +193,7 @@ impl<One, Two, Three> Collector for (One, Two, Three)
         self.2.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Self::Fruit {
+    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit> {
         let mut one_fruits = vec![];
         let mut two_fruits = vec![];
         let mut three_fruits = vec![];
@@ -275,9 +202,9 @@ impl<One, Two, Three> Collector for (One, Two, Three)
             two_fruits.push(two_fruit);
             three_fruits.push(three_fruit);
         }
-        (self.0.merge_fruits(one_fruits),
-         self.1.merge_fruits(two_fruits),
-         self.2.merge_fruits(three_fruits))
+        Ok((self.0.merge_fruits(one_fruits)?,
+            self.1.merge_fruits(two_fruits)?,
+            self.2.merge_fruits(three_fruits)?))
     }
 }
 

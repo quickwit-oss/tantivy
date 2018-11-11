@@ -69,9 +69,9 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
         self.limit
     }
 
-    pub fn merge_fruits(&self, children: Vec<Vec<(T, DocAddress)>>) -> Vec<(T, DocAddress)> {
+    pub fn merge_fruits(&self, children: Vec<Vec<(T, DocAddress)>>) -> Result<Vec<(T, DocAddress)>> {
         if self.limit == 0 {
-            return Vec::new();
+            return Ok(Vec::new());
         }
         let mut top_collector = BinaryHeap::new();
         for child_fruit in children {
@@ -93,11 +93,11 @@ impl<T> TopCollector<T> where T: PartialOrd + Clone {
                 }
             }
         }
-        top_collector
+        Ok(top_collector
             .into_sorted_vec()
             .into_iter()
             .map(|cdoc| (cdoc.feature, cdoc.doc))
-            .collect()
+            .collect())
     }
 
     pub(crate) fn for_segment(&self, segment_id: SegmentLocalId, _: &SegmentReader) -> Result<TopSegmentCollector<T>> {

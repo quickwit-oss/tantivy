@@ -103,7 +103,7 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByF
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Vec<(T, DocAddress)>>) -> Vec<(T, DocAddress)> {
+    fn merge_fruits(&self, segment_fruits: Vec<Vec<(T, DocAddress)>>) -> Result<Vec<(T, DocAddress)>> {
         self.collector.merge_fruits(segment_fruits)
     }
 }

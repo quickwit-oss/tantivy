@@ -323,14 +323,14 @@ impl Collector for FacetCollector {
         false
     }
 
-    fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> FacetCounts {
+    fn merge_fruits(&self, segments_facet_counts: Vec<FacetCounts>) -> Result<FacetCounts> {
         let mut facet_counts: BTreeMap<Facet, u64> = BTreeMap::new();
         for segment_facet_counts in segments_facet_counts {
             for (facet, count) in segment_facet_counts.facet_counts {
                 *(facet_counts.entry(facet).or_insert(0)) += count;
             }
         }
-        FacetCounts { facet_counts }
+        Ok(FacetCounts { facet_counts })
     }
 }
 

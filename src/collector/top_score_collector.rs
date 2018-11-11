@@ -100,7 +100,7 @@ impl Collector for TopDocs {
         true
     }
 
-    fn merge_fruits(&self, child_fruits: Vec<Vec<(Score, DocAddress)>>) -> Self::Fruit {
+    fn merge_fruits(&self, child_fruits: Vec<Vec<(Score, DocAddress)>>) -> Result<Self::Fruit> {
         self.0.merge_fruits(child_fruits)
     }
 }
