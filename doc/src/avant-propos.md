@@ -31,4 +31,3 @@ relevancy, collapsing, highlighting, spatial search.
   index from a different format.
 
   Tantivy exposes a lot of low level API to do all of these things.
-  
