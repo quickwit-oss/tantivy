@@ -105,14 +105,14 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{Index, Result};
 /// use tantivy::collector::{Count, TopDocs, MultiCollector};
 /// use tantivy::query::QueryParser;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -253,7 +253,7 @@ mod tests {
 
     use super::*;
     use collector::{Count, TopDocs};
-    use schema::{TEXT, SchemaBuilder};
+    use schema::{TEXT, Schema};
     use query::TermQuery;
     use Index;
     use Term;
@@ -261,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_multi_collector() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let text = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
 

@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn test_delete_during_merge() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
 

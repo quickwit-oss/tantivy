@@ -7,7 +7,7 @@ use directory::ReadOnlySource;
 use directory::{Directory, RAMDirectory, WritePtr};
 use fastfield::{FastFieldSerializer, FastFieldsWriter};
 use owning_ref::OwningRef;
-use schema::SchemaBuilder;
+use schema::Schema;
 use schema::FAST;
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -108,7 +108,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
 
 impl<Item: FastValue> From<Vec<Item>> for FastFieldReader<Item> {
     fn from(vals: Vec<Item>) -> FastFieldReader<Item> {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("field", FAST);
         let schema = schema_builder.build();
         let path = Path::new("__dummy__");

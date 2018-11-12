@@ -292,7 +292,7 @@ impl FieldUsage {
 #[cfg(test)]
 mod test {
     use core::Index;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use schema::{FAST, INT_INDEXED, TEXT};
     use schema::Field;
     use space_usage::ByteCount;
@@ -302,7 +302,7 @@ mod test {
 
     #[test]
     fn test_empty() {
-        let schema = SchemaBuilder::new().build();
+        let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema.clone());
 
         index.load_searchers().unwrap();
@@ -322,7 +322,7 @@ mod test {
 
     #[test]
     fn test_fast_indexed() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", FAST | INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
@@ -360,7 +360,7 @@ mod test {
 
     #[test]
     fn test_text() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
@@ -398,7 +398,7 @@ mod test {
 
     #[test]
     fn test_store() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let name = schema_builder.add_text_field("name", STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
@@ -436,7 +436,7 @@ mod test {
 
     #[test]
     fn test_deletes() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let name = schema_builder.add_u64_field("name", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());

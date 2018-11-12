@@ -79,7 +79,7 @@ mod tests {
     // make sure we have facet counters correctly filled
     fn test_facet_collector_results() {
 
-        let mut schema_builder = schema::SchemaBuilder::new();
+        let mut schema_builder = schema::Schema::builder();
         let num_field_i64 = schema_builder.add_i64_field("num_i64", FAST);
         let num_field_u64 = schema_builder.add_u64_field("num_u64", FAST);
         let text_field = schema_builder.add_text_field("text", STRING);

@@ -141,7 +141,7 @@ mod tests {
             assert!(field_options.get_indexing_options().is_some());
         }
         {
-            let mut schema_builder = SchemaBuilder::default();
+            let mut schema_builder = Schema::builder();
             schema_builder.add_text_field("body", TEXT);
             let schema = schema_builder.build();
             let field = schema.get_field("body").unwrap();

@@ -98,7 +98,7 @@ pub trait Collector: Sync {
 
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit>;
+    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit>;
 }
 
 

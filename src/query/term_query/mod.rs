@@ -11,7 +11,7 @@ mod tests {
 
     use docset::DocSet;
     use query::{Query, QueryParser, Scorer, TermQuery};
-    use schema::{IndexRecordOption, SchemaBuilder, STRING, TEXT};
+    use schema::{IndexRecordOption, Schema, STRING, TEXT};
     use tests::assert_nearly_equals;
     use Index;
     use Term;
@@ -19,7 +19,7 @@ mod tests {
 
     #[test]
     pub fn test_term_query_no_freq() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", STRING);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     pub fn test_term_weight() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let left_field = schema_builder.add_text_field("left", TEXT);
         let right_field = schema_builder.add_text_field("right", TEXT);
         let large_field = schema_builder.add_text_field("large", TEXT);

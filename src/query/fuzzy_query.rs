@@ -25,14 +25,14 @@ lazy_static! {
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::FuzzyTermQuery;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -119,7 +119,7 @@ impl Query for FuzzyTermQuery {
 mod test {
     use super::FuzzyTermQuery;
     use collector::TopDocs;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use schema::TEXT;
     use tests::assert_nearly_equals;
     use Index;
@@ -127,7 +127,7 @@ mod test {
 
     #[test]
     pub fn test_fuzzy_term() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

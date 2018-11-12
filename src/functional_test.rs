@@ -16,7 +16,7 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 #[ignore]
 #[cfg(feature = "mmap")]
 fn test_indexing() {
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     let id_field = schema_builder.add_u64_field("id", INT_INDEXED);
     let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);

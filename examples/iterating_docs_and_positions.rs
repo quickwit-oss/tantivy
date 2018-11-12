@@ -18,7 +18,7 @@ use tantivy::{DocId, DocSet, Postings};
 fn main() -> tantivy::Result<()> {
     // We first create a schema for the sake of the
     // example. Check the `basic_search` example for more information.
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // For this example, we need to make sure to index positions for our title
     // field. `TEXT` precisely does this.

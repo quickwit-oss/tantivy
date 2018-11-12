@@ -20,6 +20,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
+use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
@@ -34,7 +35,7 @@ fn main() -> tantivy::Result<()> {
     // be indexed".
 
     // first we need to define a schema ...
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // Our first field is title.
     // We want full-text search for it, and we also want
@@ -232,4 +233,3 @@ fn main() -> tantivy::Result<()> {
     Ok(())
 }
 
-use tempdir::TempDir;

@@ -25,7 +25,7 @@ fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
     // sake of this example
     let index_path = TempDir::new("tantivy_facet_example_dir")?;
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     schema_builder.add_text_field("name", TEXT | STORED);
 

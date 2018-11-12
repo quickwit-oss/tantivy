@@ -23,7 +23,7 @@ fn main() -> tantivy::Result<()> {
     let index_path = TempDir::new("tantivy_example_dir")?;
 
     // # Defining the schema
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
     let title = schema_builder.add_text_field("title", TEXT | STORED);
     let body = schema_builder.add_text_field("body", TEXT | STORED);
     let schema = schema_builder.build();

@@ -161,7 +161,7 @@ mod tests {
 
     #[test]
     fn test_doc() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("title", TEXT);
         let mut doc = Document::default();
         doc.add_text(text_field, "My title");

@@ -658,7 +658,7 @@ mod tests {
 
     #[test]
     fn test_index_merger_no_deletes() {
-        let mut schema_builder = schema::SchemaBuilder::default();
+        let mut schema_builder = schema::Schema::builder();
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default()
@@ -813,7 +813,7 @@ mod tests {
 
     #[test]
     fn test_index_merger_with_deletes() {
-        let mut schema_builder = schema::SchemaBuilder::default();
+        let mut schema_builder = schema::Schema::builder();
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
@@ -1132,7 +1132,7 @@ mod tests {
 
     #[test]
     fn test_merge_facets() {
-        let mut schema_builder = schema::SchemaBuilder::default();
+        let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -1240,7 +1240,7 @@ mod tests {
 
     #[test]
     fn test_merge_multivalued_int_fields_all_deleted() {
-        let mut schema_builder = schema::SchemaBuilder::default();
+        let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
             .set_indexed();
@@ -1281,7 +1281,7 @@ mod tests {
 
     #[test]
     fn test_merge_multivalued_int_fields() {
-        let mut schema_builder = schema::SchemaBuilder::default();
+        let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
             .set_indexed();

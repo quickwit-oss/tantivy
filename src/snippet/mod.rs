@@ -197,12 +197,12 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// # #[macro_use]
 /// # extern crate tantivy;
 /// # use tantivy::Index;
-/// # use tantivy::schema::{SchemaBuilder, TEXT};
+/// # use tantivy::schema::{Schema, TEXT};
 /// # use tantivy::query::QueryParser;
 /// use tantivy::SnippetGenerator;
 ///
 /// # fn main() -> tantivy::Result<()> {
-/// #    let mut schema_builder = SchemaBuilder::default();
+/// #    let mut schema_builder = Schema::builder();
 /// #    let text_field = schema_builder.add_text_field("text", TEXT);
 /// #    let schema = schema_builder.build();
 /// #    let index = Index::create_in_ram(schema);
@@ -306,7 +306,7 @@ impl SnippetGenerator {
 mod tests {
     use super::{search_fragments, select_best_fragment_combination};
     use query::QueryParser;
-    use schema::{IndexRecordOption, SchemaBuilder, TextFieldIndexing, TextOptions, TEXT};
+    use schema::{IndexRecordOption, Schema, TextFieldIndexing, TextOptions, TEXT};
     use std::collections::BTreeMap;
     use std::iter::Iterator;
     use tokenizer::{box_tokenizer, SimpleTokenizer};
@@ -498,7 +498,7 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet_generator_term_score() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -537,7 +537,7 @@ Survey in 2016, 2017, and 2018."#;
 
     #[test]
     fn test_snippet_generator() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_options = TextOptions::default().set_indexing_options(
             TextFieldIndexing::default()
                 .set_tokenizer("en_stem")

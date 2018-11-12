@@ -27,7 +27,7 @@ directory.
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 let title_options = TextOptions::default()
     .set_stored()
     .set_indexing_options(TextFieldIndexing::default()
@@ -62,7 +62,7 @@ The example can be rewritten :
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 schema_builder.add_text_field("title_options", TEXT | STORED);
 let schema = schema_builder.build();
 ```
@@ -75,7 +75,7 @@ let schema = schema_builder.build();
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 let num_stars_options = IntOptions::default()
     .set_stored()
     .set_indexed();
@@ -118,7 +118,7 @@ mod value;
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::DocParsingError;
-pub use self::schema::{Schema, SchemaBuilder};
+pub use self::schema::Schema;
 pub use self::value::Value;
 
 pub use self::facet::Facet;

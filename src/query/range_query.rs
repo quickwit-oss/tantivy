@@ -40,13 +40,13 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// # #[macro_use]
 /// # extern crate tantivy;
 /// # use tantivy::Index;
-/// # use tantivy::schema::{SchemaBuilder, INT_INDEXED};
+/// # use tantivy::schema::{Schema, INT_INDEXED};
 /// # use tantivy::collector::Count;
 /// # use tantivy::Result;
 /// # use tantivy::query::RangeQuery;
 /// #
 /// # fn run() -> Result<()> {
-/// #     let mut schema_builder = SchemaBuilder::new();
+/// #     let mut schema_builder = Schema::builder();
 /// #     let year_field = schema_builder.add_u64_field("year", INT_INDEXED);
 /// #     let schema = schema_builder.build();
 /// #
@@ -289,7 +289,7 @@ mod tests {
 
     use super::RangeQuery;
     use collector::Count;
-    use schema::{Document, Field, SchemaBuilder, INT_INDEXED};
+    use schema::{Document, Field, Schema, INT_INDEXED};
     use std::collections::Bound;
     use Index;
     use Result;
@@ -297,7 +297,7 @@ mod tests {
     #[test]
     fn test_range_query_simple() {
         fn run() -> Result<()> {
-            let mut schema_builder = SchemaBuilder::new();
+            let mut schema_builder = Schema::builder();
             let year_field = schema_builder.add_u64_field("year", INT_INDEXED);
             let schema = schema_builder.build();
 
@@ -330,7 +330,7 @@ mod tests {
     fn test_range_query() {
         let int_field: Field;
         let schema = {
-            let mut schema_builder = SchemaBuilder::new();
+            let mut schema_builder = Schema::builder();
             int_field = schema_builder.add_i64_field("intfield", INT_INDEXED);
             schema_builder.build()
         };

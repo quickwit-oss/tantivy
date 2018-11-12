@@ -20,13 +20,13 @@ use DocAddress;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// # use tantivy::schema::{SchemaBuilder, Field, FAST, TEXT};
+/// # use tantivy::schema::{Schema, Field, FAST, TEXT};
 /// # use tantivy::{Index, Result, DocAddress};
 /// # use tantivy::query::{Query, QueryParser};
 /// use tantivy::collector::TopDocs;
 ///
 /// # fn main() {
-/// #   let mut schema_builder = SchemaBuilder::new();
+/// #   let mut schema_builder = Schema::builder();
 /// #   let title = schema_builder.add_text_field("title", TEXT);
 /// #   let rating = schema_builder.add_u64_field("rating", FAST);
 /// #   let schema = schema_builder.build();
@@ -134,8 +134,7 @@ mod tests {
     use query::QueryParser;
     use schema::Field;
     use schema::IntOptions;
-    use schema::Schema;
-    use schema::{SchemaBuilder, FAST, TEXT};
+    use schema::{Schema, FAST, TEXT};
     use Index;
     use IndexWriter;
     use TantivyError;
@@ -148,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_top_collector_not_at_capacity() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
@@ -179,7 +178,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_field_does_not_exist() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
@@ -199,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_field_not_fast_field() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, IntOptions::default());
         let schema = schema_builder.build();

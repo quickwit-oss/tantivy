@@ -9,12 +9,12 @@ mod tests {
 
     use schema::Cardinality;
     use schema::IntOptions;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use Index;
 
     #[test]
     fn test_multivalued_u64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field(
             "multifield",
             IntOptions::default().set_fast(Cardinality::MultiValues),
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     fn test_multivalued_i64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_i64_field(
             "multifield",
             IntOptions::default().set_fast(Cardinality::MultiValues),

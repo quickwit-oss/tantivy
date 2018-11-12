@@ -23,7 +23,7 @@ use tantivy::Index;
 
 fn main() -> tantivy::Result<()> {
     // this example assumes you understand the content in `basic_search`
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // This configures your custom options for how tantivy will
     // store and process your content in the index; The key

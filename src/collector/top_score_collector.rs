@@ -23,14 +23,14 @@ use fastfield::FastValue;
 /// #[macro_use]
 /// extern crate tantivy;
 /// use tantivy::DocAddress;
-/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{Index, Result};
 /// use tantivy::collector::TopDocs;
 /// use tantivy::query::QueryParser;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -127,14 +127,14 @@ impl SegmentCollector for TopScoreSegmentCollector {
 mod tests {
     use super::TopDocs;
     use Score;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use Index;
     use schema::TEXT;
     use query::QueryParser;
     use DocAddress;
 
     fn make_index() -> Index {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

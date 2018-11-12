@@ -16,14 +16,14 @@ use Searcher;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT};
+/// use tantivy::schema::{Schema, TEXT};
 /// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::Count;
 /// use tantivy::query::RegexQuery;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);
@@ -87,14 +87,14 @@ impl Query for RegexQuery {
 mod test {
     use super::RegexQuery;
     use collector::TopDocs;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use schema::TEXT;
     use tests::assert_nearly_equals;
     use Index;
 
     #[test]
     pub fn test_regex_query() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let country_field = schema_builder.add_text_field("country", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

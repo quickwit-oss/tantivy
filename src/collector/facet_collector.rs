@@ -82,14 +82,14 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{Facet, SchemaBuilder, TEXT};
+/// use tantivy::schema::{Facet, Schema, TEXT};
 /// use tantivy::{Index, Result};
 /// use tantivy::collector::FacetCollector;
 /// use tantivy::query::AllQuery;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///
 ///     // Facet have their own specific type.
 ///     // It is not a bad practise to put all of your
@@ -453,12 +453,12 @@ mod tests {
     use rand::distributions::Uniform;
     use rand::{thread_rng, Rng};
     use schema::Field;
-    use schema::{Document, Facet, SchemaBuilder};
+    use schema::{Document, Facet, Schema};
     use std::iter;
 
     #[test]
     fn test_facet_collector_drilldown() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -519,7 +519,7 @@ mod tests {
 
     #[test]
     fn test_doc_unsorted_multifacet() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facets");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -550,7 +550,7 @@ mod tests {
 
     #[test]
     fn test_facet_collector_topk() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -606,13 +606,13 @@ mod bench {
     use query::AllQuery;
     use rand::{thread_rng, Rng};
     use schema::Facet;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use test::Bencher;
     use Index;
 
     #[bench]
     fn bench_facet_collector(b: &mut Bencher) {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

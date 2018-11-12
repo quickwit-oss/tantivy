@@ -21,14 +21,14 @@ use Term;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT, IndexRecordOption};
+/// use tantivy::schema::{Schema, TEXT, IndexRecordOption};
 /// use tantivy::{Index, Result, Term};
 /// use tantivy::collector::{Count, TopDocs};
 /// use tantivy::query::TermQuery;
 ///
 /// # fn main() { example().unwrap(); }
 /// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
+///     let mut schema_builder = Schema::builder();
 ///     let title = schema_builder.add_text_field("title", TEXT);
 ///     let schema = schema_builder.build();
 ///     let index = Index::create_in_ram(schema);

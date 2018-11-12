@@ -23,7 +23,7 @@ mod tests {
     use DocId;
 
     fn aux_test_helper() -> (Index, Field) {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

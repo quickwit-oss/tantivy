@@ -444,12 +444,12 @@ impl<'a> Iterator for SegmentReaderAliveDocsIterator<'a> {
 #[cfg(test)]
 mod test {
     use core::Index;
-    use schema::{SchemaBuilder, Term, STORED, TEXT};
+    use schema::{Schema, Term, STORED, TEXT};
     use DocId;
 
     #[test]
     fn test_alive_docs_iterator() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         schema_builder.add_text_field("name", TEXT | STORED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());

@@ -43,7 +43,7 @@ fn main() -> tantivy::Result<()> {
     //
     // Check out the *basic_search* example if this makes
     // small sense to you.
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // Tantivy does not really have a notion of primary id.
     // This may change in the future.

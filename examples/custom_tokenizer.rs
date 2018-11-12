@@ -20,7 +20,7 @@ fn main() -> tantivy::Result<()> {
     // be indexed".
 
     // first we need to define a schema ...
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // Our first field is title.
     // In this example we want to use NGram searching

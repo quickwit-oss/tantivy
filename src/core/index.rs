@@ -354,13 +354,13 @@ impl Clone for Index {
 
 #[cfg(test)]
 mod tests {
-    use schema::{Schema, SchemaBuilder, INT_INDEXED, TEXT};
+    use schema::{Schema, INT_INDEXED, TEXT};
     use Index;
     use directory::RAMDirectory;
 
     #[test]
     fn test_indexer_for_field() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
         let body_field = schema_builder.add_text_field("body", TEXT);
         let schema = schema_builder.build();
@@ -402,7 +402,7 @@ mod tests {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory));
-        assert!(Index::create(directory.clone(), SchemaBuilder::default().build()).is_ok());
+        assert!(Index::create(directory.clone(), Schema::builder().build()).is_ok());
     }
 
     #[test]
@@ -411,12 +411,12 @@ mod tests {
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory));
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
-        let err = Index::open_or_create(directory, SchemaBuilder::default().build());
+        let err = Index::open_or_create(directory, Schema::builder().build());
         assert_eq!(format!("{:?}", err.unwrap_err()), "SchemaError(\"An index exists but the schema does not match.\")");
     }
 
     fn throw_away_schema() -> Schema {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
         schema_builder.build()
     }

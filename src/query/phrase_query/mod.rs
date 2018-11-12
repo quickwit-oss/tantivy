@@ -13,13 +13,13 @@ mod tests {
     use collector::tests::TestCollector;
     use core::Index;
     use error::TantivyError;
-    use schema::{SchemaBuilder, Term, TEXT};
+    use schema::{Schema, Term, TEXT};
     use tests::assert_nearly_equals;
     use DocId;
     use DocAddress;
 
     fn create_index(texts: &[&'static str]) -> Index {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -71,7 +71,7 @@ mod tests {
 
     #[test]
     pub fn test_phrase_query_no_positions() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         use schema::IndexRecordOption;
         use schema::TextFieldIndexing;
         use schema::TextOptions;
@@ -134,7 +134,7 @@ mod tests {
 
     #[test] // motivated by #234
     pub fn test_phrase_query_docfreq_order() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -166,7 +166,7 @@ mod tests {
 
     #[test] // motivated by #234
     pub fn test_phrase_query_non_trivial_offsets() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

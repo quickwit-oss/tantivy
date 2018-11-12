@@ -57,11 +57,11 @@ pub mod tests {
     use schema::Document;
     use schema::FieldValue;
     use schema::TextOptions;
-    use schema::{Schema, SchemaBuilder};
+    use schema::Schema;
     use std::path::Path;
 
     pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field_body = schema_builder.add_text_field("body", TextOptions::default().set_stored());
         let field_title =
             schema_builder.add_text_field("title", TextOptions::default().set_stored());

@@ -9,7 +9,7 @@ fn main() -> tantivy::Result<()> {
     // Check out the basic example if this is confusing to you.
     //
     // first we need to define a schema ...
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("body", TEXT);
     schema_builder.add_u64_field("year", INT_INDEXED);

@@ -47,7 +47,7 @@
 //! // in a compressed, row-oriented key-value store.
 //! // This store is useful to reconstruct the
 //! // documents that were selected during the search phase.
-//! let mut schema_builder = SchemaBuilder::default();
+//! let mut schema_builder = Schema::builder();
 //! let title = schema_builder.add_text_field("title", TEXT | STORED);
 //! let body = schema_builder.add_text_field("body", TEXT);
 //! let schema = schema_builder.build();
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     #[cfg(feature = "mmap")]
     fn test_indexing() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_from_tempdir(schema).unwrap();
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_docfreq1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_fieldnorm_no_docs_with_field() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -444,7 +444,7 @@ mod tests {
 
     #[test]
     fn test_fieldnorm() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -485,7 +485,7 @@ mod tests {
 
     #[test]
     fn test_delete_postings1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let term_abcd = Term::from_field_text(text_field, "abcd");
         let term_a = Term::from_field_text(text_field, "a");
@@ -660,7 +660,7 @@ mod tests {
 
     #[test]
     fn test_indexed_u64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
 
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn test_indexed_i64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
 
@@ -707,7 +707,7 @@ mod tests {
 
     #[test]
     fn test_indexedfield_not_in_documents() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let absent_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -723,7 +723,7 @@ mod tests {
 
     #[test]
     fn test_delete_postings2() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -759,7 +759,7 @@ mod tests {
 
     #[test]
     fn test_termfreq() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -796,7 +796,7 @@ mod tests {
 
     #[test]
     fn test_searcher_1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -850,7 +850,7 @@ mod tests {
 
     #[test]
     fn test_searcher_2() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -877,7 +877,7 @@ mod tests {
 
     #[test]
     fn test_doc_macro() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
         let document = doc!(text_field => "tantivy",
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_wrong_fast_field_type() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
         let text_field = schema_builder.add_text_field("text", TEXT);

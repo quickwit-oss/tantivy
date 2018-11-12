@@ -23,7 +23,7 @@ use std::fmt;
 /// ```
 /// use tantivy::schema::*;
 ///
-/// let mut schema_builder = SchemaBuilder::default();
+/// let mut schema_builder = Schema::builder();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
@@ -38,7 +38,7 @@ pub struct SchemaBuilder {
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
     pub fn new() -> SchemaBuilder {
-        SchemaBuilder::default()
+        Schema::builder()
     }
 
     /// Adds a new u64 field.
@@ -156,7 +156,7 @@ impl Eq for InnerSchema {}
 /// ```
 /// use tantivy::schema::*;
 ///
-/// let mut schema_builder = SchemaBuilder::default();
+/// let mut schema_builder = Schema::builder();
 /// let id_field = schema_builder.add_text_field("id", STRING);
 /// let title_field = schema_builder.add_text_field("title", TEXT);
 /// let body_field = schema_builder.add_text_field("body", TEXT);
@@ -180,6 +180,11 @@ impl Schema {
     /// Return the list of all the `Field`s.
     pub fn fields(&self) -> &[FieldEntry] {
         &self.0.fields
+    }
+
+    /// Creates a new builder.
+    pub fn builder() -> SchemaBuilder {
+        SchemaBuilder::default()
     }
 
     /// Returns the field options associated with a given name.
@@ -327,7 +332,7 @@ mod tests {
 
     #[test]
     pub fn is_indexed_test() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field_str = schema_builder.add_text_field("field_str", STRING);
         let schema = schema_builder.build();
         assert!(schema.get_field_entry(field_str).is_indexed());
@@ -335,7 +340,7 @@ mod tests {
 
     #[test]
     pub fn test_schema_serialization() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let count_options = IntOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
@@ -404,7 +409,7 @@ mod tests {
 
     #[test]
     pub fn test_document_to_json() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let count_options = IntOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
@@ -425,7 +430,7 @@ mod tests {
 
     #[test]
     pub fn test_parse_document() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let count_options = IntOptions::default()
             .set_stored()
             .set_fast(Cardinality::SingleValue);
