@@ -61,7 +61,7 @@ impl SegmentCollector for Box<BoxableSegmentCollector> {
     }
 }
 
-pub trait BoxableSegmentCollector: Sync {
+pub trait BoxableSegmentCollector {
     fn collect(&mut self, doc: u32, score: f32);
     fn harvest_from_box(self: Box<Self>) -> Box<Fruit>;
 }
