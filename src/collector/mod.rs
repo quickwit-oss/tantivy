@@ -8,7 +8,7 @@ In tantivy jargon, we call this information your search "fruit".
 Your fruit could for instance be :
 - [the count of matching documents](./struct.Count.html)
 - [the top 10 documents, by relevancy or by a fast field](./struct.TopDocs.html)
-- facet counts
+- [facet counts](./struct.FacetCollector.html)
 
 At one point in your code, you will trigger the actual search operation by calling
 [the `search(...)` method of your `Searcher` object](../struct.Searcher.html#method.search).

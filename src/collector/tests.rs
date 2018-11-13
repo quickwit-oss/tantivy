@@ -28,7 +28,7 @@ pub struct TestFruit {
 }
 
 impl TestFruit {
-    /// Return the exhalist of documents.
+    /// Return the list of matching documents exhaustively.
     pub fn docs(&self) ->&[DocAddress] {
         &self.docs[..]
     }

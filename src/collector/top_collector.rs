@@ -13,7 +13,10 @@ use serde::export::PhantomData;
 /// It has a custom implementation of `PartialOrd` that reverses the order. This is because the
 /// default Rust heap is a max heap, whereas a min heap is needed.
 ///
-/// WARNING: equality is not what you would expect here
+/// WARNING: equality is not what you would expect here.
+/// Two elements are equal if their feature is equal, and regardless of whether `doc`
+/// is equal. This should be perfectly fine for this usage, but let's make sure this
+/// struct is never public.
 struct ComparableDoc<T, D> {
     feature: T,
     doc: D,
