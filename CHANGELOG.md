@@ -1,5 +1,13 @@
+Tantivy 0.8.1
+=====================
+*No change in the index format*
+- API Breaking change in the collector API. (@jwolfe, @fulmicoton)
+- Multithreaded search (@jwolfe, @fulmicoton) 
+
+
 Tantivy 0.7.1
 =====================
+*No change in the index format*
 - Bugfix: NGramTokenizer panics on non ascii chars
 - Added a space usage API
 

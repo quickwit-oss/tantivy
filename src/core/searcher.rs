@@ -156,6 +156,10 @@ impl Searcher {
     ///
     /// It is powerless at making search faster if your index consists in
     /// one large segment.
+    ///
+    /// Also, keep in my multithreading a single query on several
+    /// threads will not improve your throughput. It can actually
+    /// hurt it. It will however, decrease the average response time.
     pub fn search_multithreads<C: Collector>(&self, query: &Query, collector: &C, num_threads: usize) -> Result<C::Fruit> {
         let scoring_enabled = collector.requires_scoring();
         let weight = query.weight(self, scoring_enabled)?;

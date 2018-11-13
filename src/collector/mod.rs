@@ -348,10 +348,6 @@ impl<One, Two, Three, Four> SegmentCollector for (One, Two, Three, Four)
     }
 }
 
-
-
-
-
 #[allow(missing_docs)]
 mod downcast_impl {
     downcast!(super::Fruit);
