@@ -128,6 +128,7 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 ///
 /// *  all docs query: A plain `*` will match all documents in the index.
 ///
+#[derive(Clone)]
 pub struct QueryParser {
     schema: Schema,
     default_fields: Vec<Field>,
