@@ -392,7 +392,7 @@ impl IndexWriter {
                 self.worker_id, generation
             )).spawn(move || {
                 loop {
-                    let mut document_iterator = document_receiver_clone.clone().peekable();
+                    let mut document_iterator = document_receiver_clone.clone().into_iter().peekable();
 
                     // the peeking here is to avoid
                     // creating a new segment's files
@@ -640,7 +640,10 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
-        self.document_sender.send(add_operation);
+        let send_result = self.document_sender.send(add_operation);
+        if let Err(e) = send_result {
+            panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
+        }
         opstamp
     }
 }
