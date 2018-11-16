@@ -1347,6 +1347,8 @@ mod tests {
             assert_eq!(&vals, &[17]);
         }
 
+        println!("{:?}", searcher.segment_readers().iter().map(|reader| reader.max_doc()).collect::<Vec<_>>());
+
         {
             let segment = searcher.segment_reader(1u32);
             let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
@@ -1382,6 +1384,7 @@ mod tests {
 
         {
             let searcher = index.searcher();
+            println!("{:?}", searcher.segment_readers().iter().map(|reader| reader.max_doc()).collect::<Vec<_>>());
             let segment = searcher.segment_reader(0u32);
             let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
 
@@ -1406,14 +1409,16 @@ mod tests {
             ff_reader.get_vals(6, &mut vals);
             assert_eq!(&vals, &[17]);
 
-            ff_reader.get_vals(7, &mut vals);
-            assert_eq!(&vals, &[20]);
 
-            ff_reader.get_vals(8, &mut vals);
+            ff_reader.get_vals(7, &mut vals);
             assert_eq!(&vals, &[28, 27]);
 
-            ff_reader.get_vals(9, &mut vals);
+            ff_reader.get_vals(8, &mut vals);
             assert_eq!(&vals, &[1_000]);
+
+            ff_reader.get_vals(9, &mut vals);
+            assert_eq!(&vals, &[20]);
+
         }
     }
 }

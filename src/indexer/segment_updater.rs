@@ -227,8 +227,26 @@ impl SegmentUpdater {
         if self.is_alive() {
             let index = &self.0.index;
             let directory = index.directory();
+            let mut commited_segment_metas = self.0.segment_manager.committed_segment_metas();
+
+            // We sort segment_readers by number of documents.
+            // This is an heuristic to make multithreading more efficient.
+            //
+            // This is not done at the searcher level because I had a strange
+            // use case in which I was dealing with a large static index,
+            // dispatched over 5 SSD drives.
+            //
+            // A `UnionDirectory` makes it possible to read from these
+            // 5 different drives and creates a meta.json on the fly.
+            // In order to optimize the throughput, it creates a lasagna of segments
+            // from the different drives.
+            //
+            // Segment 1 from disk 1, Segment 1 from disk 2, etc.
+            commited_segment_metas.sort_by_key(|segment_meta| {
+                -(segment_meta.max_doc() as i32)
+            });
             save_metas(
-                self.0.segment_manager.committed_segment_metas(),
+                commited_segment_metas,
                 index.schema(),
                 opstamp,
                 commit_message,
