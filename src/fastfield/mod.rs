@@ -127,10 +127,10 @@ mod tests {
     use common::CompositeFile;
     use directory::{Directory, RAMDirectory, WritePtr};
     use fastfield::FastFieldReader;
-    use rand::Rng;
+    use rand::rngs::StdRng;
     use rand::SeedableRng;
-    use rand::XorShiftRng;
     use schema::Document;
+    use rand::prelude::SliceRandom;
     use schema::Field;
     use schema::FAST;
     use schema::{Schema, SchemaBuilder};
@@ -367,11 +367,10 @@ mod tests {
         }
     }
 
+    // Warning: this generates the same permutation at each call
     pub fn generate_permutation() -> Vec<u64> {
-        let seed: [u8; 16] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
-        let mut rng = XorShiftRng::from_seed(seed);
         let mut permutation: Vec<u64> = (0u64..100_000u64).collect();
-        rng.shuffle(&mut permutation);
+        permutation.shuffle(&mut StdRng::from_seed([1u8; 32]));
         permutation
     }
 

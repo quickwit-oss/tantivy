@@ -1,7 +1,6 @@
 use rand::thread_rng;
 use std::collections::HashSet;
 
-use rand::distributions::Range;
 use rand::Rng;
 use schema::*;
 use Index;
@@ -24,7 +23,6 @@ fn test_indexing() {
 
     let index = Index::create_from_tempdir(schema).unwrap();
 
-    let universe = Range::new(0u64, 20u64);
     let mut rng = thread_rng();
 
     let mut index_writer = index.writer_with_num_threads(3, 120_000_000).unwrap();
@@ -33,7 +31,7 @@ fn test_indexing() {
     let mut uncommitted_docs: HashSet<u64> = HashSet::new();
 
     for _ in 0..200 {
-        let random_val = rng.sample(&universe);
+        let random_val = rng.gen_range(0, 20);
         if random_val == 0 {
             index_writer.commit().expect("Commit failed");
             committed_docs.extend(&uncommitted_docs);

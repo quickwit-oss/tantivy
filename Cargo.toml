@@ -54,7 +54,7 @@ fail = "0.2"
 winapi = "0.2"
 
 [dev-dependencies]
-rand = "0.5"
+rand = "0.6"
 maplit = "1"
 
 [profile.release]
