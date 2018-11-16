@@ -31,6 +31,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
+use core::Executor;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -45,6 +46,7 @@ pub struct Index {
     schema: Schema,
     num_searchers: Arc<AtomicUsize>,
     searcher_pool: Arc<Pool<Searcher>>,
+    executor: Arc<Executor>,
     tokenizers: TokenizerManager,
 }
 
@@ -52,6 +54,29 @@ impl Index {
     /// Examines the director to see if it contains an index
     pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
         dir.exists(&META_FILEPATH)
+    }
+
+    /// Accessor to the search executor.
+    ///
+    /// This pool is used by default when calling `searcher.search(...)`
+    /// to perform search on the individual segments.
+    ///
+    /// By default the executor is single thread, and simply runs in the calling thread.
+    pub fn search_executor(&self) -> &Executor {
+        self.executor.as_ref()
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with a given number of threads.
+    pub fn set_multithread_executor(&mut self, num_threads: usize) {
+        self.executor = Arc::new(Executor::multi_thread(num_threads));
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with a given number of threads.
+    pub fn set_default_multithread_executor(&mut self) {
+        let default_num_threads = num_cpus::get();
+        self.set_multithread_executor(default_num_threads);
     }
 
     /// Creates a new index using the `RAMDirectory`.
@@ -131,6 +156,7 @@ impl Index {
             num_searchers: Arc::new(AtomicUsize::new(n_cpus)),
             searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
+            executor: Arc::new(Executor::single_thread()),
         };
         index.load_searchers()?;
         Ok(index)
@@ -348,6 +374,7 @@ impl Clone for Index {
             num_searchers: Arc::clone(&self.num_searchers),
             searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
+            executor: self.executor.clone(),
         }
     }
 }

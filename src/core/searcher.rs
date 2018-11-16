@@ -14,11 +14,9 @@ use Index;
 use Result;
 use store::StoreReader;
 use query::Weight;
-use rayon;
-use rayon::prelude::*;
-use TantivyError;
 use query::Scorer;
 use collector::SegmentCollector;
+use core::Executor;
 
 fn collect_segment<C: Collector>(collector: &C,
                                  weight: &Weight,
@@ -37,8 +35,6 @@ fn collect_segment<C: Collector>(collector: &C,
     }
     Ok(segment_collector.harvest())
 }
-
-
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -132,20 +128,8 @@ impl Searcher {
     ///  Finally, the Collector merges each of the child collectors into itself for result usability
     ///  by the caller.
     pub fn search<C: Collector>(&self, query: &Query, collector: &C) -> Result<C::Fruit> {
-        let scoring_enabled = collector.requires_scoring();
-        let weight = query.weight(self, scoring_enabled)?;
-        let segment_fruits: Vec<C::Fruit> = self
-            .segment_readers()
-            .iter()
-            .enumerate()
-            .map(|(segment_ord, segment_reader)|
-                collect_segment(collector,
-                                weight.as_ref(),
-                                segment_ord as u32,
-                                segment_reader)
-            )
-            .collect::<Result<_>>()?;
-        collector.merge_fruits(segment_fruits)
+        let executor = self.index.search_executor();
+        self.search_with_executor(query, collector, executor)
     }
 
     /// Same as [`search(...)`](#method.search) but multithreaded.
@@ -160,26 +144,19 @@ impl Searcher {
     /// Also, keep in my multithreading a single query on several
     /// threads will not improve your throughput. It can actually
     /// hurt it. It will however, decrease the average response time.
-    pub fn search_multithreads<C: Collector>(&self, query: &Query, collector: &C, num_threads: usize) -> Result<C::Fruit> {
+    pub fn search_with_executor<C: Collector>(&self,
+         query: &Query,
+         collector: &C,
+         executor: &Executor) -> Result<C::Fruit> {
         let scoring_enabled = collector.requires_scoring();
         let weight = query.weight(self, scoring_enabled)?;
         let segment_readers = self.segment_readers();
-        let actual_num_threads = (segment_readers.len() + 1).max(num_threads);
-        let thread_pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(actual_num_threads)
-            .thread_name(|thread_id|
-                format!("SearchThread-{}", thread_id))
-            .build()
-            .map_err(|_| TantivyError::SystemError("Failed to spawn a search thread".to_string()))?;
-        let segment_fruits: Vec<C::Fruit> = thread_pool.install(|| {
-            (0..segment_readers.len())
-                .into_par_iter()
-                .map(|segment_ord|
-                    collect_segment(collector, weight.as_ref(), segment_ord as u32, &segment_readers[segment_ord])
-                )
-                .collect::<Result<_>>()
-            })?;
-        collector.merge_fruits(segment_fruits)
+        let fruits = executor
+            .map(|(segment_ord, segment_reader)| {
+                collect_segment(collector, weight.as_ref(), segment_ord as u32, segment_reader)
+            },
+            segment_readers.iter().enumerate())?;
+        collector.merge_fruits(fruits)
     }
 
     /// Return the field searcher associated to a `Field`.

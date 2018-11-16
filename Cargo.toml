@@ -49,7 +49,7 @@ owned-read = "0.4"
 failure = "0.1"
 htmlescape = "0.3.1"
 fail = "0.2"
-rayon = "1.0"
+scoped-pool = "0.1"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"

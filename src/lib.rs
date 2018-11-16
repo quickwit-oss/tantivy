@@ -130,6 +130,7 @@ extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
+extern crate scoped_pool;
 
 extern crate combine;
 
@@ -177,8 +178,6 @@ extern crate downcast;
 
 #[macro_use]
 extern crate fail;
-
-extern crate rayon;
 
 #[cfg(test)]
 mod functional_test;
