@@ -57,7 +57,7 @@ impl Searcher {
 
         // We sort segment_readers by number of documents.
         // This is an heuristic to make multithreading more efficient.
-        segment_readers.sort_by_key(|reader| -reader.num_docs());
+        segment_readers.sort_by_key(|reader| -(reader.num_docs() as isize));
         let store_readers = segment_readers.iter()
             .map(|segment_reader| segment_reader.get_store_reader())
             .collect();
