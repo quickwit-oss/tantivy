@@ -914,10 +914,10 @@ mod tests {
 
             assert_eq!(searcher.segment_readers().len(), 2);
             assert_eq!(searcher.num_docs(), 3);
-            assert_eq!(searcher.segment_readers()[0].num_docs(), 1);
-            assert_eq!(searcher.segment_readers()[0].max_doc(), 3);
-            assert_eq!(searcher.segment_readers()[1].num_docs(), 2);
-            assert_eq!(searcher.segment_readers()[1].max_doc(), 4);
+            assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
+            assert_eq!(searcher.segment_readers()[0].max_doc(), 4);
+            assert_eq!(searcher.segment_readers()[1].num_docs(), 1);
+            assert_eq!(searcher.segment_readers()[1].max_doc(), 3);
             assert_eq!(
                 search_term(&searcher, Term::from_field_text(text_field, "a")),
                 empty_vec
@@ -951,15 +951,15 @@ mod tests {
                 .segment_reader(0)
                 .fast_field_reader::<u64>(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 1);
-            assert_eq!(score_field_reader.max_value(), 3);
+            assert_eq!(score_field_reader.min_value(), 4000);
+            assert_eq!(score_field_reader.max_value(), 7000);
 
             let score_field_reader = searcher
                 .segment_reader(1)
                 .fast_field_reader::<u64>(score_field)
                 .unwrap();
-            assert_eq!(score_field_reader.min_value(), 4000);
-            assert_eq!(score_field_reader.max_value(), 7000);
+            assert_eq!(score_field_reader.min_value(), 1);
+            assert_eq!(score_field_reader.max_value(), 3);
         }
         {
             // merging the segments
@@ -1351,17 +1351,17 @@ mod tests {
             let segment = searcher.segment_reader(1u32);
             let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
             ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[20]);
+            assert_eq!(&vals, &[28, 27]);
+
+            ff_reader.get_vals(1, &mut vals);
+            assert_eq!(&vals, &[1_000]);
         }
 
         {
             let segment = searcher.segment_reader(2u32);
             let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
             ff_reader.get_vals(0, &mut vals);
-            assert_eq!(&vals, &[28, 27]);
-
-            ff_reader.get_vals(1, &mut vals);
-            assert_eq!(&vals, &[1_000]);
+            assert_eq!(&vals, &[20]);
         }
 
         // Merging the segments

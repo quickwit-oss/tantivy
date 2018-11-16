@@ -43,7 +43,6 @@ impl Stats {
     }
 
     pub fn standard_deviation(&self) -> f64 {
-        let count_f64 = self.count as f64;
         let mean = self.mean();
         (self.square_mean() - mean * mean).sqrt()
     }
@@ -76,7 +75,7 @@ impl Collector for StatsCollector {
 
     type Child = StatsSegmentCollector;
 
-    fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> tantivy::Result<StatsSegmentCollector> {
+    fn for_segment(&self, _segment_local_id: u32, segment: &SegmentReader) -> tantivy::Result<StatsSegmentCollector> {
         let fast_field_reader = segment.fast_field_reader(self.field)?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
