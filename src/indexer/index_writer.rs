@@ -8,7 +8,7 @@ use core::SegmentComponent;
 use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
-use crossbeam_channel as channel;
+use crossbeam::channel;
 use docset::DocSet;
 use error::TantivyError;
 use fastfield::write_delete_bitset;
