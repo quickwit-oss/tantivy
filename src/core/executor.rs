@@ -1,6 +1,6 @@
 use Result;
 use scoped_pool::Pool;
-use crossbeam_channel as channel;
+use crossbeam::channel;
 
 /// Search executor whether search request are single thread or multithread.
 ///
