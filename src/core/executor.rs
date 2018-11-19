@@ -38,7 +38,9 @@ impl Executor {
                     for arg in args {
                         scope.execute(|| {
                             let fruit = f(arg);
-                            fruit_sender.send(fruit);
+                            if let Err(err) = fruit_sender.send(fruit) {
+                                error!("Failed to send search task. It probably means all search threads have panicked. {:?}", err);
+                            }
                         });
                     }
                 });

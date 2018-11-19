@@ -452,8 +452,8 @@ mod tests {
     use query::AllQuery;
     use rand::distributions::Uniform;
     use rand::{thread_rng, Rng};
-    use schema::Field;
-    use schema::{Document, Facet, Schema};
+    use schema::{Field, Document, Facet, Schema};
+    use rand::prelude::SliceRandom;
     use std::iter;
 
     #[test]
@@ -569,7 +569,7 @@ mod tests {
                 );
                 doc
             }).collect();
-        thread_rng().shuffle(&mut docs[..]);
+        docs[..].shuffle(&mut thread_rng());
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         for doc in docs {

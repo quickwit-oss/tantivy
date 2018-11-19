@@ -118,7 +118,7 @@ mod value;
 
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::DocParsingError;
-pub use self::schema::Schema;
+pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;
 
 pub use self::facet::Facet;

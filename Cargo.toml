@@ -33,8 +33,8 @@ itertools = "0.7"
 levenshtein_automata = {version="0.1", features=["fst_automaton"]}
 bit-set = "0.5"
 uuid = { version = "0.7", features = ["v4", "serde"] }
-crossbeam = "0.4"
-crossbeam-channel = "0.2"
+crossbeam = "0.5"
+crossbeam-channel = "0.3"
 futures = "0.1"
 futures-cpupool = "0.1"
 owning_ref = "0.4"
@@ -55,7 +55,7 @@ scoped-pool = "0.1"
 winapi = "0.2"
 
 [dev-dependencies]
-rand = "0.5"
+rand = "0.6"
 maplit = "1"
 
 [profile.release]
