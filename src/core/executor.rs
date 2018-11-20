@@ -27,6 +27,9 @@ impl Executor {
     }
 
     // Perform a map in the thread pool.
+    //
+    // Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task
+    // will propagate to the caller.
     pub fn map<A: Send, R: Send, AIterator: Iterator<Item=A>, F: Sized + Sync + Fn(A) -> Result<R>>(&self, f: F, args: AIterator) -> Result<Vec<R>> {
         match self {
             Executor::SingleThread => {
