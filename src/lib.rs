@@ -494,42 +494,21 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                let doc = doc!(text_field=>" a c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 2
-                let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 3
-                let doc = doc!(text_field=>" b d");
-                index_writer.add_document(doc);
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "a"));
-            }
-            {
-                // 4
-                let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 5
-                let doc = doc!(text_field=>" a");
-                index_writer.add_document(doc);
-            }
+            // 0
+            index_writer.add_document(doc!(text_field=>"a b"));
+            // 1
+            index_writer.add_document(doc!(text_field=>" a c"));
+            // 2
+            index_writer.add_document(doc!(text_field=>" b c"));
+            // 3
+            index_writer.add_document(doc!(text_field=>" b d"));
+
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            // 4
+            index_writer.add_document(doc!(text_field=>" b c"));
+            // 5
+            index_writer.add_document(doc!(text_field=>" a"));
             index_writer.commit().unwrap();
         }
         {
@@ -564,15 +543,10 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
+            // 0
+            index_writer.add_document(doc!(text_field=>"a b"));
+            // 1
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback().unwrap();
         }
         {
@@ -608,13 +582,8 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
+            index_writer.add_document(doc!(text_field=>"a b"));
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback().unwrap();
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
