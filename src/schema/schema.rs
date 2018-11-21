@@ -30,6 +30,7 @@ use std::fmt;
 /// let schema = schema_builder.build();
 ///
 /// ```
+#[derive(Default)]
 pub struct SchemaBuilder {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>,
