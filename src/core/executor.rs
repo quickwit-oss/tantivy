@@ -52,3 +52,23 @@ impl Executor {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::Executor;
+
+
+    #[test]
+    #[should_panic]
+    fn test_panic_propagates_single_thread() {
+        let _result: Vec<usize> = Executor::single_thread().map(|_| {panic!("panic should propagate"); }, vec![0].into_iter()).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic_propagates_multi_thread() {
+        let _result: Vec<usize> = Executor::multi_thread(2).map(|_| {panic!("panic should propagate"); }, vec![0].into_iter()).unwrap();
+    }
+
+}
