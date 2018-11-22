@@ -39,7 +39,7 @@ pub struct SchemaBuilder {
 impl SchemaBuilder {
     /// Create a new `SchemaBuilder`
     pub fn new() -> SchemaBuilder {
-        Schema::builder()
+        SchemaBuilder::default()
     }
 
     /// Adds a new u64 field.
@@ -121,14 +121,6 @@ impl SchemaBuilder {
     }
 }
 
-impl Default for SchemaBuilder {
-    fn default() -> SchemaBuilder {
-        SchemaBuilder {
-            fields: Vec::new(),
-            fields_map: HashMap::new(),
-        }
-    }
-}
 
 struct InnerSchema {
     fields: Vec<FieldEntry>,
