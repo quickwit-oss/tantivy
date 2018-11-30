@@ -86,12 +86,12 @@ mod tests {
 
     use super::AllQuery;
     use query::Query;
-    use schema::{SchemaBuilder, TEXT};
+    use schema::{Schema, TEXT};
     use Index;
 
     #[test]
     fn test_all_query() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

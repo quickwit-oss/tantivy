@@ -15,7 +15,7 @@
 //! precompute computationally expensive functions of the fieldnorm
 //! in a very short array.
 //!
-//! This trick is used by the [BM25 similarity]().
+//! This trick is used by the BM25 similarity.
 mod code;
 mod reader;
 mod serializer;

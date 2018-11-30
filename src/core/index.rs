@@ -31,6 +31,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
+use core::Executor;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -45,6 +46,7 @@ pub struct Index {
     schema: Schema,
     num_searchers: Arc<AtomicUsize>,
     searcher_pool: Arc<Pool<Searcher>>,
+    executor: Arc<Executor>,
     tokenizers: TokenizerManager,
 }
 
@@ -52,6 +54,29 @@ impl Index {
     /// Examines the director to see if it contains an index
     pub fn exists<Dir: Directory>(dir: &Dir) -> bool {
         dir.exists(&META_FILEPATH)
+    }
+
+    /// Accessor to the search executor.
+    ///
+    /// This pool is used by default when calling `searcher.search(...)`
+    /// to perform search on the individual segments.
+    ///
+    /// By default the executor is single thread, and simply runs in the calling thread.
+    pub fn search_executor(&self) -> &Executor {
+        self.executor.as_ref()
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with a given number of threads.
+    pub fn set_multithread_executor(&mut self, num_threads: usize) {
+        self.executor = Arc::new(Executor::multi_thread(num_threads, "thrd-tantivy-search-"));
+    }
+
+    /// Replace the default single thread search executor pool
+    /// by a thread pool with a given number of threads.
+    pub fn set_default_multithread_executor(&mut self) {
+        let default_num_threads = num_cpus::get();
+        self.set_multithread_executor(default_num_threads);
     }
 
     /// Creates a new index using the `RAMDirectory`.
@@ -131,6 +156,7 @@ impl Index {
             num_searchers: Arc::new(AtomicUsize::new(n_cpus)),
             searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
+            executor: Arc::new(Executor::single_thread()),
         };
         index.load_searchers()?;
         Ok(index)
@@ -348,19 +374,20 @@ impl Clone for Index {
             num_searchers: Arc::clone(&self.num_searchers),
             searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
+            executor: self.executor.clone(),
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use schema::{Schema, SchemaBuilder, INT_INDEXED, TEXT};
+    use schema::{Schema, INT_INDEXED, TEXT};
     use Index;
     use directory::RAMDirectory;
 
     #[test]
     fn test_indexer_for_field() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
         let body_field = schema_builder.add_text_field("body", TEXT);
         let schema = schema_builder.build();
@@ -402,7 +429,7 @@ mod tests {
         let directory = RAMDirectory::create();
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory));
-        assert!(Index::create(directory.clone(), SchemaBuilder::default().build()).is_ok());
+        assert!(Index::create(directory.clone(), Schema::builder().build()).is_ok());
     }
 
     #[test]
@@ -411,12 +438,12 @@ mod tests {
         assert!(Index::create(directory.clone(), throw_away_schema()).is_ok());
         assert!(Index::exists(&directory));
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
-        let err = Index::open_or_create(directory, SchemaBuilder::default().build());
+        let err = Index::open_or_create(directory, Schema::builder().build());
         assert_eq!(format!("{:?}", err.unwrap_err()), "SchemaError(\"An index exists but the schema does not match.\")");
     }
 
     fn throw_away_schema() -> Schema {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
         schema_builder.build()
     }

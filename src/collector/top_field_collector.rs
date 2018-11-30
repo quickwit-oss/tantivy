@@ -1,13 +1,14 @@
 use super::Collector;
 use collector::top_collector::TopCollector;
+use collector::SegmentCollector;
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
 use schema::Field;
-use DocAddress;
-use DocId;
 use Result;
-use Score;
 use SegmentReader;
+use SegmentLocalId;
+use collector::top_collector::TopSegmentCollector;
+use DocAddress;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -19,67 +20,57 @@ use SegmentReader;
 /// ```rust
 /// #[macro_use]
 /// extern crate tantivy;
-/// use tantivy::schema::{SchemaBuilder, TEXT, FAST};
-/// use tantivy::{Index, Result, DocId};
-/// use tantivy::collector::TopFieldCollector;
-/// use tantivy::query::QueryParser;
+/// # use tantivy::schema::{Schema, Field, FAST, TEXT};
+/// # use tantivy::{Index, Result, DocAddress};
+/// # use tantivy::query::{Query, QueryParser};
+/// use tantivy::collector::TopDocs;
 ///
-/// # fn main() { example().unwrap(); }
-/// fn example() -> Result<()> {
-///     let mut schema_builder = SchemaBuilder::new();
-///     let title = schema_builder.add_text_field("title", TEXT);
-///     let rating = schema_builder.add_u64_field("rating", FAST);
-///     let schema = schema_builder.build();
-///     let index = Index::create_in_ram(schema);
-///     {
-///         let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
-///         index_writer.add_document(doc!(
-///             title => "The Name of the Wind",
-///             rating => 92u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of Muadib",
-///             rating => 97u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "A Dairy Cow",
-///             rating => 63u64,
-///         ));
-///         index_writer.add_document(doc!(
-///             title => "The Diary of a Young Girl",
-///             rating => 80u64,
-///         ));
-///         index_writer.commit().unwrap();
-///     }
+/// # fn main() {
+/// #   let mut schema_builder = Schema::builder();
+/// #   let title = schema_builder.add_text_field("title", TEXT);
+/// #   let rating = schema_builder.add_u64_field("rating", FAST);
+/// #   let schema = schema_builder.build();
+/// #   let index = Index::create_in_ram(schema);
+/// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+/// #   index_writer.add_document(doc!(
+/// #       title => "The Name of the Wind",
+/// #       rating => 92u64,
+/// #   ));
+/// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
+/// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
+/// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
+/// #   index_writer.commit().unwrap();
+/// #   index.load_searchers().unwrap();
+///	#   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary").unwrap();
+/// #   let top_docs = docs_sorted_by_rating(&index, &query, rating).unwrap();
+/// #   assert_eq!(top_docs,
+/// #            vec![(97u64, DocAddress(0u32, 1)),
+/// #                 (80u64, DocAddress(0u32, 3))]);
+/// # }
+/// #
+/// /// Searches the document matching the given query, and
+/// /// collects the top 10 documents, order by the `field`
+/// /// given in argument.
+/// ///
+/// /// `field` is required to be a FAST field.
+/// fn docs_sorted_by_rating(index: &Index, query: &Query, sort_by_field: Field)
+///     -> Result<Vec<(u64, DocAddress)>> {
 ///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     // This is where we build our collector!
+///     let top_docs_by_rating = TopDocs::with_limit(2).order_by_field(sort_by_field);
 ///
-///     {
-///	        let mut top_collector = TopFieldCollector::with_limit(rating, 2);
-///         let query_parser = QueryParser::for_index(&index, vec![title]);
-///         let query = query_parser.parse_query("diary")?;
-///         searcher.search(&*query, &mut top_collector).unwrap();
-///
-///         let score_docs: Vec<(u64, DocId)> = top_collector
-///           .top_docs()
-///           .into_iter()
-///           .map(|(field, doc_address)| (field, doc_address.doc()))
-///           .collect();
-///
-///         assert_eq!(score_docs, vec![(97u64, 1), (80, 3)]);
-///     }
-///
-///     Ok(())
+///     // ... and here is our documents. Not this is a simple vec.
+///     // The `u64` in the pair is the value of our fast field for each documents.
+///     index.searcher()
+///          .search(query, &top_docs_by_rating)
 /// }
 /// ```
-pub struct TopFieldCollector<T: FastValue> {
-    field: Field,
+pub struct TopDocsByField<T> {
     collector: TopCollector<T>,
-    fast_field: Option<FastFieldReader<T>>,
+    field: Field
 }
 
-impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
+impl<T: FastValue + PartialOrd + Clone > TopDocsByField<T> {
     /// Creates a top field collector, with a number of documents equal to "limit".
     ///
     /// The given field name must be a fast field, otherwise the collector have an error while
@@ -87,78 +78,76 @@ impl<T: FastValue + PartialOrd + Clone> TopFieldCollector<T> {
     ///
     /// # Panics
     /// The method panics if limit is 0
-    pub fn with_limit(field: Field, limit: usize) -> Self {
-        TopFieldCollector {
-            field,
+    pub(crate) fn new(field: Field, limit: usize) -> TopDocsByField<T> {
+        TopDocsByField {
             collector: TopCollector::with_limit(limit),
-            fast_field: None,
+            field
         }
-    }
-
-    /// Returns K best documents sorted the given field name in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn docs(&self) -> Vec<DocAddress> {
-        self.collector.docs()
-    }
-
-    /// Returns K best FieldDocuments sorted in decreasing order.
-    ///
-    /// Calling this method triggers the sort.
-    /// The result of the sort is not cached.
-    pub fn top_docs(&self) -> Vec<(T, DocAddress)> {
-        self.collector.top_docs()
-    }
-
-    /// Return true iff at least K documents have gone through
-    /// the collector.
-    #[inline]
-    pub fn at_capacity(&self) -> bool {
-        self.collector.at_capacity()
     }
 }
 
-impl<T: FastValue + PartialOrd + Clone> Collector for TopFieldCollector<T> {
-    fn set_segment(&mut self, segment_id: u32, segment: &SegmentReader) -> Result<()> {
-        self.collector.set_segment_id(segment_id);
-        self.fast_field = Some(segment.fast_field_reader(self.field)?);
-        Ok(())
-    }
 
-    fn collect(&mut self, doc: DocId, _score: Score) {
-        let field_value = self
-            .fast_field
-            .as_ref()
-            .expect("collect() was called before set_segment. This should never happen.")
-            .get(doc);
-        self.collector.collect(doc, field_value);
+impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByField<T> {
+
+    type Fruit = Vec<(T, DocAddress)>;
+
+    type Child = TopFieldSegmentCollector<T>;
+
+    fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<TopFieldSegmentCollector<T>> {
+        let collector = self.collector.for_segment(segment_local_id, reader)?;
+        let reader = reader.fast_field_reader(self.field)?;
+        Ok(TopFieldSegmentCollector { collector, reader })
     }
 
     fn requires_scoring(&self) -> bool {
         false
     }
+
+    fn merge_fruits(&self, segment_fruits: Vec<Vec<(T, DocAddress)>>) -> Result<Vec<(T, DocAddress)>> {
+        self.collector.merge_fruits(segment_fruits)
+    }
+}
+
+pub struct TopFieldSegmentCollector<T: FastValue + PartialOrd> {
+    collector: TopSegmentCollector<T>,
+    reader: FastFieldReader<T>,
+}
+
+impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector for TopFieldSegmentCollector<T> {
+
+    type Fruit = Vec<(T, DocAddress)>;
+
+    fn collect(&mut self, doc: u32, _score: f32) {
+        let field_value = self.reader.get(doc);
+        self.collector.collect(doc, field_value);
+    }
+
+    fn harvest(self) -> Vec<(T, DocAddress)> {
+        self.collector.harvest()
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::TopDocsByField;
     use query::Query;
     use query::QueryParser;
     use schema::Field;
     use schema::IntOptions;
-    use schema::Schema;
-    use schema::{SchemaBuilder, FAST, TEXT};
+    use schema::{Schema, FAST, TEXT};
     use Index;
     use IndexWriter;
     use TantivyError;
+    use collector::Collector;
+    use DocAddress;
+    use collector::TopDocs;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
 
     #[test]
     fn test_top_collector_not_at_capacity() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
@@ -178,22 +167,18 @@ mod tests {
         });
         let searcher = index.searcher();
 
-        let mut top_collector = TopFieldCollector::with_limit(size, 4);
-        searcher.search(&*query, &mut top_collector).unwrap();
-        assert!(!top_collector.at_capacity());
-
-        let score_docs: Vec<(u64, DocId)> = top_collector
-            .top_docs()
-            .into_iter()
-            .map(|(field, doc_address)| (field, doc_address.doc()))
-            .collect();
-        assert_eq!(score_docs, vec![(64, 1), (16, 2), (12, 0)]);
+        let top_collector = TopDocs::with_limit(4).order_by_field(size);
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
+        assert_eq!(top_docs, vec![
+            (64, DocAddress(0,1)),
+            (16, DocAddress(0,2)),
+            (12, DocAddress(0,0))]);
     }
 
     #[test]
     #[should_panic]
     fn test_field_does_not_exist() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, FAST);
         let schema = schema_builder.build();
@@ -204,14 +189,16 @@ mod tests {
             ));
         });
         let searcher = index.searcher();
-        let segment = searcher.segment_reader(0);
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(2), 4);
-        let _ = top_collector.set_segment(0, segment);
+        let top_collector: TopDocsByField<u64> =
+            TopDocs::with_limit(4).order_by_field(Field(2));
+        let segment_reader = searcher.segment_reader(0u32);
+        top_collector.for_segment(0, segment_reader)
+                .expect("should panic");
     }
 
     #[test]
     fn test_field_not_fast_field() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
         let size = schema_builder.add_u64_field(SIZE, IntOptions::default());
         let schema = schema_builder.build();
@@ -223,24 +210,11 @@ mod tests {
         });
         let searcher = index.searcher();
         let segment = searcher.segment_reader(0);
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(size, 4);
+        let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(size);
         assert_matches!(
-            top_collector.set_segment(0, segment),
-            Err(TantivyError::FastFieldError(_))
+            top_collector.for_segment(0, segment).map(|_| ()).unwrap_err(),
+            TantivyError::FastFieldError(_)
         );
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_collect_before_set_segment() {
-        let mut top_collector: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 4);
-        top_collector.collect(0, 0f32);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_top_0() {
-        let _: TopFieldCollector<u64> = TopFieldCollector::with_limit(Field(0), 0);
     }
 
     fn index(

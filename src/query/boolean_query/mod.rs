@@ -20,9 +20,10 @@ mod tests {
     use query::TermQuery;
     use schema::*;
     use Index;
+    use DocId;
 
     fn aux_test_helper() -> (Index, Field) {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -130,9 +131,12 @@ mod tests {
 
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
-            let mut test_collector = TestCollector::default();
-            searcher.search(boolean_query, &mut test_collector).unwrap();
-            test_collector.docs()
+            let test_docs = searcher.search(boolean_query, &TestCollector).unwrap();
+            test_docs.docs()
+                .iter()
+                .cloned()
+                .map(|doc| doc.1)
+                .collect::<Vec<DocId>>()
         };
 
         {
@@ -186,9 +190,8 @@ mod tests {
 
         let score_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
-            let mut test_collector = TestCollector::default();
-            searcher.search(boolean_query, &mut test_collector).unwrap();
-            test_collector.scores()
+            let fruit = searcher.search(boolean_query, &TestCollector).unwrap();
+            fruit.scores().to_vec()
         };
 
         {

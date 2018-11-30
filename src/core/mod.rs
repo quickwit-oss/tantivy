@@ -7,8 +7,10 @@ mod segment;
 mod segment_component;
 mod segment_id;
 mod segment_meta;
+mod executor;
 mod segment_reader;
 
+pub use self::executor::Executor;
 pub use self::index::Index;
 pub use self::index_meta::IndexMeta;
 pub use self::inverted_index_reader::InvertedIndexReader;

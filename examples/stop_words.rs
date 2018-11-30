@@ -15,7 +15,7 @@ extern crate tempdir;
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::tokenizer::*;
@@ -23,7 +23,7 @@ use tantivy::Index;
 
 fn main() -> tantivy::Result<()> {
     // this example assumes you understand the content in `basic_search`
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // This configures your custom options for how tantivy will
     // store and process your content in the index; The key
@@ -105,15 +105,11 @@ fn main() -> tantivy::Result<()> {
     // stop words are applied on the query as well.
     // The following will be equivalent to `title:frankenstein`
     let query = query_parser.parse_query("title:\"the Frankenstein\"")?;
+    let top_docs = searcher.search(&query,  &TopDocs::with_limit(10))?;
 
-    let mut top_collector = TopCollector::with_limit(10);
-
-    searcher.search(&*query, &mut top_collector)?;
-
-    let doc_addresses = top_collector.docs();
-
-    for doc_address in doc_addresses {
+    for (score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
+        println!("\n==\nDocument score {}:", score);
         println!("{}", schema.to_json(&retrieved_doc));
     }
 

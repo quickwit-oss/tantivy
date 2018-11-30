@@ -35,7 +35,7 @@ mod tests {
     use core::Index;
     use directory::{Directory, RAMDirectory, ReadOnlySource};
     use postings::TermInfo;
-    use schema::{Document, FieldType, SchemaBuilder, TEXT};
+    use schema::{Document, FieldType, Schema, TEXT};
     use std::path::PathBuf;
     use std::str;
 
@@ -129,7 +129,7 @@ mod tests {
 
     #[test]
     fn test_term_iterator() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {

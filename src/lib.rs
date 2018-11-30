@@ -24,7 +24,8 @@
 //! # use tempdir::TempDir;
 //! # use tantivy::Index;
 //! # use tantivy::schema::*;
-//! # use tantivy::collector::TopCollector;
+//! # use tantivy::{Score, DocAddress};
+//! # use tantivy::collector::TopDocs;
 //! # use tantivy::query::QueryParser;
 //! #
 //! # fn main() {
@@ -46,7 +47,7 @@
 //! // in a compressed, row-oriented key-value store.
 //! // This store is useful to reconstruct the
 //! // documents that were selected during the search phase.
-//! let mut schema_builder = SchemaBuilder::default();
+//! let mut schema_builder = Schema::builder();
 //! let title = schema_builder.add_text_field("title", TEXT | STORED);
 //! let body = schema_builder.add_text_field("body", TEXT);
 //! let schema = schema_builder.build();
@@ -86,13 +87,13 @@
 //! // A ticket has been opened regarding this problem.
 //! let query = query_parser.parse_query("sea whale")?;
 //!
-//! let mut top_collector = TopCollector::with_limit(10);
-//! searcher.search(&*query, &mut top_collector)?;
+//! // Perform search.
+//! // `topdocs` contains the 10 most relevant doc ids, sorted by decreasing scores...
+//! let top_docs: Vec<(Score, DocAddress)> =
+//!     searcher.search(&query, &TopDocs::with_limit(10))?;
 //!
-//! // Our top collector now contains the 10
-//! // most relevant doc ids...
-//! let doc_addresses = top_collector.docs();
-//! for doc_address in doc_addresses {
+//! for (_score, doc_address) in top_docs {
+//!     // Retrieve the actual content of documents given its `doc_address`.
 //!     let retrieved_doc = searcher.doc(doc_address)?;
 //!     println!("{}", schema.to_json(&retrieved_doc));
 //! }
@@ -129,6 +130,7 @@ extern crate base64;
 extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
+extern crate scoped_pool;
 
 extern crate combine;
 
@@ -295,6 +297,7 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 #[cfg(test)]
 mod tests {
 
+    use DocAddress;
     use collector::tests::TestCollector;
     use core::SegmentReader;
     use docset::DocSet;
@@ -345,7 +348,7 @@ mod tests {
     #[test]
     #[cfg(feature = "mmap")]
     fn test_indexing() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_from_tempdir(schema).unwrap();
@@ -370,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_docfreq1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
@@ -410,7 +413,7 @@ mod tests {
 
     #[test]
     fn test_fieldnorm_no_docs_with_field() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let title_field = schema_builder.add_text_field("title", TEXT);
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -439,7 +442,7 @@ mod tests {
 
     #[test]
     fn test_fieldnorm() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
@@ -480,7 +483,7 @@ mod tests {
 
     #[test]
     fn test_delete_postings1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let term_abcd = Term::from_field_text(text_field, "abcd");
         let term_a = Term::from_field_text(text_field, "a");
@@ -491,42 +494,21 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                let doc = doc!(text_field=>" a c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 2
-                let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 3
-                let doc = doc!(text_field=>" b d");
-                index_writer.add_document(doc);
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "a"));
-            }
-            {
-                // 4
-                let doc = doc!(text_field=>" b c");
-                index_writer.add_document(doc);
-            }
-            {
-                // 5
-                let doc = doc!(text_field=>" a");
-                index_writer.add_document(doc);
-            }
+            // 0
+            index_writer.add_document(doc!(text_field=>"a b"));
+            // 1
+            index_writer.add_document(doc!(text_field=>" a c"));
+            // 2
+            index_writer.add_document(doc!(text_field=>" b c"));
+            // 3
+            index_writer.add_document(doc!(text_field=>" b d"));
+
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
+            index_writer.delete_term(Term::from_field_text(text_field, "a"));
+            // 4
+            index_writer.add_document(doc!(text_field=>" b c"));
+            // 5
+            index_writer.add_document(doc!(text_field=>" a"));
             index_writer.commit().unwrap();
         }
         {
@@ -561,15 +543,10 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
+            // 0
+            index_writer.add_document(doc!(text_field=>"a b"));
+            // 1
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback().unwrap();
         }
         {
@@ -605,13 +582,8 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                index_writer.delete_term(Term::from_field_text(text_field, "c"));
-            }
+            index_writer.add_document(doc!(text_field=>"a b"));
+            index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback().unwrap();
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.commit().unwrap();
@@ -655,7 +627,7 @@ mod tests {
 
     #[test]
     fn test_indexed_u64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_u64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
 
@@ -678,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_indexed_i64() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
         let schema = schema_builder.build();
 
@@ -702,7 +674,7 @@ mod tests {
 
     #[test]
     fn test_indexedfield_not_in_documents() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let absent_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
@@ -718,7 +690,7 @@ mod tests {
 
     #[test]
     fn test_delete_postings2() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -754,7 +726,7 @@ mod tests {
 
     #[test]
     fn test_termfreq() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -791,7 +763,7 @@ mod tests {
 
     #[test]
     fn test_searcher_1() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -799,18 +771,9 @@ mod tests {
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                let doc = doc!(text_field=>"af af af b");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a b c");
-                index_writer.add_document(doc);
-            }
-            {
-                let doc = doc!(text_field=>"a b c d");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"af af af b"));
+            index_writer.add_document(doc!(text_field=>"a b c"));
+            index_writer.add_document(doc!(text_field=>"a b c d"));
             index_writer.commit().unwrap();
         }
         {
@@ -818,55 +781,43 @@ mod tests {
             let searcher = index.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
-                let mut collector = TestCollector::default();
-                assert!(searcher.search(&query, &mut collector).is_ok());
-                collector.docs()
+                let topdocs = searcher.search(&query, &TestCollector).unwrap();
+                topdocs.docs().to_vec()
             };
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                    vec![1, 2]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                    vec![0]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                    vec![0, 1, 2]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                    vec![1, 2]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                    vec![2]
-                );
-            }
-            {
-                assert_eq!(
-                    get_doc_ids(vec![
-                        Term::from_field_text(text_field, "b"),
-                        Term::from_field_text(text_field, "a"),
-                    ]),
-                    vec![0, 1, 2]
-                );
-            }
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
+                vec![DocAddress(0, 1), DocAddress(0, 2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
+                vec![DocAddress(0, 0)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
+                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
+                vec![DocAddress(0,1), DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
+                vec![DocAddress(0,2)]
+            );
+            assert_eq!(
+                get_doc_ids(vec![
+                    Term::from_field_text(text_field, "b"),
+                    Term::from_field_text(text_field, "a"),
+                ]),
+                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+            );
+
         }
     }
 
     #[test]
     fn test_searcher_2() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -893,7 +844,7 @@ mod tests {
 
     #[test]
     fn test_doc_macro() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let other_text_field = schema_builder.add_text_field("text2", TEXT);
         let document = doc!(text_field => "tantivy",
@@ -911,7 +862,7 @@ mod tests {
 
     #[test]
     fn test_wrong_fast_field_type() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
         let text_field = schema_builder.add_text_field("text", TEXT);

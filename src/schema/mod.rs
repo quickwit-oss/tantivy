@@ -27,7 +27,7 @@ directory.
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 let title_options = TextOptions::default()
     .set_stored()
     .set_indexing_options(TextFieldIndexing::default()
@@ -44,11 +44,11 @@ We can split the problem of generating a search result page into two phases :
   the search results page. (`doc_ids[] -> Document[]`)
 
 In the first phase, the ability to search for documents by the given field is determined by the
-[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our [`TextOptions`]
-(struct.TextOptions.html).
+[`TextIndexingOptions`](enum.TextIndexingOptions.html) of our
+[`TextOptions`](struct.TextOptions.html).
 
-The effect of each possible setting is described more in detail [`TextIndexingOptions`]
-(enum.TextIndexingOptions.html).
+The effect of each possible setting is described more in detail
+[`TextIndexingOptions`](enum.TextIndexingOptions.html).
 
 On the other hand setting the field as stored or not determines whether the field should be returned
 when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called.
@@ -62,7 +62,7 @@ The example can be rewritten :
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 schema_builder.add_text_field("title_options", TEXT | STORED);
 let schema = schema_builder.build();
 ```
@@ -75,7 +75,7 @@ let schema = schema_builder.build();
 
 ```
 use tantivy::schema::*;
-let mut schema_builder = SchemaBuilder::default();
+let mut schema_builder = Schema::builder();
 let num_stars_options = IntOptions::default()
     .set_stored()
     .set_indexed();

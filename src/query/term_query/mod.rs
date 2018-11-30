@@ -1,4 +1,4 @@
-mod term_query;
+    mod term_query;
 mod term_scorer;
 mod term_weight;
 
@@ -9,17 +9,17 @@ pub use self::term_weight::TermWeight;
 #[cfg(test)]
 mod tests {
 
-    use collector::TopCollector;
     use docset::DocSet;
     use query::{Query, QueryParser, Scorer, TermQuery};
-    use schema::{IndexRecordOption, SchemaBuilder, STRING, TEXT};
+    use schema::{IndexRecordOption, Schema, STRING, TEXT};
     use tests::assert_nearly_equals;
     use Index;
     use Term;
+    use collector::TopDocs;
 
     #[test]
     pub fn test_term_query_no_freq() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", STRING);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -49,7 +49,7 @@ mod tests {
 
     #[test]
     pub fn test_term_weight() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let left_field = schema_builder.add_text_field("left", TEXT);
         let right_field = schema_builder.add_text_field("right", TEXT);
         let large_field = schema_builder.add_text_field("large", TEXT);
@@ -68,37 +68,31 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         {
-            let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            searcher.search(&term_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
-            assert_eq!(scored_docs.len(), 1);
-            let (score, _) = scored_docs[0];
+            let topdocs = searcher.search(&term_query,&TopDocs::with_limit(2)).unwrap();
+            assert_eq!(topdocs.len(), 1);
+            let (score, _) = topdocs[0];
             assert_nearly_equals(0.77802235, score);
         }
         {
-            let mut collector = TopCollector::with_limit(2);
             let term = Term::from_field_text(left_field, "left1");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            searcher.search(&term_query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
-            assert_eq!(scored_docs.len(), 2);
-            let (score1, _) = scored_docs[0];
+            let top_docs = searcher.search(&term_query, &TopDocs::with_limit(2)).unwrap();
+            assert_eq!(top_docs.len(), 2);
+            let (score1, _) = top_docs[0];
             assert_nearly_equals(0.27101856, score1);
-            let (score2, _) = scored_docs[1];
+            let (score2, _) = top_docs[1];
             assert_nearly_equals(0.13736556, score2);
         }
         {
             let query_parser = QueryParser::for_index(&index, vec![]);
             let query = query_parser.parse_query("left:left2 left:left1").unwrap();
-            let mut collector = TopCollector::with_limit(2);
-            searcher.search(&*query, &mut collector).unwrap();
-            let scored_docs = collector.top_docs();
-            assert_eq!(scored_docs.len(), 2);
-            let (score1, _) = scored_docs[0];
+            let top_docs = searcher.search(&query, &TopDocs::with_limit(2)).unwrap();
+            assert_eq!(top_docs.len(), 2);
+            let (score1, _) = top_docs[0];
             assert_nearly_equals(0.9153879, score1);
-            let (score2, _) = scored_docs[1];
+            let (score2, _) = top_docs[1];
             assert_nearly_equals(0.27101856, score2);
         }
     }

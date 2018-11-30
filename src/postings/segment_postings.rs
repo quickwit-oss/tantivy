@@ -630,7 +630,7 @@ mod tests {
     use docset::DocSet;
     use fst::Streamer;
     use schema::IndexRecordOption;
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use schema::Term;
     use schema::INT_INDEXED;
     use DocId;
@@ -707,7 +707,7 @@ mod tests {
     }
 
     fn build_block_postings(docs: Vec<DocId>) -> BlockSegmentPostings {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -778,7 +778,7 @@ mod tests {
 
     #[test]
     fn test_reset_block_segment_postings() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

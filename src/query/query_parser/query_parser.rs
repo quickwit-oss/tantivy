@@ -485,12 +485,12 @@ mod test {
     use query::Query;
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
-    use schema::{SchemaBuilder, Term, INT_INDEXED, STORED, STRING, TEXT};
+    use schema::{Schema, Term, INT_INDEXED, STORED, STRING, TEXT};
     use tokenizer::{LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager};
     use Index;
 
     fn make_query_parser() -> QueryParser {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field_indexing = TextFieldIndexing::default()
             .set_tokenizer("en_with_stop_words")
             .set_index_option(IndexRecordOption::WithFreqsAndPositions);
@@ -721,7 +721,7 @@ mod test {
 
     #[test]
     pub fn test_unknown_tokenizer() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field_indexing = TextFieldIndexing::default()
             .set_tokenizer("nonexistingtokenizer")
             .set_index_option(IndexRecordOption::Basic);
@@ -739,7 +739,7 @@ mod test {
 
     #[test]
     pub fn test_query_parser_no_positions() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field_indexing = TextFieldIndexing::default()
             .set_tokenizer("customtokenizer")
             .set_index_option(IndexRecordOption::Basic);

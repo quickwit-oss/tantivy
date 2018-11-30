@@ -6,7 +6,7 @@ use Result;
 /// for a given set of segments.
 ///
 /// See [`Query`](./trait.Query.html).
-pub trait Weight {
+pub trait Weight: Send + Sync + 'static {
     /// Returns the scorer for the given segment.
     /// See [`Query`](./trait.Query.html).
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>>;

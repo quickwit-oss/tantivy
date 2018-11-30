@@ -12,6 +12,29 @@ use termdict::TermMerger;
 use DocAddress;
 use Index;
 use Result;
+use store::StoreReader;
+use query::Weight;
+use query::Scorer;
+use collector::SegmentCollector;
+use core::Executor;
+
+fn collect_segment<C: Collector>(collector: &C,
+                                 weight: &Weight,
+                                 segment_ord: u32,
+                                 segment_reader: &SegmentReader) -> Result<C::Fruit> {
+    let mut scorer = weight.scorer(segment_reader)?;
+    let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
+    if let Some(delete_bitset) = segment_reader.delete_bitset() {
+        scorer.for_each(&mut |doc, score|
+            if !delete_bitset.is_deleted(doc) {
+                segment_collector.collect(doc, score);
+            });
+    } else {
+        scorer.for_each(&mut |doc, score|
+            segment_collector.collect(doc, score));
+    }
+    Ok(segment_collector.harvest())
+}
 
 /// Holds a list of `SegmentReader`s ready for search.
 ///
@@ -22,6 +45,7 @@ pub struct Searcher {
     schema: Schema,
     index: Index,
     segment_readers: Vec<SegmentReader>,
+    store_readers: Vec<StoreReader>
 }
 
 impl Searcher {
@@ -29,12 +53,15 @@ impl Searcher {
     pub(crate) fn new(
         schema: Schema,
         index: Index,
-        segment_readers: Vec<SegmentReader>,
-    ) -> Searcher {
+        segment_readers: Vec<SegmentReader>) -> Searcher {
+        let store_readers = segment_readers.iter()
+            .map(|segment_reader| segment_reader.get_store_reader())
+            .collect();
         Searcher {
             schema,
             index,
             segment_readers,
+            store_readers
         }
     }
 
@@ -49,8 +76,8 @@ impl Searcher {
     /// the request to the right `Segment`.
     pub fn doc(&self, doc_address: DocAddress) -> Result<Document> {
         let DocAddress(segment_local_id, doc_id) = doc_address;
-        let segment_reader = &self.segment_readers[segment_local_id as usize];
-        segment_reader.doc(doc_id)
+        let store_reader = &self.store_readers[segment_local_id as usize];
+        store_reader.get(doc_id)
     }
 
     /// Access the schema associated to the index of this searcher.
@@ -86,9 +113,50 @@ impl Searcher {
         &self.segment_readers[segment_ord as usize]
     }
 
-    /// Runs a query on the segment readers wrapped by the searcher
-    pub fn search<C: Collector>(&self, query: &Query, collector: &mut C) -> Result<()> {
-        query.search(self, collector)
+    /// Runs a query on the segment readers wrapped by the searcher.
+    ///
+    /// Search works as follows :
+    ///
+    ///  First the weight object associated to the query is created.
+    ///
+    ///  Then, the query loops over the segments and for each segment :
+    ///  - setup the collector and informs it that the segment being processed has changed.
+    ///  - creates a SegmentCollector for collecting documents associated to the segment
+    ///  - creates a `Scorer` object associated for this segment
+    ///  - iterate through the matched documents and push them to the segment collector.
+    ///
+    ///  Finally, the Collector merges each of the child collectors into itself for result usability
+    ///  by the caller.
+    pub fn search<C: Collector>(&self, query: &Query, collector: &C) -> Result<C::Fruit> {
+        let executor = self.index.search_executor();
+        self.search_with_executor(query, collector, executor)
+    }
+
+    /// Same as [`search(...)`](#method.search) but multithreaded.
+    ///
+    /// The current implementation is rather naive :
+    /// multithreading is by splitting search into as many task
+    /// as there are segments.
+    ///
+    /// It is powerless at making search faster if your index consists in
+    /// one large segment.
+    ///
+    /// Also, keep in my multithreading a single query on several
+    /// threads will not improve your throughput. It can actually
+    /// hurt it. It will however, decrease the average response time.
+    pub fn search_with_executor<C: Collector>(&self,
+         query: &Query,
+         collector: &C,
+         executor: &Executor) -> Result<C::Fruit> {
+        let scoring_enabled = collector.requires_scoring();
+        let weight = query.weight(self, scoring_enabled)?;
+        let segment_readers = self.segment_readers();
+        let fruits = executor
+            .map_unsorted(|(segment_ord, segment_reader)| {
+                collect_segment(collector, weight.as_ref(), segment_ord as u32, segment_reader)
+            },
+                          segment_readers.iter().enumerate())?;
+        collector.merge_fruits(fruits)
     }
 
     /// Return the field searcher associated to a `Field`.

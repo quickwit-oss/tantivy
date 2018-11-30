@@ -47,11 +47,11 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
 mod tests {
 
     use core::Index;
-    use schema::{Document, Facet, SchemaBuilder};
+    use schema::{Document, Facet, Schema};
 
     #[test]
     fn test_multifastfield_reader() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let facet_field = schema_builder.add_facet_field("facets");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

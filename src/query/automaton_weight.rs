@@ -11,7 +11,7 @@ use Result;
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
 where
-    A: Automaton,
+    A: Automaton + Send + Sync + 'static,
 {
     field: Field,
     automaton: A,
@@ -19,7 +19,7 @@ where
 
 impl<A> AutomatonWeight<A>
 where
-    A: Automaton,
+    A: Automaton + Send + Sync + 'static
 {
     /// Create a new AutomationWeight
     pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
@@ -33,8 +33,7 @@ where
 }
 
 impl<A> Weight for AutomatonWeight<A>
-where
-    A: Automaton,
+where A: Automaton + Send + Sync + 'static
 {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let max_doc = reader.max_doc();

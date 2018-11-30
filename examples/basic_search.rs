@@ -16,10 +16,11 @@ extern crate tempdir;
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
+use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
     // Let's create a temporary directory for the
@@ -34,7 +35,7 @@ fn main() -> tantivy::Result<()> {
     // be indexed".
 
     // first we need to define a schema ...
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
 
     // Our first field is title.
     // We want full-text search for it, and we also want
@@ -212,15 +213,10 @@ fn main() -> tantivy::Result<()> {
     //
     // We are not interested in all of the documents but
     // only in the top 10. Keeping track of our top 10 best documents
-    // is the role of the TopCollector.
-    let mut top_collector = TopCollector::with_limit(10);
+    // is the role of the TopDocs.
 
     // We can now perform our query.
-    searcher.search(&*query, &mut top_collector)?;
-
-    // Our top collector now contains the 10
-    // most relevant doc ids...
-    let doc_addresses = top_collector.docs();
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     // The actual documents still need to be
     // retrieved from Tantivy's store.
@@ -229,7 +225,7 @@ fn main() -> tantivy::Result<()> {
     // the document returned will only contain
     // a title.
 
-    for doc_address in doc_addresses {
+    for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));
     }
@@ -237,4 +233,3 @@ fn main() -> tantivy::Result<()> {
     Ok(())
 }
 
-use tempdir::TempDir;

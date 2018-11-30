@@ -58,14 +58,14 @@ pub mod tests {
     use rand::rngs::StdRng;
     use schema::Field;
     use schema::IndexRecordOption;
-    use schema::{Document, SchemaBuilder, Term, INT_INDEXED, STRING, TEXT};
+    use schema::{Document, Schema, Term, INT_INDEXED, STRING, TEXT};
     use std::iter;
     use DocId;
     use Score;
 
     #[test]
     pub fn test_position_write() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -89,7 +89,7 @@ pub mod tests {
 
     #[test]
     pub fn test_skip_positions() {
-        let mut schema_builder = SchemaBuilder::new();
+        let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field("title", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -164,7 +164,7 @@ pub mod tests {
     #[test]
     pub fn test_position_and_fieldnorm1() {
         let mut positions = Vec::new();
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
@@ -277,7 +277,7 @@ pub mod tests {
     #[test]
     pub fn test_position_and_fieldnorm2() {
         let mut positions: Vec<u32> = Vec::new();
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -318,7 +318,7 @@ pub mod tests {
         let num_docs = 300u32;
 
         let index = {
-            let mut schema_builder = SchemaBuilder::default();
+            let mut schema_builder = Schema::builder();
             let value_field = schema_builder.add_u64_field("value", INT_INDEXED);
             let schema = schema_builder.build();
 
@@ -499,7 +499,7 @@ pub mod tests {
             Term::from_field_text(field, "d")
         };
         pub static ref INDEX: Index = {
-            let mut schema_builder = SchemaBuilder::default();
+            let mut schema_builder = Schema::builder();
             let text_field = schema_builder.add_text_field("text", STRING);
             let schema = schema_builder.build();
 

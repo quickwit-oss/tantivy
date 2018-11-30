@@ -13,11 +13,13 @@ mod tests {
     use collector::tests::TestCollector;
     use core::Index;
     use error::TantivyError;
-    use schema::{SchemaBuilder, Term, TEXT};
+    use schema::{Schema, Term, TEXT};
     use tests::assert_nearly_equals;
+    use DocId;
+    use DocAddress;
 
     fn create_index(texts: &[&'static str]) -> Index {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -47,16 +49,18 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<&str>| {
-            let mut test_collector = TestCollector::default();
             let terms: Vec<Term> = texts
                 .iter()
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
-            searcher
-                .search(&phrase_query, &mut test_collector)
+            let test_fruits = searcher
+                .search(&phrase_query, &TestCollector)
                 .expect("search should succeed");
-            test_collector.docs()
+            test_fruits.docs()
+                .iter()
+                .map(|docaddr| docaddr.1)
+                .collect::<Vec<_>>()
         };
         assert_eq!(test_query(vec!["a", "b", "c"]), vec![2, 4]);
         assert_eq!(test_query(vec!["a", "b"]), vec![1, 2, 3, 4]);
@@ -67,7 +71,7 @@ mod tests {
 
     #[test]
     pub fn test_phrase_query_no_positions() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         use schema::IndexRecordOption;
         use schema::TextFieldIndexing;
         use schema::TextOptions;
@@ -91,9 +95,9 @@ mod tests {
             Term::from_field_text(text_field, "a"),
             Term::from_field_text(text_field, "b"),
         ]);
-        let mut test_collector = TestCollector::default();
         if let TantivyError::SchemaError(ref msg) = searcher
-            .search(&phrase_query, &mut test_collector)
+            .search(&phrase_query, &TestCollector)
+            .map(|_| ())
             .unwrap_err()
         {
             assert_eq!(
@@ -113,16 +117,15 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<&str>| {
-            let mut test_collector = TestCollector::default();
             let terms: Vec<Term> = texts
                 .iter()
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
             searcher
-                .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.scores()
+                .search(&phrase_query, &TestCollector)
+                .expect("search should succeed")
+                .scores().to_vec()
         };
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals(scores[0], 0.40618482);
@@ -131,51 +134,39 @@ mod tests {
 
     #[test] // motivated by #234
     pub fn test_phrase_query_docfreq_order() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            {
-                // 0
-                let doc = doc!(text_field=>"b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 1
-                let doc = doc!(text_field=>"a b");
-                index_writer.add_document(doc);
-            }
-            {
-                // 2
-                let doc = doc!(text_field=>"b a");
-                index_writer.add_document(doc);
-            }
+            index_writer.add_document(doc!(text_field=>"b"));
+            index_writer.add_document(doc!(text_field=>"a b"));
+            index_writer.add_document(doc!(text_field=>"b a"));
             assert!(index_writer.commit().is_ok());
         }
 
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<&str>| {
-            let mut test_collector = TestCollector::default();
             let terms: Vec<Term> = texts
                 .iter()
                 .map(|text| Term::from_field_text(text_field, text))
                 .collect();
             let phrase_query = PhraseQuery::new(terms);
             searcher
-                .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.docs()
+                .search(&phrase_query, &TestCollector)
+                .expect("search should succeed")
+                .docs()
+                .to_vec()
         };
-        assert_eq!(test_query(vec!["a", "b"]), vec![1]);
-        assert_eq!(test_query(vec!["b", "a"]), vec![2]);
+        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0,1)]);
+        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0,2)]);
     }
 
     #[test] // motivated by #234
     pub fn test_phrase_query_non_trivial_offsets() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -187,16 +178,18 @@ mod tests {
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         let test_query = |texts: Vec<(usize, &str)>| {
-            let mut test_collector = TestCollector::default();
             let terms: Vec<(usize, Term)> = texts
                 .iter()
                 .map(|(offset, text)| (*offset, Term::from_field_text(text_field, text)))
                 .collect();
             let phrase_query = PhraseQuery::new_with_offset(terms);
             searcher
-                .search(&phrase_query, &mut test_collector)
-                .expect("search should succeed");
-            test_collector.docs()
+                .search(&phrase_query, &TestCollector)
+                .expect("search should succeed")
+                .docs()
+                .iter()
+                .map(|doc_address| doc_address.1)
+                .collect::<Vec<DocId>>()
         };
         assert_eq!(test_query(vec![(0, "a"), (1, "b")]), vec![0]);
         assert_eq!(test_query(vec![(1, "b"), (0, "a")]), vec![0]);

@@ -15,13 +15,13 @@ use std::sync::PoisonError;
 #[derive(Debug, Fail)]
 pub enum TantivyError {
     /// Path does not exist.
-    #[fail(display = "path does not exist: '{:?}'", _0)]
+    #[fail(display = "Path does not exist: '{:?}'", _0)]
     PathDoesNotExist(PathBuf),
     /// File already exists, this is a problem when we try to write into a new file.
-    #[fail(display = "file already exists: '{:?}'", _0)]
+    #[fail(display = "File already exists: '{:?}'", _0)]
     FileAlreadyExists(PathBuf),
     /// Index already exists in this directory
-    #[fail(display = "index already exists")]
+    #[fail(display = "Index already exists")]
     IndexAlreadyExists,
     /// Failed to acquire file lock
     #[fail(
@@ -30,28 +30,29 @@ pub enum TantivyError {
     )]
     LockFailure(LockType),
     /// IO Error.
-    #[fail(display = "an IO error occurred: '{}'", _0)]
+    #[fail(display = "An IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
-    /// The data within is corrupted.
-    ///
-    /// For instance, it contains invalid JSON.
-    #[fail(display = "file contains corrupted data: '{:?}'", _0)]
+    /// Data corruption.
+    #[fail(display = "File contains corrupted data: '{:?}'", _0)]
     CorruptedFile(PathBuf),
     /// A thread holding the locked panicked and poisoned the lock.
-    #[fail(display = "a thread holding the locked panicked and poisoned the lock")]
+    #[fail(display = "A thread holding the locked panicked and poisoned the lock")]
     Poisoned,
     /// Invalid argument was passed by the user.
-    #[fail(display = "an invalid argument was passed: '{}'", _0)]
+    #[fail(display = "An invalid argument was passed: '{}'", _0)]
     InvalidArgument(String),
     /// An Error happened in one of the thread.
-    #[fail(display = "an error occurred in a thread: '{}'", _0)]
+    #[fail(display = "An error occurred in a thread: '{}'", _0)]
     ErrorInThread(String),
     /// An Error appeared related to the schema.
     #[fail(display = "Schema error: '{}'", _0)]
     SchemaError(String),
     /// Tried to access a fastfield reader for a field not configured accordingly.
-    #[fail(display = "fast field not available: '{:?}'", _0)]
+    #[fail(display = "Fast field not available: '{:?}'", _0)]
     FastFieldError(#[cause] FastFieldNotAvailableError),
+    /// System error. (e.g.: We failed spawning a new thread)
+    #[fail(display = "System error.'{}'", _0)]
+    SystemError(String),
 }
 
 impl From<FastFieldNotAvailableError> for TantivyError {

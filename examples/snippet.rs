@@ -10,7 +10,7 @@ extern crate tempdir;
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::collector::TopCollector;
+use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
@@ -23,7 +23,7 @@ fn main() -> tantivy::Result<()> {
     let index_path = TempDir::new("tantivy_example_dir")?;
 
     // # Defining the schema
-    let mut schema_builder = SchemaBuilder::default();
+    let mut schema_builder = Schema::builder();
     let title = schema_builder.add_text_field("title", TEXT | STORED);
     let body = schema_builder.add_text_field("body", TEXT | STORED);
     let schema = schema_builder.build();
@@ -54,15 +54,14 @@ fn main() -> tantivy::Result<()> {
     let query_parser = QueryParser::for_index(&index, vec![title, body]);
     let query = query_parser.parse_query("sycamore spring")?;
 
-    let mut top_collector = TopCollector::with_limit(10);
-    searcher.search(&*query, &mut top_collector)?;
+    let top_docs = searcher.search(&query, &TopDocs::with_limit(10))?;
 
     let snippet_generator = SnippetGenerator::new(&searcher, &*query, body)?;
 
-    let doc_addresses = top_collector.docs();
-    for doc_address in doc_addresses {
+    for (score, doc_address) in top_docs {
         let doc = searcher.doc(doc_address)?;
         let snippet = snippet_generator.snippet_from_doc(&doc);
+        println!("Document score {}:", score);
         println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
         println!("snippet: {}", snippet.to_html());
     }

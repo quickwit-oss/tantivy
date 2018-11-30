@@ -6,12 +6,12 @@ pub use self::writer::BytesFastFieldWriter;
 
 #[cfg(test)]
 mod tests {
-    use schema::SchemaBuilder;
+    use schema::Schema;
     use Index;
 
     #[test]
     fn test_bytes() {
-        let mut schema_builder = SchemaBuilder::default();
+        let mut schema_builder = Schema::builder();
         let field = schema_builder.add_bytes_field("bytesfield");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);

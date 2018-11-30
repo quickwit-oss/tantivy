@@ -46,13 +46,13 @@ impl fmt::Debug for IndexMeta {
 mod tests {
 
     use super::IndexMeta;
-    use schema::{SchemaBuilder, TEXT};
+    use schema::{Schema, TEXT};
     use serde_json;
 
     #[test]
     fn test_serialize_metas() {
         let schema = {
-            let mut schema_builder = SchemaBuilder::new();
+            let mut schema_builder = Schema::builder();
             schema_builder.add_text_field("text", TEXT);
             schema_builder.build()
         };
