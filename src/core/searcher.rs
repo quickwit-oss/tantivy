@@ -152,10 +152,10 @@ impl Searcher {
         let weight = query.weight(self, scoring_enabled)?;
         let segment_readers = self.segment_readers();
         let fruits = executor
-            .map(|(segment_ord, segment_reader)| {
+            .map_unsorted(|(segment_ord, segment_reader)| {
                 collect_segment(collector, weight.as_ref(), segment_ord as u32, segment_reader)
             },
-            segment_readers.iter().enumerate())?;
+                          segment_readers.iter().enumerate())?;
         collector.merge_fruits(fruits)
     }
 

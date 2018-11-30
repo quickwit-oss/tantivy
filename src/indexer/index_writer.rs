@@ -387,10 +387,8 @@ impl IndexWriter {
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
-            .name(format!(
-                "indexing thread {} for gen {}",
-                self.worker_id, generation
-            )).spawn(move || {
+            .name(format!("thrd-tantivy-index{}-gen{}", self.worker_id, generation))
+            .spawn(move || {
                 loop {
                     let mut document_iterator = document_receiver_clone.clone().into_iter().peekable();
 
