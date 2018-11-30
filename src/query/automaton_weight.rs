@@ -19,7 +19,7 @@ where
 
 impl<A> AutomatonWeight<A>
 where
-    A: Automaton + Send + Sync + 'static
+    A: Automaton + Send + Sync + 'static,
 {
     /// Create a new AutomationWeight
     pub fn new(field: Field, automaton: A) -> AutomatonWeight<A> {
@@ -33,7 +33,8 @@ where
 }
 
 impl<A> Weight for AutomatonWeight<A>
-where A: Automaton + Send + Sync + 'static
+where
+    A: Automaton + Send + Sync + 'static,
 {
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
         let max_doc = reader.max_doc();

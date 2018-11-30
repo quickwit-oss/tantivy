@@ -174,8 +174,8 @@ mod tests {
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
-    use super::ExpUnrolledLinkedList;
     use super::super::MemoryArena;
+    use super::ExpUnrolledLinkedList;
     use test::Bencher;
 
     const NUM_STACK: usize = 10_000;

@@ -1,6 +1,6 @@
-use Result;
-use scoped_pool::{Pool, ThreadConfig};
 use crossbeam::channel;
+use scoped_pool::{Pool, ThreadConfig};
+use Result;
 
 /// Search executor whether search request are single thread or multithread.
 ///
@@ -31,11 +31,18 @@ impl Executor {
     //
     // Regardless of the executor (`SingleThread` or `ThreadPool`), panics in the task
     // will propagate to the caller.
-    pub fn map<A: Send, R: Send, AIterator: Iterator<Item=A>, F: Sized + Sync + Fn(A) -> Result<R>>(&self, f: F, args: AIterator) -> Result<Vec<R>> {
+    pub fn map<
+        A: Send,
+        R: Send,
+        AIterator: Iterator<Item = A>,
+        F: Sized + Sync + Fn(A) -> Result<R>,
+    >(
+        &self,
+        f: F,
+        args: AIterator,
+    ) -> Result<Vec<R>> {
         match self {
-            Executor::SingleThread => {
-                args.map(f).collect::<Result<_>>()
-            }
+            Executor::SingleThread => args.map(f).collect::<Result<_>>(),
             Executor::ThreadPool(pool) => {
                 let args_with_indices: Vec<(usize, A)> = args.enumerate().collect();
                 let num_fruits = args_with_indices.len();
@@ -58,7 +65,7 @@ impl Executor {
                     // terminate.
                 };
                 let mut results = Vec::with_capacity(num_fruits);
-                unsafe {results.set_len(num_fruits)};
+                unsafe { results.set_len(num_fruits) };
                 let mut num_items = 0;
                 for (pos, fruit_res) in fruit_receiver {
                     results[pos] = fruit_res?;
@@ -79,22 +86,34 @@ mod tests {
     use super::Executor;
 
     #[test]
-    #[should_panic(expected="panic should propagate")]
+    #[should_panic(expected = "panic should propagate")]
     fn test_panic_propagates_single_thread() {
-        let _result: Vec<usize> = Executor::single_thread().map(|_| {panic!("panic should propagate"); }, vec![0].into_iter()).unwrap();
+        let _result: Vec<usize> = Executor::single_thread()
+            .map(
+                |_| {
+                    panic!("panic should propagate");
+                },
+                vec![0].into_iter(),
+            ).unwrap();
     }
 
     #[test]
     #[should_panic] //< unfortunately the panic message is not propagated
     fn test_panic_propagates_multi_thread() {
         let _result: Vec<usize> = Executor::multi_thread(1, "search-test")
-            .map(|_| {panic!("panic should propagate"); }, vec![0].into_iter()).unwrap();
+            .map(
+                |_| {
+                    panic!("panic should propagate");
+                },
+                vec![0].into_iter(),
+            ).unwrap();
     }
 
     #[test]
     fn test_map_singlethread() {
         let result: Vec<usize> = Executor::single_thread()
-            .map(|i| { Ok(i * 2) }, 0..1_000).unwrap();
+            .map(|i| Ok(i * 2), 0..1_000)
+            .unwrap();
         assert_eq!(result.len(), 1_000);
         for i in 0..1_000 {
             assert_eq!(result[i], i * 2);
@@ -106,7 +125,8 @@ mod tests {
 #[test]
 fn test_map_multithread() {
     let result: Vec<usize> = Executor::multi_thread(3, "search-test")
-        .map(|i| Ok(i * 2), 0..10).unwrap();
+        .map(|i| Ok(i * 2), 0..10)
+        .unwrap();
     assert_eq!(result.len(), 10);
     for i in 0..10 {
         assert_eq!(result[i], i * 2);

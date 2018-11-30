@@ -15,8 +15,8 @@ mod tests {
     use error::TantivyError;
     use schema::{Schema, Term, TEXT};
     use tests::assert_nearly_equals;
-    use DocId;
     use DocAddress;
+    use DocId;
 
     fn create_index(texts: &[&'static str]) -> Index {
         let mut schema_builder = Schema::builder();
@@ -57,7 +57,8 @@ mod tests {
             let test_fruits = searcher
                 .search(&phrase_query, &TestCollector)
                 .expect("search should succeed");
-            test_fruits.docs()
+            test_fruits
+                .docs()
                 .iter()
                 .map(|docaddr| docaddr.1)
                 .collect::<Vec<_>>()
@@ -125,7 +126,8 @@ mod tests {
             searcher
                 .search(&phrase_query, &TestCollector)
                 .expect("search should succeed")
-                .scores().to_vec()
+                .scores()
+                .to_vec()
         };
         let scores = test_query(vec!["a", "b"]);
         assert_nearly_equals(scores[0], 0.40618482);
@@ -160,8 +162,8 @@ mod tests {
                 .docs()
                 .to_vec()
         };
-        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0,1)]);
-        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0,2)]);
+        assert_eq!(test_query(vec!["a", "b"]), vec![DocAddress(0, 1)]);
+        assert_eq!(test_query(vec!["b", "a"]), vec![DocAddress(0, 2)]);
     }
 
     #[test] // motivated by #234

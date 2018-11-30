@@ -13,23 +13,22 @@ extern crate tempdir;
 // Importing tantivy...
 #[macro_use]
 extern crate tantivy;
-use tantivy::query::QueryParser;
-use tantivy::schema::{FAST, TEXT, INT_INDEXED, Schema};
-use tantivy::Index;
 use tantivy::collector::{Collector, SegmentCollector};
-use tantivy::SegmentReader;
-use tantivy::schema::Field;
 use tantivy::fastfield::FastFieldReader;
+use tantivy::query::QueryParser;
+use tantivy::schema::Field;
+use tantivy::schema::{Schema, FAST, INT_INDEXED, TEXT};
+use tantivy::Index;
+use tantivy::SegmentReader;
 
 #[derive(Default)]
 struct Stats {
     count: usize,
     sum: f64,
-    squared_sum: f64
+    squared_sum: f64,
 }
 
 impl Stats {
-
     pub fn count(&self) -> usize {
         self.count
     }
@@ -56,10 +55,8 @@ impl Stats {
     }
 }
 
-
-
 struct StatsCollector {
-    field: Field
+    field: Field,
 }
 
 impl StatsCollector {
@@ -75,11 +72,15 @@ impl Collector for StatsCollector {
 
     type Child = StatsSegmentCollector;
 
-    fn for_segment(&self, _segment_local_id: u32, segment: &SegmentReader) -> tantivy::Result<StatsSegmentCollector> {
+    fn for_segment(
+        &self,
+        _segment_local_id: u32,
+        segment: &SegmentReader,
+    ) -> tantivy::Result<StatsSegmentCollector> {
         let fast_field_reader = segment.fast_field_reader(self.field)?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
-            stats: Stats::default()
+            stats: Stats::default(),
         })
     }
 
@@ -101,7 +102,6 @@ impl Collector for StatsCollector {
     }
 }
 
-
 struct StatsSegmentCollector {
     fast_field_reader: FastFieldReader<u64>,
     stats: Stats,
@@ -121,7 +121,6 @@ impl SegmentCollector for StatsSegmentCollector {
         self.stats.non_zero_count()
     }
 }
-
 
 fn main() -> tantivy::Result<()> {
     // # Defining the schema
@@ -186,4 +185,3 @@ fn main() -> tantivy::Result<()> {
 
     Ok(())
 }
-

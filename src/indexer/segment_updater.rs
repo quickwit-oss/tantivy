@@ -242,9 +242,7 @@ impl SegmentUpdater {
             // from the different drives.
             //
             // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            commited_segment_metas.sort_by_key(|segment_meta| {
-                -(segment_meta.max_doc() as i32)
-            });
+            commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
             save_metas(
                 commited_segment_metas,
                 index.schema(),

@@ -1,8 +1,10 @@
 use collector::Collector;
+use collector::SegmentCollector;
 use docset::SkipResult;
 use fastfield::FacetReader;
 use schema::Facet;
 use schema::Field;
+use std::cmp::Ordering;
 use std::collections::btree_map;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -10,13 +12,11 @@ use std::collections::BinaryHeap;
 use std::collections::Bound;
 use std::iter::Peekable;
 use std::{u64, usize};
-use std::cmp::Ordering;
 use DocId;
 use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::SegmentCollector;
 
 struct Hit<'a> {
     count: u64,
@@ -223,7 +223,7 @@ impl FacetCollector {
     pub fn for_field(field: Field) -> FacetCollector {
         FacetCollector {
             field,
-            facets: BTreeSet::default()
+            facets: BTreeSet::default(),
         }
     }
 
@@ -260,7 +260,11 @@ impl Collector for FacetCollector {
 
     type Child = FacetSegmentCollector;
 
-    fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FacetSegmentCollector> {
+    fn for_segment(
+        &self,
+        _: SegmentLocalId,
+        reader: &SegmentReader,
+    ) -> Result<FacetSegmentCollector> {
         let facet_reader = reader.facet_reader(self.field)?;
 
         let mut collapse_mapping = Vec::new();
@@ -335,21 +339,18 @@ impl Collector for FacetCollector {
 }
 
 impl SegmentCollector for FacetSegmentCollector {
-
     type Fruit = FacetCounts;
-
 
     fn collect(&mut self, doc: DocId, _: Score) {
         self.reader.facet_ords(doc, &mut self.facet_ords_buf);
         let mut previous_collapsed_ord: usize = usize::MAX;
         for &facet_ord in &self.facet_ords_buf {
             let collapsed_ord = self.collapse_mapping[facet_ord as usize];
-            self.counts[collapsed_ord] +=
-                if collapsed_ord == previous_collapsed_ord {
-                    0
-                } else {
-                    1
-                };
+            self.counts[collapsed_ord] += if collapsed_ord == previous_collapsed_ord {
+                0
+            } else {
+                1
+            };
             previous_collapsed_ord = collapsed_ord;
         }
     }
@@ -451,9 +452,9 @@ mod tests {
     use core::Index;
     use query::AllQuery;
     use rand::distributions::Uniform;
-    use rand::{thread_rng, Rng};
-    use schema::{Field, Document, Facet, Schema};
     use rand::prelude::SliceRandom;
+    use rand::{thread_rng, Rng};
+    use schema::{Document, Facet, Field, Schema};
     use std::iter;
 
     #[test]
@@ -482,7 +483,7 @@ mod tests {
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
         let searcher = index.searcher();
-        let mut facet_collector= FacetCollector::for_field(facet_field);
+        let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet(Facet::from("/top1"));
         let counts = searcher.search(&AllQuery, &facet_collector).unwrap();
 

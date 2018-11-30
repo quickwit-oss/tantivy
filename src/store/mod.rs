@@ -56,8 +56,8 @@ pub mod tests {
     use directory::{Directory, RAMDirectory, WritePtr};
     use schema::Document;
     use schema::FieldValue;
-    use schema::TextOptions;
     use schema::Schema;
+    use schema::TextOptions;
     use std::path::Path;
 
     pub fn write_lorem_ipsum_store(writer: WritePtr, num_docs: usize) -> Schema {

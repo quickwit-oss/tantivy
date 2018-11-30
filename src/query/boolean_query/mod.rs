@@ -19,8 +19,8 @@ mod tests {
     use query::Scorer;
     use query::TermQuery;
     use schema::*;
-    use Index;
     use DocId;
+    use Index;
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = Schema::builder();
@@ -132,7 +132,8 @@ mod tests {
         let matching_docs = |boolean_query: &Query| {
             let searcher = index.searcher();
             let test_docs = searcher.search(boolean_query, &TestCollector).unwrap();
-            test_docs.docs()
+            test_docs
+                .docs()
                 .iter()
                 .cloned()
                 .map(|doc| doc.1)

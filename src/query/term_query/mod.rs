@@ -1,4 +1,5 @@
-    mod term_query;
+
+mod term_query;
 mod term_scorer;
 mod term_weight;
 
@@ -9,13 +10,13 @@ pub use self::term_weight::TermWeight;
 #[cfg(test)]
 mod tests {
 
+    use collector::TopDocs;
     use docset::DocSet;
     use query::{Query, QueryParser, Scorer, TermQuery};
     use schema::{IndexRecordOption, Schema, STRING, TEXT};
     use tests::assert_nearly_equals;
     use Index;
     use Term;
-    use collector::TopDocs;
 
     #[test]
     pub fn test_term_query_no_freq() {
@@ -70,7 +71,9 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let topdocs = searcher.search(&term_query,&TopDocs::with_limit(2)).unwrap();
+            let topdocs = searcher
+                .search(&term_query, &TopDocs::with_limit(2))
+                .unwrap();
             assert_eq!(topdocs.len(), 1);
             let (score, _) = topdocs[0];
             assert_nearly_equals(0.77802235, score);
@@ -78,7 +81,9 @@ mod tests {
         {
             let term = Term::from_field_text(left_field, "left1");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
-            let top_docs = searcher.search(&term_query, &TopDocs::with_limit(2)).unwrap();
+            let top_docs = searcher
+                .search(&term_query, &TopDocs::with_limit(2))
+                .unwrap();
             assert_eq!(top_docs.len(), 2);
             let (score1, _) = top_docs[0];
             assert_nearly_equals(0.27101856, score1);

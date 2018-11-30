@@ -153,8 +153,6 @@ extern crate tempdir;
 extern crate tempfile;
 extern crate uuid;
 
-
-
 #[cfg(test)]
 #[macro_use]
 extern crate matches;
@@ -297,16 +295,16 @@ pub struct DocAddress(pub SegmentLocalId, pub DocId);
 #[cfg(test)]
 mod tests {
 
-    use DocAddress;
     use collector::tests::TestCollector;
     use core::SegmentReader;
     use docset::DocSet;
     use query::BooleanQuery;
     use rand::distributions::Bernoulli;
     use rand::distributions::Uniform;
-    use rand::{Rng, SeedableRng};
     use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use schema::*;
+    use DocAddress;
     use Index;
     use IndexWriter;
     use Postings;
@@ -794,24 +792,23 @@ mod tests {
             );
             assert_eq!(
                 get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+                vec![DocAddress(0, 0), DocAddress(0, 1), DocAddress(0, 2)]
             );
             assert_eq!(
                 get_doc_ids(vec![Term::from_field_text(text_field, "c")]),
-                vec![DocAddress(0,1), DocAddress(0,2)]
+                vec![DocAddress(0, 1), DocAddress(0, 2)]
             );
             assert_eq!(
                 get_doc_ids(vec![Term::from_field_text(text_field, "d")]),
-                vec![DocAddress(0,2)]
+                vec![DocAddress(0, 2)]
             );
             assert_eq!(
                 get_doc_ids(vec![
                     Term::from_field_text(text_field, "b"),
                     Term::from_field_text(text_field, "a"),
                 ]),
-                vec![DocAddress(0,0), DocAddress(0,1), DocAddress(0,2)]
+                vec![DocAddress(0, 0), DocAddress(0, 1), DocAddress(0, 2)]
             );
-
         }
     }
 

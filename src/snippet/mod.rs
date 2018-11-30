@@ -255,8 +255,7 @@ impl SnippetGenerator {
                 } else {
                     None
                 }
-            })
-            .collect();
+            }).collect();
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
         Ok(SnippetGenerator {
             terms_text,
@@ -328,8 +327,6 @@ to the project are from community members.[15]
 Rust won first place for "most loved programming language" in the Stack Overflow Developer
 Survey in 2016, 2017, and 2018."#;
 
-
-
     #[test]
     fn test_snippet() {
         let boxed_tokenizer = box_tokenizer(SimpleTokenizer);
@@ -345,12 +342,17 @@ Survey in 2016, 2017, and 2018."#;
             assert_eq!(first.stop_offset, 89);
         }
         let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
-        assert_eq!(snippet.fragments, "Rust is a systems programming language sponsored by \
-         Mozilla which\ndescribes it as a \"safe");
-        assert_eq!(snippet.to_html(), "<b>Rust</b> is a systems programming <b>language</b> \
-         sponsored by Mozilla which\ndescribes it as a &quot;safe")
+        assert_eq!(
+            snippet.fragments,
+            "Rust is a systems programming language sponsored by \
+             Mozilla which\ndescribes it as a \"safe"
+        );
+        assert_eq!(
+            snippet.to_html(),
+            "<b>Rust</b> is a systems programming <b>language</b> \
+             sponsored by Mozilla which\ndescribes it as a &quot;safe"
+        )
     }
-
 
     #[test]
     fn test_snippet_scored_fragment() {
@@ -385,9 +387,7 @@ Survey in 2016, 2017, and 2018."#;
             let snippet = select_best_fragment_combination(&fragments[..], &TEST_TEXT);
             assert_eq!(snippet.to_html(), "programming <b>language</b>")
         }
-
     }
-
 
     #[test]
     fn test_snippet_in_second_fragment() {
@@ -495,7 +495,6 @@ Survey in 2016, 2017, and 2018."#;
         assert_eq!(snippet.to_html(), "");
     }
 
-
     #[test]
     fn test_snippet_generator_term_score() {
         let mut schema_builder = Schema::builder();
@@ -521,17 +520,26 @@ Survey in 2016, 2017, and 2018."#;
         {
             let query = query_parser.parse_query("a").unwrap();
             let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
-            assert_eq!(&btreemap!("a".to_string() => 0.25f32), snippet_generator.terms_text());
+            assert_eq!(
+                &btreemap!("a".to_string() => 0.25f32),
+                snippet_generator.terms_text()
+            );
         }
         {
             let query = query_parser.parse_query("a b").unwrap();
             let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
-            assert_eq!(&btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5), snippet_generator.terms_text());
+            assert_eq!(
+                &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
+                snippet_generator.terms_text()
+            );
         }
         {
             let query = query_parser.parse_query("a b c").unwrap();
             let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
-            assert_eq!(&btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5), snippet_generator.terms_text());
+            assert_eq!(
+                &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
+                snippet_generator.terms_text()
+            );
         }
     }
 

@@ -4,8 +4,8 @@ use common::VInt;
 use directory::ReadOnlySource;
 use directory::WritePtr;
 use schema::Field;
-use space_usage::PerFieldSpaceUsage;
 use space_usage::FieldUsage;
+use space_usage::PerFieldSpaceUsage;
 use std::collections::HashMap;
 use std::io::Write;
 use std::io::{self, Read};
@@ -172,7 +172,8 @@ impl CompositeFile {
     pub fn space_usage(&self) -> PerFieldSpaceUsage {
         let mut fields = HashMap::new();
         for (&field_addr, &(start, end)) in self.offsets_index.iter() {
-            fields.entry(field_addr.field)
+            fields
+                .entry(field_addr.field)
                 .or_insert_with(|| FieldUsage::empty(field_addr.field))
                 .add_field_idx(field_addr.idx, end - start);
         }

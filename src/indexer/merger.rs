@@ -641,12 +641,12 @@ mod tests {
     use core::Index;
     use futures::Future;
     use query::AllQuery;
-    use schema::Facet;
     use query::BooleanQuery;
     use query::TermQuery;
     use schema;
     use schema::Cardinality;
     use schema::Document;
+    use schema::Facet;
     use schema::IndexRecordOption;
     use schema::IntOptions;
     use schema::Term;
@@ -749,23 +749,26 @@ mod tests {
             {
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "a")]),
-                    vec![DocAddress(0,1), DocAddress(0,2), DocAddress(0,4)]
+                    vec![DocAddress(0, 1), DocAddress(0, 2), DocAddress(0, 4)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "af")]),
-                    vec![DocAddress(0,0), DocAddress(0,3)]
+                    vec![DocAddress(0, 0), DocAddress(0, 3)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "g")]),
-                    vec![DocAddress(0,4)]
+                    vec![DocAddress(0, 4)]
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_text(text_field, "b")]),
-                    vec![DocAddress(0,0),
-                         DocAddress(0,1),
-                         DocAddress(0,2),
-                         DocAddress(0,3),
-                         DocAddress(0,4)]);
+                    vec![
+                        DocAddress(0, 0),
+                        DocAddress(0, 1),
+                        DocAddress(0, 2),
+                        DocAddress(0, 3),
+                        DocAddress(0, 4)
+                    ]
+                );
             }
             {
                 let doc = searcher.doc(DocAddress(0, 0)).unwrap();
@@ -790,13 +793,17 @@ mod tests {
             {
                 let get_fast_vals = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
-                    searcher.search(&query, &FastFieldTestCollector::for_field(score_field)).unwrap()
+                    searcher
+                        .search(&query, &FastFieldTestCollector::for_field(score_field))
+                        .unwrap()
                 };
                 let get_fast_vals_bytes = |terms: Vec<Term>| {
                     let query = BooleanQuery::new_multiterms_query(terms);
                     searcher
-                        .search(&query, &BytesFastFieldTestCollector::for_field(bytes_score_field))
-                        .expect("failed to search")
+                        .search(
+                            &query,
+                            &BytesFastFieldTestCollector::for_field(bytes_score_field),
+                        ).expect("failed to search")
                 };
                 assert_eq!(
                     get_fast_vals(vec![Term::from_field_text(text_field, "a")]),
@@ -809,7 +816,6 @@ mod tests {
             }
         }
     }
-
 
     #[test]
     fn test_index_merger_with_deletes() {
@@ -829,10 +835,9 @@ mod tests {
             let collector = FastFieldTestCollector::for_field(score_field);
             let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
             let term_query = TermQuery::new(term, IndexRecordOption::Basic);
-            let (scores, bytes) =
-                searcher
-                    .search(&term_query, &(collector, bytes_collector))
-                    .unwrap();
+            let (scores, bytes) = searcher
+                .search(&term_query, &(collector, bytes_collector))
+                .unwrap();
             let mut score_bytes = Cursor::new(bytes);
             for &score in &scores {
                 assert_eq!(score as u32, score_bytes.read_u32::<BigEndian>().unwrap());
@@ -1169,7 +1174,9 @@ mod tests {
             let searcher = index.searcher();
             let mut facet_collector = FacetCollector::for_field(facet_field);
             facet_collector.add_facet(Facet::from("/top"));
-            let (count, facet_counts) = searcher.search(&AllQuery, &(Count, facet_collector)).unwrap();
+            let (count, facet_counts) = searcher
+                .search(&AllQuery, &(Count, facet_collector))
+                .unwrap();
             assert_eq!(count, expected_num_docs);
             let facets: Vec<(String, u64)> = facet_counts
                 .get("/top")
@@ -1228,13 +1235,17 @@ mod tests {
             index_writer.delete_term(facet_term);
             index_writer.commit().unwrap();
             index.load_searchers().unwrap();
-            test_searcher(9, &[
+            test_searcher(
+                9,
+                &[
                     ("/top/a", 3),
                     ("/top/b", 3),
                     ("/top/c", 1),
                     ("/top/d", 2),
                     ("/top/e", 2),
-                    ("/top/f", 1)]);
+                    ("/top/f", 1),
+                ],
+            );
         }
     }
 
@@ -1347,7 +1358,14 @@ mod tests {
             assert_eq!(&vals, &[17]);
         }
 
-        println!("{:?}", searcher.segment_readers().iter().map(|reader| reader.max_doc()).collect::<Vec<_>>());
+        println!(
+            "{:?}",
+            searcher
+                .segment_readers()
+                .iter()
+                .map(|reader| reader.max_doc())
+                .collect::<Vec<_>>()
+        );
 
         {
             let segment = searcher.segment_reader(1u32);
@@ -1384,7 +1402,14 @@ mod tests {
 
         {
             let searcher = index.searcher();
-            println!("{:?}", searcher.segment_readers().iter().map(|reader| reader.max_doc()).collect::<Vec<_>>());
+            println!(
+                "{:?}",
+                searcher
+                    .segment_readers()
+                    .iter()
+                    .map(|reader| reader.max_doc())
+                    .collect::<Vec<_>>()
+            );
             let segment = searcher.segment_reader(0u32);
             let ff_reader = segment.multi_fast_field_reader(int_field).unwrap();
 
@@ -1409,7 +1434,6 @@ mod tests {
             ff_reader.get_vals(6, &mut vals);
             assert_eq!(&vals, &[17]);
 
-
             ff_reader.get_vals(7, &mut vals);
             assert_eq!(&vals, &[28, 27]);
 
@@ -1418,7 +1442,6 @@ mod tests {
 
             ff_reader.get_vals(9, &mut vals);
             assert_eq!(&vals, &[20]);
-
         }
     }
 }

@@ -157,12 +157,10 @@ pub use self::tokenizer::BoxedTokenizer;
 pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer_manager::TokenizerManager;
 
-
 #[cfg(test)]
 pub mod tests {
     use super::Token;
     use super::TokenizerManager;
-
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.

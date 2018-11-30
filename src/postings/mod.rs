@@ -54,8 +54,8 @@ pub mod tests {
     use indexer::operation::AddOperation;
     use indexer::SegmentWriter;
     use query::Scorer;
-    use rand::{Rng, SeedableRng};
     use rand::rngs::StdRng;
+    use rand::{Rng, SeedableRng};
     use schema::Field;
     use schema::IndexRecordOption;
     use schema::{Document, Schema, Term, INT_INDEXED, STRING, TEXT};

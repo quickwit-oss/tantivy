@@ -3,6 +3,7 @@ use super::pool::Pool;
 use super::segment::create_segment;
 use super::segment::Segment;
 use core::searcher::Searcher;
+use core::Executor;
 use core::IndexMeta;
 use core::SegmentId;
 use core::SegmentMeta;
@@ -31,7 +32,6 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
-use core::Executor;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -110,7 +110,9 @@ impl Index {
             if index.schema() == schema {
                 Ok(index)
             } else {
-                Err(TantivyError::SchemaError("An index exists but the schema does not match.".to_string()))
+                Err(TantivyError::SchemaError(
+                    "An index exists but the schema does not match.".to_string(),
+                ))
             }
         } else {
             Index::create(dir, schema)
@@ -381,9 +383,9 @@ impl Clone for Index {
 
 #[cfg(test)]
 mod tests {
+    use directory::RAMDirectory;
     use schema::{Schema, INT_INDEXED, TEXT};
     use Index;
-    use directory::RAMDirectory;
 
     #[test]
     fn test_indexer_for_field() {
@@ -415,7 +417,6 @@ mod tests {
         assert!(Index::exists(&directory));
     }
 
-
     #[test]
     fn open_or_create_should_open() {
         let directory = RAMDirectory::create();
@@ -439,7 +440,10 @@ mod tests {
         assert!(Index::exists(&directory));
         assert!(Index::open_or_create(directory.clone(), throw_away_schema()).is_ok());
         let err = Index::open_or_create(directory, Schema::builder().build());
-        assert_eq!(format!("{:?}", err.unwrap_err()), "SchemaError(\"An index exists but the schema does not match.\")");
+        assert_eq!(
+            format!("{:?}", err.unwrap_err()),
+            "SchemaError(\"An index exists but the schema does not match.\")"
+        );
     }
 
     fn throw_away_schema() -> Schema {

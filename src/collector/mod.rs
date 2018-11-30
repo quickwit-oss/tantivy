@@ -85,12 +85,12 @@ See the `custom_collector` example.
 
 */
 
+use downcast;
 use DocId;
 use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use downcast;
 
 mod count_collector;
 pub use self::count_collector::Count;
@@ -132,13 +132,12 @@ impl<T> Fruit for T where T: Send + downcast::Any {}
 ///
 /// Segments are not guaranteed to be visited in any specific order.
 pub trait Collector: Sync {
-
     /// `Fruit` is the type for the result of our collection.
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
     /// Type of the `SegmentCollector` associated to this collector.
-    type Child: SegmentCollector<Fruit=Self::Fruit>;
+    type Child: SegmentCollector<Fruit = Self::Fruit>;
 
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
@@ -155,7 +154,6 @@ pub trait Collector: Sync {
     /// into one fruit.
     fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit>;
 }
-
 
 /// The `SegmentCollector` is the trait in charge of defining the
 /// collect operation at the scale of the segment.
@@ -177,11 +175,10 @@ pub trait SegmentCollector: 'static {
 // -----------------------------------------------
 // Tuple implementations.
 
-
 impl<Left, Right> Collector for (Left, Right)
 where
     Left: Collector,
-    Right: Collector
+    Right: Collector,
 {
     type Fruit = (Left::Fruit, Right::Fruit);
     type Child = (Left::Child, Right::Child);
@@ -196,22 +193,27 @@ where
         self.0.requires_scoring() || self.1.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<(Left::Fruit, Right::Fruit)>) -> Result<(Left::Fruit, Right::Fruit)> {
+    fn merge_fruits(
+        &self,
+        children: Vec<(Left::Fruit, Right::Fruit)>,
+    ) -> Result<(Left::Fruit, Right::Fruit)> {
         let mut left_fruits = vec![];
         let mut right_fruits = vec![];
         for (left_fruit, right_fruit) in children {
             left_fruits.push(left_fruit);
             right_fruits.push(right_fruit);
         }
-        Ok((self.0.merge_fruits(left_fruits)?,
-            self.1.merge_fruits(right_fruits)?))
+        Ok((
+            self.0.merge_fruits(left_fruits)?,
+            self.1.merge_fruits(right_fruits)?,
+        ))
     }
 }
 
 impl<Left, Right> SegmentCollector for (Left, Right)
-    where
-        Left: SegmentCollector,
-        Right: SegmentCollector
+where
+    Left: SegmentCollector,
+    Right: SegmentCollector,
 {
     type Fruit = (Left::Fruit, Right::Fruit);
 
@@ -228,9 +230,10 @@ impl<Left, Right> SegmentCollector for (Left, Right)
 // 3-Tuple
 
 impl<One, Two, Three> Collector for (One, Two, Three)
-    where One: Collector,
-          Two: Collector,
-          Three: Collector
+where
+    One: Collector,
+    Two: Collector,
+    Three: Collector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
     type Child = (One::Child, Two::Child, Three::Child);
@@ -243,9 +246,7 @@ impl<One, Two, Three> Collector for (One, Two, Three)
     }
 
     fn requires_scoring(&self) -> bool {
-        self.0.requires_scoring() ||
-        self.1.requires_scoring() ||
-        self.2.requires_scoring()
+        self.0.requires_scoring() || self.1.requires_scoring() || self.2.requires_scoring()
     }
 
     fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit> {
@@ -257,17 +258,19 @@ impl<One, Two, Three> Collector for (One, Two, Three)
             two_fruits.push(two_fruit);
             three_fruits.push(three_fruit);
         }
-        Ok((self.0.merge_fruits(one_fruits)?,
+        Ok((
+            self.0.merge_fruits(one_fruits)?,
             self.1.merge_fruits(two_fruits)?,
-            self.2.merge_fruits(three_fruits)?))
+            self.2.merge_fruits(three_fruits)?,
+        ))
     }
 }
 
 impl<One, Two, Three> SegmentCollector for (One, Two, Three)
-    where
-        One: SegmentCollector,
-        Two: SegmentCollector,
-        Three: SegmentCollector
+where
+    One: SegmentCollector,
+    Two: SegmentCollector,
+    Three: SegmentCollector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
 
@@ -282,14 +285,14 @@ impl<One, Two, Three> SegmentCollector for (One, Two, Three)
     }
 }
 
-
 // 4-Tuple
 
 impl<One, Two, Three, Four> Collector for (One, Two, Three, Four)
-    where One: Collector,
-          Two: Collector,
-          Three: Collector,
-          Four: Collector
+where
+    One: Collector,
+    Two: Collector,
+    Three: Collector,
+    Four: Collector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
     type Child = (One::Child, Two::Child, Three::Child, Four::Child);
@@ -303,10 +306,10 @@ impl<One, Two, Three, Four> Collector for (One, Two, Three, Four)
     }
 
     fn requires_scoring(&self) -> bool {
-        self.0.requires_scoring() ||
-        self.1.requires_scoring() ||
-        self.2.requires_scoring() ||
-        self.3.requires_scoring()
+        self.0.requires_scoring()
+            || self.1.requires_scoring()
+            || self.2.requires_scoring()
+            || self.3.requires_scoring()
     }
 
     fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit> {
@@ -320,19 +323,21 @@ impl<One, Two, Three, Four> Collector for (One, Two, Three, Four)
             three_fruits.push(three_fruit);
             four_fruits.push(four_fruit);
         }
-        Ok((self.0.merge_fruits(one_fruits)?,
+        Ok((
+            self.0.merge_fruits(one_fruits)?,
             self.1.merge_fruits(two_fruits)?,
             self.2.merge_fruits(three_fruits)?,
-            self.3.merge_fruits(four_fruits)?))
+            self.3.merge_fruits(four_fruits)?,
+        ))
     }
 }
 
 impl<One, Two, Three, Four> SegmentCollector for (One, Two, Three, Four)
-    where
-        One: SegmentCollector,
-        Two: SegmentCollector,
-        Three: SegmentCollector,
-        Four: SegmentCollector
+where
+    One: SegmentCollector,
+    Two: SegmentCollector,
+    Three: SegmentCollector,
+    Four: SegmentCollector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
 
@@ -344,7 +349,12 @@ impl<One, Two, Three, Four> SegmentCollector for (One, Two, Three, Four)
     }
 
     fn harvest(self) -> <Self as SegmentCollector>::Fruit {
-        (self.0.harvest(), self.1.harvest(), self.2.harvest(), self.3.harvest())
+        (
+            self.0.harvest(),
+            self.1.harvest(),
+            self.2.harvest(),
+            self.3.harvest(),
+        )
     }
 }
 
@@ -352,7 +362,6 @@ impl<One, Two, Three, Four> SegmentCollector for (One, Two, Three, Four)
 mod downcast_impl {
     downcast!(super::Fruit);
 }
-
 
 #[cfg(test)]
 pub mod tests;

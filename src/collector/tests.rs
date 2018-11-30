@@ -3,10 +3,10 @@ use core::SegmentReader;
 use fastfield::BytesFastFieldReader;
 use fastfield::FastFieldReader;
 use schema::Field;
+use DocAddress;
 use DocId;
 use Score;
 use SegmentLocalId;
-use DocAddress;
 
 /// Stores all of the doc ids.
 /// This collector is only used for tests.
@@ -24,12 +24,12 @@ pub struct TestSegmentCollector {
 #[derive(Default)]
 pub struct TestFruit {
     docs: Vec<DocAddress>,
-    scores: Vec<Score>
+    scores: Vec<Score>,
 }
 
 impl TestFruit {
     /// Return the list of matching documents exhaustively.
-    pub fn docs(&self) ->&[DocAddress] {
+    pub fn docs(&self) -> &[DocAddress] {
         &self.docs[..]
     }
 
@@ -42,10 +42,14 @@ impl Collector for TestCollector {
     type Fruit = TestFruit;
     type Child = TestSegmentCollector;
 
-    fn for_segment(&self, segment_id: SegmentLocalId, _reader: &SegmentReader) -> Result<TestSegmentCollector> {
+    fn for_segment(
+        &self,
+        segment_id: SegmentLocalId,
+        _reader: &SegmentReader,
+    ) -> Result<TestSegmentCollector> {
         Ok(TestSegmentCollector {
             segment_id,
-            fruit: TestFruit::default()
+            fruit: TestFruit::default(),
         })
     }
 
@@ -54,13 +58,13 @@ impl Collector for TestCollector {
     }
 
     fn merge_fruits(&self, mut children: Vec<TestFruit>) -> Result<TestFruit> {
-        children
-            .sort_by_key(|fruit|
-                if fruit.docs().is_empty() {
-                    0
-                } else {
-                    fruit.docs()[0].segment_ord()
-                });
+        children.sort_by_key(|fruit| {
+            if fruit.docs().is_empty() {
+                0
+            } else {
+                fruit.docs()[0].segment_ord()
+            }
+        });
         let mut docs = vec![];
         let mut scores = vec![];
         for child in children {
@@ -72,11 +76,10 @@ impl Collector for TestCollector {
 }
 
 impl SegmentCollector for TestSegmentCollector {
-
     type Fruit = TestFruit;
 
     fn collect(&mut self, doc: DocId, score: Score) {
-        self.fruit.docs.push(DocAddress(self.segment_id, doc ));
+        self.fruit.docs.push(DocAddress(self.segment_id, doc));
         self.fruit.scores.push(score);
     }
 
@@ -84,7 +87,6 @@ impl SegmentCollector for TestSegmentCollector {
         self.fruit
     }
 }
-
 
 /// Collects in order all of the fast fields for all of the
 /// doc in the `DocSet`
@@ -101,18 +103,19 @@ pub struct FastFieldSegmentCollector {
 
 impl FastFieldTestCollector {
     pub fn for_field(field: Field) -> FastFieldTestCollector {
-        FastFieldTestCollector {
-            field,
-        }
+        FastFieldTestCollector { field }
     }
 }
 
 impl Collector for FastFieldTestCollector {
-
     type Fruit = Vec<u64>;
     type Child = FastFieldSegmentCollector;
 
-    fn for_segment(&self, _: SegmentLocalId, reader: &SegmentReader) -> Result<FastFieldSegmentCollector> {
+    fn for_segment(
+        &self,
+        _: SegmentLocalId,
+        reader: &SegmentReader,
+    ) -> Result<FastFieldSegmentCollector> {
         Ok(FastFieldSegmentCollector {
             vals: Vec::new(),
             reader: reader.fast_field_reader(self.field)?,
@@ -124,10 +127,7 @@ impl Collector for FastFieldTestCollector {
     }
 
     fn merge_fruits(&self, children: Vec<Vec<u64>>) -> Result<Vec<u64>> {
-        Ok(children
-            .into_iter()
-            .flat_map(|v| v.into_iter())
-            .collect())
+        Ok(children.into_iter().flat_map(|v| v.into_iter()).collect())
     }
 }
 
@@ -164,11 +164,14 @@ impl BytesFastFieldTestCollector {
 }
 
 impl Collector for BytesFastFieldTestCollector {
-
     type Fruit = Vec<u8>;
     type Child = BytesFastFieldSegmentCollector;
 
-    fn for_segment(&self, _segment_local_id: u32, segment: &SegmentReader) -> Result<BytesFastFieldSegmentCollector> {
+    fn for_segment(
+        &self,
+        _segment_local_id: u32,
+        segment: &SegmentReader,
+    ) -> Result<BytesFastFieldSegmentCollector> {
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
             reader: segment.bytes_fast_field_reader(self.field)?,
@@ -180,15 +183,11 @@ impl Collector for BytesFastFieldTestCollector {
     }
 
     fn merge_fruits(&self, children: Vec<Vec<u8>>) -> Result<Vec<u8>> {
-        Ok(children
-            .into_iter()
-            .flat_map(|c| c.into_iter())
-            .collect())
+        Ok(children.into_iter().flat_map(|c| c.into_iter()).collect())
     }
 }
 
 impl SegmentCollector for BytesFastFieldSegmentCollector {
-
     type Fruit = Vec<u8>;
 
     fn collect(&mut self, doc: u32, _score: f32) {

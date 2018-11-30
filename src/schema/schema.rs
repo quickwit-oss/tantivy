@@ -121,7 +121,6 @@ impl SchemaBuilder {
     }
 }
 
-
 struct InnerSchema {
     fields: Vec<FieldEntry>,
     fields_map: HashMap<String, Field>, // transient
@@ -134,7 +133,6 @@ impl PartialEq for InnerSchema {
 }
 
 impl Eq for InnerSchema {}
-
 
 /// Tantivy has a very strict schema.
 /// You need to specify in advance, whether a field is indexed or not,

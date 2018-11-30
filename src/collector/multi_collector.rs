@@ -1,20 +1,18 @@
 use super::Collector;
 use super::SegmentCollector;
+use collector::Fruit;
+use downcast::Downcast;
+use std::marker::PhantomData;
 use DocId;
-use Score;
 use Result;
+use Score;
 use SegmentLocalId;
 use SegmentReader;
-use downcast::Downcast;
-use collector::Fruit;
-use std::marker::PhantomData;
 use TantivyError;
 
-
 pub struct MultiFruit {
-    sub_fruits: Vec<Option<Box<Fruit>>>
+    sub_fruits: Vec<Option<Box<Fruit>>>,
 }
-
 
 pub struct CollectorWrapper<TCollector: Collector>(TCollector);
 
@@ -22,7 +20,11 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     type Fruit = Box<Fruit>;
     type Child = Box<BoxableSegmentCollector>;
 
-    fn for_segment(&self, segment_local_id: u32, reader: &SegmentReader) -> Result<Box<BoxableSegmentCollector>> {
+    fn for_segment(
+        &self,
+        segment_local_id: u32,
+        reader: &SegmentReader,
+    ) -> Result<Box<BoxableSegmentCollector>> {
         let child = self.0.for_segment(segment_local_id, reader)?;
         Ok(Box::new(SegmentCollectorWrapper(child)))
     }
@@ -32,7 +34,8 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     }
 
     fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> Result<Box<Fruit>> {
-        let typed_fruit: Vec<TCollector::Fruit> = children.into_iter()
+        let typed_fruit: Vec<TCollector::Fruit> = children
+            .into_iter()
             .map(|untyped_fruit| {
                 Downcast::<TCollector::Fruit>::downcast(untyped_fruit)
                     .map(|boxed_but_typed| *boxed_but_typed)
@@ -40,16 +43,13 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
                         let err_msg = format!("Failed to cast child collector fruit. {:?}", e);
                         TantivyError::InvalidArgument(err_msg)
                     })
-            })
-            .collect::<Result<_>>()?;
+            }).collect::<Result<_>>()?;
         let merged_fruit = self.0.merge_fruits(typed_fruit)?;
         Ok(Box::new(merged_fruit))
     }
 }
 
-
 impl SegmentCollector for Box<BoxableSegmentCollector> {
-
     type Fruit = Box<Fruit>;
 
     fn collect(&mut self, doc: u32, score: f32) {
@@ -66,13 +66,11 @@ pub trait BoxableSegmentCollector {
     fn harvest_from_box(self: Box<Self>) -> Box<Fruit>;
 }
 
-
-
 pub struct SegmentCollectorWrapper<TSegmentCollector: SegmentCollector>(TSegmentCollector);
 
-
-impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector for SegmentCollectorWrapper<TSegmentCollector> {
-
+impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector
+    for SegmentCollectorWrapper<TSegmentCollector>
+{
     fn collect(&mut self, doc: u32, score: f32) {
         self.0.collect(doc, score);
     }
@@ -84,16 +82,13 @@ impl<TSegmentCollector: SegmentCollector> BoxableSegmentCollector for SegmentCol
 
 pub struct FruitHandle<TFruit: Fruit> {
     pos: usize,
-    _phantom: PhantomData<TFruit>
+    _phantom: PhantomData<TFruit>,
 }
 
 impl<TFruit: Fruit> FruitHandle<TFruit> {
     pub fn extract(self, fruits: &mut MultiFruit) -> TFruit {
-        let boxed_fruit = fruits.sub_fruits[self.pos]
-            .take()
-            .expect("");
-        *Downcast::<TFruit>::downcast(boxed_fruit)
-            .expect("Failed")
+        let boxed_fruit = fruits.sub_fruits[self.pos].take().expect("");
+        *Downcast::<TFruit>::downcast(boxed_fruit).expect("Failed")
     }
 }
 
@@ -153,25 +148,29 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// }
 /// ```
 pub struct MultiCollector<'a> {
-    collector_wrappers: Vec<Box<Collector<Child=Box<BoxableSegmentCollector>,Fruit=Box<Fruit>> + 'a>>
+    collector_wrappers:
+        Vec<Box<Collector<Child = Box<BoxableSegmentCollector>, Fruit = Box<Fruit>> + 'a>>,
 }
 
 impl<'a> MultiCollector<'a> {
-
     /// Create a new `MultiCollector`
     pub fn new() -> MultiCollector<'a> {
         MultiCollector {
-            collector_wrappers: Vec::new()
+            collector_wrappers: Vec::new(),
         }
     }
 
     /// Add a new collector to our `MultiCollector`.
-    pub fn add_collector<'b: 'a, TCollector: Collector + 'b>(&mut self, collector: TCollector) -> FruitHandle<TCollector::Fruit> {
+    pub fn add_collector<'b: 'a, TCollector: Collector + 'b>(
+        &mut self,
+        collector: TCollector,
+    ) -> FruitHandle<TCollector::Fruit> {
         let pos = self.collector_wrappers.len();
-        self.collector_wrappers.push(Box::new(CollectorWrapper(collector)));
+        self.collector_wrappers
+            .push(Box::new(CollectorWrapper(collector)));
         FruitHandle {
             pos,
-            _phantom: PhantomData
+            _phantom: PhantomData,
         }
     }
 }
@@ -180,30 +179,27 @@ impl<'a> Collector for MultiCollector<'a> {
     type Fruit = MultiFruit;
     type Child = MultiCollectorChild;
 
-    fn for_segment(&self, segment_local_id: SegmentLocalId, segment: &SegmentReader) -> Result<MultiCollectorChild> {
-        let children = self.collector_wrappers
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentLocalId,
+        segment: &SegmentReader,
+    ) -> Result<MultiCollectorChild> {
+        let children = self
+            .collector_wrappers
             .iter()
-            .map(|collector_wrapper| {
-                collector_wrapper.for_segment(segment_local_id, segment)
-            })
+            .map(|collector_wrapper| collector_wrapper.for_segment(segment_local_id, segment))
             .collect::<Result<Vec<_>>>()?;
-        Ok(MultiCollectorChild {
-            children
-        })
+        Ok(MultiCollectorChild { children })
     }
 
     fn requires_scoring(&self) -> bool {
-        self.collector_wrappers
-            .iter()
-            .any(|c| c.requires_scoring())
+        self.collector_wrappers.iter().any(|c| c.requires_scoring())
     }
 
-    fn merge_fruits(&self, segments_multifruits: Vec<MultiFruit>)
-        -> Result<MultiFruit> {
-        let mut segment_fruits_list: Vec<Vec<Box<Fruit>>> =
-            (0..self.collector_wrappers.len())
-                .map(|_| Vec::with_capacity(segments_multifruits.len()))
-                .collect::<Vec<_>>();
+    fn merge_fruits(&self, segments_multifruits: Vec<MultiFruit>) -> Result<MultiFruit> {
+        let mut segment_fruits_list: Vec<Vec<Box<Fruit>>> = (0..self.collector_wrappers.len())
+            .map(|_| Vec::with_capacity(segments_multifruits.len()))
+            .collect::<Vec<_>>();
         for segment_multifruit in segments_multifruits {
             for (idx, segment_fruit_opt) in segment_multifruit.sub_fruits.into_iter().enumerate() {
                 if let Some(segment_fruit) = segment_fruit_opt {
@@ -211,21 +207,19 @@ impl<'a> Collector for MultiCollector<'a> {
                 }
             }
         }
-        let sub_fruits = self.collector_wrappers
+        let sub_fruits = self
+            .collector_wrappers
             .iter()
             .zip(segment_fruits_list)
-            .map(|(child_collector, segment_fruits)|
+            .map(|(child_collector, segment_fruits)| {
                 Ok(Some(child_collector.merge_fruits(segment_fruits)?))
-            )
-            .collect::<Result<_>>()?;
+            }).collect::<Result<_>>()?;
         Ok(MultiFruit { sub_fruits })
     }
-
 }
 
-
 pub struct MultiCollectorChild {
-    children: Vec<Box<BoxableSegmentCollector>>
+    children: Vec<Box<BoxableSegmentCollector>>,
 }
 
 impl SegmentCollector for MultiCollectorChild {
@@ -239,25 +233,25 @@ impl SegmentCollector for MultiCollectorChild {
 
     fn harvest(self) -> MultiFruit {
         MultiFruit {
-            sub_fruits: self.children
+            sub_fruits: self
+                .children
                 .into_iter()
-                .map(|child| Some(child.harvest()) )
-                .collect()
+                .map(|child| Some(child.harvest()))
+                .collect(),
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use collector::{Count, TopDocs};
-    use schema::{TEXT, Schema};
     use query::TermQuery;
+    use schema::IndexRecordOption;
+    use schema::{Schema, TEXT};
     use Index;
     use Term;
-    use schema::IndexRecordOption;
 
     #[test]
     fn test_multi_collector() {
@@ -291,4 +285,3 @@ mod tests {
         assert_eq!(topdocs_handler.extract(&mut multifruits).len(), 2);
     }
 }
-

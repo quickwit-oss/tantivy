@@ -108,7 +108,7 @@ impl NgramTokenizer {
     /// Create a `NGramTokenizer` which generates tokens for all inner ngrams.
     ///
     /// This is as opposed to only prefix ngrams    .
-    pub fn all_ngrams(min_gram: usize, max_gram:usize) ->  NgramTokenizer {
+    pub fn all_ngrams(min_gram: usize, max_gram: usize) -> NgramTokenizer {
         Self::new(min_gram, max_gram, false)
     }
 
@@ -137,9 +137,10 @@ impl<'a> Tokenizer<'a> for NgramTokenizer {
     fn token_stream(&self, text: &'a str) -> Self::TokenStreamImpl {
         NgramTokenStream {
             ngram_charidx_iterator: StutteringIterator::new(
-                    CodepointFrontiers::for_str(text),
+                CodepointFrontiers::for_str(text),
                 self.min_gram,
-                self.max_gram),
+                self.max_gram,
+            ),
             prefix_only: self.prefix_only,
             text,
             token: Token::default(),
@@ -172,7 +173,6 @@ impl<'a> TokenStream for NgramTokenStream<'a> {
     }
 }
 
-
 /// This iterator takes an underlying Iterator
 /// and emits all of the pairs `(a,b)` such that
 /// a and b are items emitted by the iterator at
@@ -190,11 +190,13 @@ struct StutteringIterator<T> {
 
     memory: Vec<usize>,
     cursor: usize,
-    gram_len: usize
+    gram_len: usize,
 }
 
 impl<T> StutteringIterator<T>
-    where T: Iterator<Item=usize> {
+where
+    T: Iterator<Item = usize>,
+{
     pub fn new(mut underlying: T, min_gram: usize, max_gram: usize) -> StutteringIterator<T> {
         assert!(min_gram > 0);
         let memory: Vec<usize> = (&mut underlying).take(max_gram + 1).collect();
@@ -222,7 +224,9 @@ impl<T> StutteringIterator<T>
 }
 
 impl<T> Iterator for StutteringIterator<T>
-    where T: Iterator<Item=usize> {
+where
+    T: Iterator<Item = usize>,
+{
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<(usize, usize)> {
@@ -230,7 +234,7 @@ impl<T> Iterator for StutteringIterator<T>
             // we have exhausted all options
             // starting at `self.memory[self.cursor]`.
             //
-            // Time to advance. 
+            // Time to advance.
             self.gram_len = self.min_gram;
             if let Some(next_val) = self.underlying.next() {
                 self.memory[self.cursor] = next_val;
@@ -252,22 +256,20 @@ impl<T> Iterator for StutteringIterator<T>
     }
 }
 
-
-
 /// Emits all of the offsets where a codepoint starts
 /// or a codepoint ends.
 ///
 /// By convention, we emit [0] for the empty string.
 struct CodepointFrontiers<'a> {
     s: &'a str,
-    next_el: Option<usize>
+    next_el: Option<usize>,
 }
 
 impl<'a> CodepointFrontiers<'a> {
     fn for_str(s: &'a str) -> Self {
         CodepointFrontiers {
             s,
-            next_el: Some(0)
+            next_el: Some(0),
         }
     }
 }
@@ -276,26 +278,20 @@ impl<'a> Iterator for CodepointFrontiers<'a> {
     type Item = usize;
 
     fn next(&mut self) -> Option<usize> {
-        self.next_el
-            .map(|offset| {
-                if self.s.is_empty() {
-                    self.next_el = None;
-                } else {
-                    let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
-                    self.s = &self.s[first_codepoint_width..];
-                    self.next_el = Some(offset + first_codepoint_width);
-                }
-                offset
-            })
+        self.next_el.map(|offset| {
+            if self.s.is_empty() {
+                self.next_el = None;
+            } else {
+                let first_codepoint_width = utf8_codepoint_width(self.s.as_bytes()[0]);
+                self.s = &self.s[first_codepoint_width..];
+                self.next_el = Some(offset + first_codepoint_width);
+            }
+            offset
+        })
     }
 }
 
-const CODEPOINT_UTF8_WIDTH: [u8; 16] = [
-    1, 1, 1, 1,
-    1, 1, 1, 1,
-    2, 2, 2, 2,
-    2, 2, 3, 4,
-];
+const CODEPOINT_UTF8_WIDTH: [u8; 16] = [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2, 3, 4];
 
 // Number of bytes to encode a codepoint in UTF-8 given
 // the first byte.
@@ -309,20 +305,19 @@ fn utf8_codepoint_width(b: u8) -> usize {
 #[cfg(test)]
 mod tests {
 
-    use tokenizer::tokenizer::{TokenStream, Tokenizer};
-    use super::NgramTokenizer;
-    use tokenizer::Token;
-    use tokenizer::tests::assert_token;
-    use super::CodepointFrontiers;
-    use super::StutteringIterator;
     use super::utf8_codepoint_width;
+    use super::CodepointFrontiers;
+    use super::NgramTokenizer;
+    use super::StutteringIterator;
+    use tokenizer::tests::assert_token;
+    use tokenizer::tokenizer::{TokenStream, Tokenizer};
+    use tokenizer::Token;
 
     fn test_helper<T: TokenStream>(mut tokenizer: T) -> Vec<Token> {
         let mut tokens: Vec<Token> = vec![];
         tokenizer.process(&mut |token: &Token| tokens.push(token.clone()));
         tokens
     }
-
 
     #[test]
     fn test_utf8_codepoint_width() {
@@ -344,17 +339,16 @@ mod tests {
         }
     }
 
-
     #[test]
     fn test_codepoint_frontiers() {
         assert_eq!(CodepointFrontiers::for_str("").collect::<Vec<_>>(), vec![0]);
         assert_eq!(
             CodepointFrontiers::for_str("abcd").collect::<Vec<_>>(),
-            vec![0,1,2,3,4]
+            vec![0, 1, 2, 3, 4]
         );
         assert_eq!(
-                CodepointFrontiers::for_str("aあ").collect::<Vec<_>>(),
-            vec![0,1,4]
+            CodepointFrontiers::for_str("aあ").collect::<Vec<_>>(),
+            vec![0, 1, 4]
         );
     }
 
@@ -425,7 +419,6 @@ mod tests {
         assert!(tokens.is_empty());
     }
 
-
     #[test]
     #[should_panic(expected = "min_gram must be greater than 0")]
     fn test_ngram_min_max_interval_empty() {
@@ -437,7 +430,6 @@ mod tests {
     fn test_invalid_interval_should_panic_if_smaller() {
         NgramTokenizer::all_ngrams(2, 1);
     }
-
 
     #[test]
     fn test_stutterring_iterator_empty() {

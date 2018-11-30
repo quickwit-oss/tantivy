@@ -4,6 +4,7 @@ use core::InvertedIndexReader;
 use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
+use directory::ReadOnlySource;
 use error::TantivyError;
 use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
@@ -24,7 +25,6 @@ use store::StoreReader;
 use termdict::TermDictionary;
 use DocId;
 use Result;
-use directory::ReadOnlySource;
 
 /// Entry point to access all of the datastructures of the `Segment`
 ///
@@ -384,7 +384,10 @@ impl SegmentReader {
             self.fast_fields_composite.space_usage(),
             self.fieldnorms_composite.space_usage(),
             self.get_store_reader().space_usage(),
-            self.delete_bitset_opt.as_ref().map(|x| x.space_usage()).unwrap_or(0),
+            self.delete_bitset_opt
+                .as_ref()
+                .map(|x| x.space_usage())
+                .unwrap_or(0),
         )
     }
 }

@@ -1,10 +1,10 @@
 use super::Collector;
+use collector::SegmentCollector;
 use DocId;
 use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::SegmentCollector;
 
 /// `CountCollector` collector only counts how many
 /// documents match the query.
@@ -56,9 +56,7 @@ use collector::SegmentCollector;
 /// ```
 pub struct Count;
 
-
 impl Collector for Count {
-
     type Fruit = usize;
 
     type Child = SegmentCountCollector;
@@ -76,12 +74,10 @@ impl Collector for Count {
     }
 }
 
-
 #[derive(Default)]
 pub struct SegmentCountCollector {
     count: usize,
 }
-
 
 impl SegmentCollector for SegmentCountCollector {
     type Fruit = usize;
@@ -95,12 +91,11 @@ impl SegmentCollector for SegmentCountCollector {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{Count, SegmentCountCollector};
-    use collector::SegmentCollector;
     use collector::Collector;
+    use collector::SegmentCollector;
 
     #[test]
     fn test_count_collect_does_not_requires_scoring() {
@@ -129,7 +124,6 @@ mod tests {
             count_collector.collect(1u32, 1f32);
             assert_eq!(count_collector.harvest(), 2);
         }
-
     }
 
 }

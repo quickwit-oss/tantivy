@@ -1,16 +1,16 @@
 use super::Collector;
+use collector::top_collector::TopCollector;
 use collector::top_collector::TopSegmentCollector;
+use collector::SegmentCollector;
+use collector::TopDocsByField;
+use fastfield::FastValue;
+use schema::Field;
+use DocAddress;
 use DocId;
 use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
-use collector::SegmentCollector;
-use collector::top_collector::TopCollector;
-use DocAddress;
-use collector::TopDocsByField;
-use schema::Field;
-use fastfield::FastValue;
 
 /// The Top Score Collector keeps track of the K documents
 /// sorted by their score.
@@ -66,7 +66,6 @@ use fastfield::FastValue;
 /// ```
 pub struct TopDocs(TopCollector<Score>);
 
-
 impl TopDocs {
     /// Creates a top score collector, with a number of documents equal to "limit".
     ///
@@ -80,18 +79,24 @@ impl TopDocs {
     ///
     /// (By default, `TopDocs` collects the top-K documents sorted by
     /// the similarity score.)
-    pub fn order_by_field<T: PartialOrd + FastValue + Clone>(self, field: Field) -> TopDocsByField<T> {
+    pub fn order_by_field<T: PartialOrd + FastValue + Clone>(
+        self,
+        field: Field,
+    ) -> TopDocsByField<T> {
         TopDocsByField::new(field, self.0.limit())
     }
 }
 
 impl Collector for TopDocs {
-
     type Fruit = Vec<(Score, DocAddress)>;
 
     type Child = TopScoreSegmentCollector;
 
-    fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<Self::Child> {
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentLocalId,
+        reader: &SegmentReader,
+    ) -> Result<Self::Child> {
         let collector = self.0.for_segment(segment_local_id, reader)?;
         Ok(TopScoreSegmentCollector(collector))
     }
@@ -120,18 +125,15 @@ impl SegmentCollector for TopScoreSegmentCollector {
     }
 }
 
-
-
-
 #[cfg(test)]
 mod tests {
     use super::TopDocs;
-    use Score;
-    use schema::Schema;
-    use Index;
-    use schema::TEXT;
     use query::QueryParser;
+    use schema::Schema;
+    use schema::TEXT;
     use DocAddress;
+    use Index;
+    use Score;
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -150,21 +152,25 @@ mod tests {
         index
     }
 
-
     #[test]
     fn test_top_collector_not_at_capacity() {
         let index = make_index();
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, &TopDocs::with_limit(4)).unwrap();
-        assert_eq!(score_docs, vec![
-            (0.81221175, DocAddress(0u32, 1)),
-            (0.5376842, DocAddress(0u32, 2)),
-            (0.48527452, DocAddress(0, 0))
-        ]);
+        let score_docs: Vec<(Score, DocAddress)> = index
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(4))
+            .unwrap();
+        assert_eq!(
+            score_docs,
+            vec![
+                (0.81221175, DocAddress(0u32, 1)),
+                (0.5376842, DocAddress(0u32, 2)),
+                (0.48527452, DocAddress(0, 0))
+            ]
+        );
     }
-
 
     #[test]
     fn test_top_collector_at_capacity() {
@@ -172,11 +178,17 @@ mod tests {
         let field = index.schema().get_field("text").unwrap();
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
-        let score_docs: Vec<(Score, DocAddress)> = index.searcher().search(&text_query, &TopDocs::with_limit(2)).unwrap();
-        assert_eq!(score_docs, vec![
-            (0.81221175, DocAddress(0u32, 1)),
-            (0.5376842, DocAddress(0u32, 2)),
-        ]);
+        let score_docs: Vec<(Score, DocAddress)> = index
+            .searcher()
+            .search(&text_query, &TopDocs::with_limit(2))
+            .unwrap();
+        assert_eq!(
+            score_docs,
+            vec![
+                (0.81221175, DocAddress(0u32, 1)),
+                (0.5376842, DocAddress(0u32, 2)),
+            ]
+        );
     }
 
     #[test]
@@ -186,4 +198,3 @@ mod tests {
     }
 
 }
-

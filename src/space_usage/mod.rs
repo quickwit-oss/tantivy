@@ -117,8 +117,8 @@ impl SegmentSpaceUsage {
     /// Clones the underlying data.
     /// Use the components directly if this is somehow in performance critical code.
     pub fn component(&self, component: SegmentComponent) -> ComponentSpaceUsage {
-        use SegmentComponent::*;
         use self::ComponentSpaceUsage::*;
+        use SegmentComponent::*;
         match component {
             POSTINGS => PerField(self.postings().clone()),
             POSITIONS => PerField(self.positions().clone()),
@@ -221,7 +221,7 @@ impl StoreSpaceUsage {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PerFieldSpaceUsage {
     fields: HashMap<Field, FieldUsage>,
-    total: ByteCount
+    total: ByteCount,
 }
 
 impl PerFieldSpaceUsage {
@@ -265,7 +265,7 @@ impl FieldUsage {
     }
 
     pub(crate) fn add_field_idx(&mut self, idx: usize, size: ByteCount) {
-        if self.sub_num_bytes.len() < idx + 1{
+        if self.sub_num_bytes.len() < idx + 1 {
             self.sub_num_bytes.resize(idx + 1, None);
         }
         assert!(self.sub_num_bytes[idx].is_none());
@@ -292,12 +292,12 @@ impl FieldUsage {
 #[cfg(test)]
 mod test {
     use core::Index;
-    use schema::Schema;
-    use schema::{FAST, INT_INDEXED, TEXT};
     use schema::Field;
+    use schema::Schema;
+    use schema::STORED;
+    use schema::{FAST, INT_INDEXED, TEXT};
     use space_usage::ByteCount;
     use space_usage::PerFieldSpaceUsage;
-    use schema::STORED;
     use Term;
 
     #[test]
@@ -311,12 +311,20 @@ mod test {
         assert_eq!(0, searcher_space_usage.total());
     }
 
-    fn expect_single_field(field_space: &PerFieldSpaceUsage, field: &Field, min_size: ByteCount, max_size: ByteCount) {
+    fn expect_single_field(
+        field_space: &PerFieldSpaceUsage,
+        field: &Field,
+        min_size: ByteCount,
+        max_size: ByteCount,
+    ) {
         assert!(field_space.total() >= min_size);
         assert!(field_space.total() <= max_size);
         assert_eq!(
             vec![(field, field_space.total())],
-            field_space.fields().map(|(x,y)| (x, y.total())).collect::<Vec<_>>()
+            field_space
+                .fields()
+                .map(|(x, y)| (x, y.total()))
+                .collect::<Vec<_>>()
         );
     }
 
@@ -354,7 +362,7 @@ mod test {
         expect_single_field(segment.fast_fields(), &name, 1, 512);
         expect_single_field(segment.fieldnorms(), &name, 1, 512);
         // TODO: understand why the following fails
-//        assert_eq!(0, segment.store().total());
+        //        assert_eq!(0, segment.store().total());
         assert_eq!(0, segment.deletes());
     }
 
@@ -369,7 +377,9 @@ mod test {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(name => "hi"));
             index_writer.add_document(doc!(name => "this is a test"));
-            index_writer.add_document(doc!(name => "some more documents with some word overlap with the other test"));
+            index_writer.add_document(
+                doc!(name => "some more documents with some word overlap with the other test"),
+            );
             index_writer.add_document(doc!(name => "hello hi goodbye"));
             index_writer.commit().unwrap();
         }
@@ -392,7 +402,7 @@ mod test {
         assert_eq!(0, segment.fast_fields().total());
         expect_single_field(segment.fieldnorms(), &name, 1, 512);
         // TODO: understand why the following fails
-//        assert_eq!(0, segment.store().total());
+        //        assert_eq!(0, segment.store().total());
         assert_eq!(0, segment.deletes());
     }
 
@@ -407,7 +417,9 @@ mod test {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(name => "hi"));
             index_writer.add_document(doc!(name => "this is a test"));
-            index_writer.add_document(doc!(name => "some more documents with some word overlap with the other test"));
+            index_writer.add_document(
+                doc!(name => "some more documents with some word overlap with the other test"),
+            );
             index_writer.add_document(doc!(name => "hello hi goodbye"));
             index_writer.commit().unwrap();
         }
@@ -478,7 +490,7 @@ mod test {
         assert_eq!(0, segment.fast_fields().total());
         expect_single_field(segment.fieldnorms(), &name, 1, 512);
         // TODO: understand why the following fails
-//        assert_eq!(0, segment.store().total());
+        //        assert_eq!(0, segment.store().total());
         assert!(segment.deletes() > 0);
     }
 }

@@ -271,12 +271,9 @@ mod bench {
     use test::Bencher;
 
     fn generate_array_with_seed(n: usize, ratio: f64, seed_val: u8) -> Vec<u32> {
-        let seed: &[u8; 16] = &[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,seed_val];
+        let seed: &[u8; 16] = &[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, seed_val];
         let mut rng: XorShiftRng = XorShiftRng::from_seed(*seed);
-        (0u32..)
-            .filter(|_| rng.gen_bool(ratio))
-            .take(n)
-            .collect()
+        (0u32..).filter(|_| rng.gen_bool(ratio)).take(n).collect()
     }
 
     pub fn generate_array(n: usize, ratio: f64) -> Vec<u32> {

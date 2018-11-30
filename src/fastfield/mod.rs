@@ -127,13 +127,13 @@ mod tests {
     use common::CompositeFile;
     use directory::{Directory, RAMDirectory, WritePtr};
     use fastfield::FastFieldReader;
+    use rand::prelude::SliceRandom;
     use rand::rngs::StdRng;
     use rand::SeedableRng;
     use schema::Document;
-    use rand::prelude::SliceRandom;
     use schema::Field;
-    use schema::FAST;
     use schema::Schema;
+    use schema::FAST;
     use std::collections::HashMap;
     use std::path::Path;
 

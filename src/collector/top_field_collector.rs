@@ -1,14 +1,14 @@
 use super::Collector;
 use collector::top_collector::TopCollector;
+use collector::top_collector::TopSegmentCollector;
 use collector::SegmentCollector;
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
 use schema::Field;
-use Result;
-use SegmentReader;
-use SegmentLocalId;
-use collector::top_collector::TopSegmentCollector;
 use DocAddress;
+use Result;
+use SegmentLocalId;
+use SegmentReader;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -67,10 +67,10 @@ use DocAddress;
 /// ```
 pub struct TopDocsByField<T> {
     collector: TopCollector<T>,
-    field: Field
+    field: Field,
 }
 
-impl<T: FastValue + PartialOrd + Clone > TopDocsByField<T> {
+impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
     /// Creates a top field collector, with a number of documents equal to "limit".
     ///
     /// The given field name must be a fast field, otherwise the collector have an error while
@@ -81,19 +81,21 @@ impl<T: FastValue + PartialOrd + Clone > TopDocsByField<T> {
     pub(crate) fn new(field: Field, limit: usize) -> TopDocsByField<T> {
         TopDocsByField {
             collector: TopCollector::with_limit(limit),
-            field
+            field,
         }
     }
 }
 
-
 impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByField<T> {
-
     type Fruit = Vec<(T, DocAddress)>;
 
     type Child = TopFieldSegmentCollector<T>;
 
-    fn for_segment(&self, segment_local_id: SegmentLocalId, reader: &SegmentReader) -> Result<TopFieldSegmentCollector<T>> {
+    fn for_segment(
+        &self,
+        segment_local_id: SegmentLocalId,
+        reader: &SegmentReader,
+    ) -> Result<TopFieldSegmentCollector<T>> {
         let collector = self.collector.for_segment(segment_local_id, reader)?;
         let reader = reader.fast_field_reader(self.field)?;
         Ok(TopFieldSegmentCollector { collector, reader })
@@ -103,7 +105,10 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByF
         false
     }
 
-    fn merge_fruits(&self, segment_fruits: Vec<Vec<(T, DocAddress)>>) -> Result<Vec<(T, DocAddress)>> {
+    fn merge_fruits(
+        &self,
+        segment_fruits: Vec<Vec<(T, DocAddress)>>,
+    ) -> Result<Vec<(T, DocAddress)>> {
         self.collector.merge_fruits(segment_fruits)
     }
 }
@@ -113,8 +118,9 @@ pub struct TopFieldSegmentCollector<T: FastValue + PartialOrd> {
     reader: FastFieldReader<T>,
 }
 
-impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector for TopFieldSegmentCollector<T> {
-
+impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector
+    for TopFieldSegmentCollector<T>
+{
     type Fruit = Vec<(T, DocAddress)>;
 
     fn collect(&mut self, doc: u32, _score: f32) {
@@ -130,17 +136,17 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector for Top
 #[cfg(test)]
 mod tests {
     use super::TopDocsByField;
+    use collector::Collector;
+    use collector::TopDocs;
     use query::Query;
     use query::QueryParser;
     use schema::Field;
     use schema::IntOptions;
     use schema::{Schema, FAST, TEXT};
+    use DocAddress;
     use Index;
     use IndexWriter;
     use TantivyError;
-    use collector::Collector;
-    use DocAddress;
-    use collector::TopDocs;
 
     const TITLE: &str = "title";
     const SIZE: &str = "size";
@@ -169,10 +175,14 @@ mod tests {
 
         let top_collector = TopDocs::with_limit(4).order_by_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
-        assert_eq!(top_docs, vec![
-            (64, DocAddress(0,1)),
-            (16, DocAddress(0,2)),
-            (12, DocAddress(0,0))]);
+        assert_eq!(
+            top_docs,
+            vec![
+                (64, DocAddress(0, 1)),
+                (16, DocAddress(0, 2)),
+                (12, DocAddress(0, 0))
+            ]
+        );
     }
 
     #[test]
@@ -189,11 +199,11 @@ mod tests {
             ));
         });
         let searcher = index.searcher();
-        let top_collector: TopDocsByField<u64> =
-            TopDocs::with_limit(4).order_by_field(Field(2));
+        let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(Field(2));
         let segment_reader = searcher.segment_reader(0u32);
-        top_collector.for_segment(0, segment_reader)
-                .expect("should panic");
+        top_collector
+            .for_segment(0, segment_reader)
+            .expect("should panic");
     }
 
     #[test]
@@ -212,7 +222,10 @@ mod tests {
         let segment = searcher.segment_reader(0);
         let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(size);
         assert_matches!(
-            top_collector.for_segment(0, segment).map(|_| ()).unwrap_err(),
+            top_collector
+                .for_segment(0, segment)
+                .map(|_| ())
+                .unwrap_err(),
             TantivyError::FastFieldError(_)
         );
     }
