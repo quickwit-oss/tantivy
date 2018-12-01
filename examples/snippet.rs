@@ -14,7 +14,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
-use tantivy::SnippetGenerator;
+use tantivy::{Snippet, SnippetGenerator};
 use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -64,7 +64,27 @@ fn main() -> tantivy::Result<()> {
         println!("Document score {}:", score);
         println!("title: {}", doc.get_first(title).unwrap().text().unwrap());
         println!("snippet: {}", snippet.to_html());
+        println!("custom highlighting: {}", highlight(snippet));
     }
 
     Ok(())
+}
+
+fn highlight(snippet: Snippet) -> String {
+    let mut result = String::new();
+    let mut start_from = 0;
+
+    for (start, end) in snippet.highlighted().iter().map(|h| h.bounds()) {
+        result.push_str(&snippet.fragments()[start_from..start]);
+
+        result.push_str(" --> ");
+
+        result.push_str(&snippet.fragments()[start..end]);
+
+        result.push_str(" <-- ");
+        start_from = end;
+    }
+
+    result.push_str(&snippet.fragments()[start_from..]);
+    result
 }

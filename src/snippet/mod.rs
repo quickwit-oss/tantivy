@@ -22,6 +22,12 @@ impl HighlightSection {
     fn new(start: usize, stop: usize) -> HighlightSection {
         HighlightSection { start, stop }
     }
+
+    /// Returns the bounds of the `HighlightSection`.
+    #[inline(always)]
+    pub fn bounds(&self) -> (usize, usize) {
+        (self.start, self.stop)
+    }
 }
 
 #[derive(Debug)]
@@ -65,6 +71,8 @@ impl FragmentCandidate {
     }
 }
 
+/// `Snippet`
+/// Contains a fragment of a document, and some highlighed parts inside it.
 #[derive(Debug)]
 pub struct Snippet {
     fragments: String,
@@ -75,6 +83,7 @@ const HIGHLIGHTEN_PREFIX: &str = "<b>";
 const HIGHLIGHTEN_POSTFIX: &str = "</b>";
 
 impl Snippet {
+    /// Create a new, empty, `Snippet`
     pub fn empty() -> Snippet {
         Snippet {
             fragments: String::new(),
@@ -98,6 +107,18 @@ impl Snippet {
             &self.fragments[start_from..self.fragments.len()],
         ));
         html
+    }
+
+    /// Returns a fragment from the `Snippet`.
+    #[inline(always)]
+    pub fn fragments(&self) -> &str {
+        &self.fragments
+    }
+
+    /// Returns a list of higlighted positions from the `Snippet`.
+    #[inline(always)]
+    pub fn highlighted(&self) -> &[HighlightSection] {
+        &self.highlighted
     }
 }
 
