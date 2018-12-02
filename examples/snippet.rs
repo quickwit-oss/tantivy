@@ -76,11 +76,8 @@ fn highlight(snippet: Snippet) -> String {
 
     for (start, end) in snippet.highlighted().iter().map(|h| h.bounds()) {
         result.push_str(&snippet.fragments()[start_from..start]);
-
         result.push_str(" --> ");
-
         result.push_str(&snippet.fragments()[start..end]);
-
         result.push_str(" <-- ");
         start_from = end;
     }

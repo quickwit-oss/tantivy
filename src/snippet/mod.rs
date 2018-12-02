@@ -24,7 +24,6 @@ impl HighlightSection {
     }
 
     /// Returns the bounds of the `HighlightSection`.
-    #[inline(always)]
     pub fn bounds(&self) -> (usize, usize) {
         (self.start, self.stop)
     }
@@ -110,13 +109,11 @@ impl Snippet {
     }
 
     /// Returns a fragment from the `Snippet`.
-    #[inline(always)]
     pub fn fragments(&self) -> &str {
         &self.fragments
     }
 
     /// Returns a list of higlighted positions from the `Snippet`.
-    #[inline(always)]
     pub fn highlighted(&self) -> &[HighlightSection] {
         &self.highlighted
     }
