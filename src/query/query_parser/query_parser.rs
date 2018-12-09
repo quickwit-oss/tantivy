@@ -68,7 +68,8 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
                 .into_iter()
                 .flat_map(|(occur, child)| {
                     trim_ast(child).map(|trimmed_child| (occur, trimmed_child))
-                }).collect::<Vec<_>>();
+                })
+                .collect::<Vec<_>>();
             if trimmed_children.is_empty() {
                 None
             } else {
@@ -422,7 +423,8 @@ impl QueryParser {
                             lower: self.resolve_bound(field, &lower)?,
                             upper: self.resolve_bound(field, &upper)?,
                         })))
-                    }).collect::<Result<Vec<_>, QueryParserError>>()?;
+                    })
+                    .collect::<Result<Vec<_>, QueryParserError>>()?;
                 let result_ast = if clauses.len() == 1 {
                     clauses.pop().unwrap()
                 } else {
@@ -598,25 +600,19 @@ mod test {
         assert!(query_parser.parse_query("signed:2324").is_ok());
         assert!(query_parser.parse_query("signed:\"22\"").is_ok());
         assert!(query_parser.parse_query("signed:\"-2234\"").is_ok());
-        assert!(
-            query_parser
-                .parse_query("signed:\"-9999999999999\"")
-                .is_ok()
-        );
+        assert!(query_parser
+            .parse_query("signed:\"-9999999999999\"")
+            .is_ok());
         assert!(query_parser.parse_query("signed:\"a\"").is_err());
         assert!(query_parser.parse_query("signed:\"2a\"").is_err());
-        assert!(
-            query_parser
-                .parse_query("signed:\"18446744073709551615\"")
-                .is_err()
-        );
+        assert!(query_parser
+            .parse_query("signed:\"18446744073709551615\"")
+            .is_err());
         assert!(query_parser.parse_query("unsigned:\"2\"").is_ok());
         assert!(query_parser.parse_query("unsigned:\"-2\"").is_err());
-        assert!(
-            query_parser
-                .parse_query("unsigned:\"18446744073709551615\"")
-                .is_ok()
-        );
+        assert!(query_parser
+            .parse_query("unsigned:\"18446744073709551615\"")
+            .is_ok());
         test_parse_query_to_logical_ast_helper(
             "unsigned:2324",
             "Term([0, 0, 0, 3, 0, 0, 0, 0, 0, 0, 9, 20])",

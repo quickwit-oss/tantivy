@@ -95,10 +95,7 @@ impl StoreReader {
     }
 }
 
-#[cfg_attr(
-    feature = "cargo-clippy",
-    allow(clippy::needless_pass_by_value)
-)]
+#[cfg_attr(feature = "cargo-clippy", allow(clippy::needless_pass_by_value))]
 fn split_source(data: ReadOnlySource) -> (ReadOnlySource, ReadOnlySource, DocId) {
     let data_len = data.len();
     let footer_offset = data_len - size_of::<u64>() - size_of::<u32>();

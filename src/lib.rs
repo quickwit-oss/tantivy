@@ -1,6 +1,5 @@
 #![doc(html_logo_url = "http://fulmicoton.com/tantivy-logo/tantivy-logo.png")]
 #![cfg_attr(all(feature = "unstable", test), feature(test))]
-#![cfg_attr(feature = "cargo-clippy", feature(tool_lints))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::module_inception))]
 #![doc(test(attr(allow(unused_variables), deny(warnings))))]
 #![warn(missing_docs)]
@@ -184,10 +183,7 @@ mod macros;
 
 pub use error::TantivyError;
 
-#[deprecated(
-    since = "0.7.0",
-    note = "please use `tantivy::TantivyError` instead"
-)]
+#[deprecated(since = "0.7.0", note = "please use `tantivy::TantivyError` instead")]
 pub use error::TantivyError as Error;
 
 extern crate census;
@@ -217,7 +213,7 @@ pub mod store;
 pub mod termdict;
 
 mod snippet;
-pub use self::snippet::{SnippetGenerator, Snippet};
+pub use self::snippet::{Snippet, SnippetGenerator};
 
 mod docset;
 pub use self::docset::{DocSet, SkipResult};
@@ -514,11 +510,9 @@ mod tests {
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(text_field);
-            assert!(
-                inverted_index
-                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
-                    .is_none()
-            );
+            assert!(inverted_index
+                .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
+                .is_none());
             {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
@@ -553,11 +547,9 @@ mod tests {
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(term_abcd.field());
 
-            assert!(
-                inverted_index
-                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
-                    .is_none()
-            );
+            assert!(inverted_index
+                .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
+                .is_none());
             {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
@@ -591,11 +583,9 @@ mod tests {
             let searcher = index.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(term_abcd.field());
-            assert!(
-                inverted_index
-                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
-                    .is_none()
-            );
+            assert!(inverted_index
+                .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
+                .is_none());
             {
                 let mut postings = inverted_index
                     .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
@@ -743,11 +733,9 @@ mod tests {
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(text_field);
             let term_abcd = Term::from_field_text(text_field, "abcd");
-            assert!(
-                inverted_index
-                    .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
-                    .is_none()
-            );
+            assert!(inverted_index
+                .read_postings(&term_abcd, IndexRecordOption::WithFreqsAndPositions)
+                .is_none());
             let term_af = Term::from_field_text(text_field, "af");
             let mut postings = inverted_index
                 .read_postings(&term_af, IndexRecordOption::WithFreqsAndPositions)

@@ -61,7 +61,8 @@ fn initial_table_size(per_thread_memory_budget: usize) -> usize {
                 "Per thread memory is too small: {}",
                 per_thread_memory_budget
             )
-        }).min(19) // we cap it at 512K
+        })
+        .min(19) // we cap it at 512K
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -139,7 +140,7 @@ pub fn open_index_writer(
     let stamper = Stamper::new(current_opstamp);
 
     let segment_updater =
-        SegmentUpdater::new(index.clone(), stamper.clone(), &delete_queue.cursor())?;
+        SegmentUpdater::create(index.clone(), stamper.clone(), &delete_queue.cursor())?;
 
     let mut index_writer = IndexWriter {
         _directory_lock: Some(directory_lock),
@@ -390,7 +391,8 @@ impl IndexWriter {
             .name(format!(
                 "thrd-tantivy-index{}-gen{}",
                 self.worker_id, generation
-            )).spawn(move || {
+            ))
+            .spawn(move || {
                 loop {
                     let mut document_iterator =
                         document_receiver_clone.clone().into_iter().peekable();
@@ -465,10 +467,8 @@ impl IndexWriter {
     ///
     /// Returns the former segment_ready channel.
     fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (mut document_sender, mut document_receiver): (
-            DocumentSender,
-            DocumentReceiver,
-        ) = channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
+        let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) =
+            channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
         swap(&mut self.document_sender, &mut document_sender);
         swap(&mut self.document_receiver, &mut document_receiver);
         document_receiver

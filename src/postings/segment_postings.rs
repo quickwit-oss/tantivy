@@ -533,7 +533,8 @@ impl BlockSegmentPostings {
                     } else {
                         BlockSegmentPostingsSkipResult::Terminated
                     }
-                }).unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
+                })
+                .unwrap_or(BlockSegmentPostingsSkipResult::Terminated);
         }
         BlockSegmentPostingsSkipResult::Terminated
     }

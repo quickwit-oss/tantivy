@@ -221,12 +221,10 @@ pub mod tests {
             }
             {
                 let term_a = Term::from_field_text(text_field, "abcdef");
-                assert!(
-                    segment_reader
-                        .inverted_index(term_a.field())
-                        .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
-                        .is_none()
-                );
+                assert!(segment_reader
+                    .inverted_index(term_a.field())
+                    .read_postings(&term_a, IndexRecordOption::WithFreqsAndPositions)
+                    .is_none());
             }
             {
                 let term_a = Term::from_field_text(text_field, "a");

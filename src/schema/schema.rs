@@ -232,12 +232,14 @@ impl Schema {
                     let field_entry = self.get_field_entry(field);
                     let field_type = field_entry.field_type();
                     match *json_value {
-                        JsonValue::Array(ref json_items) => for json_item in json_items {
-                            let value = field_type
-                                .value_from_json(json_item)
-                                .map_err(|e| DocParsingError::ValueError(field_name.clone(), e))?;
-                            doc.add(FieldValue::new(field, value));
-                        },
+                        JsonValue::Array(ref json_items) => {
+                            for json_item in json_items {
+                                let value = field_type.value_from_json(json_item).map_err(|e| {
+                                    DocParsingError::ValueError(field_name.clone(), e)
+                                })?;
+                                doc.add(FieldValue::new(field, value));
+                            }
+                        }
                         _ => {
                             let value = field_type
                                 .value_from_json(json_value)
@@ -446,7 +448,8 @@ mod tests {
                 "count": 4,
                 "popularity": 10
             }"#,
-                ).unwrap();
+                )
+                .unwrap();
             assert_eq!(doc.get_first(title_field).unwrap().text(), Some("my title"));
             assert_eq!(
                 doc.get_first(author_field).unwrap().text(),

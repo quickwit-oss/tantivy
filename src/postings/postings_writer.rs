@@ -29,7 +29,8 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
                 IndexRecordOption::WithFreqsAndPositions => {
                     SpecializedPostingsWriter::<TFAndPositionRecorder>::new_boxed()
                 }
-            }).unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
+            })
+            .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
         FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
             SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
         }
@@ -107,10 +108,8 @@ impl MultiFieldPostingsWriter {
             .map(|(key, _, _)| Term::wrap(key).field())
             .enumerate();
 
-        let mut unordered_term_mappings: HashMap<
-            Field,
-            HashMap<UnorderedTermId, TermOrdinal>,
-        > = HashMap::new();
+        let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
+            HashMap::new();
 
         let mut prev_field = Field(u32::max_value());
         for (offset, field) in term_offsets_it {
@@ -138,7 +137,8 @@ impl MultiFieldPostingsWriter {
                         .enumerate()
                         .map(|(term_ord, unord_term_id)| {
                             (unord_term_id as UnorderedTermId, term_ord as TermOrdinal)
-                        }).collect();
+                        })
+                        .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
                 FieldType::U64(_) | FieldType::I64(_) => {}

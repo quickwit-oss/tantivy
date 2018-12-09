@@ -138,7 +138,7 @@ struct InnerSegmentUpdater {
 }
 
 impl SegmentUpdater {
-    pub fn new(
+    pub fn create(
         index: Index,
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
@@ -195,7 +195,8 @@ impl SegmentUpdater {
                 segment_updater.0.segment_manager.add_segment(segment_entry);
                 segment_updater.consider_merge_options();
                 true
-            }).forget();
+            })
+            .forget();
             true
         } else {
             false
@@ -249,14 +250,16 @@ impl SegmentUpdater {
                 opstamp,
                 commit_message,
                 directory.box_clone().borrow_mut(),
-            ).expect("Could not save metas.");
+            )
+            .expect("Could not save metas.");
         }
     }
 
     pub fn garbage_collect_files(&self) -> Result<()> {
         self.run_async(move |segment_updater| {
             segment_updater.garbage_collect_files_exec();
-        }).wait()
+        })
+        .wait()
     }
 
     fn garbage_collect_files_exec(&self) {
@@ -278,7 +281,8 @@ impl SegmentUpdater {
                 segment_updater.garbage_collect_files_exec();
                 segment_updater.consider_merge_options();
             }
-        }).wait()
+        })
+        .wait()
     }
 
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
@@ -286,7 +290,8 @@ impl SegmentUpdater {
         let segment_ids_vec = segment_ids.to_vec();
         self.run_async(move |segment_updater| {
             segment_updater.start_merge_impl(&segment_ids_vec[..])
-        }).wait()?
+        })
+        .wait()?
     }
 
     // `segment_ids` is required to be non-empty.
@@ -352,7 +357,8 @@ impl SegmentUpdater {
                     .unwrap()
                     .remove(&merging_thread_id);
                 Ok(())
-            }).expect("Failed to spawn a thread.");
+            })
+            .expect("Failed to spawn a thread.");
         self.0
             .merging_threads
             .write()
@@ -443,7 +449,8 @@ impl SegmentUpdater {
             let previous_metas = segment_updater.0.index.load_metas().unwrap();
             segment_updater.save_metas(previous_metas.opstamp, previous_metas.payload);
             segment_updater.garbage_collect_files_exec();
-        }).wait()
+        })
+        .wait()
     }
 
     /// Wait for current merging threads.

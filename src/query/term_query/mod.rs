@@ -1,4 +1,3 @@
-
 mod term_query;
 mod term_scorer;
 mod term_weight;

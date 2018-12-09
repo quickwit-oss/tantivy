@@ -192,7 +192,8 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
                     item.start - fragment.start_offset,
                     item.stop - fragment.start_offset,
                 )
-            }).collect();
+            })
+            .collect();
         Snippet {
             fragments: fragment_text.to_string(),
             highlighted,
@@ -242,7 +243,7 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// let query = query_parser.parse_query("haleurs flamands").unwrap();
 /// # index.load_searchers()?;
 /// # let searcher = index.searcher();
-/// let mut snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field)?;
+/// let mut snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
 /// snippet_generator.set_max_num_chars(100);
 /// let snippet = snippet_generator.snippet_from_doc(&doc);
 /// let snippet_html: String = snippet.to_html();
@@ -259,7 +260,7 @@ pub struct SnippetGenerator {
 
 impl SnippetGenerator {
     /// Creates a new snippet generator
-    pub fn new(searcher: &Searcher, query: &Query, field: Field) -> Result<SnippetGenerator> {
+    pub fn create(searcher: &Searcher, query: &Query, field: Field) -> Result<SnippetGenerator> {
         let mut terms = BTreeSet::new();
         query.query_terms(&mut terms);
         let terms_text: BTreeMap<String, f32> = terms
@@ -273,7 +274,8 @@ impl SnippetGenerator {
                 } else {
                     None
                 }
-            }).collect();
+            })
+            .collect();
         let tokenizer = searcher.index().tokenizer_for_field(field)?;
         Ok(SnippetGenerator {
             terms_text,
@@ -532,12 +534,14 @@ Survey in 2016, 2017, and 2018."#;
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         {
             let query = query_parser.parse_query("e").unwrap();
-            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            let snippet_generator =
+                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert!(snippet_generator.terms_text().is_empty());
         }
         {
             let query = query_parser.parse_query("a").unwrap();
-            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            let snippet_generator =
+                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25f32),
                 snippet_generator.terms_text()
@@ -545,7 +549,8 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             let query = query_parser.parse_query("a b").unwrap();
-            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            let snippet_generator =
+                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
@@ -553,7 +558,8 @@ Survey in 2016, 2017, and 2018."#;
         }
         {
             let query = query_parser.parse_query("a b c").unwrap();
-            let snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+            let snippet_generator =
+                SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
             assert_eq!(
                 &btreemap!("a".to_string() => 0.25f32, "b".to_string() => 0.5),
                 snippet_generator.terms_text()
@@ -585,7 +591,8 @@ Survey in 2016, 2017, and 2018."#;
         let searcher = index.searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("rust design").unwrap();
-        let mut snippet_generator = SnippetGenerator::new(&searcher, &*query, text_field).unwrap();
+        let mut snippet_generator =
+            SnippetGenerator::create(&searcher, &*query, text_field).unwrap();
         {
             let snippet = snippet_generator.snippet(TEST_TEXT);
             assert_eq!(snippet.to_html(), "imperative-procedural paradigms. <b>Rust</b> is syntactically similar to C++[according to whom?],\nbut its <b>designers</b> intend it to provide better memory safety");
