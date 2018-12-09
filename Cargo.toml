@@ -49,6 +49,7 @@ failure = "0.1"
 htmlescape = "0.3.1"
 fail = "0.2"
 scoped-pool = "1.0"
+aho-corasick = "0.6"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"

@@ -140,6 +140,7 @@ mod stop_word_filter;
 mod token_stream_chain;
 mod tokenizer;
 mod tokenizer_manager;
+mod char_processing;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
