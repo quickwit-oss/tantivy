@@ -43,7 +43,8 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
                         let err_msg = format!("Failed to cast child collector fruit. {:?}", e);
                         TantivyError::InvalidArgument(err_msg)
                     })
-            }).collect::<Result<_>>()?;
+            })
+            .collect::<Result<_>>()?;
         let merged_fruit = self.0.merge_fruits(typed_fruit)?;
         Ok(Box::new(merged_fruit))
     }
@@ -147,6 +148,8 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 ///     Ok(())
 /// }
 /// ```
+#[allow(clippy::type_complexity)]
+#[derive(Default)]
 pub struct MultiCollector<'a> {
     collector_wrappers:
         Vec<Box<Collector<Child = Box<BoxableSegmentCollector>, Fruit = Box<Fruit>> + 'a>>,
@@ -154,10 +157,8 @@ pub struct MultiCollector<'a> {
 
 impl<'a> MultiCollector<'a> {
     /// Create a new `MultiCollector`
-    pub fn new() -> MultiCollector<'a> {
-        MultiCollector {
-            collector_wrappers: Vec::new(),
-        }
+    pub fn new() -> Self {
+        Default::default()
     }
 
     /// Add a new collector to our `MultiCollector`.
@@ -213,7 +214,8 @@ impl<'a> Collector for MultiCollector<'a> {
             .zip(segment_fruits_list)
             .map(|(child_collector, segment_fruits)| {
                 Ok(Some(child_collector.merge_fruits(segment_fruits)?))
-            }).collect::<Result<_>>()?;
+            })
+            .collect::<Result<_>>()?;
         Ok(MultiFruit { sub_fruits })
     }
 }

@@ -55,7 +55,8 @@ where
                         None
                     }
                 },
-            ).collect();
+            )
+            .collect();
         Union {
             docsets: non_empty_docsets,
             bitsets: Box::new([TinySet::empty(); HORIZON_NUM_TINYBITSETS]),
@@ -214,10 +215,7 @@ where
 
             // The target is outside of the buffered horizon.
             // advance all docsets to a doc >= to the target.
-            #[cfg_attr(
-                feature = "cargo-clippy",
-                allow(clippy::clippy::collapsible_if)
-            )]
+            #[cfg_attr(feature = "cargo-clippy", allow(clippy::clippy::collapsible_if))]
             unordered_drain_filter(&mut self.docsets, |docset| {
                 if docset.doc() < target {
                     if docset.skip_next(target) == SkipResult::End {

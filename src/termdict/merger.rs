@@ -53,7 +53,8 @@ impl<'a> TermMerger<'a> {
                 .map(|(ord, streamer)| HeapItem {
                     streamer,
                     segment_ord: ord,
-                }).collect(),
+                })
+                .collect(),
         }
     }
 
@@ -122,10 +123,7 @@ impl<'a> TermMerger<'a> {
     }
 
     /// Iterates through terms
-    #[cfg_attr(
-        feature = "cargo-clippy",
-        allow(clippy::should_implement_trait)
-    )]
+    #[cfg_attr(feature = "cargo-clippy", allow(clippy::should_implement_trait))]
     pub fn next(&mut self) -> Option<Term<&[u8]>> {
         if self.advance() {
             Some(Term::wrap(self.current_streamers[0].streamer.key()))

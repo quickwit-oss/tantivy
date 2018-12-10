@@ -94,7 +94,8 @@ mod tests {
                     panic!("panic should propagate");
                 },
                 vec![0].into_iter(),
-            ).unwrap();
+            )
+            .unwrap();
     }
 
     #[test]
@@ -106,7 +107,8 @@ mod tests {
                     panic!("panic should propagate");
                 },
                 vec![0].into_iter(),
-            ).unwrap();
+            )
+            .unwrap();
     }
 
     #[test]

@@ -84,11 +84,9 @@ where
             for (feature, doc) in child_fruit {
                 if top_collector.len() < self.limit {
                     top_collector.push(ComparableDoc { feature, doc });
-                } else {
-                    if let Some(mut head) = top_collector.peek_mut() {
-                        if head.feature < feature {
-                            *head = ComparableDoc { feature, doc };
-                        }
+                } else if let Some(mut head) = top_collector.peek_mut() {
+                    if head.feature < feature {
+                        *head = ComparableDoc { feature, doc };
                     }
                 }
             }
@@ -142,7 +140,8 @@ impl<T: PartialOrd + Clone> TopSegmentCollector<T> {
                     comparable_doc.feature,
                     DocAddress(segment_id, comparable_doc.doc),
                 )
-            }).collect()
+            })
+            .collect()
     }
 
     /// Return true iff at least K documents have gone through

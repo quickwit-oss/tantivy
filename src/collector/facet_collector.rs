@@ -474,7 +474,8 @@ mod tests {
                 n /= 4;
                 let leaf = n % 5;
                 Facet::from(&format!("/top{}/mid{}/leaf{}", top, mid, leaf))
-            }).collect();
+            })
+            .collect();
         for i in 0..num_facets * 10 {
             let mut doc = Document::new();
             doc.add_facet(facet_field, facets[i % num_facets].clone());
@@ -500,18 +501,16 @@ mod tests {
                     ("/top1/mid2", 50),
                     ("/top1/mid3", 50),
                 ]
-                    .iter()
-                    .map(|&(facet_str, count)| (String::from(facet_str), count))
-                    .collect::<Vec<_>>()
+                .iter()
+                .map(|&(facet_str, count)| (String::from(facet_str), count))
+                .collect::<Vec<_>>()
             );
         }
     }
 
     #[test]
-    #[should_panic(
-        expected = "Tried to add a facet which is a descendant of \
-                    an already added facet."
-    )]
+    #[should_panic(expected = "Tried to add a facet which is a descendant of \
+                               an already added facet.")]
     fn test_misused_facet_collector() {
         let mut facet_collector = FacetCollector::for_field(Field(0));
         facet_collector.add_facet(Facet::from("/country"));
@@ -563,13 +562,15 @@ mod tests {
                 let facet = Facet::from(&format!("/facet/{}", c));
                 let doc = doc!(facet_field => facet);
                 iter::repeat(doc).take(count)
-            }).map(|mut doc| {
+            })
+            .map(|mut doc| {
                 doc.add_facet(
                     facet_field,
                     &format!("/facet/{}", thread_rng().sample(&uniform)),
                 );
                 doc
-            }).collect();
+            })
+            .collect();
         docs[..].shuffle(&mut thread_rng());
 
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();

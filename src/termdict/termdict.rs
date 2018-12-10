@@ -29,7 +29,7 @@ where
     W: Write,
 {
     /// Creates a new `TermDictionaryBuilder`
-    pub fn new(w: W, _field_type: &FieldType) -> io::Result<Self> {
+    pub fn create(w: W, _field_type: &FieldType) -> io::Result<Self> {
         let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
             fst_builder,
@@ -132,7 +132,7 @@ impl TermDictionary {
     /// Creates an empty term dictionary which contains no terms.
     pub fn empty(field_type: &FieldType) -> Self {
         let term_dictionary_data: Vec<u8> =
-            TermDictionaryBuilder::new(Vec::<u8>::new(), &field_type)
+            TermDictionaryBuilder::create(Vec::<u8>::new(), &field_type)
                 .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");

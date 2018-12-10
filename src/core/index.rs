@@ -135,7 +135,7 @@ impl Index {
 
     /// Creates a new index given an implementation of the trait `Directory`
     pub fn create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
-        let directory = ManagedDirectory::new(dir)?;
+        let directory = ManagedDirectory::wrap(dir)?;
         Index::from_directory(directory, schema)
     }
 
@@ -199,7 +199,7 @@ impl Index {
 
     /// Open the index using the provided directory
     pub fn open<D: Directory>(directory: D) -> Result<Index> {
-        let directory = ManagedDirectory::new(directory)?;
+        let directory = ManagedDirectory::wrap(directory)?;
         let metas = load_metas(&directory)?;
         Index::create_from_metas(directory, &metas)
     }

@@ -104,7 +104,8 @@ impl Searcher {
             .iter()
             .map(|segment_reader| {
                 u64::from(segment_reader.inverted_index(term.field()).doc_freq(term))
-            }).sum::<u64>()
+            })
+            .sum::<u64>()
     }
 
     /// Return the list of segment readers

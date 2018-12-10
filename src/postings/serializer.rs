@@ -55,7 +55,7 @@ pub struct InvertedIndexSerializer {
 
 impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
-    fn new(
+    fn create(
         terms_write: CompositeWrite<WritePtr>,
         postings_write: CompositeWrite<WritePtr>,
         positions_write: CompositeWrite<WritePtr>,
@@ -74,7 +74,7 @@ impl InvertedIndexSerializer {
     /// Open a new `PostingsSerializer` for the given segment
     pub fn open(segment: &mut Segment) -> Result<InvertedIndexSerializer> {
         use SegmentComponent::{POSITIONS, POSITIONSSKIP, POSTINGS, TERMS};
-        InvertedIndexSerializer::new(
+        InvertedIndexSerializer::create(
             CompositeWrite::wrap(segment.open_write(TERMS)?),
             CompositeWrite::wrap(segment.open_write(POSTINGS)?),
             CompositeWrite::wrap(segment.open_write(POSITIONS)?),
@@ -99,7 +99,7 @@ impl InvertedIndexSerializer {
         let positions_write = self.positions_write.for_field(field);
         let positionsidx_write = self.positionsidx_write.for_field(field);
         let field_type: FieldType = (*field_entry.field_type()).clone();
-        FieldSerializer::new(
+        FieldSerializer::create(
             &field_type,
             term_dictionary_write,
             postings_write,
@@ -130,7 +130,7 @@ pub struct FieldSerializer<'a> {
 }
 
 impl<'a> FieldSerializer<'a> {
-    fn new(
+    fn create(
         field_type: &FieldType,
         term_dictionary_write: &'a mut CountingWriter<WritePtr>,
         postings_write: &'a mut CountingWriter<WritePtr>,
@@ -152,7 +152,7 @@ impl<'a> FieldSerializer<'a> {
             _ => (false, false),
         };
         let term_dictionary_builder =
-            TermDictionaryBuilder::new(term_dictionary_write, &field_type)?;
+            TermDictionaryBuilder::create(term_dictionary_write, &field_type)?;
         let postings_serializer =
             PostingsSerializer::new(postings_write, term_freq_enabled, position_enabled);
         let positions_serializer_opt = if position_enabled {

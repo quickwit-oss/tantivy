@@ -40,13 +40,15 @@ fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
             total_tokens += reader.inverted_index(field).total_num_tokens();
         }
     }
-    total_tokens + count
-        .iter()
-        .cloned()
-        .enumerate()
-        .map(|(fieldnorm_ord, count)| {
-            count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
-        }).sum::<u64>()
+    total_tokens
+        + count
+            .iter()
+            .cloned()
+            .enumerate()
+            .map(|(fieldnorm_ord, count)| {
+                count as u64 * u64::from(FieldNormReader::id_to_fieldnorm(fieldnorm_ord as u8))
+            })
+            .sum::<u64>()
 }
 
 pub struct IndexMerger {
@@ -523,7 +525,8 @@ impl IndexMerger {
                         }
                     }
                     None
-                }).collect();
+                })
+                .collect();
 
             // At this point, `segment_postings` contains the posting list
             // of all of the segments containing the given term.
@@ -664,7 +667,8 @@ mod tests {
                 TextFieldIndexing::default()
                     .set_tokenizer("default")
                     .set_index_option(IndexRecordOption::WithFreqs),
-            ).set_stored();
+            )
+            .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
@@ -803,7 +807,8 @@ mod tests {
                         .search(
                             &query,
                             &BytesFastFieldTestCollector::for_field(bytes_score_field),
-                        ).expect("failed to search")
+                        )
+                        .expect("failed to search")
                 };
                 assert_eq!(
                     get_fast_vals(vec![Term::from_field_text(text_field, "a")]),
@@ -823,7 +828,8 @@ mod tests {
         let text_fieldtype = schema::TextOptions::default()
             .set_indexing_options(
                 TextFieldIndexing::default().set_index_option(IndexRecordOption::WithFreqs),
-            ).set_stored();
+            )
+            .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
@@ -851,21 +857,21 @@ mod tests {
         {
             // a first commit
             index_writer.add_document(doc!(
-                    text_field => "a b d",
-                    score_field => 1u64,
-                    bytes_score_field => vec![0u8, 0, 0, 1],
-                ));
+                text_field => "a b d",
+                score_field => 1u64,
+                bytes_score_field => vec![0u8, 0, 0, 1],
+            ));
             index_writer.add_document(doc!(
-                    text_field => "b c",
-                    score_field => 2u64,
-                    bytes_score_field => vec![0u8, 0, 0, 2],
-                ));
+                text_field => "b c",
+                score_field => 2u64,
+                bytes_score_field => vec![0u8, 0, 0, 2],
+            ));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.add_document(doc!(
-                    text_field => "c d",
-                    score_field => 3u64,
-                    bytes_score_field => vec![0u8, 0, 0, 3],
-                ));
+                text_field => "c d",
+                score_field => 3u64,
+                bytes_score_field => vec![0u8, 0, 0, 3],
+            ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let ref searcher = *index.searcher();
@@ -892,27 +898,27 @@ mod tests {
         {
             // a second commit
             index_writer.add_document(doc!(
-                    text_field => "a d e",
-                    score_field => 4_000u64,
-                    bytes_score_field => vec![0u8, 0, 0, 4],
-                ));
+                text_field => "a d e",
+                score_field => 4_000u64,
+                bytes_score_field => vec![0u8, 0, 0, 4],
+            ));
             index_writer.add_document(doc!(
-                    text_field => "e f",
-                    score_field => 5_000u64,
-                    bytes_score_field => vec![0u8, 0, 0, 5],
-                ));
+                text_field => "e f",
+                score_field => 5_000u64,
+                bytes_score_field => vec![0u8, 0, 0, 5],
+            ));
             index_writer.delete_term(Term::from_field_text(text_field, "a"));
             index_writer.delete_term(Term::from_field_text(text_field, "f"));
             index_writer.add_document(doc!(
-                    text_field => "f g",
-                    score_field => 6_000u64,
-                    bytes_score_field => vec![0u8, 0, 23, 112],
-                ));
+                text_field => "f g",
+                score_field => 6_000u64,
+                bytes_score_field => vec![0u8, 0, 23, 112],
+            ));
             index_writer.add_document(doc!(
-                    text_field => "g h",
-                    score_field => 7_000u64,
-                    bytes_score_field => vec![0u8, 0, 27, 88],
-                ));
+                text_field => "g h",
+                score_field => 7_000u64,
+                bytes_score_field => vec![0u8, 0, 27, 88],
+            ));
             index_writer.commit().expect("committed");
             index.load_searchers().unwrap();
             let searcher = index.searcher();

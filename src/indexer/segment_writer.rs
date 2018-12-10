@@ -62,7 +62,8 @@ impl SegmentWriter {
                             segment.index().tokenizers().get(tokenizer_name)
                         }),
                     _ => None,
-                }).collect();
+                })
+                .collect();
         Ok(SegmentWriter {
             max_doc: 0,
             multifield_postings,
@@ -117,7 +118,8 @@ impl SegmentWriter {
                             _ => {
                                 panic!("Expected hierarchical facet");
                             }
-                        }).collect();
+                        })
+                        .collect();
                     let mut term = Term::for_field(field); // we set the Term
                     for facet_bytes in facets {
                         let mut unordered_term_id_opt = None;
@@ -145,7 +147,8 @@ impl SegmentWriter {
                             .flat_map(|field_value| match *field_value.value() {
                                 Value::Str(ref text) => Some(text.as_str()),
                                 _ => None,
-                            }).collect();
+                            })
+                            .collect();
                         if texts.is_empty() {
                             0
                         } else {
