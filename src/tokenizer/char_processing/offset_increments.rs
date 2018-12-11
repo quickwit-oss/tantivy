@@ -13,6 +13,8 @@ We define the inverse of an increasing mapping `f` as:
 g(i) = max {j | f(j) <= i}
      != min {j | f(i) >= i}
 
+The name is pretty bad: this is not really an involution.
+
 Note that having a single definition has some bad side effects.
 For instance, when trying to convert a segment of chars to
 its offset in the original string, the reverse mapping may
@@ -40,7 +42,6 @@ Encoded sparsely as [(3, -1), (4,-1), (5,-1)]
 /// Builds a reverse mapping using a sparse representation of the
 /// forward mapping.
 pub struct OffsetIncrementsBuilder {
-    prev_layer: OffsetIncrementsReader,
     cumulated: isize,
     incs: Vec<(usize, isize)>,
 }
@@ -60,22 +61,20 @@ impl OffsetIncrementsBuilder {
                 self.cumulated += 1;
                 self.incs.push((to_offset + i, -self.cumulated));
             }
-//            self.cumulated += delta;
         } else {
             unimplemented!();
         }
     }
 
+    pub fn new_layer(&self) {
+        panic!();
+    }
 
     fn build(self) -> OffsetIncrements {
         println!("incs {:?}", self.incs);
         OffsetIncrements {
             incs: self.incs
         }
-    }
-
-    pub fn new_layer(&self) {
-        panic!("wer")
     }
 }
 
@@ -117,7 +116,6 @@ pub struct OffsetIncrements {
 impl OffsetIncrements {
     pub fn builder() -> OffsetIncrementsBuilder {
         OffsetIncrementsBuilder {
-            prev_layer: OffsetIncrementsReader::default(),
             cumulated: 0,
             incs: Vec::new(),
         }
@@ -209,14 +207,14 @@ mod tests {
         }
     }
 
-    fn is_reciprocal(left: &[usize], right: &[usize]) {
-        is_inverse(left, right);
-        is_inverse(right, left);
-    }
-
     #[test]
     fn test_is_inverse() {
-        is_reciprocal(&[0,1,1,1,2], &[0, 3, 4]);
+        is_inverse(&[0,1,1,1,2], &[0, 3, 4]);
+    }
+
+
+    fn is_reciprocal(left: &[usize], right: &[usize]) {
+        is_inverse(left, right);
     }
 
     #[test]
