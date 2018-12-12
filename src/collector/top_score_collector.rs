@@ -89,6 +89,7 @@ impl TopDocs {
 
 impl Collector for TopDocs {
     type Fruit = Vec<(Score, DocAddress)>;
+    type SegmentFruit = Vec<(Score, DocAddress)>;
 
     type Child = TopScoreSegmentCollector;
 

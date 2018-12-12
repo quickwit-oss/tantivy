@@ -58,6 +58,7 @@ pub struct Count;
 
 impl Collector for Count {
     type Fruit = usize;
+    type SegmentFruit = usize;
 
     type Child = SegmentCountCollector;
 

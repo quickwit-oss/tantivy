@@ -40,6 +40,7 @@ impl TestFruit {
 
 impl Collector for TestCollector {
     type Fruit = TestFruit;
+    type SegmentFruit = Self::Fruit;
     type Child = TestSegmentCollector;
 
     fn for_segment(
@@ -109,6 +110,8 @@ impl FastFieldTestCollector {
 
 impl Collector for FastFieldTestCollector {
     type Fruit = Vec<u64>;
+    type SegmentFruit = Self::Fruit;
+
     type Child = FastFieldSegmentCollector;
 
     fn for_segment(
@@ -165,6 +168,7 @@ impl BytesFastFieldTestCollector {
 
 impl Collector for BytesFastFieldTestCollector {
     type Fruit = Vec<u8>;
+    type SegmentFruit = Self::Fruit;
     type Child = BytesFastFieldSegmentCollector;
 
     fn for_segment(

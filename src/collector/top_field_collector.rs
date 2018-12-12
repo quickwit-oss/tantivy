@@ -88,6 +88,7 @@ impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
 
 impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByField<T> {
     type Fruit = Vec<(T, DocAddress)>;
+    type SegmentFruit = Vec<(T, DocAddress)>;
 
     type Child = TopFieldSegmentCollector<T>;
 

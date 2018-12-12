@@ -258,6 +258,8 @@ impl FacetCollector {
 impl Collector for FacetCollector {
     type Fruit = FacetCounts;
 
+    type SegmentFruit = FacetCounts;
+
     type Child = FacetSegmentCollector;
 
     fn for_segment(

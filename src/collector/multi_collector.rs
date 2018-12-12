@@ -18,6 +18,7 @@ pub struct CollectorWrapper<TCollector: Collector>(TCollector);
 
 impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     type Fruit = Box<Fruit>;
+    type SegmentFruit = Box<Fruit>;
     type Child = Box<BoxableSegmentCollector>;
 
     fn for_segment(
@@ -34,10 +35,10 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
     }
 
     fn merge_fruits(&self, children: Vec<<Self as Collector>::Fruit>) -> Result<Box<Fruit>> {
-        let typed_fruit: Vec<TCollector::Fruit> = children
+        let typed_fruit: Vec<TCollector::SegmentFruit> = children
             .into_iter()
             .map(|untyped_fruit| {
-                Downcast::<TCollector::Fruit>::downcast(untyped_fruit)
+                Downcast::<TCollector::SegmentFruit>::downcast(untyped_fruit)
                     .map(|boxed_but_typed| *boxed_but_typed)
                     .map_err(|e| {
                         let err_msg = format!("Failed to cast child collector fruit. {:?}", e);
@@ -152,7 +153,7 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 #[derive(Default)]
 pub struct MultiCollector<'a> {
     collector_wrappers:
-        Vec<Box<Collector<Child = Box<BoxableSegmentCollector>, Fruit = Box<Fruit>> + 'a>>,
+        Vec<Box<Collector<Child = Box<BoxableSegmentCollector>, Fruit = Box<Fruit>, SegmentFruit = Box<Fruit>> + 'a>>,
 }
 
 impl<'a> MultiCollector<'a> {
@@ -177,7 +178,9 @@ impl<'a> MultiCollector<'a> {
 }
 
 impl<'a> Collector for MultiCollector<'a> {
+
     type Fruit = MultiFruit;
+    type SegmentFruit = MultiFruit;
     type Child = MultiCollectorChild;
 
     fn for_segment(

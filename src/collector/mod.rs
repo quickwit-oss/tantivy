@@ -136,8 +136,10 @@ pub trait Collector: Sync {
     /// e.g. `usize` for the `Count` collector.
     type Fruit: Fruit;
 
+    type SegmentFruit: Fruit;
+
     /// Type of the `SegmentCollector` associated to this collector.
-    type Child: SegmentCollector<Fruit = Self::Fruit>;
+    type Child: SegmentCollector<Fruit = Self::SegmentFruit>;
 
     /// `set_segment` is called before beginning to enumerate
     /// on this segment.
@@ -152,7 +154,7 @@ pub trait Collector: Sync {
 
     /// Combines the fruit associated to the collection of each segments
     /// into one fruit.
-    fn merge_fruits(&self, segment_fruits: Vec<Self::Fruit>) -> Result<Self::Fruit>;
+    fn merge_fruits(&self, segment_fruits: Vec<Self::SegmentFruit>) -> Result<Self::Fruit>;
 }
 
 /// The `SegmentCollector` is the trait in charge of defining the
@@ -181,6 +183,9 @@ where
     Right: Collector,
 {
     type Fruit = (Left::Fruit, Right::Fruit);
+
+    type SegmentFruit = (Left::SegmentFruit, Right::SegmentFruit);
+
     type Child = (Left::Child, Right::Child);
 
     fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
@@ -195,7 +200,7 @@ where
 
     fn merge_fruits(
         &self,
-        children: Vec<(Left::Fruit, Right::Fruit)>,
+        children: Vec<(Left::SegmentFruit, Right::SegmentFruit)>,
     ) -> Result<(Left::Fruit, Right::Fruit)> {
         let mut left_fruits = vec![];
         let mut right_fruits = vec![];
@@ -236,6 +241,7 @@ where
     Three: Collector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit);
+    type SegmentFruit = (One::SegmentFruit, Two::SegmentFruit, Three::SegmentFruit);
     type Child = (One::Child, Two::Child, Three::Child);
 
     fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
@@ -249,7 +255,7 @@ where
         self.0.requires_scoring() || self.1.requires_scoring() || self.2.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit> {
+    fn merge_fruits(&self, children: Vec<Self::SegmentFruit>) -> Result<Self::Fruit> {
         let mut one_fruits = vec![];
         let mut two_fruits = vec![];
         let mut three_fruits = vec![];
@@ -295,6 +301,7 @@ where
     Four: Collector,
 {
     type Fruit = (One::Fruit, Two::Fruit, Three::Fruit, Four::Fruit);
+    type SegmentFruit = (One::SegmentFruit, Two::SegmentFruit, Three::SegmentFruit, Four::SegmentFruit);
     type Child = (One::Child, Two::Child, Three::Child, Four::Child);
 
     fn for_segment(&self, segment_local_id: u32, segment: &SegmentReader) -> Result<Self::Child> {
@@ -312,7 +319,7 @@ where
             || self.3.requires_scoring()
     }
 
-    fn merge_fruits(&self, children: Vec<Self::Fruit>) -> Result<Self::Fruit> {
+    fn merge_fruits(&self, children: Vec<Self::SegmentFruit>) -> Result<Self::Fruit> {
         let mut one_fruits = vec![];
         let mut two_fruits = vec![];
         let mut three_fruits = vec![];

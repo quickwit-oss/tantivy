@@ -70,6 +70,8 @@ impl Collector for StatsCollector {
     // Our standard deviation will be a float.
     type Fruit = Option<Stats>;
 
+    type SegmentFruit = Self::Fruit;
+
     type Child = StatsSegmentCollector;
 
     fn for_segment(
