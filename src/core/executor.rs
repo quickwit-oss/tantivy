@@ -65,7 +65,7 @@ impl Executor {
                     // terminate.
                 };
                 let mut results = Vec::with_capacity(num_fruits);
-                unsafe { results.set_len(num_fruits) };
+                    unsafe { results.set_len(num_fruits) };
                 let mut num_items = 0;
                 for (pos, fruit_res) in fruit_receiver {
                     results[pos] = fruit_res?;

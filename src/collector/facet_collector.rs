@@ -369,7 +369,8 @@ impl SegmentCollector for FacetSegmentCollector {
             let mut facet = vec![];
             let facet_ord = self.collapse_facet_ords[collapsed_facet_ord];
             facet_dict.ord_to_term(facet_ord as u64, &mut facet);
-            facet_counts.insert(unsafe { Facet::from_encoded(facet) }, count);
+            // TODO
+            facet_counts.insert(Facet::from_encoded(facet).unwrap(), count);
         }
         FacetCounts { facet_counts }
     }
@@ -405,7 +406,7 @@ impl FacetCounts {
         } else {
             let mut facet_after_bytes: Vec<u8> = facet.encoded_bytes().to_owned();
             facet_after_bytes.push(1u8);
-            let facet_after = unsafe { Facet::from_encoded(facet_after_bytes) }; // ok logic
+            let facet_after = Facet::from_encoded(facet_after_bytes).unwrap(); // TODO
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));

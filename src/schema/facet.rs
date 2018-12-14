@@ -54,8 +54,11 @@ impl Facet {
     }
 
     /// Creates a `Facet` from its binary representation.
-    pub(crate) unsafe fn from_encoded(encoded_bytes: Vec<u8>) -> Facet {
-        Facet(encoded_bytes)
+    pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, str::Utf8Error> {
+        // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
+        //Ok(Facet(String::from_utf8(encoded_bytes)?))
+        str::from_utf8(&encoded_bytes[..])?;
+        Ok(Facet(encoded_bytes))
     }
 
     /// Parse a text representation of a facet.
