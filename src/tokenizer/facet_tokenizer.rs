@@ -1,6 +1,5 @@
 use super::{Token, TokenStream, Tokenizer};
 use schema::FACET_SEP_BYTE;
-use std::str;
 
 /// The `FacetTokenizer` process a `Facet` binary representation
 /// and emits a token for all of its parent.
@@ -85,7 +84,6 @@ mod tests {
 
     use super::FacetTokenizer;
     use schema::Facet;
-    use std::str;
     use tokenizer::{Token, TokenStream, Tokenizer};
 
     #[test]
@@ -98,7 +96,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(str::from_utf8(facet.encoded_bytes()).unwrap())
+                .token_stream(facet.encoded_str())
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
@@ -118,7 +116,7 @@ mod tests {
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(str::from_utf8(facet.encoded_bytes()).unwrap()) // ok test
+                .token_stream(facet.encoded_str()) // ok test
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);

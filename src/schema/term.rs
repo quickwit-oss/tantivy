@@ -32,7 +32,7 @@ impl Term {
 
     /// Creates a `Term` given a facet.
     pub fn from_facet(field: Field, facet: &Facet) -> Term {
-        let bytes = facet.encoded_bytes();
+        let bytes = facet.encoded_str().as_bytes();
         let buffer = Vec::with_capacity(4 + bytes.len());
         let mut term = Term(buffer);
         term.set_field(field);

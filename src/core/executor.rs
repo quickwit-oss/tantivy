@@ -64,17 +64,18 @@ impl Executor {
                     // This is important as it makes it possible for the fruit_receiver iteration to
                     // terminate.
                 };
-                let mut results = Vec::with_capacity(num_fruits);
-                    unsafe { results.set_len(num_fruits) };
-                let mut num_items = 0;
+                // This is lame, but it does not use unsafe code.
+                let mut results_with_position = Vec::with_capacity(num_fruits);
                 for (pos, fruit_res) in fruit_receiver {
-                    results[pos] = fruit_res?;
-                    num_items += 1;
+                    let fruit = fruit_res?;
+                    results_with_position.push((pos, fruit));
                 }
-                // this checks ensures that we filled of this
-                // uninitialized memory.
-                assert_eq!(num_items, results.len());
-                Ok(results)
+                results_with_position.sort_by_key(|(pos, _)| *pos);
+                assert_eq!(results_with_position.len(), num_fruits);
+                Ok(results_with_position
+                    .into_iter()
+                    .map(|(_, fruit)| fruit)
+                    .collect::<Vec<_>>())
             }
         }
     }

@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::fmt::{self, Debug, Display, Formatter};
 use std::io::{self, Read, Write};
 use std::str;
+use std::string::FromUtf8Error;
 
 const SLASH_BYTE: u8 = b'/';
 const ESCAPE_BYTE: u8 = b'\\';
@@ -13,6 +14,10 @@ const ESCAPE_BYTE: u8 = b'\\';
 /// BYTE used as a level separation in the binary
 /// representation of facets.
 pub const FACET_SEP_BYTE: u8 = 0u8;
+
+/// `char` used as a level separation in the binary
+/// representation of facets. (It is the null codepoint.)
+pub const FACET_SEP_CHAR: char = '\u{0}';
 
 /// A Facet represent a point in a given hierarchy.
 ///
@@ -26,18 +31,18 @@ pub const FACET_SEP_BYTE: u8 = 0u8;
 /// its facet. In the example above, `/electronics/tv_and_video/`
 /// and `/electronics`.
 #[derive(Clone, Eq, Hash, PartialEq, Ord, PartialOrd)]
-pub struct Facet(Vec<u8>);
+pub struct Facet(String);
 
 impl Facet {
     /// Returns a new instance of the "root facet"
     /// Equivalent to `/`.
     pub fn root() -> Facet {
-        Facet(vec![])
+        Facet("".to_string())
     }
 
     /// Returns true iff the facet is the root facet `/`.
     pub fn is_root(&self) -> bool {
-        self.encoded_bytes().is_empty()
+        self.encoded_str().is_empty()
     }
 
     /// Returns a binary representation of the facet.
@@ -49,16 +54,20 @@ impl Facet {
     /// This representation has the benefit of making it possible to
     /// express "being a child of a given facet" as a range over
     /// the term ordinals.
-    pub fn encoded_bytes(&self) -> &[u8] {
+    pub fn encoded_str(&self) -> &str {
         &self.0
     }
 
+    pub(crate) fn from_encoded_string(facet_string: String) -> Facet {
+        Facet(facet_string)
+    }
+
     /// Creates a `Facet` from its binary representation.
-    pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, str::Utf8Error> {
+    pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, FromUtf8Error> {
         // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
         //Ok(Facet(String::from_utf8(encoded_bytes)?))
-        str::from_utf8(&encoded_bytes[..])?;
-        Ok(Facet(encoded_bytes))
+        String::from_utf8(encoded_bytes)
+            .map(Facet)
     }
 
     /// Parse a text representation of a facet.
@@ -82,36 +91,37 @@ impl Facet {
         Path: IntoIterator,
         Path::Item: ToString,
     {
-        let mut facet_bytes: Vec<u8> = Vec::with_capacity(100);
+        let mut facet_string: String = String::with_capacity(100);
         let mut step_it = path.into_iter();
         if let Some(step) = step_it.next() {
-            facet_bytes.extend_from_slice(step.to_string().as_bytes());
+            facet_string.push_str(&step.to_string());
         }
         for step in step_it {
-            facet_bytes.push(FACET_SEP_BYTE);
-            facet_bytes.extend_from_slice(step.to_string().as_bytes());
+            facet_string.push(FACET_SEP_CHAR);
+            facet_string.push_str(&step.to_string());
         }
-        Facet(facet_bytes)
+        Facet(facet_string)
     }
 
     /// Accessor for the inner buffer of the `Facet`.
-    pub(crate) fn inner_buffer_mut(&mut self) -> &mut Vec<u8> {
-        &mut self.0
+    pub(crate) fn set_facet_str(&mut self, facet_str: &str) {
+        self.0.clear();
+        self.0.push_str(facet_str);
     }
 
     /// Returns `true` iff other is a subfacet of `self`.
     pub fn is_prefix_of(&self, other: &Facet) -> bool {
-        let self_bytes: &[u8] = self.encoded_bytes();
-        let other_bytes: &[u8] = other.encoded_bytes();
-        self_bytes.len() < other_bytes.len()
-            && other_bytes.starts_with(self_bytes)
-            && other_bytes[self_bytes.len()] == 0u8
+        let self_str = self.encoded_str();
+        let other_str = other.encoded_str();
+        self_str.len() < other_str.len()
+            && other_str.starts_with(self_str)
+            && other_str.as_bytes()[self_str.len()] == FACET_SEP_BYTE
     }
 }
 
-impl Borrow<[u8]> for Facet {
-    fn borrow(&self) -> &[u8] {
-        self.encoded_bytes()
+impl Borrow<str> for Facet {
+    fn borrow(&self) -> &str {
+        self.encoded_str()
     }
 }
 
@@ -123,45 +133,51 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
             Idle,
         }
         let path: &str = path_asref.as_ref();
-        let mut facet_encoded = Vec::new();
+        assert!(!path.is_empty());
+        assert!(path.starts_with("/"));
+        let mut facet_encoded = String::new();
         let mut state = State::Idle;
         let path_bytes = path.as_bytes();
-        for &c in &path_bytes[1..] {
+        let mut last_offset = 1;
+        for i in 1..path_bytes.len() {
+            let c = path_bytes[i];
             match (state, c) {
-                (State::Idle, ESCAPE_BYTE) => state = State::Escaped,
+                (State::Idle, ESCAPE_BYTE) => {
+                    facet_encoded.push_str(&path[last_offset..i]);
+                    last_offset = i + 1;
+                    state = State::Escaped
+                },
                 (State::Idle, SLASH_BYTE) => {
-                    facet_encoded.push(FACET_SEP_BYTE);
+                    facet_encoded.push_str(&path[last_offset..i]);
+                    facet_encoded.push(FACET_SEP_CHAR);
+                    last_offset = i + 1;
                 }
-                (State::Escaped, any_char) => {
+                (State::Escaped, _escaped_char) => {
                     state = State::Idle;
-                    facet_encoded.push(any_char);
                 }
-                (State::Idle, other_char) => {
-                    facet_encoded.push(other_char);
-                }
+                (State::Idle, _any_char) => {}
             }
         }
+        facet_encoded.push_str(&path[last_offset..]);
         Facet(facet_encoded)
     }
 }
 
 impl BinarySerializable for Facet {
     fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
-        <Vec<u8> as BinarySerializable>::serialize(&self.0, writer)
+        <String as BinarySerializable>::serialize(&self.0, writer)
     }
 
     fn deserialize<R: Read>(reader: &mut R) -> io::Result<Self> {
-        let bytes = <Vec<u8> as BinarySerializable>::deserialize(reader)?;
-        Ok(Facet(bytes))
+        Ok(Facet(<String as BinarySerializable>::deserialize(reader)?))
     }
 }
 
 impl Display for Facet {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        for step in self.0.split(|&b| b == FACET_SEP_BYTE) {
+        for step in self.0.split(FACET_SEP_CHAR) {
             write!(f, "/")?;
-            let step_str = unsafe { str::from_utf8_unchecked(step) };
-            write!(f, "{}", escape_slashes(step_str))?;
+            write!(f, "{}", escape_slashes(step))?;
         }
         Ok(())
     }

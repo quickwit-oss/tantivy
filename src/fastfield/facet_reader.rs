@@ -3,6 +3,7 @@ use schema::Facet;
 use termdict::TermDictionary;
 use termdict::TermOrdinal;
 use DocId;
+use std::str;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific
@@ -20,6 +21,7 @@ use DocId;
 pub struct FacetReader {
     term_ords: MultiValueIntFastFieldReader<u64>,
     term_dict: TermDictionary,
+    buffer: Vec<u8>,
 }
 
 impl FacetReader {
@@ -37,6 +39,7 @@ impl FacetReader {
         FacetReader {
             term_ords,
             term_dict,
+            buffer: vec![]
         }
     }
 
@@ -55,11 +58,15 @@ impl FacetReader {
     }
 
     /// Given a term ordinal returns the term associated to it.
-    pub fn facet_from_ord(&self, facet_ord: TermOrdinal, output: &mut Facet) {
+    pub fn facet_from_ord(&mut self, facet_ord: TermOrdinal, output: &mut Facet) -> Result<(), str::Utf8Error> {
         let found_term = self
             .term_dict
-            .ord_to_term(facet_ord as u64, output.inner_buffer_mut());
+            .ord_to_term(facet_ord as u64, &mut self.buffer);
         assert!(found_term, "Term ordinal {} no found.", facet_ord);
+        let facet_str = str::from_utf8(&self.buffer[..])?;
+        output.set_facet_str(facet_str);
+        Ok(())
+
     }
 
     /// Return the list of facet ordinals associated to a document.

@@ -197,7 +197,7 @@ fn skip<'a, I: Iterator<Item = &'a Facet>>(
 ) -> SkipResult {
     loop {
         match collapse_it.peek() {
-            Some(facet_bytes) => match facet_bytes.encoded_bytes().cmp(target) {
+            Some(facet_bytes) => match facet_bytes.encoded_str().as_bytes().cmp(target) {
                 Ordering::Less => {}
                 Ordering::Greater => {
                     return SkipResult::OverStep;
@@ -404,9 +404,9 @@ impl FacetCounts {
         let right_bound = if facet.is_root() {
             Bound::Unbounded
         } else {
-            let mut facet_after_bytes: Vec<u8> = facet.encoded_bytes().to_owned();
-            facet_after_bytes.push(1u8);
-            let facet_after = Facet::from_encoded(facet_after_bytes).unwrap(); // TODO
+            let mut facet_after_bytes: String = facet.encoded_str().to_owned();
+            facet_after_bytes.push('\u{1}');
+            let facet_after = Facet::from_encoded_string(facet_after_bytes);
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));
