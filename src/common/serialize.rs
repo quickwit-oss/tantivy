@@ -52,8 +52,6 @@ impl<T: BinarySerializable> BinarySerializable for Vec<T> {
     }
 }
 
-
-
 impl<Left: BinarySerializable, Right: BinarySerializable> BinarySerializable for (Left, Right) {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
         self.0.serialize(write)?;

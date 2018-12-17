@@ -13,6 +13,7 @@ use directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::{Directory, RAMDirectory};
+use error::DataCorruption;
 use error::TantivyError;
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
@@ -32,14 +33,17 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
-use error::DataCorruption;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
     let meta_string = String::from_utf8_lossy(&meta_data);
     serde_json::from_str(&meta_string)
-        .map_err(|e| DataCorruption::new(META_FILEPATH.clone(),
-                                         format!("Meta file cannot be deserialized. {:?}.", e) ))
+        .map_err(|e| {
+            DataCorruption::new(
+                META_FILEPATH.clone(),
+                format!("Meta file cannot be deserialized. {:?}.", e),
+            )
+        })
         .map_err(From::from)
 }
 

@@ -8,28 +8,27 @@ use indexer::LockType;
 use query;
 use schema;
 use serde_json;
+use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
-use std::fmt;
-
 
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
-    comment: String
+    comment: String,
 }
 
 impl DataCorruption {
     pub fn new(filepath: PathBuf, comment: String) -> DataCorruption {
         DataCorruption {
             filepath: Some(filepath),
-            comment
+            comment,
         }
     }
 
     pub fn comment_only(comment: String) -> DataCorruption {
         DataCorruption {
             filepath: None,
-            comment
+            comment,
         }
     }
 }

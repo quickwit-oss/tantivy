@@ -1,9 +1,9 @@
 use super::MultiValueIntFastFieldReader;
 use schema::Facet;
+use std::str;
 use termdict::TermDictionary;
 use termdict::TermOrdinal;
 use DocId;
-use std::str;
 
 /// The facet reader makes it possible to access the list of
 /// facets associated to a given document in a specific
@@ -39,7 +39,7 @@ impl FacetReader {
         FacetReader {
             term_ords,
             term_dict,
-            buffer: vec![]
+            buffer: vec![],
         }
     }
 
@@ -58,7 +58,11 @@ impl FacetReader {
     }
 
     /// Given a term ordinal returns the term associated to it.
-    pub fn facet_from_ord(&mut self, facet_ord: TermOrdinal, output: &mut Facet) -> Result<(), str::Utf8Error> {
+    pub fn facet_from_ord(
+        &mut self,
+        facet_ord: TermOrdinal,
+        output: &mut Facet,
+    ) -> Result<(), str::Utf8Error> {
         let found_term = self
             .term_dict
             .ord_to_term(facet_ord as u64, &mut self.buffer);
@@ -66,7 +70,6 @@ impl FacetReader {
         let facet_str = str::from_utf8(&self.buffer[..])?;
         output.set_facet_str(facet_str);
         Ok(())
-
     }
 
     /// Return the list of facet ordinals associated to a document.

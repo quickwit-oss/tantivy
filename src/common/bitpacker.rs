@@ -1,6 +1,6 @@
+use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use std::io;
 use std::ops::Deref;
-use byteorder::{WriteBytesExt, ByteOrder, LittleEndian};
 
 pub(crate) struct BitPacker {
     mini_buffer: u64,

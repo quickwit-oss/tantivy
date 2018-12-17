@@ -66,8 +66,7 @@ impl Facet {
     pub fn from_encoded(encoded_bytes: Vec<u8>) -> Result<Facet, FromUtf8Error> {
         // facet bytes validation. `0u8` is used a separator but that is still legal utf-8
         //Ok(Facet(String::from_utf8(encoded_bytes)?))
-        String::from_utf8(encoded_bytes)
-            .map(Facet)
+        String::from_utf8(encoded_bytes).map(Facet)
     }
 
     /// Parse a text representation of a facet.
@@ -146,7 +145,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
                     facet_encoded.push_str(&path[last_offset..i]);
                     last_offset = i + 1;
                     state = State::Escaped
-                },
+                }
                 (State::Idle, SLASH_BYTE) => {
                     facet_encoded.push_str(&path[last_offset..i]);
                     facet_encoded.push(FACET_SEP_CHAR);
