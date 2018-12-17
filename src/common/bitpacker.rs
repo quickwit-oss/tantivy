@@ -1,9 +1,6 @@
-use common::serialize::BinarySerializable;
 use std::io;
-use std::io::Write;
-use std::mem;
 use std::ops::Deref;
-use std::ptr;
+use byteorder::{WriteBytesExt, ByteOrder, LittleEndian};
 
 pub(crate) struct BitPacker {
     mini_buffer: u64,
@@ -18,7 +15,7 @@ impl BitPacker {
         }
     }
 
-    pub fn write<TWrite: Write>(
+    pub fn write<TWrite: io::Write>(
         &mut self,
         val: u64,
         num_bits: u8,
@@ -28,14 +25,14 @@ impl BitPacker {
         let num_bits = num_bits as usize;
         if self.mini_buffer_written + num_bits > 64 {
             self.mini_buffer |= val_u64.wrapping_shl(self.mini_buffer_written as u32);
-            self.mini_buffer.serialize(output)?;
+            output.write_u64::<LittleEndian>(self.mini_buffer)?;
             self.mini_buffer = val_u64.wrapping_shr((64 - self.mini_buffer_written) as u32);
             self.mini_buffer_written = self.mini_buffer_written + num_bits - 64;
         } else {
             self.mini_buffer |= val_u64 << self.mini_buffer_written;
             self.mini_buffer_written += num_bits;
             if self.mini_buffer_written == 64 {
-                self.mini_buffer.serialize(output)?;
+                output.write_u64::<LittleEndian>(self.mini_buffer)?;
                 self.mini_buffer_written = 0;
                 self.mini_buffer = 0u64;
             }
@@ -43,17 +40,18 @@ impl BitPacker {
         Ok(())
     }
 
-    pub fn flush<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
+    pub fn flush<TWrite: io::Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
         if self.mini_buffer_written > 0 {
             let num_bytes = (self.mini_buffer_written + 7) / 8;
-            let arr: [u8; 8] = unsafe { mem::transmute::<u64, [u8; 8]>(self.mini_buffer.to_le()) };
+            let mut arr: [u8; 8] = [0u8; 8];
+            LittleEndian::write_u64(&mut arr, self.mini_buffer);
             output.write_all(&arr[..num_bytes])?;
             self.mini_buffer_written = 0;
         }
         Ok(())
     }
 
-    pub fn close<TWrite: Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
+    pub fn close<TWrite: io::Write>(&mut self, output: &mut TWrite) -> io::Result<()> {
         self.flush(output)?;
         // Padding the write file to simplify reads.
         output.write_all(&[0u8; 7])?;
@@ -102,9 +100,7 @@ where
             addr + 8 <= data.len(),
             "The fast field field should have been padded with 7 bytes."
         );
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
-        let val_unshifted_unmasked: u64 =
-            u64::from_le(unsafe { ptr::read_unaligned(data[addr..].as_ptr() as *const u64) });
+        let val_unshifted_unmasked: u64 = LittleEndian::read_u64(&data[addr..]);
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         val_shifted & mask
     }
@@ -126,9 +122,7 @@ where
             for output_val in output.iter_mut() {
                 let addr = addr_in_bits >> 3;
                 let bit_shift = addr_in_bits & 7;
-                #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
-                let val_unshifted_unmasked: u64 =
-                    unsafe { ptr::read_unaligned(data[addr..].as_ptr() as *const u64) };
+                let val_unshifted_unmasked: u64 = LittleEndian::read_u64(&data[addr..]);
                 let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
                 *output_val = val_shifted & mask;
                 addr_in_bits += num_bits;
