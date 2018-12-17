@@ -32,7 +32,7 @@ impl Term {
 
     /// Creates a `Term` given a facet.
     pub fn from_facet(field: Field, facet: &Facet) -> Term {
-        let bytes = facet.encoded_bytes();
+        let bytes = facet.encoded_str().as_bytes();
         let buffer = Vec::with_capacity(4 + bytes.len());
         let mut term = Term(buffer);
         term.set_field(field);
@@ -68,12 +68,7 @@ impl Term {
         term
     }
 
-    /// Creates a new Term with an empty buffer,
-    /// but with a given capacity.
-    ///
-    /// It is declared unsafe, as the term content
-    /// is not initialized, and a call to `.field()`
-    /// would panic.
+    /// Creates a new Term for a given field.
     pub(crate) fn for_field(field: Field) -> Term {
         let mut term = Term(Vec::with_capacity(100));
         term.set_field(field);

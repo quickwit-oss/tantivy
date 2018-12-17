@@ -197,7 +197,7 @@ fn skip<'a, I: Iterator<Item = &'a Facet>>(
 ) -> SkipResult {
     loop {
         match collapse_it.peek() {
-            Some(facet_bytes) => match facet_bytes.encoded_bytes().cmp(target) {
+            Some(facet_bytes) => match facet_bytes.encoded_str().as_bytes().cmp(target) {
                 Ordering::Less => {}
                 Ordering::Greater => {
                     return SkipResult::OverStep;
@@ -369,7 +369,8 @@ impl SegmentCollector for FacetSegmentCollector {
             let mut facet = vec![];
             let facet_ord = self.collapse_facet_ords[collapsed_facet_ord];
             facet_dict.ord_to_term(facet_ord as u64, &mut facet);
-            facet_counts.insert(unsafe { Facet::from_encoded(facet) }, count);
+            // TODO
+            facet_counts.insert(Facet::from_encoded(facet).unwrap(), count);
         }
         FacetCounts { facet_counts }
     }
@@ -403,9 +404,9 @@ impl FacetCounts {
         let right_bound = if facet.is_root() {
             Bound::Unbounded
         } else {
-            let mut facet_after_bytes: Vec<u8> = facet.encoded_bytes().to_owned();
-            facet_after_bytes.push(1u8);
-            let facet_after = unsafe { Facet::from_encoded(facet_after_bytes) }; // ok logic
+            let mut facet_after_bytes: String = facet.encoded_str().to_owned();
+            facet_after_bytes.push('\u{1}');
+            let facet_after = Facet::from_encoded_string(facet_after_bytes);
             Bound::Excluded(facet_after)
         };
         let underlying: btree_map::Range<_, _> = self.facet_counts.range((left_bound, right_bound));

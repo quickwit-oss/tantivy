@@ -1,7 +1,7 @@
 use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
-use error::TantivyError;
+use error::DataCorruption;
 use indexer::LockType;
 use serde_json;
 use std::collections::HashSet;
@@ -64,7 +64,8 @@ impl ManagedDirectory {
             Ok(data) => {
                 let managed_files_json = String::from_utf8_lossy(&data);
                 let managed_files: HashSet<PathBuf> = serde_json::from_str(&managed_files_json)
-                    .map_err(|_| TantivyError::CorruptedFile(MANAGED_FILEPATH.clone()))?;
+                    .map_err(|e| DataCorruption::new(MANAGED_FILEPATH.clone(),
+                                                     format!("Managed file cannot be deserialized: {:?}. ", e)))?;
                 Ok(ManagedDirectory {
                     directory: Box::new(directory),
                     meta_informations: Arc::new(RwLock::new(MetaInformation {

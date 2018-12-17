@@ -10,6 +10,40 @@ use schema;
 use serde_json;
 use std::path::PathBuf;
 use std::sync::PoisonError;
+use std::fmt;
+
+
+pub struct DataCorruption {
+    filepath: Option<PathBuf>,
+    comment: String
+}
+
+impl DataCorruption {
+    pub fn new(filepath: PathBuf, comment: String) -> DataCorruption {
+        DataCorruption {
+            filepath: Some(filepath),
+            comment
+        }
+    }
+
+    pub fn comment_only(comment: String) -> DataCorruption {
+        DataCorruption {
+            filepath: None,
+            comment
+        }
+    }
+}
+
+impl fmt::Debug for DataCorruption {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        write!(f, "Data corruption: ")?;
+        if let Some(ref filepath) = &self.filepath {
+            write!(f, "(in file `{:?}`)", filepath)?;
+        }
+        write!(f, ": {}.", self.comment)?;
+        Ok(())
+    }
+}
 
 /// The library's failure based error enum
 #[derive(Debug, Fail)]
@@ -33,8 +67,8 @@ pub enum TantivyError {
     #[fail(display = "An IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
     /// Data corruption.
-    #[fail(display = "File contains corrupted data: '{:?}'", _0)]
-    CorruptedFile(PathBuf),
+    #[fail(display = "{:?}", _0)]
+    DataCorruption(DataCorruption),
     /// A thread holding the locked panicked and poisoned the lock.
     #[fail(display = "A thread holding the locked panicked and poisoned the lock")]
     Poisoned,
@@ -53,6 +87,12 @@ pub enum TantivyError {
     /// System error. (e.g.: We failed spawning a new thread)
     #[fail(display = "System error.'{}'", _0)]
     SystemError(String),
+}
+
+impl From<DataCorruption> for TantivyError {
+    fn from(data_corruption: DataCorruption) -> TantivyError {
+        TantivyError::DataCorruption(data_corruption)
+    }
 }
 
 impl From<FastFieldNotAvailableError> for TantivyError {

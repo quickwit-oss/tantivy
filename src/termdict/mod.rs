@@ -167,7 +167,7 @@ mod tests {
         let mut term_string = String::new();
         while term_it.advance() {
             //let term = Term::from_bytes(term_it.key());
-            term_string.push_str(unsafe { str::from_utf8_unchecked(term_it.key()) }); // ok test
+            term_string.push_str(str::from_utf8(term_it.key()).expect("test"));
         }
         assert_eq!(&*term_string, "abcdef");
     }

@@ -82,20 +82,20 @@ mod tests {
 
         let mut facet = Facet::root();
         {
-            facet_reader.facet_from_ord(1, &mut facet);
+            facet_reader.facet_from_ord(1, &mut facet).unwrap();
             assert_eq!(facet, Facet::from("/category"));
         }
         {
-            facet_reader.facet_from_ord(2, &mut facet);
+            facet_reader.facet_from_ord(2, &mut facet).unwrap();
             assert_eq!(facet, Facet::from("/category/cat1"));
         }
         {
-            facet_reader.facet_from_ord(3, &mut facet);
+            facet_reader.facet_from_ord(3, &mut facet).unwrap();
             assert_eq!(format!("{}", facet), "/category/cat2");
             assert_eq!(facet, Facet::from("/category/cat2"));
         }
         {
-            facet_reader.facet_from_ord(4, &mut facet);
+            facet_reader.facet_from_ord(4, &mut facet).unwrap();
             assert_eq!(facet, Facet::from("/category/cat3"));
         }
 

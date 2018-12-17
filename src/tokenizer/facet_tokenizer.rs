@@ -1,6 +1,5 @@
 use super::{Token, TokenStream, Tokenizer};
 use schema::FACET_SEP_BYTE;
-use std::str;
 
 /// The `FacetTokenizer` process a `Facet` binary representation
 /// and emits a token for all of its parent.
@@ -57,12 +56,11 @@ impl<'a> TokenStream for FacetTokenStream<'a> {
                     .position(|b| b == FACET_SEP_BYTE)
                     .map(|pos| cursor + 1 + pos)
                 {
-                    let facet_part =
-                        unsafe { str::from_utf8_unchecked(&bytes[cursor..next_sep_pos]) };
+                    let facet_part = &self.text[cursor..next_sep_pos];
                     self.token.text.push_str(facet_part);
                     self.state = State::UpToPosition(next_sep_pos);
                 } else {
-                    let facet_part = unsafe { str::from_utf8_unchecked(&bytes[cursor..]) };
+                    let facet_part = &self.text[cursor..];
                     self.token.text.push_str(facet_part);
                     self.state = State::Terminated;
                 }
@@ -86,7 +84,6 @@ mod tests {
 
     use super::FacetTokenizer;
     use schema::Facet;
-    use std::str;
     use tokenizer::{Token, TokenStream, Tokenizer};
 
     #[test]
@@ -95,11 +92,11 @@ mod tests {
         let mut tokens = vec![];
         {
             let mut add_token = |token: &Token| {
-                let facet = unsafe { Facet::from_encoded(token.text.as_bytes().to_owned()) }; // ok test
+                let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap();
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) })
+                .token_stream(facet.encoded_str())
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 4);
@@ -115,11 +112,11 @@ mod tests {
         let mut tokens = vec![];
         {
             let mut add_token = |token: &Token| {
-                let facet = unsafe { Facet::from_encoded(token.text.as_bytes().to_owned()) }; // ok test
+                let facet = Facet::from_encoded(token.text.as_bytes().to_owned()).unwrap(); // ok test
                 tokens.push(format!("{}", facet));
             };
             FacetTokenizer
-                .token_stream(unsafe { str::from_utf8_unchecked(facet.encoded_bytes()) }) // ok test
+                .token_stream(facet.encoded_str()) // ok test
                 .process(&mut add_token);
         }
         assert_eq!(tokens.len(), 1);
