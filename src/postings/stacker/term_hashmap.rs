@@ -1,4 +1,7 @@
-use super::murmurhash2;
+extern crate murmurhash32;
+
+use self::murmurhash32::murmurhash2;
+
 use super::{Addr, ArenaStorable, MemoryArena};
 use std::iter;
 use std::mem;
@@ -206,7 +209,7 @@ impl TermHashMap {
             self.resize();
         }
         let key_bytes: &[u8] = key.as_ref();
-        let hash = murmurhash2::murmurhash2(key.as_ref());
+        let hash = murmurhash2(key.as_ref());
         let mut probe = self.probe(hash);
         loop {
             let bucket = probe.next_probe();
