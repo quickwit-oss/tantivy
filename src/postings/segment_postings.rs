@@ -630,6 +630,7 @@ mod tests {
     use schema::IndexRecordOption;
     use schema::SchemaBuilder;
     use schema::Term;
+    use super::exponential_search;
     use schema::INT_INDEXED;
     use DocId;
     use SkipResult;
@@ -658,6 +659,13 @@ mod tests {
             .next()
             .unwrap()
             .0
+    }
+
+    #[test]
+    fn test_exponentiel_search() {
+        assert_eq!(exponential_search(0, &[1,2]), (0, 1));
+        assert_eq!(exponential_search(1, &[1,2]), (0, 1));
+        assert_eq!(exponential_search(7, &[1,2,3,4,5,6,7,8,9,10,11]), (3,7));
     }
 
     fn util_test_search_within_block(block: &[u32], target: u32) {
