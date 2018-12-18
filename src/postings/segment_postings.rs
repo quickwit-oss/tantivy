@@ -126,7 +126,6 @@ impl SegmentPostings {
 fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
     let mut start = 0;
     let end = arr.len();
-    debug_assert!(target >= arr[start]);
     debug_assert!(target <= arr[end - 1]);
     let mut jump = 1;
     loop {
@@ -216,11 +215,10 @@ impl DocSet for SegmentPostings {
 
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
-
-        debug_assert!(target >= self.doc());
         let new_cur = self
             .cur
             .wrapping_add(search_within_block(&block_docs[self.cur..], target));
+
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
                 .iter()
@@ -622,6 +620,7 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
+    use super::exponential_search;
     use super::search_within_block;
     use super::BlockSegmentPostings;
     use super::BlockSegmentPostingsSkipResult;
@@ -635,6 +634,7 @@ mod tests {
     use schema::Term;
     use schema::INT_INDEXED;
     use DocId;
+    use SkipResult;
 
     #[test]
     fn test_empty_segment_postings() {
@@ -660,6 +660,16 @@ mod tests {
             .next()
             .unwrap()
             .0
+    }
+
+    #[test]
+    fn test_exponentiel_search() {
+        assert_eq!(exponential_search(0, &[1, 2]), (0, 1));
+        assert_eq!(exponential_search(1, &[1, 2]), (0, 1));
+        assert_eq!(
+            exponential_search(7, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+            (3, 7)
+        );
     }
 
     fn util_test_search_within_block(block: &[u32], target: u32) {
@@ -693,7 +703,7 @@ mod tests {
 
     #[test]
     fn test_block_segment_postings() {
-        let mut block_segments = build_block_postings((0..100_000).collect::<Vec<u32>>());
+        let mut block_segments = build_block_postings(&(0..100_000).collect::<Vec<u32>>());
         let mut offset: u32 = 0u32;
         // checking that the block before calling advance is empty
         assert!(block_segments.docs().is_empty());
@@ -707,14 +717,44 @@ mod tests {
         }
     }
 
-    fn build_block_postings(docs: Vec<DocId>) -> BlockSegmentPostings {
+    #[test]
+    fn test_skip_right_at_new_block() {
+        let mut doc_ids = (0..128).collect::<Vec<u32>>();
+        doc_ids.push(129);
+        doc_ids.push(130);
+        {
+            let block_segments = build_block_postings(&doc_ids);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            assert_eq!(docset.skip_next(128), SkipResult::OverStep);
+            assert_eq!(docset.doc(), 129);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 130);
+            assert!(!docset.advance());
+        }
+        {
+            let block_segments = build_block_postings(&doc_ids);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            assert_eq!(docset.skip_next(129), SkipResult::Reached);
+            assert_eq!(docset.doc(), 129);
+            assert!(docset.advance());
+            assert_eq!(docset.doc(), 130);
+            assert!(!docset.advance());
+        }
+        {
+            let block_segments = build_block_postings(&doc_ids);
+            let mut docset = SegmentPostings::from_block_postings(block_segments, None);
+            assert_eq!(docset.skip_next(131), SkipResult::End);
+        }
+    }
+
+    fn build_block_postings(docs: &[DocId]) -> BlockSegmentPostings {
         let mut schema_builder = Schema::builder();
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
         let mut last_doc = 0u32;
-        for doc in docs {
+        for &doc in docs {
             for _ in last_doc..doc {
                 index_writer.add_document(doc!(int_field=>1u64));
             }
@@ -734,7 +774,7 @@ mod tests {
     #[test]
     fn test_block_segment_postings_skip() {
         for i in 0..4 {
-            let mut block_postings = build_block_postings(vec![3]);
+            let mut block_postings = build_block_postings(&[3]);
             assert_eq!(
                 block_postings.skip_to(i),
                 BlockSegmentPostingsSkipResult::Success(0u32)
@@ -744,7 +784,7 @@ mod tests {
                 BlockSegmentPostingsSkipResult::Terminated
             );
         }
-        let mut block_postings = build_block_postings(vec![3]);
+        let mut block_postings = build_block_postings(&[3]);
         assert_eq!(
             block_postings.skip_to(4u32),
             BlockSegmentPostingsSkipResult::Terminated
@@ -757,7 +797,7 @@ mod tests {
         for i in 0..1300 {
             docs.push((i * i / 100) + i);
         }
-        let mut block_postings = build_block_postings(docs.clone());
+        let mut block_postings = build_block_postings(&docs[..]);
         for i in vec![0, 424, 10000] {
             assert_eq!(
                 block_postings.skip_to(i),
