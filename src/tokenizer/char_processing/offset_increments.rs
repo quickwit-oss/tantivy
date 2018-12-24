@@ -171,9 +171,9 @@ mod tests {
     }
 
 
-    fn aux_test_increment(increments: OffsetIncrements, expected: Vec<usize>) {
+    fn aux_test_increment(increments: OffsetIncrements, expected: &[usize]) {
         let mut reader = increments.reader();
-        for (i, el) in expected.into_iter().enumerate() {
+        for (i, el) in expected.iter().cloned().enumerate() {
             assert_eq!(reader.convert_offset(i), el);
         }
     }
@@ -222,19 +222,19 @@ mod tests {
             let mut offset_increment_builder = OffsetIncrements::builder();
             // abcd -> abd
             offset_increment_builder.register_inc(2, -1);
-            aux_test_increment(offset_increment_builder.build(), vec![0, 1, 2, 4]);
+            aux_test_increment(offset_increment_builder.build(), &[0, 1, 2, 4]);
         }
         {
             let mut offset_increment_builder = OffsetIncrements::builder();
             // abcdefgh -> abcdfgh
             offset_increment_builder.register_inc(4, -1);
-            aux_test_increment(offset_increment_builder.build(), vec![0, 1, 2, 3, 4, 6]);
+            aux_test_increment(offset_increment_builder.build(), &[0, 1, 2, 3, 4, 6]);
         }
         {
             let mut offset_increment_builder = OffsetIncrements::builder();
             // abcd -> bcd
             offset_increment_builder.register_inc(0, -1);
-            aux_test_increment(offset_increment_builder.build(), vec![0, 2, 3]);
+            aux_test_increment(offset_increment_builder.build(), &[0, 2, 3]);
         }
     }
 
@@ -245,20 +245,20 @@ mod tests {
             let mut offset_increment_builder = OffsetIncrements::builder();
             offset_increment_builder.register_inc(2, 1);
             // [0, 1, 3, 4, 5]
-            aux_test_increment(offset_increment_builder.build(), vec![0,1,1,2,3,4,5]);
+            aux_test_increment(offset_increment_builder.build(), &[0,1,1,2,3,4,5]);
         }
         {
             let mut offset_increment_builder = OffsetIncrements::builder();
             offset_increment_builder.register_inc(3, 2);
             // [0, 1, 2, 4, 5, 6]
-            aux_test_increment(offset_increment_builder.build(), vec![0,1,2,2,2,3,4,5]);
+            aux_test_increment(offset_increment_builder.build(), &[0,1,2,2,2,3,4,5]);
         }
         {
             let mut offset_increment_builder = OffsetIncrements::builder();
             // 0, 0, 1, 2, 2, 2
             offset_increment_builder.register_inc(1, 1);
             offset_increment_builder.register_inc(3, 3);
-            aux_test_increment(offset_increment_builder.build(), vec![0,0,1,2,2,2,2,3,4]);
+            aux_test_increment(offset_increment_builder.build(), &[0,0,1,2,2,2,2,3,4]);
         }
     }
 }
