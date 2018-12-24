@@ -15,13 +15,11 @@ pub struct CharFilter {
 }
 
 impl CharFilter {
-
     fn process_text(&mut self, text: &str) {
         self.text.clear();
         self.text.push_str(text);
         self.buffer.clear();
         let mut offset_increment_builder = OffsetIncrements::builder();
-//        self.offsets_translator.reset(text);
         for mogrifier in &mut self.mogrifiers {
             mogrifier.process_text(&self.text,
                                    &mut self.buffer,

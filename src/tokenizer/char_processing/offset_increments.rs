@@ -6,14 +6,15 @@ Token's offset need to refer to their offset in the original
 text.
 
 This struct is in charge of doing an efficient book-keeping
-a the possible shift in offsets and provide a mapping
+of these shift in offsets and provide a mapping
 from the transformed text to the original text.
 
 We define the inverse of an increasing mapping `f` as:
 g(i) = max {j | f(j) <= i}
      != min {j | f(i) >= i}
 
-The name is pretty bad: this is not really an involution.
+The name `inverse` is a bit misleading:
+this is not really an involution.
 
 Note that having a single definition has some bad side effects.
 For instance, when trying to convert a segment of chars to
@@ -51,19 +52,21 @@ impl OffsetIncrementsBuilder {
     /// - `from_offset + delta >= 0`
     /// There is no need to call this function if delta = 0.
     pub fn register_inc(&mut self, from_offset: usize, delta: isize) {
-        debug_assert_ne!(delta, 0);
-        debug_assert!(delta>=-1);
+        let mut cumulated = self.cumulated;
+        let from_offset_isize = from_offset as isize;
+        let to_offset = (from_offset_isize + self.cumulated) as usize;
         if delta > 0 {
-            let from_offset_isize = from_offset as isize;
-            let to_offset = (from_offset_isize + self.cumulated) as usize;
-            println!("{} -> [{}..{}[ ", from_offset-1, to_offset-1, (to_offset as isize + delta));
             for i in 0..delta as usize {
-                self.cumulated += 1;
-                self.incs.push((to_offset + i, -self.cumulated));
+                cumulated += 1;
+                self.incs.push((to_offset + i, -cumulated));
             }
         } else {
-            unimplemented!();
+            assert_eq!(delta, -1);
+            cumulated -= 1;
+            self.incs.push((to_offset + 1, -cumulated));
         }
+        println!("incs {:?}", self.incs);
+        self.cumulated = cumulated;
     }
 
     pub fn new_layer(&self) {
@@ -71,7 +74,6 @@ impl OffsetIncrementsBuilder {
     }
 
     fn build(self) -> OffsetIncrements {
-        println!("incs {:?}", self.incs);
         OffsetIncrements {
             incs: self.incs
         }
@@ -122,7 +124,6 @@ impl OffsetIncrements {
     }
 
     pub fn reader(&self) -> OffsetIncrementsReader {
-        println!("{:?}", self.incs);
         OffsetIncrementsReader::new(self.incs.clone()) // TODO Fixme, no clone
     }
 }
@@ -172,9 +173,7 @@ mod tests {
 
     fn aux_test_increment(increments: OffsetIncrements, expected: Vec<usize>) {
         let mut reader = increments.reader();
-        println!("EXPECT - {:?}", expected);
         for (i, el) in expected.into_iter().enumerate() {
-            println!("{}: {} got {}", i, el, reader.convert_offset(i));
             assert_eq!(reader.convert_offset(i), el);
         }
     }
@@ -216,6 +215,29 @@ mod tests {
     fn is_reciprocal(left: &[usize], right: &[usize]) {
         is_inverse(left, right);
     }
+
+    #[test]
+    fn test_offset_increments_shorten() {
+        {
+            let mut offset_increment_builder = OffsetIncrements::builder();
+            // abcd -> abd
+            offset_increment_builder.register_inc(2, -1);
+            aux_test_increment(offset_increment_builder.build(), vec![0, 1, 2, 4]);
+        }
+        {
+            let mut offset_increment_builder = OffsetIncrements::builder();
+            // abcdefgh -> abcdfgh
+            offset_increment_builder.register_inc(4, -1);
+            aux_test_increment(offset_increment_builder.build(), vec![0, 1, 2, 3, 4, 6]);
+        }
+        {
+            let mut offset_increment_builder = OffsetIncrements::builder();
+            // abcd -> bcd
+            offset_increment_builder.register_inc(0, -1);
+            aux_test_increment(offset_increment_builder.build(), vec![0, 2, 3]);
+        }
+    }
+
 
     #[test]
     fn test_offset_increments_builder() {
