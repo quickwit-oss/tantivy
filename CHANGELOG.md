@@ -1,4 +1,4 @@
-Tantivy 0.8.1
+Tantivy 0.8.0
 =====================
 *No change in the index format*
 - API Breaking change in the collector API. (@jwolfe, @fulmicoton)
