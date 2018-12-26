@@ -76,7 +76,7 @@ It will walk you through getting a wikipedia search engine up and running in a f
 Tantivy compiles on stable rust but requires `Rust >= 1.27`.
 To check out and run tests, you can simply run :
 
-    git clone git@github.com:tantivy-search/tantivy.git
+    git clone https://github.com/tantivy-search/tantivy.git
     cd tantivy
     cargo build
 
