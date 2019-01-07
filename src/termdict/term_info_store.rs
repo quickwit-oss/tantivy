@@ -1,4 +1,4 @@
-use byteorder::ByteOrder;
+use byteorder::{NativeEndian, ByteOrder};
 use common::bitpacker::BitPacker;
 use common::compute_num_bits;
 use common::Endianness;
@@ -7,7 +7,6 @@ use directory::ReadOnlySource;
 use postings::TermInfo;
 use std::cmp;
 use std::io::{self, Read, Write};
-use std::ptr;
 use termdict::TermOrdinal;
 
 const BLOCK_LEN: usize = 256;
@@ -20,6 +19,8 @@ struct TermInfoBlockMeta {
     postings_offset_nbits: u8,
     positions_idx_nbits: u8,
 }
+
+
 
 impl BinarySerializable for TermInfoBlockMeta {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
@@ -88,17 +89,20 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
-    assert!(data.len() >= addr_byte + 7);
-    let val_unshifted_unmasked: u64 = unsafe {
-        // ok because the pointer is only accessed using `ptr::read_unaligned`
-        #[cfg_attr(feature = "cargo-clippy", allow(clippy::cast_ptr_alignment))]
-        let addr = data.as_ptr().add(addr_byte) as *const u64;
-        // ok thanks to the 7 byte padding
-        ptr::read_unaligned(addr)
-    };
+    let val_unshifted_unmasked: u64;
+    if data.len() >= addr_byte + 8 {
+        val_unshifted_unmasked =  NativeEndian::read_u64(&data[addr_byte..][..8]);
+    } else {
+        let mut buf = [0u8; 8];
+        let data_to_copy = &data[addr_byte..];
+        let nbytes = data_to_copy.len();
+        buf[..nbytes].copy_from_slice(data_to_copy);
+        val_unshifted_unmasked =  NativeEndian::read_u64(&buf);
+    }
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
     let mask = (1u64 << u64::from(num_bits)) - 1;
     val_shifted_unmasked & mask
+
 }
 
 impl TermInfoStore {
@@ -246,7 +250,6 @@ impl TermInfoStoreWriter {
         self.num_terms.serialize(write)?;
         write.write_all(&self.buffer_block_metas)?;
         write.write_all(&self.buffer_term_infos)?;
-        write.write_all(&[0u8; 7])?;
         Ok(())
     }
 }

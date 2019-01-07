@@ -64,7 +64,7 @@ impl Executor {
                     // This is important as it makes it possible for the fruit_receiver iteration to
                     // terminate.
                 };
-                // This is lame, but it does not use unsafe code.
+                // This is lame, but safe.
                 let mut results_with_position = Vec::with_capacity(num_fruits);
                 for (pos, fruit_res) in fruit_receiver {
                     let fruit = fruit_res?;

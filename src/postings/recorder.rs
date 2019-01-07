@@ -15,7 +15,7 @@ const POSITION_END: u32 = std::u32::MAX;
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub trait Recorder: Copy {
+pub trait Recorder: Copy + 'static {
     ///
     fn new(heap: &mut MemoryArena) -> Self;
     /// Returns the current document

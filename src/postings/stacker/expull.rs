@@ -86,17 +86,11 @@ impl ExpUnrolledLinkedList {
             // to the future next block.
             let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
             let new_block_addr: Addr = heap.allocate_space(new_block_size);
-            unsafe {
-                // logic
-                heap.write(self.tail, new_block_addr)
-            };
+            heap.write_at(self.tail, new_block_addr);
             self.tail = new_block_addr;
         }
-        unsafe {
-            // logic
-            heap.write(self.tail, val);
-            self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
-        }
+        heap.write_at(self.tail, val);
+        self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
     }
 }
 
@@ -116,18 +110,12 @@ impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
         } else {
             self.consumed += 1;
             let addr: Addr = if jump_needed(self.consumed).is_some() {
-                unsafe {
-                    // logic
-                    self.heap.read(self.addr)
-                }
+                self.heap.read(self.addr)
             } else {
                 self.addr
             };
             self.addr = addr.offset(mem::size_of::<u32>() as u32);
-            Some(unsafe {
-                // logic
-                self.heap.read(addr)
-            })
+            Some(self.heap.read(addr))
         }
     }
 }

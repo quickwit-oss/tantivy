@@ -37,7 +37,7 @@ const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 /// page of memory.
 ///
 /// The last 20 bits are an address within this page of memory.
-#[derive(Clone, Copy, Debug)]
+#[derive(Copy, Clone, Debug)]
 pub struct Addr(u32);
 
 impl Addr {
@@ -69,33 +69,12 @@ impl Addr {
     }
 }
 
-/// Trait required for an object to be `storable`.
-///
-/// # Warning
-///
-/// Most of the time you should not implement this trait,
-/// and only use the `MemoryArena` with object implementing `Copy`.
-///
-/// `ArenaStorable` is used in `tantivy` to force
-/// a `Copy` object and a `slice` of data to be stored contiguously.
-pub trait ArenaStorable {
-    fn num_bytes(&self) -> usize;
-    unsafe fn write_into(self, arena: &mut MemoryArena, addr: Addr);
+
+pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
+    assert_eq!(dest.len(), std::mem::size_of::<Item>());
+    unsafe { ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);  }
 }
 
-impl<V> ArenaStorable for V
-where
-    V: Copy,
-{
-    fn num_bytes(&self) -> usize {
-        mem::size_of::<V>()
-    }
-
-    unsafe fn write_into(self, arena: &mut MemoryArena, addr: Addr) {
-        let dst_ptr = arena.get_mut_ptr(addr) as *mut V;
-        ptr::write_unaligned(dst_ptr, self);
-    }
-}
 
 /// The `MemoryArena`
 pub struct MemoryArena {
@@ -126,47 +105,9 @@ impl MemoryArena {
         self.pages.len() * PAGE_SIZE
     }
 
-    /// Writes a slice at the given address, assuming the
-    /// memory was allocated beforehands.
-    ///
-    ///  # Panics
-    ///
-    /// May panic or corrupt the heap if he space was not
-    /// properly allocated beforehands.
-    pub fn write_bytes<B: AsRef<[u8]>>(&mut self, addr: Addr, data: B) {
-        let bytes = data.as_ref();
-        self.pages[addr.page_id()]
-            .get_mut_slice(addr.page_local_addr(), bytes.len())
-            .copy_from_slice(bytes);
-    }
-
-    /// Returns the `len` bytes starting at `addr`
-    ///
-    /// # Panics
-    ///
-    /// Panics if the memory has not been allocated beforehands.
-    pub fn read_slice(&self, addr: Addr, len: usize) -> &[u8] {
-        self.pages[addr.page_id()].get_slice(addr.page_local_addr(), len)
-    }
-
-    unsafe fn get_mut_ptr(&mut self, addr: Addr) -> *mut u8 {
-        self.pages[addr.page_id()].get_mut_ptr(addr.page_local_addr())
-    }
-
-    /// Stores an item's data in the heap
-    ///
-    /// It allocates the `Item` beforehands.
-    pub fn store<Item: ArenaStorable>(&mut self, val: Item) -> Addr {
-        let num_bytes = val.num_bytes();
-        let addr = self.allocate_space(num_bytes);
-        unsafe {
-            self.write(addr, val);
-        };
-        addr
-    }
-
-    pub unsafe fn write<Item: ArenaStorable>(&mut self, addr: Addr, val: Item) {
-        val.write_into(self, addr)
+    pub fn write_at<Item: Copy + 'static>(&mut self, addr: Addr, val: Item) {
+        let dest = self.slice_mut(addr, std::mem::size_of::<Item>());
+        store(dest, val);
     }
 
     /// Read an item in the heap at the given `address`.
@@ -174,9 +115,21 @@ impl MemoryArena {
     /// # Panics
     ///
     /// If the address is erroneous
-    pub unsafe fn read<Item: Copy>(&self, addr: Addr) -> Item {
-        let ptr = self.pages[addr.page_id()].get_ptr(addr.page_local_addr());
-        ptr::read_unaligned(ptr as *const Item)
+    pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
+        let data = self.slice(addr, mem::size_of::<Item>());
+        unsafe { ptr::read_unaligned(data.as_ptr() as *const Item) }
+    }
+
+    pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
+        self.pages[addr.page_id()].slice(addr.page_local_addr(), len)
+    }
+
+    pub fn slice_from(&self, addr: Addr) -> &[u8] {
+        self.pages[addr.page_id()].slice_from(addr.page_local_addr())
+    }
+
+    pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
+        self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), len)
     }
 
     /// Allocates `len` bytes and returns the allocated address.
@@ -197,14 +150,10 @@ struct Page {
 
 impl Page {
     fn new(page_id: usize) -> Page {
-        let mut data: Vec<u8> = Vec::with_capacity(PAGE_SIZE);
-        unsafe {
-            data.set_len(PAGE_SIZE);
-        } // avoid initializing page
         Page {
             page_id,
             len: 0,
-            data: data.into_boxed_slice(),
+            data: vec![0u8; PAGE_SIZE].into_boxed_slice(),
         }
     }
 
@@ -213,12 +162,16 @@ impl Page {
         len + self.len <= PAGE_SIZE
     }
 
-    fn get_mut_slice(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
-        &mut self.data[local_addr..][..len]
+    fn slice(&self, local_addr: usize, len: usize) -> &[u8] {
+        &self.slice_from(local_addr)[..len]
     }
 
-    fn get_slice(&self, local_addr: usize, len: usize) -> &[u8] {
-        &self.data[local_addr..][..len]
+    fn slice_from(&self, local_addr: usize) -> &[u8] {
+        &self.data[local_addr..]
+    }
+
+    fn slice_mut(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
+        &mut self.data[local_addr..][..len]
     }
 
     fn allocate_space(&mut self, len: usize) -> Option<Addr> {
@@ -229,16 +182,6 @@ impl Page {
         } else {
             None
         }
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn get_ptr(&self, addr: usize) -> *const u8 {
-        self.data.as_ptr().add(addr)
-    }
-
-    #[inline(always)]
-    pub(crate) unsafe fn get_mut_ptr(&mut self, addr: usize) -> *mut u8 {
-        self.data.as_mut_ptr().add(addr)
     }
 }
 
@@ -254,13 +197,13 @@ mod tests {
         let b = b"happy tax payer";
 
         let addr_a = arena.allocate_space(a.len());
-        arena.write_bytes(addr_a, a);
+        arena.slice_mut(addr_a, a.len()).copy_from_slice(a);
 
         let addr_b = arena.allocate_space(b.len());
-        arena.write_bytes(addr_b, b);
+        arena.slice_mut(addr_b, b.len()).copy_from_slice(b);
 
-        assert_eq!(arena.read_slice(addr_a, a.len()), a);
-        assert_eq!(arena.read_slice(addr_b, b.len()), b);
+        assert_eq!(arena.slice(addr_a, a.len()), a);
+        assert_eq!(arena.slice(addr_b, b.len()), b);
     }
 
     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -283,9 +226,15 @@ mod tests {
             b: 221,
             c: 12,
         };
-        let addr_a = arena.store(a);
-        let addr_b = arena.store(b);
-        assert_eq!(unsafe { arena.read::<MyTest>(addr_a) }, a);
-        assert_eq!(unsafe { arena.read::<MyTest>(addr_b) }, b);
+
+        let num_bytes = std::mem::size_of::<MyTest>();
+        let addr_a = arena.allocate_space(num_bytes);
+        arena.write_at(addr_a, a);
+
+        let addr_b = arena.allocate_space(num_bytes);
+        arena.write_at(addr_b, b);
+
+        assert_eq!(arena.read::<MyTest>(addr_a), a);
+        assert_eq!(arena.read::<MyTest>(addr_b), b);
     }
 }

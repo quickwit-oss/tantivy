@@ -271,7 +271,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         heap: &MemoryArena,
     ) -> io::Result<()> {
         for &(term_bytes, addr, _) in term_addrs {
-            let recorder: Rec = unsafe { termdict_heap.read(addr) };
+            let recorder: Rec = termdict_heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
             recorder.serialize(serializer, heap)?;
             serializer.close_term()?;
