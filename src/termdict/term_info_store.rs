@@ -1,4 +1,4 @@
-use byteorder::{NativeEndian, ByteOrder};
+use byteorder::{LittleEndian, ByteOrder};
 use common::bitpacker::BitPacker;
 use common::compute_num_bits;
 use common::Endianness;
@@ -91,13 +91,13 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     let bit_shift = (addr_bits % 8) as u64;
     let val_unshifted_unmasked: u64;
     if data.len() >= addr_byte + 8 {
-        val_unshifted_unmasked =  NativeEndian::read_u64(&data[addr_byte..][..8]);
+        val_unshifted_unmasked =  LittleEndian::read_u64(&data[addr_byte..][..8]);
     } else {
         let mut buf = [0u8; 8];
         let data_to_copy = &data[addr_byte..];
         let nbytes = data_to_copy.len();
         buf[..nbytes].copy_from_slice(data_to_copy);
-        val_unshifted_unmasked =  NativeEndian::read_u64(&buf);
+        val_unshifted_unmasked =  LittleEndian::read_u64(&buf);
     }
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
     let mask = (1u64 << u64::from(num_bits)) - 1;
