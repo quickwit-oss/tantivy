@@ -44,11 +44,12 @@ impl SegmentWriter {
     /// - schema
     pub fn for_segment(
         table_bits: usize,
+        memory_budget: usize,
         mut segment: Segment,
         schema: &Schema,
     ) -> Result<SegmentWriter> {
         let segment_serializer = SegmentSerializer::for_segment(&mut segment)?;
-        let multifield_postings = MultiFieldPostingsWriter::new(schema, table_bits);
+        let multifield_postings = MultiFieldPostingsWriter::new(schema, memory_budget, table_bits);
         let tokenizers =
             schema
                 .fields()

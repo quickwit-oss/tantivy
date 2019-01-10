@@ -11,6 +11,7 @@ pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::counting_writer::CountingWriter;
 pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::vint::VInt;
+pub use self::vint::serialize_vint_u32;
 pub use byteorder::LittleEndian as Endianness;
 
 use std::io;

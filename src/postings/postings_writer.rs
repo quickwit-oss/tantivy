@@ -1,6 +1,6 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
-use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
+use postings::recorder::{BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
 use postings::UnorderedTermId;
 use postings::{FieldSerializer, InvertedIndexSerializer};
 use schema::IndexRecordOption;
@@ -52,7 +52,7 @@ pub struct MultiFieldPostingsWriter {
 impl MultiFieldPostingsWriter {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
-    pub fn new(schema: &Schema, table_bits: usize) -> MultiFieldPostingsWriter {
+    pub fn new(schema: &Schema, capacity: usize, table_bits: usize) -> MultiFieldPostingsWriter {
         let term_index = TermHashMap::new(table_bits);
         let per_field_postings_writers: Vec<_> = schema
             .fields()
@@ -60,7 +60,7 @@ impl MultiFieldPostingsWriter {
             .map(|field_entry| posting_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
-            heap: MemoryArena::new(),
+            heap: MemoryArena::new(capacity),
             schema: schema.clone(),
             term_index,
             per_field_postings_writers,
@@ -270,10 +270,11 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
     ) -> io::Result<()> {
+        let mut buffer_lender = BufferLender::default();
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = termdict_heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
-            recorder.serialize(serializer, heap)?;
+            recorder.serialize(&mut buffer_lender, serializer, heap)?;
             serializer.close_term()?;
         }
         Ok(())

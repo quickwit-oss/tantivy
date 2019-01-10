@@ -1,32 +1,41 @@
 use super::{Addr, MemoryArena};
 
-use common::is_power_of_2;
 use std::mem;
+use common::serialize_vint_u32;
+use byteorder::{LittleEndian, ByteOrder};
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
+const FIRST_BLOCK: u32 = 16u32;
 
-const FIRST_BLOCK: u32 = 4u32;
+enum CapacityResult {
+    Available(u32),
+    NeedAlloc(u32)
+}
 
-#[inline]
-pub fn jump_needed(len: u32) -> Option<usize> {
+fn len_to_capacity(len: u32) -> CapacityResult {
     match len {
-        0...3 => None,
-        4...MAX_BLOCK_LEN => {
-            if is_power_of_2(len as usize) {
-                Some(len as usize)
+        0...15 => CapacityResult::Available(FIRST_BLOCK - len),
+        16...MAX_BLOCK_LEN => {
+            let cap = 1 << (32u32 - (len-1u32).leading_zeros());
+            let available = cap - len;
+            if available == 0 {
+                CapacityResult::NeedAlloc(len)
             } else {
-                None
+                CapacityResult::Available(available)
             }
         }
         n => {
-            if n % MAX_BLOCK_LEN == 0 {
-                Some(MAX_BLOCK_LEN as usize)
+            let available = n % MAX_BLOCK_LEN;
+            if available == 0 {
+                CapacityResult::NeedAlloc(MAX_BLOCK_LEN)
             } else {
-                None
+                CapacityResult::Available(MAX_BLOCK_LEN - available)
             }
         }
     }
 }
+
+
 
 /// An exponential unrolled link.
 ///
@@ -66,96 +75,111 @@ impl ExpUnrolledLinkedList {
         }
     }
 
-    pub fn iter<'a>(&self, heap: &'a MemoryArena) -> ExpUnrolledLinkedListIterator<'a> {
-        ExpUnrolledLinkedListIterator {
-            heap,
-            addr: self.head,
-            len: self.len,
-            consumed: 0,
-        }
-    }
-
     /// Appends a new element to the current stack.
     ///
     /// If the current block end is reached, a new block is allocated.
     pub fn push(&mut self, val: u32, heap: &mut MemoryArena) {
-        self.len += 1;
-        if let Some(new_block_len) = jump_needed(self.len) {
-            // We need to allocate another block.
-            // We also allocate an extra `u32` to store the pointer
-            // to the future next block.
-            let new_block_size: usize = (new_block_len + 1) * mem::size_of::<u32>();
-            let new_block_addr: Addr = heap.allocate_space(new_block_size);
-            heap.write_at(self.tail, new_block_addr);
-            self.tail = new_block_addr;
-        }
-        heap.write_at(self.tail, val);
-        self.tail = self.tail.offset(mem::size_of::<u32>() as u32);
+        let (val, num_bytes) = serialize_vint_u32(val);
+        let mut buffer = [0u8; 8];
+        LittleEndian::write_u64(&mut buffer, val);
+        self.write_all(&buffer[..num_bytes], heap);
     }
-}
 
-pub struct ExpUnrolledLinkedListIterator<'a> {
-    heap: &'a MemoryArena,
-    addr: Addr,
-    len: u32,
-    consumed: u32,
-}
-
-impl<'a> Iterator for ExpUnrolledLinkedListIterator<'a> {
-    type Item = u32;
-
-    fn next(&mut self) -> Option<u32> {
-        if self.consumed == self.len {
-            None
-        } else {
-            self.consumed += 1;
-            let addr: Addr = if jump_needed(self.consumed).is_some() {
-                self.heap.read(self.addr)
+    pub fn write_all(&mut self, mut buf: &[u8], heap: &mut MemoryArena) {
+        assert!(!buf.is_empty());
+        loop {
+            let cap = self.ensure_capacity(heap) as usize;
+            if buf.len() <= cap {
+                heap.write_slice(self.tail, &buf);
+                self.len += buf.len() as u32;
+                self.tail = self.tail.offset(buf.len() as u32);
+                break;
             } else {
-                self.addr
-            };
-            self.addr = addr.offset(mem::size_of::<u32>() as u32);
-            Some(self.heap.read(addr))
+                heap.write_slice(self.tail, &buf[..cap]);
+                self.len += cap as u32;
+                self.tail = self.tail.offset(cap as u32);
+                buf = &buf[cap..];
+            }
+        }
+    }
+
+    fn ensure_capacity(&mut self, heap: &mut MemoryArena) -> u32 {
+        match len_to_capacity(self.len) {
+            CapacityResult::NeedAlloc(new_block_len) => {
+                let new_block_addr: Addr = heap.allocate_space(new_block_len as usize + mem::size_of::<u32>());
+                heap.write_at(self.tail, new_block_addr);
+                self.tail = new_block_addr;
+                new_block_len
+            }
+            CapacityResult::Available(available) => available
+        }
+    }
+
+    pub fn read(&self, heap: &MemoryArena, output: &mut Vec<u8>) {
+        output.clear();
+        let mut cur = 0u32;
+        let mut addr = self.head;
+        let mut len = self.len;
+        while len > 0 {
+            let cap =
+                match len_to_capacity(cur) {
+                    CapacityResult::Available(capacity) => capacity,
+                    CapacityResult::NeedAlloc(capacity) => capacity,
+                };
+            if cap < len {
+                let data = heap.slice(addr, cap as usize);
+                output.extend_from_slice(data);
+                len -= cap;
+                cur += cap;
+            } else {
+                let data = heap.slice(addr, len as usize);
+                output.extend_from_slice(data);
+                return;
+            }
+            addr = heap.read(addr.offset(cap));
         }
     }
 }
+
 
 #[cfg(test)]
 mod tests {
 
     use super::super::MemoryArena;
-    use super::jump_needed;
+    use super::len_to_capacity;
     use super::*;
 
     #[test]
     fn test_stack() {
-        let mut heap = MemoryArena::new();
+        let mut heap = MemoryArena::new(1_000_000);
         let mut stack = ExpUnrolledLinkedList::new(&mut heap);
         stack.push(1u32, &mut heap);
         stack.push(2u32, &mut heap);
         stack.push(4u32, &mut heap);
         stack.push(8u32, &mut heap);
         {
-            let mut it = stack.iter(&heap);
-            assert_eq!(it.next().unwrap(), 1u32);
-            assert_eq!(it.next().unwrap(), 2u32);
-            assert_eq!(it.next().unwrap(), 4u32);
-            assert_eq!(it.next().unwrap(), 8u32);
-            assert!(it.next().is_none());
+            let mut buffer = Vec::new();
+            stack.read(&heap, &mut buffer);
+            assert_eq!(&buffer[..], &[129u8, 130u8, 132u8, 136u8]);
         }
     }
 
     #[test]
     fn test_jump_if_needed() {
-        let mut block_len = 4u32;
-        let mut i = 0;
-        while i < 10_000_000 {
-            assert!(jump_needed(i + block_len - 1).is_none());
-            assert!(jump_needed(i + block_len + 1).is_none());
-            assert!(jump_needed(i + block_len).is_some());
-            let new_block_len = jump_needed(i + block_len).unwrap();
-            i += block_len;
-            block_len = new_block_len as u32;
+        let mut available = 16u32;
+        for i in 0..10_000_000 {
+            match len_to_capacity(i) {
+                CapacityResult::NeedAlloc(cap) => {
+                    assert_eq!(available, 0,
+                               "Failed len={}: Expected 0 got {}", i, cap);
+                    available = cap;
+                }
+                CapacityResult::Available(cap) => {
+                    assert_eq!(available, cap,
+                               "Failed len={}: Expected {} Got {}", i, available, cap);
+                }
+            }
+            available -= 1;
         }
     }
 }

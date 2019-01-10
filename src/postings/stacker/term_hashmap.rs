@@ -99,7 +99,7 @@ impl<'a> Iterator for Iter<'a> {
 
 impl TermHashMap {
     pub fn new(num_bucket_power_of_2: usize) -> TermHashMap {
-        let heap = MemoryArena::new();
+        let heap = MemoryArena::new(10_000_000);
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
         TermHashMap {
@@ -122,12 +122,22 @@ impl TermHashMap {
         self.table.len() < self.occupied.len() * 3
     }
 
+    #[inline(always)]
     fn get_key_value(&self, addr: Addr) -> (&[u8], Addr) {
         let data = self.heap.slice_from(addr);
         let key_bytes_len = NativeEndian::read_u16(data) as usize;
         let key_bytes: &[u8] = &data[2..][..key_bytes_len];
-        let val_addr: Addr = addr.offset(2u32 + key_bytes_len as u32);
-        (key_bytes, val_addr)
+        (key_bytes, addr.offset(2u32 + key_bytes_len as u32))
+    }
+
+    #[inline(always)]
+    fn get_value_addr_if_key_match(&self, target_key: &[u8], addr: Addr) -> Option<Addr> {
+        let (stored_key, value_addr) = self.get_key_value(addr);
+        if stored_key == target_key {
+            Some(value_addr)
+        } else {
+            None
+        }
     }
 
     pub fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) {
@@ -204,12 +214,7 @@ impl TermHashMap {
                 self.set_bucket(hash, key_addr, bucket);
                 return bucket as BucketId;
             } else if kv.hash == hash {
-                let (key_matches, val_addr) = {
-                    let (stored_key, val_addr): (&[u8], Addr) =
-                        self.get_key_value(kv.key_value_addr);
-                    (stored_key == key_bytes, val_addr)
-                };
-                if key_matches {
+                if let Some(val_addr) = self.get_value_addr_if_key_match(key_bytes, kv.key_value_addr) {
                     let v = self.heap.read(val_addr);
                     let new_v = updater(Some(v));
                     self.heap.write_at(val_addr, new_v);

@@ -1,10 +1,30 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
 use postings::FieldSerializer;
-use std::{self, io};
+use std::io;
 use DocId;
+use common::VInt;
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
-const POSITION_END: u32 = std::u32::MAX;
+const POSITION_END: u32 = 0;
+
+#[derive(Default)]
+pub struct BufferLender {
+    buffer_u8: Vec<u8>,
+    buffer_u32: Vec<u32>
+}
+
+impl BufferLender {
+
+    pub fn lend_u8(&mut self) -> &mut Vec<u8> {
+        self.buffer_u8.clear();
+        &mut self.buffer_u8
+    }
+    pub fn lend_all(&mut self) -> (&mut Vec<u8>, &mut Vec<u32>) {
+        self.buffer_u8.clear();
+        self.buffer_u32.clear();
+        (&mut self.buffer_u8, &mut self.buffer_u32)
+    }
+}
 
 /// Recorder is in charge of recording relevant information about
 /// the presence of a term in a document.
@@ -29,7 +49,7 @@ pub trait Recorder: Copy + 'static {
     /// Close the document. It will help record the term frequency.
     fn close_doc(&mut self, heap: &mut MemoryArena);
     /// Pushes the postings information to the serializer.
-    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()>;
+    fn serialize(&self, buffer_lender: &mut BufferLender, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()>;
 }
 
 /// Only records the doc ids
@@ -60,9 +80,13 @@ impl Recorder for NothingRecorder {
 
     fn close_doc(&mut self, _heap: &mut MemoryArena) {}
 
-    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
-        for doc in self.stack.iter(heap) {
-            serializer.write_doc(doc, 0u32, &EMPTY_ARRAY)?;
+    fn serialize(&self, buffer_lender: &mut BufferLender, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
+        let buffer = buffer_lender.lend_u8();
+        self.stack.read(heap, buffer);
+        let mut data = &buffer[..];
+        while !data.is_empty() {
+            let doc = VInt::deserialize_u64(&mut data).unwrap();
+            serializer.write_doc(doc as u32, 0u32, &EMPTY_ARRAY)?;
         }
         Ok(())
     }
@@ -104,20 +128,21 @@ impl Recorder for TermFrequencyRecorder {
         self.current_tf = 0;
     }
 
-    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
-        // the last document has not been closed...
-        // its term freq is self.current_tf.
-        let mut doc_iter = self
-            .stack
-            .iter(heap)
-            .chain(Some(self.current_tf).into_iter());
-
-        while let Some(doc) = doc_iter.next() {
-            let term_freq = doc_iter
-                .next()
-                .expect("The IndexWriter recorded a doc without a term freq.");
-            serializer.write_doc(doc, term_freq, &EMPTY_ARRAY)?;
+    fn serialize(&self, buffer_lender: &mut BufferLender, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
+        let buffer = buffer_lender.lend_u8();
+        self.stack.read(heap, buffer);
+        let mut data = &buffer[..];
+        while !data.is_empty() {
+            let doc = VInt::deserialize_u64(&mut data).unwrap();
+            let term_freq =
+                if data.is_empty() {
+                    self.current_tf
+                } else {
+                    VInt::deserialize_u64(&mut data).unwrap() as u32
+                };
+            serializer.write_doc(doc as u32, term_freq, &EMPTY_ARRAY)?;
         }
+
         Ok(())
     }
 }
@@ -147,28 +172,32 @@ impl Recorder for TFAndPositionRecorder {
     }
 
     fn record_position(&mut self, position: u32, heap: &mut MemoryArena) {
-        self.stack.push(position, heap);
+        self.stack.push(position + 1u32, heap);
     }
 
     fn close_doc(&mut self, heap: &mut MemoryArena) {
         self.stack.push(POSITION_END, heap);
     }
 
-    fn serialize(&self, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
-        let mut doc_positions = Vec::with_capacity(100);
-        let mut positions_iter = self.stack.iter(heap);
-        while let Some(doc) = positions_iter.next() {
-            let mut prev_position = 0;
-            doc_positions.clear();
-            for position in &mut positions_iter {
-                if position == POSITION_END {
+    fn serialize(&self, buffer_lender: &mut BufferLender, serializer: &mut FieldSerializer, heap: &MemoryArena) -> io::Result<()> {
+        let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
+        self.stack.read(heap, buffer_u8);
+        let mut data = &buffer_u8[..];
+        while !data.is_empty() {
+            let mut prev_position_plus_one = 1u32;
+            let doc = VInt::deserialize_u64(&mut data).unwrap() as u32;
+            buffer_positions.clear();
+            while !data.is_empty() {
+                let position_plus_one = VInt::deserialize_u64(&mut data).unwrap() as u32;
+                if position_plus_one == POSITION_END {
                     break;
                 } else {
-                    doc_positions.push(position - prev_position);
-                    prev_position = position;
+                    let delta_position = position_plus_one - prev_position_plus_one;
+                    buffer_positions.push(delta_position);
+                    prev_position_plus_one = position_plus_one;
                 }
             }
-            serializer.write_doc(doc, doc_positions.len() as u32, &doc_positions)?;
+            serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions)?;
         }
         Ok(())
     }
