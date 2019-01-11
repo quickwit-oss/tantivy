@@ -1,9 +1,9 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
+use common::write_u32_vint;
 use common::VInt;
 use postings::FieldSerializer;
 use std::io;
 use DocId;
-use common::write_u32_vint;
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 0;
@@ -37,7 +37,7 @@ impl BufferLender {
 ///   * the term positions
 pub trait Recorder: Copy + 'static {
     ///
-    fn new(heap: &mut MemoryArena) -> Self;
+    fn new() -> Self;
     /// Returns the current document
     fn current_doc(&self) -> u32;
     /// Starts recording information about a new document
@@ -64,11 +64,10 @@ pub struct NothingRecorder {
     current_doc: DocId,
 }
 
-
 impl Recorder for NothingRecorder {
-    fn new(heap: &mut MemoryArena) -> Self {
+    fn new() -> Self {
         NothingRecorder {
-            stack: ExpUnrolledLinkedList::new(heap),
+            stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
         }
     }
@@ -112,9 +111,9 @@ pub struct TermFrequencyRecorder {
 }
 
 impl Recorder for TermFrequencyRecorder {
-    fn new(heap: &mut MemoryArena) -> Self {
+    fn new() -> Self {
         TermFrequencyRecorder {
-            stack: ExpUnrolledLinkedList::new(heap),
+            stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
             current_tf: 0u32,
         }
@@ -169,9 +168,9 @@ pub struct TFAndPositionRecorder {
     current_doc: DocId,
 }
 impl Recorder for TFAndPositionRecorder {
-    fn new(heap: &mut MemoryArena) -> Self {
+    fn new() -> Self {
         TFAndPositionRecorder {
-            stack: ExpUnrolledLinkedList::new(heap),
+            stack: ExpUnrolledLinkedList::new(),
             current_doc: u32::max_value(),
         }
     }

@@ -257,7 +257,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
                 recorder.record_position(position, heap);
                 recorder
             } else {
-                let mut recorder = Rec::new(heap);
+                let mut recorder = Rec::new();
                 recorder.new_doc(doc, heap);
                 recorder.record_position(position, heap);
                 recorder

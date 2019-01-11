@@ -1,8 +1,8 @@
 use super::BinarySerializable;
+use byteorder::{ByteOrder, LittleEndian};
 use std::io;
 use std::io::Read;
 use std::io::Write;
-use byteorder::{ByteOrder, LittleEndian};
 
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Debug, Eq, PartialEq)]

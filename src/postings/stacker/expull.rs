@@ -1,10 +1,13 @@
 use super::{Addr, MemoryArena};
 
-use std::mem;
+use postings::stacker::memory_arena::load;
+use postings::stacker::memory_arena::store;
 use std::io;
+use std::mem;
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
-const FIRST_BLOCK: u32 = 16u32;
+const FIRST_BLOCK: usize = 16;
+const INLINED_BLOCK_LEN: usize = FIRST_BLOCK + mem::size_of::<Addr>();
 
 enum CapacityResult {
     Available(u32),
@@ -13,7 +16,7 @@ enum CapacityResult {
 
 fn len_to_capacity(len: u32) -> CapacityResult {
     match len {
-        0...15 => CapacityResult::Available(FIRST_BLOCK - len),
+        0...15 => CapacityResult::Available(FIRST_BLOCK as u32 - len),
         16...MAX_BLOCK_LEN => {
             let cap = 1 << (32u32 - (len - 1u32).leading_zeros());
             let available = cap - len;
@@ -58,27 +61,41 @@ fn len_to_capacity(len: u32) -> CapacityResult {
 #[derive(Debug, Clone, Copy)]
 pub struct ExpUnrolledLinkedList {
     len: u32,
-    head: Addr,
     tail: Addr,
+    inlined_data: [u8; INLINED_BLOCK_LEN as usize],
 }
-
 
 pub struct ExpUnrolledLinkedListWriter<'a> {
     eull: &'a mut ExpUnrolledLinkedList,
-    heap: &'a mut MemoryArena
+    heap: &'a mut MemoryArena,
 }
 
-fn ensure_capacity(eull: &mut ExpUnrolledLinkedList, heap: &mut MemoryArena) -> u32 {
-    match len_to_capacity(eull.len) {
+fn ensure_capacity<'a>(
+    eull: &'a mut ExpUnrolledLinkedList,
+    heap: &'a mut MemoryArena,
+) -> &'a mut [u8] {
+    if eull.len <= FIRST_BLOCK as u32 {
+        // We are still hitting the inline block.
+        if eull.len < FIRST_BLOCK as u32 {
+            return &mut eull.inlined_data[eull.len as usize..FIRST_BLOCK];
+        }
+        // We need to allocate a new block!
+        let new_block_addr: Addr = heap.allocate_space(FIRST_BLOCK + mem::size_of::<Addr>());
+        store(&mut eull.inlined_data[FIRST_BLOCK..], new_block_addr);
+        eull.tail = new_block_addr;
+        return heap.slice_mut(eull.tail, FIRST_BLOCK);
+    }
+    let len = match len_to_capacity(eull.len) {
         CapacityResult::NeedAlloc(new_block_len) => {
             let new_block_addr: Addr =
-                heap.allocate_space(new_block_len as usize + mem::size_of::<u32>());
+                heap.allocate_space(new_block_len as usize + mem::size_of::<Addr>());
             heap.write_at(eull.tail, new_block_addr);
             eull.tail = new_block_addr;
             new_block_len
         }
         CapacityResult::Available(available) => available,
-    }
+    };
+    heap.slice_mut(eull.tail, len as usize)
 }
 
 impl<'a> ExpUnrolledLinkedListWriter<'a> {
@@ -88,19 +105,16 @@ impl<'a> ExpUnrolledLinkedListWriter<'a> {
             // allocates if there is no capacity at all right now.
             return;
         }
-        loop {
-            let cap = ensure_capacity(self.eull, self.heap) as usize;
-            if buf.len() <= cap {
-                self.heap.write_slice(self.eull.tail, &buf);
-                self.eull.len += buf.len() as u32;
-                self.eull.tail = self.eull.tail.offset(buf.len() as u32);
-                break;
-            } else {
-                self.heap.write_slice(self.eull.tail, &buf[..cap]);
-                self.eull.len += cap as u32;
-                self.eull.tail = self.eull.tail.offset(cap as u32);
-                buf = &buf[cap..];
+        while !buf.is_empty() {
+            let add_len: usize;
+            {
+                let output_buf = ensure_capacity(self.eull, self.heap);
+                add_len = buf.len().min(output_buf.len());
+                output_buf[..add_len].copy_from_slice(&buf[..add_len]);
             }
+            self.eull.len += add_len as u32;
+            self.eull.tail = self.eull.tail.offset(add_len as u32);
+            buf = &buf[add_len..];
         }
     }
 }
@@ -125,44 +139,41 @@ impl<'a> io::Write for ExpUnrolledLinkedListWriter<'a> {
 }
 
 impl ExpUnrolledLinkedList {
-
-    pub fn new(heap: &mut MemoryArena) -> ExpUnrolledLinkedList {
-        let addr = heap.allocate_space((FIRST_BLOCK as usize) * mem::size_of::<u32>());
+    pub fn new() -> ExpUnrolledLinkedList {
         ExpUnrolledLinkedList {
             len: 0u32,
-            head: addr,
-            tail: addr,
+            tail: Addr::null_pointer(),
+            inlined_data: [0u8; INLINED_BLOCK_LEN as usize],
         }
     }
 
     #[inline(always)]
     pub fn writer<'a>(&'a mut self, heap: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
-        ExpUnrolledLinkedListWriter {
-            eull: self,
-            heap
-        }
+        ExpUnrolledLinkedListWriter { eull: self, heap }
     }
 
     pub fn read_to_end(&self, heap: &MemoryArena, output: &mut Vec<u8>) {
-        let mut cur = 0u32;
-        let mut addr = self.head;
-        let mut len = self.len;
-        while len > 0 {
-            let cap = match len_to_capacity(cur) {
+        let len = self.len as usize;
+        if len <= FIRST_BLOCK {
+            output.extend_from_slice(&self.inlined_data[..len]);
+            return;
+        }
+        output.extend_from_slice(&self.inlined_data[..FIRST_BLOCK]);
+        let mut cur = FIRST_BLOCK;
+        let mut addr = load(&self.inlined_data[FIRST_BLOCK..]);
+        loop {
+            let cap = match len_to_capacity(cur as u32) {
                 CapacityResult::Available(capacity) => capacity,
                 CapacityResult::NeedAlloc(capacity) => capacity,
-            };
-            if cap < len {
-                let data = heap.slice(addr, cap as usize);
-                output.extend_from_slice(data);
-                len -= cap;
-                cur += cap;
-            } else {
-                let data = heap.slice(addr, len as usize);
-                output.extend_from_slice(data);
+            } as usize;
+            let data = heap.slice(addr, cap);
+            if cur + cap >= len {
+                output.extend_from_slice(&data[..(len - cur)]);
                 return;
             }
-            addr = heap.read(addr.offset(cap));
+            output.extend_from_slice(data);
+            cur += cap;
+            addr = heap.read(addr.offset(cap as u32));
         }
     }
 }
@@ -173,20 +184,72 @@ mod tests {
     use super::super::MemoryArena;
     use super::len_to_capacity;
     use super::*;
+    use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 
+    #[test]
     #[test]
     fn test_stack() {
         let mut heap = MemoryArena::new();
-        let mut stack = ExpUnrolledLinkedList::new(&mut heap);
+        let mut stack = ExpUnrolledLinkedList::new();
         stack.writer(&mut heap).extend_from_slice(&[1u8]);
         stack.writer(&mut heap).extend_from_slice(&[2u8]);
-        stack.writer(&mut heap).extend_from_slice(&[3u8,4u8]);
+        stack.writer(&mut heap).extend_from_slice(&[3u8, 4u8]);
         stack.writer(&mut heap).extend_from_slice(&[5u8]);
         {
             let mut buffer = Vec::new();
             stack.read_to_end(&heap, &mut buffer);
             assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
         }
+    }
+
+    #[test]
+    fn test_stack_long() {
+        let mut heap = MemoryArena::new();
+        let mut stack = ExpUnrolledLinkedList::new();
+        let source: Vec<u32> = (0..100).collect();
+        for &el in &source {
+            assert!(stack
+                .writer(&mut heap)
+                .write_u32::<LittleEndian>(el)
+                .is_ok());
+        }
+        let mut buffer = Vec::new();
+        stack.read_to_end(&heap, &mut buffer);
+        let mut result = vec![];
+        let mut remaining = &buffer[..];
+        while !remaining.is_empty() {
+            result.push(LittleEndian::read_u32(&remaining[..4]));
+            remaining = &remaining[4..];
+        }
+        assert_eq!(&result[..], &source[..]);
+    }
+
+    #[test]
+    fn test_stack_interlaced() {
+        let mut heap = MemoryArena::new();
+        let mut stack = ExpUnrolledLinkedList::new();
+        let mut stack2 = ExpUnrolledLinkedList::new();
+
+        let mut vec1: Vec<u8> = vec![];
+        let mut vec2: Vec<u8> = vec![];
+
+        for i in 0..9 {
+            assert!(stack.writer(&mut heap).write_u32::<LittleEndian>(i).is_ok());
+            assert!(vec1.write_u32::<LittleEndian>(i).is_ok());
+            if i % 2 == 0 {
+                assert!(stack2
+                    .writer(&mut heap)
+                    .write_u32::<LittleEndian>(i)
+                    .is_ok());
+                assert!(vec2.write_u32::<LittleEndian>(i).is_ok());
+            }
+        }
+        let mut res1 = vec![];
+        let mut res2 = vec![];
+        stack.read_to_end(&heap, &mut res1);
+        stack2.read_to_end(&heap, &mut res2);
+        assert_eq!(&vec1[..], &res1[..]);
+        assert_eq!(&vec2[..], &res2[..]);
     }
 
     #[test]
@@ -209,14 +272,45 @@ mod tests {
             available -= 1;
         }
     }
+
+    #[test]
+    fn test_jump_if_needed_progression() {
+        let mut v = vec![];
+        for i in 0.. {
+            if v.len() >= 10 {
+                break;
+            }
+            match len_to_capacity(i) {
+                CapacityResult::NeedAlloc(cap) => {
+                    v.push((i, cap));
+                }
+                _ => {}
+            }
+        }
+        assert_eq!(
+            &v[..],
+            &[
+                (16, 16),
+                (32, 32),
+                (64, 64),
+                (128, 128),
+                (256, 256),
+                (512, 512),
+                (1024, 1024),
+                (2048, 2048),
+                (4096, 4096),
+                (8192, 8192)
+            ]
+        );
+    }
 }
 
 #[cfg(all(test, feature = "unstable"))]
 mod bench {
     use super::super::MemoryArena;
     use super::ExpUnrolledLinkedList;
+    use byteorder::{NativeEndian, WriteBytesExt};
     use test::Bencher;
-    use byteorder::{WriteBytesExt, NativeEndian};
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
@@ -243,7 +337,7 @@ mod bench {
             let mut heap = MemoryArena::new();
             let mut stacks = Vec::with_capacity(100);
             for _ in 0..NUM_STACK {
-                let mut stack = ExpUnrolledLinkedList::new(&mut heap);
+                let mut stack = ExpUnrolledLinkedList::new();
                 stacks.push(stack);
             }
             for s in 0..NUM_STACK {
