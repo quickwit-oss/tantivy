@@ -51,30 +51,49 @@ impl Addr {
         Addr(self.0.wrapping_add(offset))
     }
 
+    fn new(page_id: usize, local_addr: usize) -> Addr {
+        Addr((page_id << NUM_BITS_PAGE_ADDR | local_addr) as u32)
+    }
+
+    fn page_id(self) -> usize {
+        (self.0 as usize) >> NUM_BITS_PAGE_ADDR
+    }
+
+    fn page_local_addr(self) -> usize {
+        (self.0 as usize) & (PAGE_SIZE - 1)
+    }
+
     /// Returns true if and only if the `Addr` is null.
     pub fn is_null(self) -> bool {
         self.0 == u32::max_value()
     }
 }
 
+
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
     assert_eq!(dest.len(), std::mem::size_of::<Item>());
-    unsafe {
-        ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);
-    }
+    unsafe { ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);  }
 }
+
 
 /// The `MemoryArena`
 pub struct MemoryArena {
-    buffer: Vec<u8>,
+    pages: Vec<Page>,
 }
 
 impl MemoryArena {
     /// Creates a new memory arena.
-    pub fn new(capacity: usize) -> MemoryArena {
+    pub fn new() -> MemoryArena {
+        let first_page = Page::new(0);
         MemoryArena {
-            buffer: Vec::with_capacity(capacity),
+            pages: vec![first_page],
         }
+    }
+
+    fn add_page(&mut self) -> &mut Page {
+        let new_page_id = self.pages.len();
+        self.pages.push(Page::new(new_page_id));
+        &mut self.pages[new_page_id]
     }
 
     /// Returns an estimate in number of bytes
@@ -83,13 +102,7 @@ impl MemoryArena {
     /// Internally, it counts a number of `1MB` pages
     /// and therefore delivers an upperbound.
     pub fn mem_usage(&self) -> usize {
-        self.buffer.len()
-    }
-
-    pub fn write_slice(&mut self, addr: Addr, data: &[u8]) {
-        let start = addr.0 as usize;
-        let stop = start + data.len();
-        self.buffer[start..stop].copy_from_slice(data);
+        self.pages.len() * PAGE_SIZE
     }
 
     pub fn write_at<Item: Copy + 'static>(&mut self, addr: Addr, val: Item) {
@@ -107,27 +120,72 @@ impl MemoryArena {
         unsafe { ptr::read_unaligned(data.as_ptr() as *const Item) }
     }
 
+    pub fn write_slice(&mut self, addr: Addr, buf: &[u8]) {
+        self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), buf.len()).copy_from_slice(buf);
+    }
+
     pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
-        let start = addr.0 as usize;
-        let stop = start + len;
-        &self.buffer[start..stop]
+        self.pages[addr.page_id()].slice(addr.page_local_addr(), len)
     }
 
     pub fn slice_from(&self, addr: Addr) -> &[u8] {
-        &self.buffer[addr.0 as usize..]
+        self.pages[addr.page_id()].slice_from(addr.page_local_addr())
     }
 
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
-        let start = addr.0 as usize;
-        let stop = start + len;
-        &mut self.buffer[start..stop]
+        self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), len)
     }
 
     /// Allocates `len` bytes and returns the allocated address.
     pub fn allocate_space(&mut self, len: usize) -> Addr {
-        let addr = self.buffer.len();
-        self.buffer.resize(addr + len, 0u8);
-        Addr(addr as u32)
+        let page_id = self.pages.len() - 1;
+        if let Some(addr) = self.pages[page_id].allocate_space(len) {
+            return addr;
+        }
+        self.add_page().allocate_space(len).unwrap()
+    }
+}
+
+struct Page {
+    page_id: usize,
+    len: usize,
+    data: Box<[u8]>,
+}
+
+impl Page {
+    fn new(page_id: usize) -> Page {
+        Page {
+            page_id,
+            len: 0,
+            data: vec![0u8; PAGE_SIZE].into_boxed_slice(),
+        }
+    }
+
+    #[inline(always)]
+    fn is_available(&self, len: usize) -> bool {
+        len + self.len <= PAGE_SIZE
+    }
+
+    fn slice(&self, local_addr: usize, len: usize) -> &[u8] {
+        &self.slice_from(local_addr)[..len]
+    }
+
+    fn slice_from(&self, local_addr: usize) -> &[u8] {
+        &self.data[local_addr..]
+    }
+
+    fn slice_mut(&mut self, local_addr: usize, len: usize) -> &mut [u8] {
+        &mut self.data[local_addr..][..len]
+    }
+
+    fn allocate_space(&mut self, len: usize) -> Option<Addr> {
+        if self.is_available(len) {
+            let addr = Addr::new(self.page_id, self.len);
+            self.len += len;
+            Some(addr)
+        } else {
+            None
+        }
     }
 }
 
@@ -138,7 +196,7 @@ mod tests {
 
     #[test]
     fn test_arena_allocate_slice() {
-        let mut arena = MemoryArena::new(10_000);
+        let mut arena = MemoryArena::new();
         let a = b"hello";
         let b = b"happy tax payer";
 
@@ -161,7 +219,7 @@ mod tests {
 
     #[test]
     fn test_store_object() {
-        let mut arena = MemoryArena::new(10_000);
+        let mut arena = MemoryArena::new();
         let a = MyTest {
             a: 143,
             b: 21,

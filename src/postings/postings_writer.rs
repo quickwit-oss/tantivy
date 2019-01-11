@@ -54,7 +54,7 @@ pub struct MultiFieldPostingsWriter {
 impl MultiFieldPostingsWriter {
     /// Create a new `MultiFieldPostingsWriter` given
     /// a schema and a heap.
-    pub fn new(schema: &Schema, capacity: usize, table_bits: usize) -> MultiFieldPostingsWriter {
+    pub fn new(schema: &Schema, table_bits: usize) -> MultiFieldPostingsWriter {
         let term_index = TermHashMap::new(table_bits);
         let per_field_postings_writers: Vec<_> = schema
             .fields()
@@ -62,7 +62,7 @@ impl MultiFieldPostingsWriter {
             .map(|field_entry| posting_from_field_entry(field_entry))
             .collect();
         MultiFieldPostingsWriter {
-            heap: MemoryArena::new(capacity),
+            heap: MemoryArena::new(),
             schema: schema.clone(),
             term_index,
             per_field_postings_writers,

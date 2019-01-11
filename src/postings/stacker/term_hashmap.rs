@@ -98,7 +98,7 @@ impl<'a> Iterator for Iter<'a> {
 
 impl TermHashMap {
     pub fn new(num_bucket_power_of_2: usize) -> TermHashMap {
-        let heap = MemoryArena::new(10_000_000);
+        let heap = MemoryArena::new();
         let table_size = 1 << num_bucket_power_of_2;
         let table: Vec<KeyValue> = iter::repeat(KeyValue::default()).take(table_size).collect();
         TermHashMap {

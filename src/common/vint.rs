@@ -2,6 +2,7 @@ use super::BinarySerializable;
 use std::io;
 use std::io::Read;
 use std::io::Write;
+use byteorder::{ByteOrder, LittleEndian};
 
 ///   Wrapper over a `u64` that serializes as a variable int.
 #[derive(Debug, Eq, PartialEq)]
@@ -56,6 +57,14 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
             5,
         ),
     }
+}
+
+#[inline(always)]
+pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
+    let (val, num_bytes) = serialize_vint_u32(val);
+    let mut buffer = [0u8; 8];
+    LittleEndian::write_u64(&mut buffer, val);
+    writer.write_all(&buffer[..num_bytes])
 }
 
 impl VInt {

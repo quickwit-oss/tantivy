@@ -3,6 +3,7 @@ use common::VInt;
 use postings::FieldSerializer;
 use std::io;
 use DocId;
+use common::write_u32_vint;
 
 const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 0;
@@ -63,6 +64,7 @@ pub struct NothingRecorder {
     current_doc: DocId,
 }
 
+
 impl Recorder for NothingRecorder {
     fn new(heap: &mut MemoryArena) -> Self {
         NothingRecorder {
@@ -77,7 +79,7 @@ impl Recorder for NothingRecorder {
 
     fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
-        self.stack.push(doc, heap);
+        write_u32_vint(doc, &mut self.stack.get_writer(heap));
     }
 
     fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {}
@@ -124,7 +126,7 @@ impl Recorder for TermFrequencyRecorder {
 
     fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
-        self.stack.push(doc, heap);
+        write_u32_vint(doc, &mut self.stack.get_writer(heap));
     }
 
     fn record_position(&mut self, _position: u32, _heap: &mut MemoryArena) {
@@ -133,7 +135,7 @@ impl Recorder for TermFrequencyRecorder {
 
     fn close_doc(&mut self, heap: &mut MemoryArena) {
         debug_assert!(self.current_tf > 0);
-        self.stack.push(self.current_tf, heap);
+        write_u32_vint(self.current_tf, &mut self.stack.get_writer(heap));
         self.current_tf = 0;
     }
 
@@ -166,7 +168,6 @@ pub struct TFAndPositionRecorder {
     stack: ExpUnrolledLinkedList,
     current_doc: DocId,
 }
-
 impl Recorder for TFAndPositionRecorder {
     fn new(heap: &mut MemoryArena) -> Self {
         TFAndPositionRecorder {
@@ -181,15 +182,15 @@ impl Recorder for TFAndPositionRecorder {
 
     fn new_doc(&mut self, doc: DocId, heap: &mut MemoryArena) {
         self.current_doc = doc;
-        self.stack.push(doc, heap);
+        write_u32_vint(doc, &mut self.stack.get_writer(heap));
     }
 
     fn record_position(&mut self, position: u32, heap: &mut MemoryArena) {
-        self.stack.push(position + 1u32, heap);
+        write_u32_vint(position + 1u32, &mut self.stack.get_writer(heap));
     }
 
     fn close_doc(&mut self, heap: &mut MemoryArena) {
-        self.stack.push(POSITION_END, heap);
+        write_u32_vint(POSITION_END, &mut self.stack.get_writer(heap));
     }
 
     fn serialize(
