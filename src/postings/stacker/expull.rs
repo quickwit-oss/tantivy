@@ -1,22 +1,22 @@
 use super::{Addr, MemoryArena};
 
-use std::mem;
+use byteorder::{ByteOrder, LittleEndian};
 use common::serialize_vint_u32;
-use byteorder::{LittleEndian, ByteOrder};
+use std::mem;
 
 const MAX_BLOCK_LEN: u32 = 1u32 << 15;
 const FIRST_BLOCK: u32 = 16u32;
 
 enum CapacityResult {
     Available(u32),
-    NeedAlloc(u32)
+    NeedAlloc(u32),
 }
 
 fn len_to_capacity(len: u32) -> CapacityResult {
     match len {
         0...15 => CapacityResult::Available(FIRST_BLOCK - len),
         16...MAX_BLOCK_LEN => {
-            let cap = 1 << (32u32 - (len-1u32).leading_zeros());
+            let cap = 1 << (32u32 - (len - 1u32).leading_zeros());
             let available = cap - len;
             if available == 0 {
                 CapacityResult::NeedAlloc(len)
@@ -34,8 +34,6 @@ fn len_to_capacity(len: u32) -> CapacityResult {
         }
     }
 }
-
-
 
 /// An exponential unrolled link.
 ///
@@ -106,12 +104,13 @@ impl ExpUnrolledLinkedList {
     fn ensure_capacity(&mut self, heap: &mut MemoryArena) -> u32 {
         match len_to_capacity(self.len) {
             CapacityResult::NeedAlloc(new_block_len) => {
-                let new_block_addr: Addr = heap.allocate_space(new_block_len as usize + mem::size_of::<u32>());
+                let new_block_addr: Addr =
+                    heap.allocate_space(new_block_len as usize + mem::size_of::<u32>());
                 heap.write_at(self.tail, new_block_addr);
                 self.tail = new_block_addr;
                 new_block_len
             }
-            CapacityResult::Available(available) => available
+            CapacityResult::Available(available) => available,
         }
     }
 
@@ -121,11 +120,10 @@ impl ExpUnrolledLinkedList {
         let mut addr = self.head;
         let mut len = self.len;
         while len > 0 {
-            let cap =
-                match len_to_capacity(cur) {
-                    CapacityResult::Available(capacity) => capacity,
-                    CapacityResult::NeedAlloc(capacity) => capacity,
-                };
+            let cap = match len_to_capacity(cur) {
+                CapacityResult::Available(capacity) => capacity,
+                CapacityResult::NeedAlloc(capacity) => capacity,
+            };
             if cap < len {
                 let data = heap.slice(addr, cap as usize);
                 output.extend_from_slice(data);
@@ -140,7 +138,6 @@ impl ExpUnrolledLinkedList {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -170,13 +167,15 @@ mod tests {
         for i in 0..10_000_000 {
             match len_to_capacity(i) {
                 CapacityResult::NeedAlloc(cap) => {
-                    assert_eq!(available, 0,
-                               "Failed len={}: Expected 0 got {}", i, cap);
+                    assert_eq!(available, 0, "Failed len={}: Expected 0 got {}", i, cap);
                     available = cap;
                 }
                 CapacityResult::Available(cap) => {
-                    assert_eq!(available, cap,
-                               "Failed len={}: Expected {} Got {}", i, available, cap);
+                    assert_eq!(
+                        available, cap,
+                        "Failed len={}: Expected {} Got {}",
+                        i, available, cap
+                    );
                 }
             }
             available -= 1;

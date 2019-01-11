@@ -57,16 +57,15 @@ impl Addr {
     }
 }
 
-
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
     assert_eq!(dest.len(), std::mem::size_of::<Item>());
-    unsafe { ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);  }
+    unsafe {
+        ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);
+    }
 }
-
 
 /// The `MemoryArena`
 pub struct MemoryArena {
-//    pages: Vec<Page>,
     buffer: Vec<u8>,
 }
 
@@ -110,7 +109,7 @@ impl MemoryArena {
 
     pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
         let start = addr.0 as usize;
-        let stop  = start + len;
+        let stop = start + len;
         &self.buffer[start..stop]
     }
 
@@ -120,18 +119,17 @@ impl MemoryArena {
 
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
         let start = addr.0 as usize;
-        let stop  = start + len;
+        let stop = start + len;
         &mut self.buffer[start..stop]
     }
 
     /// Allocates `len` bytes and returns the allocated address.
     pub fn allocate_space(&mut self, len: usize) -> Addr {
         let addr = self.buffer.len();
-        self.buffer.resize(addr+len, 0u8);
+        self.buffer.resize(addr + len, 0u8);
         Addr(addr as u32)
     }
 }
-
 
 #[cfg(test)]
 mod tests {

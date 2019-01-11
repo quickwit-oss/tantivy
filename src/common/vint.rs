@@ -29,36 +29,32 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
     let val = val as u64;
     const STOP_BIT: u64 = 128u64;
     match val {
-        0... STOP_1  => {
-            (val | STOP_BIT, 1)
-        }
-        START_2 ... STOP_2 => {
-            ((val & MASK_1) |
-             ((val & MASK_2) << 1) |
-             (STOP_BIT << (8)), 2)
-        }
-        START_3 ... STOP_3 => {
-            ((val & MASK_1) |
-             ((val & MASK_2) << 1) |
-             ((val & MASK_3) << 2) |
-             (STOP_BIT << (8*2)), 3)
-        }
-        START_4 ... STOP_4 => {
-            ((val & MASK_1) |
-             ((val & MASK_2) << 1) |
-             ((val & MASK_3) << 2) |
-             ((val & MASK_4) << 3) |
-             (STOP_BIT << (8*3)), 4)
-        }
-        _ => {
-            (
-             (val & MASK_1) |
-            ((val & MASK_2) << 1) |
-            ((val & MASK_3) << 2) |
-            ((val & MASK_4) << 3) |
-            ((val & MASK_5) << 4) |
-              (STOP_BIT << (8*4)), 5)
-        }
+        0...STOP_1 => (val | STOP_BIT, 1),
+        START_2...STOP_2 => (
+            (val & MASK_1) | ((val & MASK_2) << 1) | (STOP_BIT << (8)),
+            2,
+        ),
+        START_3...STOP_3 => (
+            (val & MASK_1) | ((val & MASK_2) << 1) | ((val & MASK_3) << 2) | (STOP_BIT << (8 * 2)),
+            3,
+        ),
+        START_4...STOP_4 => (
+            (val & MASK_1)
+                | ((val & MASK_2) << 1)
+                | ((val & MASK_3) << 2)
+                | ((val & MASK_4) << 3)
+                | (STOP_BIT << (8 * 3)),
+            4,
+        ),
+        _ => (
+            (val & MASK_1)
+                | ((val & MASK_2) << 1)
+                | ((val & MASK_3) << 2)
+                | ((val & MASK_4) << 3)
+                | ((val & MASK_5) << 4)
+                | (STOP_BIT << (8 * 4)),
+            5,
+        ),
     }
 }
 
@@ -117,7 +113,7 @@ impl BinarySerializable for VInt {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "Reach end of buffer while reading VInt",
-                    ))
+                    ));
                 }
             }
         }
@@ -127,10 +123,10 @@ impl BinarySerializable for VInt {
 #[cfg(test)]
 mod tests {
 
-    use byteorder::{LittleEndian, ByteOrder};
-    use super::VInt;
-    use common::BinarySerializable;
     use super::serialize_vint_u32;
+    use super::VInt;
+    use byteorder::{ByteOrder, LittleEndian};
+    use common::BinarySerializable;
 
     fn aux_test_vint(val: u64) {
         let mut v = [14u8; 10];
@@ -165,8 +161,8 @@ mod tests {
     }
 
     fn aux_test_serialize_vint_u32(val: u32) {
-        let mut buffer = [0u8;10];
-        let mut buffer2 = [0u8;10];
+        let mut buffer = [0u8; 10];
+        let mut buffer2 = [0u8; 10];
         let len_vint = VInt(val as u64).serialize_into(&mut buffer);
         let (vint, len) = serialize_vint_u32(val);
         assert_eq!(len, len_vint, "len wrong for val {}", val);

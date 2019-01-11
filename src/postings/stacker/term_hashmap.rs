@@ -2,12 +2,12 @@ extern crate murmurhash32;
 
 use self::murmurhash32::murmurhash2;
 
-use byteorder::{ByteOrder, NativeEndian};
 use super::{Addr, MemoryArena};
+use byteorder::{ByteOrder, NativeEndian};
+use postings::stacker::memory_arena::store;
 use std::iter;
 use std::mem;
 use std::slice;
-use postings::stacker::memory_arena::store;
 
 pub type BucketId = usize;
 
@@ -90,8 +90,7 @@ impl<'a> Iterator for Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next().cloned().map(move |bucket: usize| {
             let kv = self.hashmap.table[bucket];
-            let (key, offset): (&'a [u8], Addr) =
-                self.hashmap.get_key_value(kv.key_value_addr);
+            let (key, offset): (&'a [u8], Addr) = self.hashmap.get_key_value(kv.key_value_addr);
             (key, offset, bucket as BucketId)
         })
     }
@@ -202,7 +201,8 @@ impl TermHashMap {
             let kv: KeyValue = self.table[bucket];
             if kv.is_empty() {
                 let val = updater(None);
-                let num_bytes =  std::mem::size_of::<u16>() + key_bytes.len() + std::mem::size_of::<V>();
+                let num_bytes =
+                    std::mem::size_of::<u16>() + key_bytes.len() + std::mem::size_of::<V>();
                 let key_addr = self.heap.allocate_space(num_bytes);
                 {
                     let data = self.heap.slice_mut(key_addr, num_bytes);
@@ -214,7 +214,9 @@ impl TermHashMap {
                 self.set_bucket(hash, key_addr, bucket);
                 return bucket as BucketId;
             } else if kv.hash == hash {
-                if let Some(val_addr) = self.get_value_addr_if_key_match(key_bytes, kv.key_value_addr) {
+                if let Some(val_addr) =
+                    self.get_value_addr_if_key_match(key_bytes, kv.key_value_addr)
+                {
                     let v = self.heap.read(val_addr);
                     let new_v = updater(Some(v));
                     self.heap.write_at(val_addr, new_v);

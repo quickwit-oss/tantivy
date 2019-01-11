@@ -271,7 +271,8 @@ fn index_documents(
     let schema = segment.schema();
     let segment_id = segment.id();
     let table_size = initial_table_size(memory_budget);
-    let mut segment_writer = SegmentWriter::for_segment(table_size, memory_budget, segment.clone(), &schema)?;
+    let mut segment_writer =
+        SegmentWriter::for_segment(table_size, memory_budget, segment.clone(), &schema)?;
     for doc in document_iterator {
         segment_writer.add_document(doc, &schema)?;
 

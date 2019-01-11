@@ -1,6 +1,8 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
-use postings::recorder::{BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
+use postings::recorder::{
+    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
+};
 use postings::UnorderedTermId;
 use postings::{FieldSerializer, InvertedIndexSerializer};
 use schema::IndexRecordOption;
