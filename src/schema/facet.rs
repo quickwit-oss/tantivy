@@ -133,7 +133,7 @@ impl<'a, T: ?Sized + AsRef<str>> From<&'a T> for Facet {
         }
         let path: &str = path_asref.as_ref();
         assert!(!path.is_empty());
-        assert!(path.starts_with("/"));
+        assert!(path.starts_with('/'));
         let mut facet_encoded = String::new();
         let mut state = State::Idle;
         let path_bytes = path.as_bytes();

@@ -62,6 +62,7 @@ pub struct ExpUnrolledLinkedList {
     tail: Addr,
 }
 
+
 pub struct ExpUnrolledLinkedListWriter<'a> {
     eull: &'a mut ExpUnrolledLinkedList,
     heap: &'a mut MemoryArena
@@ -135,15 +136,14 @@ impl ExpUnrolledLinkedList {
     }
 
     #[inline(always)]
-    pub fn get_writer<'a>(&'a mut self, heap: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
+    pub fn writer<'a>(&'a mut self, heap: &'a mut MemoryArena) -> ExpUnrolledLinkedListWriter<'a> {
         ExpUnrolledLinkedListWriter {
             eull: self,
             heap
         }
     }
 
-    pub fn read(&self, heap: &MemoryArena, output: &mut Vec<u8>) {
-        output.clear();
+    pub fn read_to_end(&self, heap: &MemoryArena, output: &mut Vec<u8>) {
         let mut cur = 0u32;
         let mut addr = self.head;
         let mut len = self.len;
@@ -178,14 +178,14 @@ mod tests {
     fn test_stack() {
         let mut heap = MemoryArena::new();
         let mut stack = ExpUnrolledLinkedList::new(&mut heap);
-        stack.push(1u32, &mut heap);
-        stack.push(2u32, &mut heap);
-        stack.push(4u32, &mut heap);
-        stack.push(8u32, &mut heap);
+        stack.writer(&mut heap).extend_from_slice(&[1u8]);
+        stack.writer(&mut heap).extend_from_slice(&[2u8]);
+        stack.writer(&mut heap).extend_from_slice(&[3u8,4u8]);
+        stack.writer(&mut heap).extend_from_slice(&[5u8]);
         {
             let mut buffer = Vec::new();
-            stack.read(&heap, &mut buffer);
-            assert_eq!(&buffer[..], &[129u8, 130u8, 132u8, 136u8]);
+            stack.read_to_end(&heap, &mut buffer);
+            assert_eq!(&buffer[..], &[1u8, 2u8, 3u8, 4u8, 5u8]);
         }
     }
 
@@ -216,7 +216,7 @@ mod bench {
     use super::super::MemoryArena;
     use super::ExpUnrolledLinkedList;
     use test::Bencher;
-    use byteorder::{NativeEndian, ByteOrder};
+    use byteorder::{WriteBytesExt, NativeEndian};
 
     const NUM_STACK: usize = 10_000;
     const STACK_SIZE: u32 = 1000;
@@ -249,7 +249,7 @@ mod bench {
             for s in 0..NUM_STACK {
                 for i in 0u32..STACK_SIZE {
                     let t = s * 392017 % NUM_STACK;
-                    let _ = stacks[t].get_writer(&mut heap).write_u32::<NativeEndian>(i);
+                    let _ = stacks[t].writer(&mut heap).write_u32::<NativeEndian>(i);
                 }
             }
         });

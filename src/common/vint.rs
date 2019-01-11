@@ -27,7 +27,7 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
     const MASK_4: u64 = MASK_3 << 7;
     const MASK_5: u64 = MASK_4 << 7;
 
-    let val = val as u64;
+    let val = u64::from(val);
     const STOP_BIT: u64 = 128u64;
     match val {
         0...STOP_1 => (val | STOP_BIT, 1),

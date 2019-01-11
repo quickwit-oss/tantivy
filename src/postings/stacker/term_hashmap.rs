@@ -227,24 +227,6 @@ impl TermHashMap {
     }
 }
 
-#[cfg(all(test, feature = "unstable"))]
-mod bench {
-    use super::murmurhash2::murmurhash2;
-    use test::Bencher;
-
-    #[bench]
-    fn bench_murmurhash2(b: &mut Bencher) {
-        let keys: [&'static str; 3] = ["wer qwe qwe qwe ", "werbq weqweqwe2 ", "weraq weqweqwe3 "];
-        b.iter(|| {
-            let mut s = 0;
-            for &key in &keys {
-                s ^= murmurhash2(key.as_bytes());
-            }
-            s
-        });
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
