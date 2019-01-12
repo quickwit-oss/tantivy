@@ -1,6 +1,5 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
-use common::write_u32_vint;
-use common::VInt;
+use common::{read_vint_u32, write_u32_vint};
 use postings::FieldSerializer;
 use std::io;
 use DocId;
@@ -9,7 +8,7 @@ const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 0;
 
 #[derive(Default)]
-pub struct BufferLender {
+pub(crate) struct BufferLender {
     buffer_u8: Vec<u8>,
     buffer_u32: Vec<u32>,
 }
@@ -26,6 +25,28 @@ impl BufferLender {
     }
 }
 
+pub struct VInt32Reader<'a> {
+    data: &'a [u8],
+}
+
+impl<'a> VInt32Reader<'a> {
+    fn new(data: &'a [u8]) -> VInt32Reader<'a> {
+        VInt32Reader { data }
+    }
+}
+
+impl<'a> Iterator for VInt32Reader<'a> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        if self.data.is_empty() {
+            None
+        } else {
+            Some(read_vint_u32(&mut self.data))
+        }
+    }
+}
+
 /// Recorder is in charge of recording relevant information about
 /// the presence of a term in a document.
 ///
@@ -35,7 +56,7 @@ impl BufferLender {
 ///   * the document id
 ///   * the term frequency
 ///   * the term positions
-pub trait Recorder: Copy + 'static {
+pub(crate) trait Recorder: Copy + 'static {
     ///
     fn new() -> Self;
     /// Returns the current document
@@ -93,9 +114,7 @@ impl Recorder for NothingRecorder {
     ) -> io::Result<()> {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
-        let mut data = &buffer[..];
-        while !data.is_empty() {
-            let doc = VInt::deserialize_u64(&mut data).unwrap();
+        for doc in VInt32Reader::new(&buffer[..]) {
             serializer.write_doc(doc as u32, 0u32, &EMPTY_ARRAY)?;
         }
         Ok(())
@@ -146,14 +165,9 @@ impl Recorder for TermFrequencyRecorder {
     ) -> io::Result<()> {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
-        let mut data = &buffer[..];
-        while !data.is_empty() {
-            let doc = VInt::deserialize_u64(&mut data).unwrap();
-            let term_freq = if data.is_empty() {
-                self.current_tf
-            } else {
-                VInt::deserialize_u64(&mut data).unwrap() as u32
-            };
+        let mut u32_it = VInt32Reader::new(&buffer[..]);
+        while let Some(doc) = u32_it.next() {
+            let term_freq = u32_it.next().unwrap_or(self.current_tf);
             serializer.write_doc(doc as u32, term_freq, &EMPTY_ARRAY)?;
         }
 
@@ -200,23 +214,69 @@ impl Recorder for TFAndPositionRecorder {
     ) -> io::Result<()> {
         let (buffer_u8, buffer_positions) = buffer_lender.lend_all();
         self.stack.read_to_end(heap, buffer_u8);
-        let mut data = &buffer_u8[..];
-        while !data.is_empty() {
+        let mut u32_it = VInt32Reader::new(&buffer_u8[..]);
+        while let Some(doc) = u32_it.next() {
             let mut prev_position_plus_one = 1u32;
-            let doc = VInt::deserialize_u64(&mut data).unwrap() as u32;
             buffer_positions.clear();
-            while !data.is_empty() {
-                let position_plus_one = VInt::deserialize_u64(&mut data).unwrap() as u32;
-                if position_plus_one == POSITION_END {
-                    break;
-                } else {
-                    let delta_position = position_plus_one - prev_position_plus_one;
-                    buffer_positions.push(delta_position);
-                    prev_position_plus_one = position_plus_one;
+            loop {
+                match u32_it.next() {
+                    Some(POSITION_END) | None => {
+                        break;
+                    }
+                    Some(position_plus_one) => {
+                        let delta_position = position_plus_one - prev_position_plus_one;
+                        buffer_positions.push(delta_position);
+                        prev_position_plus_one = position_plus_one;
+                    }
                 }
             }
             serializer.write_doc(doc, buffer_positions.len() as u32, &buffer_positions)?;
         }
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::write_u32_vint;
+    use super::BufferLender;
+    use super::VInt32Reader;
+
+    #[test]
+    fn test_buffer_lender() {
+        let mut buffer_lender = BufferLender::default();
+        {
+            let buf = buffer_lender.lend_u8();
+            assert!(buf.is_empty());
+            buf.push(1u8);
+        }
+        {
+            let buf = buffer_lender.lend_u8();
+            assert!(buf.is_empty());
+            buf.push(1u8);
+        }
+        {
+            let (_, buf) = buffer_lender.lend_all();
+            assert!(buf.is_empty());
+            buf.push(1u32);
+        }
+        {
+            let (_, buf) = buffer_lender.lend_all();
+            assert!(buf.is_empty());
+            buf.push(1u32);
+        }
+    }
+
+    #[test]
+    fn test_vint_u32() {
+        let mut buffer = vec![];
+        let vals = [0, 1, 324_234_234, u32::max_value()];
+        for &i in &vals {
+            assert!(write_u32_vint(i, &mut buffer).is_ok());
+        }
+        assert_eq!(buffer.len(), 1 + 1 + 5 + 5);
+        let res: Vec<u32> = VInt32Reader::new(&buffer[..]).collect();
+        assert_eq!(&res[..], &vals[..]);
     }
 }
