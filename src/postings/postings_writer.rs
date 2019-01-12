@@ -215,7 +215,7 @@ pub trait PostingsWriter {
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
+pub(crate) struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
