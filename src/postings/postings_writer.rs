@@ -247,8 +247,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
         term_index.mutate_or_create(term, |opt_recorder: Option<Rec>| {
-            if opt_recorder.is_some() {
-                let mut recorder = opt_recorder.unwrap();
+            if let Some(mut recorder) = opt_recorder {
                 let current_doc = recorder.current_doc();
                 if current_doc != doc {
                     recorder.close_doc(heap);
