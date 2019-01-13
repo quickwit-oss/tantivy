@@ -1,6 +1,8 @@
 use super::stacker::{Addr, MemoryArena, TermHashMap};
 
-use postings::recorder::{NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder};
+use postings::recorder::{
+    BufferLender, NothingRecorder, Recorder, TFAndPositionRecorder, TermFrequencyRecorder,
+};
 use postings::UnorderedTermId;
 use postings::{FieldSerializer, InvertedIndexSerializer};
 use schema::IndexRecordOption;
@@ -213,7 +215,7 @@ pub trait PostingsWriter {
 
 /// The `SpecializedPostingsWriter` is just here to remove dynamic
 /// dispatch to the recorder information.
-pub struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
+pub(crate) struct SpecializedPostingsWriter<Rec: Recorder + 'static> {
     total_num_tokens: u64,
     _recorder_type: PhantomData<Rec>,
 }
@@ -245,8 +247,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         debug_assert!(term.as_slice().len() >= 4);
         self.total_num_tokens += 1;
         term_index.mutate_or_create(term, |opt_recorder: Option<Rec>| {
-            if opt_recorder.is_some() {
-                let mut recorder = opt_recorder.unwrap();
+            if let Some(mut recorder) = opt_recorder {
                 let current_doc = recorder.current_doc();
                 if current_doc != doc {
                     recorder.close_doc(heap);
@@ -255,7 +256,7 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
                 recorder.record_position(position, heap);
                 recorder
             } else {
-                let mut recorder = Rec::new(heap);
+                let mut recorder = Rec::new();
                 recorder.new_doc(doc, heap);
                 recorder.record_position(position, heap);
                 recorder
@@ -270,10 +271,11 @@ impl<Rec: Recorder + 'static> PostingsWriter for SpecializedPostingsWriter<Rec> 
         termdict_heap: &MemoryArena,
         heap: &MemoryArena,
     ) -> io::Result<()> {
+        let mut buffer_lender = BufferLender::default();
         for &(term_bytes, addr, _) in term_addrs {
             let recorder: Rec = termdict_heap.read(addr);
             serializer.new_term(&term_bytes[4..])?;
-            recorder.serialize(serializer, heap)?;
+            recorder.serialize(&mut buffer_lender, serializer, heap)?;
             serializer.close_term()?;
         }
         Ok(())

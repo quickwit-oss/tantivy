@@ -52,17 +52,19 @@ type DocumentReceiver = channel::Receiver<AddOperation>;
 ///
 /// Returns (the heap size in bytes, the hash table size in number of bits)
 fn initial_table_size(per_thread_memory_budget: usize) -> usize {
+    assert!(per_thread_memory_budget > 1_000);
     let table_size_limit: usize = per_thread_memory_budget / 3;
-    (1..)
+    if let Some(limit) = (1..)
         .take_while(|num_bits: &usize| compute_table_size(*num_bits) < table_size_limit)
         .last()
-        .unwrap_or_else(|| {
-            panic!(
-                "Per thread memory is too small: {}",
-                per_thread_memory_budget
-            )
-        })
-        .min(19) // we cap it at 512K
+    {
+        limit.min(19) // we cap it at 2^19 = 512K.
+    } else {
+        unreachable!(
+            "Per thread memory is too small: {}",
+            per_thread_memory_budget
+        );
+    }
 }
 
 /// `IndexWriter` is the user entry-point to add document to an index.
@@ -302,7 +304,7 @@ fn index_documents(
 
     let last_docstamp: u64 = *(doc_opstamps.last().unwrap());
 
-    let segment_entry: SegmentEntry = if delete_cursor.get().is_some() {
+    let delete_bitset_opt = if delete_cursor.get().is_some() {
         let doc_to_opstamps = DocToOpstampMapping::from(doc_opstamps);
         let segment_reader = SegmentReader::open(segment)?;
         let mut deleted_bitset = BitSet::with_capacity(num_docs as usize);
@@ -313,18 +315,17 @@ fn index_documents(
             &doc_to_opstamps,
             last_docstamp,
         )?;
-        SegmentEntry::new(segment_meta, delete_cursor, {
-            if may_have_deletes {
-                Some(deleted_bitset)
-            } else {
-                None
-            }
-        })
+        if may_have_deletes {
+            Some(deleted_bitset)
+        } else {
+            None
+        }
     } else {
         // if there are no delete operation in the queue, no need
         // to even open the segment.
-        SegmentEntry::new(segment_meta, delete_cursor, None)
+        None
     };
+    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 

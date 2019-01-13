@@ -10,7 +10,7 @@ pub(crate) use self::bitset::TinySet;
 pub(crate) use self::composite_file::{CompositeFile, CompositeWrite};
 pub use self::counting_writer::CountingWriter;
 pub use self::serialize::{BinarySerializable, FixedSize};
-pub use self::vint::VInt;
+pub use self::vint::{read_vint_u32, serialize_vint_u32, write_u32_vint, VInt};
 pub use byteorder::LittleEndian as Endianness;
 
 use std::io;

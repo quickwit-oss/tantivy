@@ -1,4 +1,4 @@
-use byteorder::{LittleEndian, ByteOrder};
+use byteorder::{ByteOrder, LittleEndian};
 use common::bitpacker::BitPacker;
 use common::compute_num_bits;
 use common::Endianness;
@@ -19,8 +19,6 @@ struct TermInfoBlockMeta {
     postings_offset_nbits: u8,
     positions_idx_nbits: u8,
 }
-
-
 
 impl BinarySerializable for TermInfoBlockMeta {
     fn serialize<W: Write>(&self, write: &mut W) -> io::Result<()> {
@@ -89,20 +87,21 @@ fn extract_bits(data: &[u8], addr_bits: usize, num_bits: u8) -> u64 {
     assert!(num_bits <= 56);
     let addr_byte = addr_bits / 8;
     let bit_shift = (addr_bits % 8) as u64;
-    let val_unshifted_unmasked: u64;
-    if data.len() >= addr_byte + 8 {
-        val_unshifted_unmasked =  LittleEndian::read_u64(&data[addr_byte..][..8]);
+    let val_unshifted_unmasked: u64 = if data.len() >= addr_byte + 8 {
+        LittleEndian::read_u64(&data[addr_byte..][..8])
     } else {
+        // the buffer is not large enough.
+        // Let's copy the few remaining bytes to a 8 byte buffer
+        // padded with 0s.
         let mut buf = [0u8; 8];
         let data_to_copy = &data[addr_byte..];
         let nbytes = data_to_copy.len();
         buf[..nbytes].copy_from_slice(data_to_copy);
-        val_unshifted_unmasked =  LittleEndian::read_u64(&buf);
-    }
+        LittleEndian::read_u64(&buf)
+    };
     let val_shifted_unmasked = val_unshifted_unmasked >> bit_shift;
     let mask = (1u64 << u64::from(num_bits)) - 1;
     val_shifted_unmasked & mask
-
 }
 
 impl TermInfoStore {

@@ -69,12 +69,17 @@ impl Addr {
     }
 }
 
-
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
     assert_eq!(dest.len(), std::mem::size_of::<Item>());
-    unsafe { ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);  }
+    unsafe {
+        ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);
+    }
 }
 
+pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {
+    assert_eq!(data.len(), std::mem::size_of::<Item>());
+    unsafe { ptr::read_unaligned(data.as_ptr() as *const Item) }
+}
 
 /// The `MemoryArena`
 pub struct MemoryArena {
@@ -116,8 +121,7 @@ impl MemoryArena {
     ///
     /// If the address is erroneous
     pub fn read<Item: Copy + 'static>(&self, addr: Addr) -> Item {
-        let data = self.slice(addr, mem::size_of::<Item>());
-        unsafe { ptr::read_unaligned(data.as_ptr() as *const Item) }
+        load(self.slice(addr, mem::size_of::<Item>()))
     }
 
     pub fn slice(&self, addr: Addr, len: usize) -> &[u8] {
@@ -128,6 +132,7 @@ impl MemoryArena {
         self.pages[addr.page_id()].slice_from(addr.page_local_addr())
     }
 
+    #[inline(always)]
     pub fn slice_mut(&mut self, addr: Addr, len: usize) -> &mut [u8] {
         self.pages[addr.page_id()].slice_mut(addr.page_local_addr(), len)
     }
