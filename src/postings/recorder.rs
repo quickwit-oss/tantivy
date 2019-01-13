@@ -1,5 +1,5 @@
 use super::stacker::{ExpUnrolledLinkedList, MemoryArena};
-use common::{read_vint_u32, write_u32_vint};
+use common::{read_u32_vint, write_u32_vint};
 use postings::FieldSerializer;
 use std::io;
 use DocId;
@@ -42,7 +42,7 @@ impl<'a> Iterator for VInt32Reader<'a> {
         if self.data.is_empty() {
             None
         } else {
-            Some(read_vint_u32(&mut self.data))
+            Some(read_u32_vint(&mut self.data))
         }
     }
 }

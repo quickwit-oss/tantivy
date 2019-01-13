@@ -59,6 +59,15 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
     }
 }
 
+/// Returns the number of bytes covered by a
+/// serialized vint `u32`.
+///
+/// Expects a buffer data that starts
+/// by the serialized `vint`, scans at most 5 bytes ahead until
+/// it finds the vint final byte.
+///
+/// # May Panic
+/// If the payload does not start by a valid `vint`
 fn vint_len(data: &[u8]) -> usize {
     for i in 0..5.min(data.len()) {
         if data[i] >= STOP_BIT {
@@ -68,18 +77,26 @@ fn vint_len(data: &[u8]) -> usize {
     panic!("Corrupted data. Invalid VInt 32");
 }
 
-pub fn read_vint_u32(data: &mut &[u8]) -> u32 {
+/// Reads a vint `u32` from a buffer, and
+/// consumes its payload data.
+///
+/// # Panics
+///
+/// If the buffer does not start by a valid
+/// vint payload
+pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
     let vlen = vint_len(*data);
     let mut result = 0u32;
     let mut shift = 0u64;
-    for b in data[..vlen].iter().cloned().map(|b| b & 127u8) {
-        result |= (b as u32) << shift;
+    for &b in &data[..vlen] {
+        result |= u32::from(b & 127u8) << shift;
         shift += 7;
     }
     *data = &data[vlen..];
     result
 }
 
+/// Write a `u32` as a vint payload.
 pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
     let (val, num_bytes) = serialize_vint_u32(val);
     let mut buffer = [0u8; 8];
