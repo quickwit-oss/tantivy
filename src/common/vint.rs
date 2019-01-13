@@ -77,7 +77,14 @@ fn vint_len(data: &[u8]) -> usize {
     panic!("Corrupted data. Invalid VInt 32");
 }
 
-pub fn read_vint_u32(data: &mut &[u8]) -> u32 {
+/// Reads a vint `u32` from a buffer, and
+/// consumes its payload data.
+///
+/// # Panics
+///
+/// If the buffer does not start by a valid
+/// vint payload
+pub fn read_u32_vint(data: &mut &[u8]) -> u32 {
     let vlen = vint_len(*data);
     let mut result = 0u32;
     let mut shift = 0u64;
@@ -89,6 +96,7 @@ pub fn read_vint_u32(data: &mut &[u8]) -> u32 {
     result
 }
 
+/// Write a `u32` as a vint payload.
 pub fn write_u32_vint<W: io::Write>(val: u32, writer: &mut W) -> io::Result<()> {
     let (val, num_bytes) = serialize_vint_u32(val);
     let mut buffer = [0u8; 8];
