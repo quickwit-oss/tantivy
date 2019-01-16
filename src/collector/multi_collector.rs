@@ -96,7 +96,10 @@ impl<TFruit: Fruit> FruitHandle<TFruit> {
 /// Multicollector makes it possible to collect on more than one collector.
 /// It should only be used for use cases where the Collector types is unknown
 /// at compile time.
-/// If the type of the collectors is known, you should prefer to use `ChainedCollector`.
+///
+/// If the type of the collectors is known, you can just group yours collectors
+/// in a tuple. See the
+/// [Combining several collectors section of the collector documentation](./index.html#combining-several-collectors).
 ///
 /// ```rust
 /// #[macro_use]
