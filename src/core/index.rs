@@ -18,7 +18,7 @@ use error::TantivyError;
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
-use indexer::LockType;
+use directory::LockType;
 use num_cpus;
 use schema::Field;
 use schema::FieldType;

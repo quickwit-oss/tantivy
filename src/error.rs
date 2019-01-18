@@ -4,7 +4,7 @@ use std::io;
 
 use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use fastfield::FastFieldNotAvailableError;
-use indexer::LockType;
+use directory::LockType;
 use query;
 use schema;
 use serde_json;

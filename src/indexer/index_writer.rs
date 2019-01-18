@@ -17,7 +17,6 @@ use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
 use indexer::stamper::Stamper;
-use indexer::DirectoryLock;
 use indexer::MergePolicy;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
@@ -30,6 +29,7 @@ use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
+use directory::DirectoryLock;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.

@@ -2,7 +2,7 @@ use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use error::DataCorruption;
-use indexer::LockType;
+use directory::LockType;
 use serde_json;
 use std::collections::HashSet;
 use std::io;
