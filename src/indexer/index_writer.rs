@@ -26,7 +26,6 @@ use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
 use std::mem;
-use std::mem::swap;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
@@ -468,11 +467,10 @@ impl IndexWriter {
     ///
     /// Returns the former segment_ready channel.
     fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) =
+        let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        swap(&mut self.document_sender, &mut document_sender);
-        swap(&mut self.document_receiver, &mut document_receiver);
-        document_receiver
+        mem::replace(&mut self.document_sender, document_sender);
+        mem::replace(&mut self.document_receiver, document_receiver)
     }
 
     /// Rollback to the last commit
@@ -559,17 +557,13 @@ impl IndexWriter {
         // and recreate a new one channels.
         self.recreate_document_channel();
 
-        let mut former_workers_join_handle = Vec::new();
-        swap(
-            &mut former_workers_join_handle,
-            &mut self.workers_join_handle,
-        );
+        let former_workers_join_handle =
+            mem::replace(&mut self.workers_join_handle, Vec::new());
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
-
             indexing_worker_result?;
             // add a new worker for the next generation.
             self.add_indexing_worker()?;
