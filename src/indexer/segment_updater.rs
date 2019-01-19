@@ -599,4 +599,65 @@ mod tests {
         assert_eq!(index.searcher().segment_readers().len(), 1);
         assert_eq!(index.searcher().num_docs(), 302);
     }
+
+    #[test]
+    fn delete_all_docs() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+
+        {
+            for _ in 0..100 {
+                index_writer.add_document(doc!(text_field=>"a"));
+                index_writer.add_document(doc!(text_field=>"b"));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+
+        {
+            for _ in 0..100 {
+                index_writer.add_document(doc!(text_field=>"c"));
+                index_writer.add_document(doc!(text_field=>"d"));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+
+        {
+            index_writer.add_document(doc!(text_field=>"e"));
+            index_writer.add_document(doc!(text_field=>"f"));
+            assert!(index_writer.commit().is_ok());
+        }
+
+        {
+            let term_vals = vec!["a", "b", "c", "d", "e", "f"];
+            for term_val in term_vals {
+                let term = Term::from_field_text(text_field, term_val);
+                index_writer.delete_term(term);
+                assert!(index_writer.commit().is_ok());
+            }
+        }
+
+        let seg_ids = index.searchable_segment_ids()
+            .expect("Searchable segments failed.");
+        assert!(index_writer.merge(&seg_ids).is_ok());
+
+        index.load_searchers().unwrap();
+        assert_eq!(index.searcher().num_docs(), 0);
+
+        {
+            index_writer
+                .wait_merging_threads()
+                .expect("waiting for merging threads");
+        }
+
+        index.load_searchers().unwrap();
+        assert_eq!(index.searcher().num_docs(), 0);
+        // empty segments should be erased
+        assert_eq!(index.searcher().segment_readers().len(), 0);
+    }
 }
