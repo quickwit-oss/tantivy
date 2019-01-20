@@ -106,6 +106,14 @@ impl SegmentManager {
             .expect("Failed to acquire write lock on SegmentManager.")
     }
 
+    /// Deletes all empty segments
+    fn remove_empty_segments(&self) {
+        let mut registers_lock = self.write();
+        registers_lock.committed.segment_entries().iter()
+            .filter(|x| x.meta().max_doc() - x.meta().num_deleted_docs() == 0)
+            .for_each(|x| registers_lock.committed.remove_segment(&x.segment_id()));
+    }
+
     pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
@@ -229,6 +237,7 @@ impl SegmentManager {
     }
 
     pub fn committed_segment_metas(&self) -> Vec<SegmentMeta> {
+        self.remove_empty_segments();
         let registers_lock = self.read();
         registers_lock.committed.segment_metas()
     }
