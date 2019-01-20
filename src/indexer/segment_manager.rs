@@ -110,7 +110,7 @@ impl SegmentManager {
     fn remove_empty_segments(&self) {
         let mut registers_lock = self.write();
         registers_lock.committed.segment_entries().iter()
-            .filter(|x| x.meta().max_doc() - x.meta().num_deleted_docs() == 0)
+            .filter(|x| x.meta().num_docs() == 0)
             .for_each(|x| registers_lock.committed.remove_segment(&x.segment_id()));
     }
 
