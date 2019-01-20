@@ -634,6 +634,13 @@ mod tests {
         }
 
         {
+            let seg_ids = index.searchable_segment_ids()
+                .expect("Searchable segments failed.");
+            // docs exist, should have at least 1 segment
+            assert!(seg_ids.len() > 0);
+        }
+
+        {
             let term_vals = vec!["a", "b", "c", "d", "e", "f"];
             for term_val in term_vals {
                 let term = Term::from_field_text(text_field, term_val);
@@ -641,13 +648,6 @@ mod tests {
                 assert!(index_writer.commit().is_ok());
             }
         }
-
-        let seg_ids = index.searchable_segment_ids()
-            .expect("Searchable segments failed.");
-        assert!(index_writer.merge(&seg_ids).is_ok());
-
-        index.load_searchers().unwrap();
-        assert_eq!(index.searcher().num_docs(), 0);
 
         {
             index_writer
@@ -657,7 +657,15 @@ mod tests {
 
         index.load_searchers().unwrap();
         assert_eq!(index.searcher().num_docs(), 0);
+
+        let seg_ids = index.searchable_segment_ids()
+            .expect("Searchable segments failed.");
+        assert_eq!(seg_ids.len(), 0);
+
+        index.load_searchers().unwrap();
+        assert_eq!(index.searcher().num_docs(), 0);
         // empty segments should be erased
+        assert_eq!(index.searchable_segment_metas().unwrap().len(), 0);
         assert_eq!(index.searcher().segment_readers().len(), 0);
     }
 }
