@@ -1138,7 +1138,7 @@ mod tests {
             index.load_searchers().unwrap();
 
             let ref searcher = *index.searcher();
-            assert_eq!(searcher.segment_readers().len(), 1);
+            assert_eq!(searcher.segment_readers().len(), 0);
             assert_eq!(searcher.num_docs(), 0);
         }
     }
@@ -1286,6 +1286,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Segment_ids cannot be empty.")]
     fn test_merge_multivalued_int_fields_all_deleted() {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
@@ -1314,16 +1315,13 @@ mod tests {
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
             let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            // should panic since no segments exist
             index_writer
                 .merge(&segment_ids)
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            index_writer.wait_merging_threads().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        assert_eq!(searcher.num_docs(), 0);
     }
 
     #[test]
