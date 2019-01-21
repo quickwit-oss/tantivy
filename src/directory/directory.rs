@@ -178,7 +178,7 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
                 Ok(result) => {
                     return Ok(result);
                 }
-                Err(TryAcquireLockError::FileExists) => { // TODO error
+                Err(TryAcquireLockError::FileExists) => {
                     if !retry_policy.wait_and_retry() {
                         return Err(LockError::LockBusy);
                     }

@@ -1,5 +1,5 @@
 use core::MANAGED_FILEPATH;
-use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
+use directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use error::DataCorruption;
 use serde_json;
@@ -13,6 +13,8 @@ use std::sync::{Arc, RwLock};
 use Directory;
 use Result;
 use directory::META_LOCK;
+use directory::Lock;
+use directory::DirectoryLock;
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.
@@ -231,6 +233,10 @@ impl Directory for ManagedDirectory {
 
     fn exists(&self, path: &Path) -> bool {
         self.directory.exists(path)
+    }
+
+    fn acquire_lock(&self, lock: &Lock) -> result::Result<DirectoryLock, LockError> {
+        self.directory.acquire_lock(lock)
     }
 }
 

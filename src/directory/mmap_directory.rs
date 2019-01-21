@@ -1,3 +1,6 @@
+extern crate fs2;
+
+use fs2::FileExt;
 use atomicwrites;
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
@@ -19,6 +22,9 @@ use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tempdir::TempDir;
+use directory::Lock;
+use directory::DirectoryLock;
+use directory::error::LockError;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -213,6 +219,21 @@ impl MmapDirectory {
     }
 }
 
+/// We rely on fs2 for file locking. On Windows & MacOS this
+/// uses BSD locks (`flock`). The lock is actually released when
+/// the `File` object is dropped and its associated file descriptor
+/// is closed.
+struct ReleaseLockFile {
+    _file: File,
+    path: PathBuf
+}
+
+impl Drop for ReleaseLockFile {
+    fn drop(&mut self) {
+        debug!("Releasing lock {:?}", self.path);
+    }
+}
+
 /// This Write wraps a File, but has the specificity of
 /// call `sync_all` on flush.
 struct SafeFileWriter(File);
@@ -353,6 +374,28 @@ impl Directory for MmapDirectory {
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
         meta_file.write(|f| f.write_all(data))?;
         Ok(())
+    }
+
+    fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
+        let full_path = self.resolve_path(&lock.filepath);
+            // We make sure that the file exists.
+        let file: File = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .open(&full_path)
+            .map_err(|err| LockError::IOError(err))?;
+        if lock.is_blocking {
+            file.lock_exclusive()
+                .map_err(LockError::IOError)?;
+        } else {
+            file.try_lock_exclusive()
+                .map_err(|_| LockError::LockBusy)?
+        }
+        // dropping the file handle will release the lock.
+        Ok(DirectoryLock::from(Box::new(ReleaseLockFile {
+            path: lock.filepath.clone(),
+            _file: file
+        })))
     }
 }
 
