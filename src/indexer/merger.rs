@@ -1138,7 +1138,7 @@ mod tests {
             index.load_searchers().unwrap();
 
             let ref searcher = *index.searcher();
-            assert_eq!(searcher.segment_readers().len(), 0);
+            assert!(searcher.segment_readers().is_empty());
             assert_eq!(searcher.num_docs(), 0);
         }
     }
@@ -1286,7 +1286,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Segment_ids cannot be empty.")]
     fn test_merge_multivalued_int_fields_all_deleted() {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
@@ -1296,7 +1295,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer(40_000_000).unwrap();
             let mut doc = Document::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone());
@@ -1304,24 +1303,24 @@ mod tests {
             index_writer.add_document(doc);
             index_writer.commit().expect("commit failed");
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
-            index_writer.commit().expect("commit failed");
-        }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        assert_eq!(searcher.num_docs(), 0);
-        // Merging the segments
-        {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
-            // should panic since no segments exist
             index_writer
                 .merge(&segment_ids)
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
+
+            let searcher = index.searcher();
+            assert_eq!(searcher.num_docs(), 0);
+
+            index_writer.commit().unwrap();
         }
+
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 0);
     }
 
     #[test]

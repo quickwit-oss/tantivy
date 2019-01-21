@@ -665,7 +665,7 @@ mod tests {
         index.load_searchers().unwrap();
         assert_eq!(index.searcher().num_docs(), 0);
         // empty segments should be erased
-        assert_eq!(index.searchable_segment_metas().unwrap().len(), 0);
-        assert_eq!(index.searcher().segment_readers().len(), 0);
+        assert!(index.searchable_segment_metas().unwrap().is_empty());
+        assert!(index.searcher().segment_readers().is_empty());
     }
 }
