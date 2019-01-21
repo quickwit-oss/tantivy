@@ -660,7 +660,7 @@ mod tests {
 
         let seg_ids = index.searchable_segment_ids()
             .expect("Searchable segments failed.");
-        assert_eq!(seg_ids.len(), 0);
+        assert!(seg_ids.is_empty());
 
         index.load_searchers().unwrap();
         assert_eq!(index.searcher().num_docs(), 0);
