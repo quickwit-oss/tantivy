@@ -1302,7 +1302,19 @@ mod tests {
             index_writer.commit().expect("commit failed");
             index_writer.add_document(doc);
             index_writer.commit().expect("commit failed");
+
+            // asert docs have been committed
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            assert_eq!(searcher.num_docs(), 2);
+
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
+
+            // assert delete has not been committed
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            assert_eq!(searcher.num_docs(), 2);
+
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
@@ -1312,15 +1324,17 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
 
+            // assert delete has not been committed
             index.load_searchers().unwrap();
             let searcher = index.searcher();
-            assert_eq!(searcher.num_docs(), 0);
+            assert_eq!(searcher.num_docs(), 2);
 
             index_writer.commit().unwrap();
 
             index_writer.wait_merging_threads().unwrap();
         }
 
+        // assert delete has been committed
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         assert_eq!(searcher.num_docs(), 0);
