@@ -1312,6 +1312,7 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
 
+            index.load_searchers().unwrap();
             let searcher = index.searcher();
             assert_eq!(searcher.num_docs(), 0);
 
