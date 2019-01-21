@@ -1295,7 +1295,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer(40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             let mut doc = Document::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone());
@@ -1316,6 +1316,8 @@ mod tests {
             assert_eq!(searcher.num_docs(), 0);
 
             index_writer.commit().unwrap();
+
+            index_writer.wait_merging_threads().unwrap();
         }
 
         index.load_searchers().unwrap();
