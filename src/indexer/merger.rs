@@ -654,6 +654,7 @@ mod tests {
     use schema::IntOptions;
     use schema::Term;
     use schema::TextFieldIndexing;
+    use schema::INT_INDEXED;
     use std::io::Cursor;
     use DocAddress;
     use IndexWriter;
@@ -983,7 +984,7 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
-            let ref searcher = *index.searcher();
+            let searcher = index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 3);
@@ -1029,7 +1030,7 @@ mod tests {
             index_writer.commit().unwrap();
 
             index.load_searchers().unwrap();
-            let ref searcher = *index.searcher();
+            let searcher = index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
@@ -1125,6 +1126,7 @@ mod tests {
         {
             // Test removing all docs
             index_writer.delete_term(Term::from_field_text(text_field, "g"));
+            index_writer.commit().unwrap();
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
@@ -1255,8 +1257,6 @@ mod tests {
         }
     }
 
-
-    use schema::INT_INDEXED;
     #[test]
     fn test_bug_merge() {
         let mut schema_builder = schema::Schema::builder();
