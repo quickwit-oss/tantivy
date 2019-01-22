@@ -18,7 +18,6 @@ use indexer::delete_queue::DeleteCursor;
 use indexer::index_writer::advance_deletes;
 use indexer::merger::IndexMerger;
 use indexer::stamper::Stamper;
-use indexer::MergeCandidate;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use indexer::{DefaultMergePolicy, MergePolicy};
@@ -31,6 +30,7 @@ use std::mem;
 use std::ops::DerefMut;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
@@ -86,6 +86,11 @@ pub fn save_metas(
 #[derive(Clone)]
 pub struct SegmentUpdater(Arc<InnerSegmentUpdater>);
 
+struct MergeOperation {
+    pub target_opstamp: u64,
+    pub segment_ids: Vec<SegmentId>,
+}
+
 fn perform_merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
@@ -126,6 +131,7 @@ fn perform_merge(
 }
 
 struct InnerSegmentUpdater {
+    commit_opstamp: Mutex<u64>, //< Current commit opstamp.
     pool: CpuPool,
     index: Index,
     segment_manager: SegmentManager,
@@ -149,7 +155,9 @@ impl SegmentUpdater {
             .name_prefix("segment_updater")
             .pool_size(1)
             .create();
+        let commit_opstamp = index.load_metas().expect("Failed to read opstamp").opstamp;
         Ok(SegmentUpdater(Arc::new(InnerSegmentUpdater {
+            commit_opstamp: Mutex::new(commit_opstamp),
             pool,
             index,
             segment_manager,
@@ -252,6 +260,7 @@ impl SegmentUpdater {
                 directory.box_clone().borrow_mut(),
             )
             .expect("Could not save metas.");
+            *self.0.commit_opstamp.lock().unwrap() = opstamp;
         }
     }
 
@@ -286,16 +295,20 @@ impl SegmentUpdater {
     }
 
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
-        //let future_merged_segment = */
         let segment_ids_vec = segment_ids.to_vec();
+        let commit_opstamp = *self.0.commit_opstamp.lock().unwrap();
         self.run_async(move |segment_updater| {
-            segment_updater.start_merge_impl(&segment_ids_vec[..])
+            segment_updater.start_merge_impl(&segment_ids_vec[..], commit_opstamp)
         })
         .wait()?
     }
 
     // `segment_ids` is required to be non-empty.
-    fn start_merge_impl(&self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
+    fn start_merge_impl(
+        &self,
+        segment_ids: &[SegmentId],
+        target_opstamp: u64,
+    ) -> Result<Receiver<SegmentMeta>> {
         assert!(!segment_ids.is_empty(), "Segment_ids cannot be empty.");
 
         let segment_updater_clone = self.clone();
@@ -309,8 +322,6 @@ impl SegmentUpdater {
             merging_thread_id, segment_ids
         );
         let (merging_future_send, merging_future_recv) = oneshot();
-
-        let target_opstamp = self.0.stamper.stamp();
 
         // first we need to apply deletes to our segment.
         let merging_join_handle = thread::Builder::new()
@@ -373,11 +384,32 @@ impl SegmentUpdater {
         // Committed segments cannot be merged with uncommitted_segments.
         // We therefore consider merges using these two sets of segments independently.
         let merge_policy = self.get_merge_policy();
-        let mut merge_candidates = merge_policy.compute_merge_candidates(&uncommitted_segments);
-        let committed_merge_candidates = merge_policy.compute_merge_candidates(&committed_segments);
-        merge_candidates.extend_from_slice(&committed_merge_candidates[..]);
-        for MergeCandidate(segment_metas) in merge_candidates {
-            match self.start_merge_impl(&segment_metas) {
+
+        let current_opstamp = self.0.stamper.stamp();
+        let mut merge_candidates = merge_policy
+            .compute_merge_candidates(&uncommitted_segments)
+            .into_iter()
+            .map(|merge_candidate| MergeOperation {
+                target_opstamp: current_opstamp,
+                segment_ids: merge_candidate.0,
+            })
+            .collect::<Vec<_>>();
+        let commit_opstamp = *self.0.commit_opstamp.lock().unwrap();
+        let committed_merge_candidates = merge_policy
+            .compute_merge_candidates(&committed_segments)
+            .into_iter()
+            .map(|merge_candidate| MergeOperation {
+                target_opstamp: commit_opstamp,
+                segment_ids: merge_candidate.0,
+            })
+            .collect::<Vec<_>>();
+        merge_candidates.extend(committed_merge_candidates.into_iter());
+        for MergeOperation {
+            target_opstamp,
+            segment_ids,
+        } in merge_candidates
+        {
+            match self.start_merge_impl(&segment_ids, target_opstamp) {
                 Ok(merge_future) => {
                     if let Err(e) = merge_future.fuse().poll() {
                         error!("The merge task failed quickly after starting: {:?}", e);
@@ -412,12 +444,7 @@ impl SegmentUpdater {
             info!("End merge {:?}", after_merge_segment_entry.meta());
             let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
             if let Some(delete_operation) = delete_cursor.get() {
-                let committed_opstamp = segment_updater
-                    .0
-                    .index
-                    .load_metas()
-                    .expect("Failed to read opstamp")
-                    .opstamp;
+                let committed_opstamp = *segment_updater.0.commit_opstamp.lock().unwrap();
                 if delete_operation.opstamp < committed_opstamp {
                     let index = &segment_updater.0.index;
                     let segment = index.segment(after_merge_segment_entry.meta().clone());

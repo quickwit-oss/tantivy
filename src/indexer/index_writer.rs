@@ -558,11 +558,8 @@ impl IndexWriter {
         // and recreate a new one channels.
         self.recreate_document_channel();
 
-        let mut former_workers_join_handle = Vec::new();
-        swap(
-            &mut former_workers_join_handle,
-            &mut self.workers_join_handle,
-        );
+        let former_workers_join_handle =
+            mem::replace(&mut self.workers_join_handle, Vec::new());
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
@@ -739,7 +736,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"b"));
                 index_writer.add_document(doc!(text_field=>"c"));
             }
-            assert_eq!(index_writer.commit().unwrap(), 2u64);
+            assert_eq!(index_writer.commit().unwrap(), 3u64);
             index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
@@ -802,7 +799,6 @@ mod tests {
             {
                 let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
                 prepared_commit.set_payload("first commit");
-                assert_eq!(prepared_commit.opstamp(), 100);
                 prepared_commit.commit().expect("commit failed");
             }
             {
@@ -836,7 +832,6 @@ mod tests {
             {
                 let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
                 prepared_commit.set_payload("first commit");
-                assert_eq!(prepared_commit.opstamp(), 100);
                 prepared_commit.abort().expect("commit failed");
             }
             {
