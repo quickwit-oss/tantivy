@@ -64,7 +64,7 @@ pub trait Tokenizer<'a>: Sized + Clone {
     /// let en_stem = SimpleTokenizer
     ///     .filter(RemoveLongFilter::limit(40))
     ///     .filter(LowerCaser)
-    ///     .filter(Stemmer::new());
+    ///     .filter(Stemmer::default());
     /// # }
     /// ```
     ///
