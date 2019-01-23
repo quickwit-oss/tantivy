@@ -1,3 +1,18 @@
+Tantivy 0.8.2
+=====================
+Fixing build for x86_64 platforms. (#496)
+No need to update from 0.8.1 if tantivy
+is building on your platform.
+
+
+Tantivy 0.8.1
+=====================
+Hotfix of #476.
+
+Merge was reflecting deletes before commit was passed. 
+Thanks @barrotsteindev  for reporting the bug.
+
+
 Tantivy 0.8.0
 =====================
 *No change in the index format*

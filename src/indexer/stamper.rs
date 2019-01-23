@@ -27,22 +27,22 @@ mod archicture_impl {
 #[cfg(not(target_arch = "x86_64"))]
 mod archicture_impl {
 
-    /// Under other architecture, we rely on a mutex.
-    use std::sync::Mutex;
     use std::sync::atomic::Ordering;
+    /// Under other architecture, we rely on a mutex.
+    use std::sync::RwLock;
 
     #[derive(Default)]
-    pub struct AtomicU64Ersatz(Mutex<u64>);
+    pub struct AtomicU64Ersatz(RwLock<u64>);
 
     impl AtomicU64Ersatz {
         pub fn new(first_opstamp: u64) -> AtomicU64Ersatz {
-            AtomicU64Ersatz(AtomicUsize::new(first_opstamp))
+            AtomicU64Ersatz(RwLock::new(first_opstamp))
         }
 
-        pub fn fetch_add(&self, val: u64, _order: Ordering) -> u64 {
-            let lock = self.0.lock().unwrap();
+        pub fn fetch_add(&self, incr: u64, _order: Ordering) -> u64 {
+            let mut lock = self.0.write().unwrap();
             let previous_val = *lock;
-            *lock = previous_val + 1;
+            *lock = previous_val + incr;
             previous_val
         }
     }
