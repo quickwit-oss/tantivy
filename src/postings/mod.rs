@@ -460,6 +460,9 @@ pub mod tests {
 
         // finally, check that it's empty
         {
+            let searchable_segment_ids = index.searchable_segment_ids()
+                .expect("could not get index segment ids");
+            assert!(searchable_segment_ids.is_empty());
             assert_eq!(searcher.num_docs(), 0);
         }
     }
