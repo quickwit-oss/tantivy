@@ -654,6 +654,7 @@ mod tests {
     use schema::IntOptions;
     use schema::Term;
     use schema::TextFieldIndexing;
+    use schema::INT_INDEXED;
     use std::io::Cursor;
     use DocAddress;
     use IndexWriter;
@@ -983,7 +984,7 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index.load_searchers().unwrap();
-            let ref searcher = *index.searcher();
+            let searcher = index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 3);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 3);
@@ -1029,7 +1030,7 @@ mod tests {
             index_writer.commit().unwrap();
 
             index.load_searchers().unwrap();
-            let ref searcher = *index.searcher();
+            let searcher = index.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
@@ -1125,6 +1126,7 @@ mod tests {
         {
             // Test removing all docs
             index_writer.delete_term(Term::from_field_text(text_field, "g"));
+            index_writer.commit().unwrap();
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
@@ -1253,6 +1255,34 @@ mod tests {
                 ],
             );
         }
+    }
+
+    #[test]
+    fn test_bug_merge() {
+        let mut schema_builder = schema::Schema::builder();
+        let int_field = schema_builder.add_u64_field("intvals", INT_INDEXED);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(int_field => 1u64));
+        index_writer.commit().expect("commit failed");
+        index_writer.add_document(doc!(int_field => 1u64));
+        index_writer.commit().expect("commit failed");
+        index.load_searchers().unwrap();
+        let searcher = index.searcher();
+        assert_eq!(searcher.num_docs(), 2);
+        index_writer.delete_term(Term::from_field_u64(int_field, 1));
+        let segment_ids = index
+            .searchable_segment_ids()
+            .expect("Searchable segments failed.");
+        index_writer
+            .merge(&segment_ids)
+            .expect("Failed to initiate merge")
+            .wait()
+            .expect("Merging failed");
+        index.load_searchers().unwrap();
+        // commit has not been called yet. The document should still be
+        // there.
+        assert_eq!(index.searcher().num_docs(), 2);
     }
 
     #[test]
