@@ -457,25 +457,13 @@ pub mod tests {
         index.load_searchers().unwrap();
 
         let searcher = index.searcher();
-        let segment_reader = searcher.segment_reader(0);
 
         // finally, check that it's empty
         {
-            let mut segment_postings = segment_reader
-                .inverted_index(term_2.field())
-                .read_postings(&term_2, IndexRecordOption::Basic)
-                .unwrap();
-
-            assert_eq!(segment_postings.skip_next(0), SkipResult::Reached);
-            assert_eq!(segment_postings.doc(), 0);
-            assert!(segment_reader.is_deleted(0));
-
-            let mut segment_postings = segment_reader
-                .inverted_index(term_2.field())
-                .read_postings(&term_2, IndexRecordOption::Basic)
-                .unwrap();
-
-            assert_eq!(segment_postings.skip_next(num_docs), SkipResult::End);
+            let searchable_segment_ids = index.searchable_segment_ids()
+                .expect("could not get index segment ids");
+            assert!(searchable_segment_ids.is_empty());
+            assert_eq!(searcher.num_docs(), 0);
         }
     }
 
