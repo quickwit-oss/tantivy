@@ -1299,24 +1299,26 @@ mod tests {
             index_writer.add_document(doc);
             index_writer.commit().expect("commit failed");
             index_writer.delete_term(Term::from_field_u64(int_field, 1));
-            index_writer.commit().expect("commit failed");
-        }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        assert_eq!(searcher.num_docs(), 0);
-        // Merging the segments
-        {
+
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
+
+            // assert delete has not been committed
+            index.load_searchers().unwrap();
+            let searcher = index.searcher();
+            assert_eq!(searcher.num_docs(), 2);
+
+            index_writer.commit().unwrap();
+
             index_writer.wait_merging_threads().unwrap();
         }
+
         index.load_searchers().unwrap();
         let searcher = index.searcher();
         assert_eq!(searcher.num_docs(), 0);
