@@ -4,19 +4,74 @@ use super::{Token, TokenFilter, TokenStream};
 use rust_stemmers::{self, Algorithm};
 use std::sync::Arc;
 
-/// `Stemmer` token filter. Currently only English is supported.
-/// Tokens are expected to be lowercased beforehands.
+/// Available stemmer languages.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
+#[allow(missing_docs)]
+pub enum Language {
+    Arabic,
+    Danish,
+    Dutch,
+    English,
+    Finnish,
+    French,
+    German,
+    Hungarian,
+    Italian,
+    Portuguese,
+    Romanian,
+    Russian,
+    Spanish,
+    Swedish,
+    Tamil,
+    Turkish
+}
+
+impl Language {
+    fn algorithm(&self) -> Algorithm {
+        use self::Language::*;
+
+        match self {
+            Arabic => Algorithm::Arabic,
+            Danish => Algorithm::Danish,
+            Dutch => Algorithm::Dutch,
+            English => Algorithm::English,
+            Finnish => Algorithm::Finnish,
+            French => Algorithm::French,
+            German => Algorithm::German,
+            Hungarian => Algorithm::Hungarian,
+            Italian => Algorithm::Italian,
+            Portuguese => Algorithm::Portuguese,
+            Romanian => Algorithm::Romanian,
+            Russian => Algorithm::Russian,
+            Spanish => Algorithm::Spanish,
+            Swedish => Algorithm::Swedish,
+            Tamil => Algorithm::Tamil,
+            Turkish => Algorithm::Turkish
+        }
+    }
+}
+
+/// `Stemmer` token filter. Several languages are supported, see `Language` for the available
+/// languages.
+/// Tokens are expected to be lowercased beforehand.
 #[derive(Clone)]
 pub struct Stemmer {
     stemmer_algorithm: Arc<Algorithm>,
 }
 
 impl Stemmer {
-    /// Creates a new Stemmer `TokenFilter`.
-    pub fn new() -> Stemmer {
+    /// Creates a new Stemmer `TokenFilter` for a given language algorithm.
+    pub fn new(language: Language) -> Stemmer {
         Stemmer {
-            stemmer_algorithm: Arc::new(Algorithm::English),
+            stemmer_algorithm: Arc::new(language.algorithm()),
         }
+    }
+}
+
+impl Default for Stemmer {
+    /// Creates a new Stemmer `TokenFilter` for English.
+    fn default() -> Self {
+        Stemmer::new(Language::English)
     }
 }
 

@@ -8,6 +8,7 @@ use tokenizer::RemoveLongFilter;
 use tokenizer::SimpleTokenizer;
 use tokenizer::Stemmer;
 use tokenizer::Tokenizer;
+use tokenizer::stemmer::Language;
 
 /// The tokenizer manager serves as a store for
 /// all of the pre-configured tokenizer pipelines.
@@ -71,7 +72,7 @@ impl Default for TokenizerManager {
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new()),
+                .filter(Stemmer::new(Language::English)),
         );
         manager
     }
