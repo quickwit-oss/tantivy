@@ -1,6 +1,5 @@
-use std::sync::Arc;
 use std::sync::atomic::Ordering;
-
+use std::sync::Arc;
 
 // AtomicU64 have not landed in stable.
 // For the moment let's just use AtomicUsize on
@@ -27,9 +26,9 @@ mod archicture_impl {
 #[cfg(not(target_arch = "x86_64"))]
 mod archicture_impl {
 
+    use std::sync::atomic::Ordering;
     /// Under other architecture, we rely on a mutex.
     use std::sync::Mutex;
-    use std::sync::atomic::Ordering;
 
     #[derive(Default)]
     pub struct AtomicU64Ersatz(Mutex<u64>);
@@ -62,7 +61,6 @@ impl Stamper {
         self.0.fetch_add(1u64, Ordering::SeqCst) as u64
     }
 }
-
 
 #[cfg(test)]
 mod test {

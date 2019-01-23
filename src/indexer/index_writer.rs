@@ -557,8 +557,7 @@ impl IndexWriter {
         // and recreate a new one channels.
         self.recreate_document_channel();
 
-        let former_workers_join_handle =
-            mem::replace(&mut self.workers_join_handle, Vec::new());
+        let former_workers_join_handle = mem::replace(&mut self.workers_join_handle, Vec::new());
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle

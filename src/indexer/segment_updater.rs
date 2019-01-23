@@ -50,9 +50,10 @@ pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
             segments: Vec::new(),
             schema,
             opstamp: 0u64,
-            payload: None
+            payload: None,
         },
-        directory)
+        directory,
+    )
 }
 
 /// Save the index meta file.
@@ -64,16 +65,13 @@ pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
-fn save_metas(
-    metas: &IndexMeta,
-    directory: &mut Directory,
-) -> Result<()> {
-//    let metas = IndexMeta {
-//        segments: segment_metas,
-//        schema,
-//        opstamp,
-//        payload,
-//    };
+fn save_metas(metas: &IndexMeta, directory: &mut Directory) -> Result<()> {
+    //    let metas = IndexMeta {
+    //        segments: segment_metas,
+    //        schema,
+    //        opstamp,
+    //        payload,
+    //    };
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     writeln!(&mut buffer)?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
@@ -265,13 +263,10 @@ impl SegmentUpdater {
                 segments: commited_segment_metas,
                 schema: index.schema(),
                 opstamp,
-                payload: commit_message
+                payload: commit_message,
             };
-            save_metas(
-                &index_meta,
-                directory.box_clone().borrow_mut(),
-            )
-            .expect("Could not save metas.");
+            save_metas(&index_meta, directory.box_clone().borrow_mut())
+                .expect("Could not save metas.");
             self.store_meta(&index_meta);
         }
     }
