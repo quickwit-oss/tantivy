@@ -231,11 +231,7 @@ pub use common::{i64_to_u64, u64_to_i64};
 /// Expose the current version of tantivy, as well
 /// whether it was compiled with the simd compression.
 pub fn version() -> &'static str {
-    if cfg!(feature = "simdcompression") {
-        concat!(env!("CARGO_PKG_VERSION"), "-simd")
-    } else {
-        concat!(env!("CARGO_PKG_VERSION"), "-nosimd")
-    }
+    env!("CARGO_PKG_VERSION")
 }
 
 /// Defines tantivy's merging strategy
@@ -348,7 +344,7 @@ mod tests {
         let index = Index::create_from_tempdir(schema).unwrap();
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af b");
                 index_writer.add_document(doc);
@@ -370,7 +366,7 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         {
             index_writer.add_document(doc!(text_field=>"a b c"));
             index_writer.commit().unwrap();
@@ -412,7 +408,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc);
@@ -440,7 +436,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"a b c");
                 index_writer.add_document(doc);
@@ -487,7 +483,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             // 0
             index_writer.add_document(doc!(text_field=>"a b"));
             // 1
@@ -534,7 +530,7 @@ mod tests {
         }
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             // 0
             index_writer.add_document(doc!(text_field=>"a b"));
             // 1
@@ -571,7 +567,7 @@ mod tests {
         }
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"a b"));
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.rollback().unwrap();
@@ -620,7 +616,7 @@ mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         index_writer.add_document(doc!(field=>1u64));
         index_writer.commit().unwrap();
         index.load_searchers().unwrap();
@@ -643,7 +639,7 @@ mod tests {
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let negative_val = -1i64;
         index_writer.add_document(doc!(value_field => negative_val));
         index_writer.commit().unwrap();
@@ -667,7 +663,7 @@ mod tests {
         let absent_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
         index_writer.add_document(doc!(text_field=>"a"));
         assert!(index_writer.commit().is_ok());
         assert!(index.load_searchers().is_ok());
@@ -684,7 +680,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
 
         // writing the segment
-        let mut index_writer = index.writer_with_num_threads(2, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
 
         let add_document = |index_writer: &mut IndexWriter, val: &'static str| {
             let doc = doc!(text_field=>val);
@@ -720,7 +716,7 @@ mod tests {
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af af af bc bc");
                 index_writer.add_document(doc);
@@ -756,7 +752,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"af af af b"));
             index_writer.add_document(doc!(text_field=>"a b c"));
             index_writer.add_document(doc!(text_field=>"a b c d"));
@@ -809,7 +805,7 @@ mod tests {
 
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc!(text_field=>"af b");
                 index_writer.add_document(doc);

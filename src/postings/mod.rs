@@ -280,7 +280,7 @@ pub mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let mut doc = Document::default();
                 doc.add_text(text_field, "g b b d c g c");
@@ -322,7 +322,7 @@ pub mod tests {
 
             let index = Index::create_in_ram(schema);
             {
-                let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+                let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
                 for i in 0..num_docs {
                     let mut doc = Document::default();
                     doc.add_u64(value_field, 2);
@@ -399,7 +399,7 @@ pub mod tests {
 
         // delete some of the documents
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
@@ -449,7 +449,7 @@ pub mod tests {
 
         // delete everything else
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.delete_term(term_1);
 
             assert!(index_writer.commit().is_ok());
@@ -460,7 +460,8 @@ pub mod tests {
 
         // finally, check that it's empty
         {
-            let searchable_segment_ids = index.searchable_segment_ids()
+            let searchable_segment_ids = index
+                .searchable_segment_ids()
                 .expect("could not get index segment ids");
             assert!(searchable_segment_ids.is_empty());
             assert_eq!(searcher.num_docs(), 0);
@@ -494,7 +495,7 @@ pub mod tests {
             let index = Index::create_in_ram(schema);
             let posting_list_size = 1_000_000;
             {
-                let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+                let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
                 for _ in 0..posting_list_size {
                     let mut doc = Document::default();
                     if rng.gen_bool(1f64 / 15f64) {

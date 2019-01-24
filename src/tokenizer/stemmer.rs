@@ -23,7 +23,7 @@ pub enum Language {
     Spanish,
     Swedish,
     Tamil,
-    Turkish
+    Turkish,
 }
 
 impl Language {
@@ -46,7 +46,7 @@ impl Language {
             Spanish => Algorithm::Spanish,
             Swedish => Algorithm::Swedish,
             Tamil => Algorithm::Tamil,
-            Turkish => Algorithm::Turkish
+            Turkish => Algorithm::Turkish,
         }
     }
 }

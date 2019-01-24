@@ -148,7 +148,7 @@ pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
-pub use self::stemmer::{Stemmer, Language};
+pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
 pub(crate) use self::tokenizer::box_tokenizer;
@@ -160,14 +160,8 @@ pub use self::tokenizer_manager::TokenizerManager;
 #[cfg(test)]
 pub mod tests {
     use super::{
-        Token,
+        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, Tokenizer,
         TokenizerManager,
-        SimpleTokenizer,
-        Tokenizer,
-        RemoveLongFilter,
-        LowerCaser,
-        Stemmer,
-        Language
     };
 
     /// This is a function that can be used in tests and doc tests

@@ -657,8 +657,8 @@ mod tests {
     fn test_lockfile_stops_duplicates() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer(40_000_000).unwrap();
-        match index.writer(40_000_000) {
+        let _index_writer = index.writer(3_000_000).unwrap();
+        match index.writer(3_000_000) {
             Err(TantivyError::LockFailure(_)) => {}
             _ => panic!("Expected FileAlreadyExists error"),
         }
@@ -683,7 +683,7 @@ mod tests {
     fn test_set_merge_policy() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(40_000_000).unwrap();
+        let index_writer = index.writer(3_000_000).unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
             "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
@@ -702,11 +702,11 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let _index_writer = index.writer(40_000_000).unwrap();
+            let _index_writer = index.writer(3_000_000).unwrap();
             // the lock should be released when the
             // index_writer leaves the scope.
         }
-        let _index_writer_two = index.writer(40_000_000).unwrap();
+        let _index_writer_two = index.writer(3_000_000).unwrap();
     }
 
     #[test]

@@ -109,9 +109,16 @@ impl SegmentManager {
     /// Deletes all empty segments
     fn remove_empty_segments(&self) {
         let mut registers_lock = self.write();
-        registers_lock.committed.segment_entries().iter()
+        registers_lock
+            .committed
+            .segment_entries()
+            .iter()
             .filter(|segment| segment.meta().num_docs() == 0)
-            .for_each(|segment| registers_lock.committed.remove_segment(&segment.segment_id()));
+            .for_each(|segment| {
+                registers_lock
+                    .committed
+                    .remove_segment(&segment.segment_id())
+            });
     }
 
     pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {

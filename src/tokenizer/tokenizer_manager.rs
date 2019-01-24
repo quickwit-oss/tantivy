@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokenizer::box_tokenizer;
+use tokenizer::stemmer::Language;
 use tokenizer::BoxedTokenizer;
 use tokenizer::LowerCaser;
 use tokenizer::RawTokenizer;
@@ -8,7 +9,6 @@ use tokenizer::RemoveLongFilter;
 use tokenizer::SimpleTokenizer;
 use tokenizer::Stemmer;
 use tokenizer::Tokenizer;
-use tokenizer::stemmer::Language;
 
 /// The tokenizer manager serves as a store for
 /// all of the pre-configured tokenizer pipelines.

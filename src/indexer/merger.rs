@@ -836,7 +836,7 @@ mod tests {
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
 
         let search_term = |searcher: &Searcher, term: Term| {
             let collector = FastFieldTestCollector::for_field(score_field);
@@ -1145,7 +1145,7 @@ mod tests {
         let facet_field = schema_builder.add_facet_field("facet");
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
                 let mut doc = Document::default();
                 for facet in doc_facets {
@@ -1210,7 +1210,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
                 .expect("Failed to initiate merge")
@@ -1233,7 +1233,7 @@ mod tests {
 
         // Deleting one term
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let facet = Facet::from_path(vec!["top", "a", "firstdoc"]);
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
@@ -1291,7 +1291,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let mut doc = Document::default();
             doc.add_u64(int_field, 1);
             index_writer.add_document(doc.clone());
@@ -1334,7 +1334,7 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let index_doc = |index_writer: &mut IndexWriter, int_vals: &[u64]| {
                 let mut doc = Document::default();
                 for &val in int_vals {
@@ -1423,7 +1423,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer
                 .merge(&segment_ids)
                 .expect("Failed to initiate merge")

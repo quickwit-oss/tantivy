@@ -523,7 +523,7 @@ Survey in 2016, 2017, and 2018."#;
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field => "a"));
             index_writer.add_document(doc!(text_field => "a"));
             index_writer.add_document(doc!(text_field => "a b"));
@@ -580,7 +580,7 @@ Survey in 2016, 2017, and 2018."#;
         let index = Index::create_in_ram(schema);
         {
             // writing the segment
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 let doc = doc ! (text_field => TEST_TEXT);
                 index_writer.add_document(doc);
