@@ -3,6 +3,7 @@ Tantivy 0.9.0
 - Indexer memory footprint improved. (VInt compression,
   inlining the first block. (@fulmicoton)
 - Stemming in other language possible (@pentlander)
+- Segments with no docs are deleted earlier (@barrotsteindev)
 
 Tantivy 0.8.1
 =====================
