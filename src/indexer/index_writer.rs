@@ -26,6 +26,7 @@ use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
 use std::mem;
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
@@ -433,7 +434,7 @@ impl IndexWriter {
     }
 
     /// Accessor to the merge policy.
-    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
+    pub fn get_merge_policy(&self) -> Arc<Box<MergePolicy>> {
         self.segment_updater.get_merge_policy()
     }
 
@@ -737,7 +738,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"b"));
                 index_writer.add_document(doc!(text_field=>"c"));
             }
-            assert_eq!(index_writer.commit().unwrap(), 3u64);
+            assert!(index_writer.commit().is_ok());
             index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);

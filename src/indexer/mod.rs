@@ -14,15 +14,16 @@ pub mod segment_serializer;
 pub mod segment_updater;
 mod segment_writer;
 mod stamper;
+mod merge_operation;
 
 pub(crate) use self::directory_lock::DirectoryLock;
 pub use self::directory_lock::LockType;
-
+pub use self::merge_operation::{MergeOperation, MergeOperationInventory};
 pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_policy::{MergeCandidate, MergePolicy, NoMergePolicy};
 pub use self::prepared_commit::PreparedCommit;
-pub use self::segment_entry::{SegmentEntry, SegmentState};
+pub use self::segment_entry::SegmentEntry;
 pub use self::segment_manager::SegmentManager;
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;

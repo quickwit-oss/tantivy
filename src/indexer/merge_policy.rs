@@ -11,27 +11,12 @@ pub struct MergeCandidate(pub Vec<SegmentId>);
 ///
 /// Every time a the list of segments changes, the segment updater
 /// asks the merge policy if some segments should be merged.
-pub trait MergePolicy: MergePolicyClone + marker::Send + marker::Sync + Debug {
+pub trait MergePolicy: marker::Send + marker::Sync + Debug {
     /// Given the list of segment metas, returns the list of merge candidates.
     ///
     /// This call happens on the segment updater thread, and will block
     /// other segment updates, so all implementations should happen rapidly.
     fn compute_merge_candidates(&self, segments: &[SegmentMeta]) -> Vec<MergeCandidate>;
-}
-
-/// MergePolicyClone
-pub trait MergePolicyClone {
-    /// Returns a boxed clone of the MergePolicy.
-    fn box_clone(&self) -> Box<MergePolicy>;
-}
-
-impl<T> MergePolicyClone for T
-where
-    T: 'static + MergePolicy + Clone,
-{
-    fn box_clone(&self) -> Box<MergePolicy> {
-        Box::new(self.clone())
-    }
 }
 
 /// Never merge segments.
