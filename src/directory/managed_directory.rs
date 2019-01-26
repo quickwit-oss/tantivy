@@ -92,6 +92,9 @@ impl ManagedDirectory {
     ///
     /// * `living_files` - List of files that are still used by the index.
     ///
+    /// The use a callback ensures that the list of living_files is computed
+    /// while we hold the lock on meta.
+    ///
     /// This method does not panick nor returns errors.
     /// If a file cannot be deleted (for permission reasons for instance)
     /// an error is simply logged, and the file remains in the list of managed

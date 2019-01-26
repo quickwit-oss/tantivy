@@ -66,13 +66,8 @@ pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
 ///
 /// This method is not part of tantivy's public API
 fn save_metas(metas: &IndexMeta, directory: &mut Directory) -> Result<()> {
-    //    let metas = IndexMeta {
-    //        segments: segment_metas,
-    //        schema,
-    //        opstamp,
-    //        payload,
-    //    };
     let mut buffer = serde_json::to_vec_pretty(metas)?;
+    // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
     directory.atomic_write(&META_FILEPATH, &buffer[..])?;
     debug!("Saved metas {:?}", serde_json::to_string_pretty(&metas));
@@ -95,10 +90,11 @@ struct MergeOperation {
 fn perform_merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
-    mut merged_segment: Segment,
     target_opstamp: u64,
 ) -> Result<SegmentEntry> {
     // first we need to apply deletes to our segment.
+
+    let mut merged_segment = index.new_segment();
 
     // TODO add logging
     let schema = index.schema();
@@ -175,13 +171,6 @@ impl SegmentUpdater {
             killed: AtomicBool::new(false),
             stamper,
         })))
-    }
-
-    pub fn new_segment(&self) -> Segment {
-        let new_segment = self.0.index.new_segment();
-        let segment_id = new_segment.id();
-        self.0.segment_manager.write_segment(segment_id);
-        new_segment
     }
 
     pub fn get_merge_policy(&self) -> Box<MergePolicy> {
@@ -342,12 +331,9 @@ impl SegmentUpdater {
             .name(format!("mergingthread-{}", merging_thread_id))
             .spawn(move || {
                 // first we need to apply deletes to our segment.
-                let merged_segment = segment_updater_clone.new_segment();
-                let merged_segment_id = merged_segment.id();
                 let merge_result = perform_merge(
                     &segment_updater_clone.0.index,
                     segment_entries,
-                    merged_segment,
                     target_opstamp,
                 );
 
@@ -371,7 +357,7 @@ impl SegmentUpdater {
                         if cfg!(test) {
                             panic!("Merge failed.");
                         }
-                        segment_updater_clone.cancel_merge(&segment_ids_vec, merged_segment_id);
+                        segment_updater_clone.cancel_merge(&segment_ids_vec);
                         // merging_future_send will be dropped, sending an error to the future.
                     }
                 }
@@ -439,14 +425,10 @@ impl SegmentUpdater {
         }
     }
 
-    fn cancel_merge(
-        &self,
-        before_merge_segment_ids: &[SegmentId],
-        after_merge_segment_entry: SegmentId,
-    ) {
+    fn cancel_merge(&self, before_merge_segment_ids: &[SegmentId]) {
         self.0
             .segment_manager
-            .cancel_merge(before_merge_segment_ids, after_merge_segment_entry);
+            .cancel_merge(before_merge_segment_ids);
     }
 
     fn end_merge(
@@ -469,14 +451,11 @@ impl SegmentUpdater {
                             "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
                             before_merge_segment_ids, e
                         );
-                        // ... cancel merge
                         if cfg!(test) {
                             panic!("Merge failed.");
                         }
-                        segment_updater.cancel_merge(
-                            &before_merge_segment_ids,
-                            after_merge_segment_entry.segment_id(),
-                        );
+                        // ... cancel merge
+                        segment_updater.cancel_merge(&before_merge_segment_ids);
                         return;
                     }
                 }

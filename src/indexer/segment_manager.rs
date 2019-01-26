@@ -16,7 +16,6 @@ use Result as TantivyResult;
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
-    writing: HashSet<SegmentId>,
 }
 
 /// The segment manager stores the list of segments
@@ -59,7 +58,6 @@ impl SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),
-                writing: HashSet::new(),
             }),
         }
     }
@@ -164,11 +162,12 @@ impl SegmentManager {
         Ok(segment_entries)
     }
 
-    pub fn cancel_merge(
-        &self,
-        before_merge_segment_ids: &[SegmentId],
-        after_merge_segment_id: SegmentId,
-    ) {
+    /// Segment being merged have been marked as such to avoid
+    /// starting several merge operations affecting the same segments.
+    ///
+    /// Calling `cancel_merge` marks these segments as available for
+    /// merge again.
+    pub fn cancel_merge(&self, before_merge_segment_ids: &[SegmentId]) {
         let mut registers_lock = self.write();
 
         // we mark all segments are ready for merge.
@@ -194,20 +193,10 @@ impl SegmentManager {
                 target_segment_register.cancel_merge(segment_id);
             }
         }
-
-        // ... and we make sure the target segment entry
-        // can be garbage collected.
-        registers_lock.writing.remove(&after_merge_segment_id);
-    }
-
-    pub fn write_segment(&self, segment_id: SegmentId) {
-        let mut registers_lock = self.write();
-        registers_lock.writing.insert(segment_id);
     }
 
     pub fn add_segment(&self, segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
-        registers_lock.writing.remove(&segment_entry.segment_id());
         registers_lock.uncommitted.add_segment_entry(segment_entry);
     }
 
@@ -217,10 +206,6 @@ impl SegmentManager {
         after_merge_segment_entry: SegmentEntry,
     ) {
         let mut registers_lock = self.write();
-        registers_lock
-            .writing
-            .remove(&after_merge_segment_entry.segment_id());
-
         let target_register: &mut SegmentRegister = {
             if registers_lock
                 .uncommitted
