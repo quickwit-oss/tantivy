@@ -130,9 +130,7 @@ extern crate bit_set;
 extern crate bitpacking;
 extern crate byteorder;
 extern crate scoped_pool;
-
 extern crate combine;
-
 extern crate crossbeam;
 extern crate fnv;
 extern crate fst;

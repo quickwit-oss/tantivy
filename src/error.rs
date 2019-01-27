@@ -4,13 +4,13 @@ use std::io;
 
 use directory::error::{IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use fastfield::FastFieldNotAvailableError;
-use indexer::LockType;
 use query;
 use schema;
 use serde_json;
 use std::fmt;
 use std::path::PathBuf;
 use std::sync::PoisonError;
+use directory::error::LockError;
 
 pub struct DataCorruption {
     filepath: Option<PathBuf>,
@@ -57,11 +57,8 @@ pub enum TantivyError {
     #[fail(display = "Index already exists")]
     IndexAlreadyExists,
     /// Failed to acquire file lock
-    #[fail(
-        display = "Failed to acquire Lockfile: {:?}. Possible causes: another IndexWriter instance or panic during previous lock drop.",
-        _0
-    )]
-    LockFailure(LockType),
+    #[fail(display = "Failed to acquire Lockfile: {:?}. {:?}",  _0, _1)]
+    LockFailure(LockError, Option<String>),
     /// IO Error.
     #[fail(display = "An IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
@@ -97,6 +94,12 @@ impl From<DataCorruption> for TantivyError {
 impl From<FastFieldNotAvailableError> for TantivyError {
     fn from(fastfield_error: FastFieldNotAvailableError) -> TantivyError {
         TantivyError::FastFieldError(fastfield_error)
+    }
+}
+
+impl From<LockError> for TantivyError {
+    fn from(lock_error: LockError) -> TantivyError {
+        TantivyError::LockFailure(lock_error, None)
     }
 }
 

@@ -18,7 +18,6 @@ use error::TantivyError;
 use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
-use indexer::LockType;
 use num_cpus;
 use schema::Field;
 use schema::FieldType;
@@ -33,6 +32,8 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
+use directory::INDEX_WRITER_LOCK;
+use directory::META_LOCK;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -232,7 +233,8 @@ impl Index {
     /// Each thread will receive a budget of  `overall_heap_size_in_bytes / num_threads`.
     ///
     /// # Errors
-    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IOError`.
+    ///
     /// # Panics
     /// If the heap size per thread is too small, panics.
     pub fn writer_with_num_threads(
@@ -240,7 +242,14 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        let directory_lock = LockType::IndexWriterLock.acquire_lock(&self.directory)?;
+        let directory_lock = self.directory.acquire_lock(&INDEX_WRITER_LOCK)
+            .map_err(|err| {
+                TantivyError::LockFailure(err,
+                                          Some("Failed to acquire index lock. If you are using\
+                                          a regular directory, this means there is already an \
+                                          `IndexWriter` working on this `Directory`, in this process \
+                                          or in a different process.".to_string()))}
+            )?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
             self,
@@ -339,7 +348,7 @@ impl Index {
     /// get the freshest `index` at all time, is to watch `meta.json` and
     /// call `load_searchers` whenever a changes happen.
     pub fn load_searchers(&self) -> Result<()> {
-        let _meta_lock = LockType::MetaLock.acquire_lock(self.directory())?;
+        let _meta_lock = self.directory().acquire_lock(&META_LOCK)?;
         let searchable_segments = self.searchable_segments()?;
         let segment_readers: Vec<SegmentReader> = searchable_segments
             .iter()

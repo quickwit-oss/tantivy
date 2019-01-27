@@ -3,11 +3,31 @@ use std::fmt;
 use std::io;
 use std::path::PathBuf;
 
+/// Error while trying to acquire a directory lock.
+#[derive(Debug, Fail)]
+pub enum LockError {
+    /// Failed to acquired a lock as it is already hold by another
+    /// client.
+    /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
+    /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
+    #[fail(display = "Could not acquire lock as it is already held, possibly by a different process.")]
+    LockBusy,
+    /// Trying to acquire a lock failed with an `IOError`
+    #[fail(display = "Failed to acquire the lock due to an io:Error.")]
+    IOError(io::Error)
+}
+
 /// General IO error with an optional path to the offending file.
 #[derive(Debug)]
 pub struct IOError {
     path: Option<PathBuf>,
     err: io::Error,
+}
+
+impl Into<io::Error> for IOError {
+    fn into(self) -> io::Error {
+        self.err
+    }
 }
 
 impl fmt::Display for IOError {

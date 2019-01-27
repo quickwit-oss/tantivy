@@ -16,7 +16,6 @@ use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
 use indexer::stamper::Stamper;
-use indexer::DirectoryLock;
 use indexer::MergePolicy;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
@@ -29,6 +28,7 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
+use directory::DirectoryLock;
 use futures::{Future, Canceled};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
@@ -657,6 +657,7 @@ mod tests {
     use schema::{self, Document};
     use Index;
     use Term;
+    use directory::error::LockError;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -664,8 +665,8 @@ mod tests {
         let index = Index::create_in_ram(schema_builder.build());
         let _index_writer = index.writer(3_000_000).unwrap();
         match index.writer(3_000_000) {
-            Err(TantivyError::LockFailure(_)) => {}
-            _ => panic!("Expected FileAlreadyExists error"),
+            Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
+            _ => panic!("Expected a `LockFailure` error"),
         }
     }
 
@@ -677,8 +678,7 @@ mod tests {
         match index.writer_with_num_threads(1, 3_000_000) {
             Err(err) => {
                 let err_msg = err.to_string();
-                assert!(err_msg.contains("Lockfile"));
-                assert!(err_msg.contains("Possible causes:"))
+                assert!(err_msg.contains("already an `IndexWriter`"));
             }
             _ => panic!("Expected LockfileAlreadyExists error"),
         }

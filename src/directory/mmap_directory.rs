@@ -1,3 +1,6 @@
+extern crate fs2;
+
+use self::fs2::FileExt;
 use atomicwrites;
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
@@ -19,6 +22,9 @@ use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tempdir::TempDir;
+use directory::Lock;
+use directory::DirectoryLock;
+use directory::error::LockError;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -115,6 +121,14 @@ impl MmapCache {
 ///
 /// The Mmap object are cached to limit the
 /// system calls.
+///
+/// In the `MmapDirectory`, locks are implemented using the `fs2` crate definition of locks.
+///
+/// On MacOS & linux, it relies on `flock` (aka `BSD Lock`). These locks solve most of the
+/// problems related to POSIX Locks, but may their contract may not be respected on `NFS`
+/// depending on the implementation.
+///
+/// On Windows the semantics are again different.
 #[derive(Clone)]
 pub struct MmapDirectory {
     root_path: PathBuf,
@@ -210,6 +224,21 @@ impl MmapDirectory {
             .write()
             .expect("Mmap cache lock is poisoned.")
             .get_info()
+    }
+}
+
+/// We rely on fs2 for file locking. On Windows & MacOS this
+/// uses BSD locks (`flock`). The lock is actually released when
+/// the `File` object is dropped and its associated file descriptor
+/// is closed.
+struct ReleaseLockFile {
+    _file: File,
+    path: PathBuf
+}
+
+impl Drop for ReleaseLockFile {
+    fn drop(&mut self) {
+        debug!("Releasing lock {:?}", self.path);
     }
 }
 
@@ -353,6 +382,28 @@ impl Directory for MmapDirectory {
         let meta_file = atomicwrites::AtomicFile::new(full_path, atomicwrites::AllowOverwrite);
         meta_file.write(|f| f.write_all(data))?;
         Ok(())
+    }
+
+    fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
+        let full_path = self.resolve_path(&lock.filepath);
+            // We make sure that the file exists.
+        let file: File = OpenOptions::new()
+            .write(true)
+            .create(true) //< if the file does not exist yet, create it.
+            .open(&full_path)
+            .map_err(|err| LockError::IOError(err))?;
+        if lock.is_blocking {
+            file.lock_exclusive()
+                .map_err(LockError::IOError)?;
+        } else {
+            file.try_lock_exclusive()
+                .map_err(|_| LockError::LockBusy)?
+        }
+        // dropping the file handle will release the lock.
+        Ok(DirectoryLock::from(Box::new(ReleaseLockFile {
+            path: lock.filepath.clone(),
+            _file: file
+        })))
     }
 }
 
