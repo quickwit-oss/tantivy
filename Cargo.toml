@@ -42,7 +42,7 @@ rust-stemmers = "1"
 downcast = { version="0.9" }
 matches = "0.1"
 bitpacking = "0.5"
-census = "0.1"
+census = "0.2"
 fnv = "1.0.6"
 owned-read = "0.4"
 failure = "0.1"

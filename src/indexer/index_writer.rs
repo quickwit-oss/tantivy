@@ -25,6 +25,7 @@ use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
 use std::mem;
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
@@ -366,13 +367,16 @@ impl IndexWriter {
             .add_segment(self.generation, segment_entry);
     }
 
-    /// *Experimental & Advanced API* Creates a new segment.
-    /// and marks it as currently in write.
+    /// Creates a new segment.
     ///
     /// This method is useful only for users trying to do complex
     /// operations, like converting an index format to another.
+    ///
+    /// It is safe to start writing file associated to the new `Segment`.
+    /// These will not be garbage collected as long as an instance object of
+    /// `SegmentMeta` object associated to the new `Segment` is "alive".
     pub fn new_segment(&self) -> Segment {
-        self.segment_updater.new_segment()
+        self.index.new_segment()
     }
 
     /// Spawns a new worker thread for indexing.
@@ -387,6 +391,7 @@ impl IndexWriter {
         let mut delete_cursor = self.delete_queue.cursor();
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
+        let index = self.index.clone();
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
             .name(format!(
                 "thrd-tantivy-index{}-gen{}",
@@ -412,7 +417,7 @@ impl IndexWriter {
                         // was dropped.
                         return Ok(());
                     }
-                    let segment = segment_updater.new_segment();
+                    let segment = index.new_segment();
                     index_documents(
                         mem_budget,
                         &segment,
@@ -429,7 +434,7 @@ impl IndexWriter {
     }
 
     /// Accessor to the merge policy.
-    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
+    pub fn get_merge_policy(&self) -> Arc<Box<MergePolicy>> {
         self.segment_updater.get_merge_policy()
     }
 
@@ -733,7 +738,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"b"));
                 index_writer.add_document(doc!(text_field=>"c"));
             }
-            assert_eq!(index_writer.commit().unwrap(), 3u64);
+            assert!(index_writer.commit().is_ok());
             index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
