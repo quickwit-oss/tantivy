@@ -12,7 +12,6 @@ use crossbeam::channel;
 use docset::DocSet;
 use error::TantivyError;
 use fastfield::write_delete_bitset;
-use futures::sync::oneshot::Receiver;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
@@ -25,11 +24,12 @@ use schema::Document;
 use schema::IndexRecordOption;
 use schema::Term;
 use std::mem;
-use std::mem::swap;
+use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
 use directory::DirectoryLock;
+use futures::{Future, Canceled};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -367,13 +367,16 @@ impl IndexWriter {
             .add_segment(self.generation, segment_entry);
     }
 
-    /// *Experimental & Advanced API* Creates a new segment.
-    /// and marks it as currently in write.
+    /// Creates a new segment.
     ///
     /// This method is useful only for users trying to do complex
     /// operations, like converting an index format to another.
+    ///
+    /// It is safe to start writing file associated to the new `Segment`.
+    /// These will not be garbage collected as long as an instance object of
+    /// `SegmentMeta` object associated to the new `Segment` is "alive".
     pub fn new_segment(&self) -> Segment {
-        self.segment_updater.new_segment()
+        self.index.new_segment()
     }
 
     /// Spawns a new worker thread for indexing.
@@ -388,6 +391,7 @@ impl IndexWriter {
         let mut delete_cursor = self.delete_queue.cursor();
 
         let mem_budget = self.heap_size_in_bytes_per_thread;
+        let index = self.index.clone();
         let join_handle: JoinHandle<Result<()>> = thread::Builder::new()
             .name(format!(
                 "thrd-tantivy-index{}-gen{}",
@@ -413,7 +417,7 @@ impl IndexWriter {
                         // was dropped.
                         return Ok(());
                     }
-                    let segment = segment_updater.new_segment();
+                    let segment = index.new_segment();
                     index_documents(
                         mem_budget,
                         &segment,
@@ -430,7 +434,7 @@ impl IndexWriter {
     }
 
     /// Accessor to the merge policy.
-    pub fn get_merge_policy(&self) -> Box<MergePolicy> {
+    pub fn get_merge_policy(&self) -> Arc<Box<MergePolicy>> {
         self.segment_updater.get_merge_policy()
     }
 
@@ -455,7 +459,7 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<impl Future<Item=SegmentMeta, Error=Canceled>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -468,11 +472,10 @@ impl IndexWriter {
     ///
     /// Returns the former segment_ready channel.
     fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (mut document_sender, mut document_receiver): (DocumentSender, DocumentReceiver) =
+        let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        swap(&mut self.document_sender, &mut document_sender);
-        swap(&mut self.document_receiver, &mut document_receiver);
-        document_receiver
+        mem::replace(&mut self.document_sender, document_sender);
+        mem::replace(&mut self.document_receiver, document_receiver)
     }
 
     /// Rollback to the last commit
@@ -559,17 +562,12 @@ impl IndexWriter {
         // and recreate a new one channels.
         self.recreate_document_channel();
 
-        let mut former_workers_join_handle = Vec::new();
-        swap(
-            &mut former_workers_join_handle,
-            &mut self.workers_join_handle,
-        );
+        let former_workers_join_handle = mem::replace(&mut self.workers_join_handle, Vec::new());
 
         for worker_handle in former_workers_join_handle {
             let indexing_worker_result = worker_handle
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
-
             indexing_worker_result?;
             // add a new worker for the next generation.
             self.add_indexing_worker()?;
@@ -665,8 +663,8 @@ mod tests {
     fn test_lockfile_stops_duplicates() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let _index_writer = index.writer(40_000_000).unwrap();
-        match index.writer(40_000_000) {
+        let _index_writer = index.writer(3_000_000).unwrap();
+        match index.writer(3_000_000) {
             Err(TantivyError::LockFailure(LockError::LockBusy, _)) => {}
             _ => panic!("Expected a `LockFailure` error"),
         }
@@ -690,7 +688,7 @@ mod tests {
     fn test_set_merge_policy() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let index_writer = index.writer(40_000_000).unwrap();
+        let index_writer = index.writer(3_000_000).unwrap();
         assert_eq!(
             format!("{:?}", index_writer.get_merge_policy()),
             "LogMergePolicy { min_merge_size: 8, min_layer_size: 10000, \
@@ -709,11 +707,11 @@ mod tests {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
         {
-            let _index_writer = index.writer(40_000_000).unwrap();
+            let _index_writer = index.writer(3_000_000).unwrap();
             // the lock should be released when the
             // index_writer leaves the scope.
         }
-        let _index_writer_two = index.writer(40_000_000).unwrap();
+        let _index_writer_two = index.writer(3_000_000).unwrap();
     }
 
     #[test]
@@ -740,7 +738,7 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"b"));
                 index_writer.add_document(doc!(text_field=>"c"));
             }
-            assert_eq!(index_writer.commit().unwrap(), 2u64);
+            assert!(index_writer.commit().is_ok());
             index.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
@@ -803,7 +801,6 @@ mod tests {
             {
                 let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
                 prepared_commit.set_payload("first commit");
-                assert_eq!(prepared_commit.opstamp(), 100);
                 prepared_commit.commit().expect("commit failed");
             }
             {
@@ -837,7 +834,6 @@ mod tests {
             {
                 let mut prepared_commit = index_writer.prepare_commit().expect("commit failed");
                 prepared_commit.set_payload("first commit");
-                assert_eq!(prepared_commit.opstamp(), 100);
                 prepared_commit.abort().expect("commit failed");
             }
             {

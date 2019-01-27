@@ -73,7 +73,7 @@
 //! let en_stem = SimpleTokenizer
 //!     .filter(RemoveLongFilter::limit(40))
 //!     .filter(LowerCaser)
-//!     .filter(Stemmer::new());
+//!     .filter(Stemmer::new(Language::English));
 //! # }
 //! ```
 //!
@@ -148,7 +148,7 @@ pub use self::ngram_tokenizer::NgramTokenizer;
 pub use self::raw_tokenizer::RawTokenizer;
 pub use self::remove_long::RemoveLongFilter;
 pub use self::simple_tokenizer::SimpleTokenizer;
-pub use self::stemmer::Stemmer;
+pub use self::stemmer::{Language, Stemmer};
 pub use self::stop_word_filter::StopWordFilter;
 pub(crate) use self::token_stream_chain::TokenStreamChain;
 pub(crate) use self::tokenizer::box_tokenizer;
@@ -159,8 +159,10 @@ pub use self::tokenizer_manager::TokenizerManager;
 
 #[cfg(test)]
 pub mod tests {
-    use super::Token;
-    use super::TokenizerManager;
+    use super::{
+        Language, LowerCaser, RemoveLongFilter, SimpleTokenizer, Stemmer, Token, Tokenizer,
+        TokenizerManager,
+    };
 
     /// This is a function that can be used in tests and doc tests
     /// to assert a token's correctness.
@@ -214,11 +216,39 @@ pub mod tests {
                 .token_stream("Hello, happy tax payer!")
                 .process(&mut add_token);
         }
+
         assert_eq!(tokens.len(), 4);
         assert_token(&tokens[0], 0, "hello", 0, 5);
         assert_token(&tokens[1], 1, "happi", 7, 12);
         assert_token(&tokens[2], 2, "tax", 13, 16);
         assert_token(&tokens[3], 3, "payer", 17, 22);
+    }
+
+    #[test]
+    fn test_non_en_tokenizer() {
+        let tokenizer_manager = TokenizerManager::default();
+        tokenizer_manager.register(
+            "es_stem",
+            SimpleTokenizer
+                .filter(RemoveLongFilter::limit(40))
+                .filter(LowerCaser)
+                .filter(Stemmer::new(Language::Spanish)),
+        );
+        let en_tokenizer = tokenizer_manager.get("es_stem").unwrap();
+        let mut tokens: Vec<Token> = vec![];
+        {
+            let mut add_token = |token: &Token| {
+                tokens.push(token.clone());
+            };
+            en_tokenizer
+                .token_stream("Hola, feliz contribuyente!")
+                .process(&mut add_token);
+        }
+
+        assert_eq!(tokens.len(), 3);
+        assert_token(&tokens[0], 0, "hola", 0, 4);
+        assert_token(&tokens[1], 1, "feliz", 6, 11);
+        assert_token(&tokens[2], 2, "contribuyent", 12, 25);
     }
 
     #[test]

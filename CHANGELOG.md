@@ -1,3 +1,18 @@
+Tantivy 0.9.0
+=====================
+- Removed most unsafe (@fulmicoton)
+- Indexer memory footprint improved. (VInt comp, inlining the first block. (@fulmicoton)
+- Stemming in other language possible (@pentlander)
+- Segments with no docs are deleted earlier (@barrotsteindev)
+
+Tantivy 0.8.1
+=====================
+Hotfix of #476.
+
+Merge was reflecting deletes before commit was passed. 
+Thanks @barrotsteindev  for reporting the bug.
+
+
 Tantivy 0.8.0
 =====================
 *No change in the index format*

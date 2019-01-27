@@ -88,7 +88,7 @@ mod tests {
         let index = Index::create_in_ram(schema.clone());
 
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             {
                 for i in 0u64..10u64 {
                     index_writer.add_document(doc!(

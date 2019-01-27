@@ -50,7 +50,6 @@ where
                 self.token_mut().text.make_ascii_lowercase();
             } else {
                 to_lowercase_unicode(&mut self.tail.token_mut().text, &mut self.buffer);
-
                 mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
             }
             true

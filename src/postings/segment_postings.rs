@@ -752,7 +752,7 @@ mod tests {
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let mut last_doc = 0u32;
         for &doc in docs {
             for _ in last_doc..doc {
@@ -823,7 +823,7 @@ mod tests {
         let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         // create two postings list, one containg even number,
         // the other containing odd numbers.
         for i in 0..6 {

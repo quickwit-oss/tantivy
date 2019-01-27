@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use tokenizer::box_tokenizer;
+use tokenizer::stemmer::Language;
 use tokenizer::BoxedTokenizer;
 use tokenizer::LowerCaser;
 use tokenizer::RawTokenizer;
@@ -71,7 +72,7 @@ impl Default for TokenizerManager {
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new()),
+                .filter(Stemmer::new(Language::English)),
         );
         manager
     }

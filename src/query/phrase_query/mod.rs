@@ -24,7 +24,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             for &text in texts {
                 let doc = doc!(text_field=>text);
                 index_writer.add_document(doc);
@@ -86,7 +86,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"a b c"));
             assert!(index_writer.commit().is_ok());
         }
@@ -141,7 +141,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"b"));
             index_writer.add_document(doc!(text_field=>"a b"));
             index_writer.add_document(doc!(text_field=>"b a"));
@@ -173,7 +173,7 @@ mod tests {
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         {
-            let mut index_writer = index.writer_with_num_threads(1, 40_000_000).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"a b c d e f g h"));
             assert!(index_writer.commit().is_ok());
         }

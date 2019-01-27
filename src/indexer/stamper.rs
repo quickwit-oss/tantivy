@@ -1,50 +1,66 @@
+use std::sync::atomic::Ordering;
+use std::sync::Arc;
+
 // AtomicU64 have not landed in stable.
 // For the moment let's just use AtomicUsize on
 // x86/64 bit platform, and a mutex on other platform.
-
-#[cfg(target = "x86_64")]
+#[cfg(target_arch = "x86_64")]
 mod archicture_impl {
 
     use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::sync::Arc;
 
-    #[derive(Clone, Default)]
-    pub struct Stamper(Arc<AtomicU64>);
+    #[derive(Default)]
+    pub struct AtomicU64Ersatz(AtomicUsize);
 
-    impl Stamper {
-        pub fn new(first_opstamp: u64) -> Stamper {
-            Stamper(Arc::new(AtomicU64::new(first_opstamp)))
+    impl AtomicU64Ersatz {
+        pub fn new(first_opstamp: u64) -> AtomicU64Ersatz {
+            AtomicU64Ersatz(AtomicUsize::new(first_opstamp as usize))
         }
 
-        pub fn stamp(&self) -> u64 {
-            self.0.fetch_add(1u64, Ordering::SeqCst) as u64
+        pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
+            self.0.fetch_add(val as usize, order) as u64
         }
     }
 }
 
-#[cfg(not(target = "x86_64"))]
+#[cfg(not(target_arch = "x86_64"))]
 mod archicture_impl {
 
-    use std::sync::{Arc, Mutex};
+    use std::sync::atomic::Ordering;
+    /// Under other architecture, we rely on a mutex.
+    use std::sync::RwLock;
 
-    #[derive(Clone, Default)]
-    pub struct Stamper(Arc<Mutex<u64>>);
+    #[derive(Default)]
+    pub struct AtomicU64Ersatz(RwLock<u64>);
 
-    impl Stamper {
-        pub fn new(first_opstamp: u64) -> Stamper {
-            Stamper(Arc::new(Mutex::new(first_opstamp)))
+    impl AtomicU64Ersatz {
+        pub fn new(first_opstamp: u64) -> AtomicU64Ersatz {
+            AtomicU64Ersatz(RwLock::new(first_opstamp))
         }
 
-        pub fn stamp(&self) -> u64 {
-            let mut guard = self.0.lock().expect("Failed to lock the stamper");
-            let previous_val = *guard;
-            *guard = previous_val + 1;
+        pub fn fetch_add(&self, incr: u64, _order: Ordering) -> u64 {
+            let mut lock = self.0.write().unwrap();
+            let previous_val = *lock;
+            *lock = previous_val + incr;
             previous_val
         }
     }
 }
 
-pub use self::archicture_impl::Stamper;
+use self::archicture_impl::AtomicU64Ersatz;
+
+#[derive(Clone, Default)]
+pub struct Stamper(Arc<AtomicU64Ersatz>);
+
+impl Stamper {
+    pub fn new(first_opstamp: u64) -> Stamper {
+        Stamper(Arc::new(AtomicU64Ersatz::new(first_opstamp)))
+    }
+
+    pub fn stamp(&self) -> u64 {
+        self.0.fetch_add(1u64, Ordering::SeqCst) as u64
+    }
+}
 
 #[cfg(test)]
 mod test {
