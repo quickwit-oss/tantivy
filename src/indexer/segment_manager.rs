@@ -41,12 +41,16 @@ impl Debug for SegmentManager {
 
 pub fn get_mergeable_segments(
     in_merge_segment_ids: &HashSet<SegmentId>,
-    segment_manager: &SegmentManager
+    segment_manager: &SegmentManager,
 ) -> (Vec<SegmentMeta>, Vec<SegmentMeta>) {
     let registers_lock = segment_manager.read();
     (
-        registers_lock.committed.get_mergeable_segments(in_merge_segment_ids),
-        registers_lock.uncommitted.get_mergeable_segments(in_merge_segment_ids),
+        registers_lock
+            .committed
+            .get_mergeable_segments(in_merge_segment_ids),
+        registers_lock
+            .uncommitted
+            .get_mergeable_segments(in_merge_segment_ids),
     )
 }
 

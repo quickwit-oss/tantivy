@@ -3,8 +3,8 @@ use core::SegmentMeta;
 use indexer::delete_queue::DeleteCursor;
 use indexer::segment_entry::SegmentEntry;
 use std::collections::HashMap;
-use std::fmt::{self, Debug, Formatter};
 use std::collections::HashSet;
+use std::fmt::{self, Debug, Formatter};
 
 /// The segment register keeps track
 /// of the list of segment, their size as well
@@ -35,12 +35,13 @@ impl SegmentRegister {
         self.segment_states.clear();
     }
 
-    pub fn get_mergeable_segments(&self, in_merge_segment_ids: &HashSet<SegmentId>) -> Vec<SegmentMeta> {
+    pub fn get_mergeable_segments(
+        &self,
+        in_merge_segment_ids: &HashSet<SegmentId>,
+    ) -> Vec<SegmentMeta> {
         self.segment_states
             .values()
-            .filter(|segment_entry| {
-                !in_merge_segment_ids.contains(&segment_entry.segment_id())
-            })
+            .filter(|segment_entry| !in_merge_segment_ids.contains(&segment_entry.segment_id()))
             .map(|segment_entry| segment_entry.meta().clone())
             .collect()
     }
@@ -75,7 +76,8 @@ impl SegmentRegister {
     }
 
     pub fn get(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
-        self.segment_states.get(segment_id)
+        self.segment_states
+            .get(segment_id)
             .map(|segment_entry| segment_entry.clone())
     }
 

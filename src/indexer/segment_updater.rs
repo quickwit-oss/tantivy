@@ -16,8 +16,10 @@ use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
 use indexer::delete_queue::DeleteCursor;
 use indexer::index_writer::advance_deletes;
+use indexer::merge_operation::MergeOperationInventory;
 use indexer::merger::IndexMerger;
 use indexer::stamper::Stamper;
+use indexer::MergeOperation;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use indexer::{DefaultMergePolicy, MergePolicy};
@@ -25,6 +27,7 @@ use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::Write;
 use std::mem;
 use std::ops::DerefMut;
@@ -34,9 +37,6 @@ use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
-use std::collections::HashSet;
-use indexer::MergeOperation;
-use indexer::merge_operation::MergeOperationInventory;
 
 /// Save the index meta file.
 /// This operation is atomic :
@@ -93,7 +93,6 @@ fn perform_merge(
     index: &Index,
     mut segment_entries: Vec<SegmentEntry>,
 ) -> Result<SegmentEntry> {
-
     let target_opstamp = merge_operation.target_opstamp();
 
     // first we need to apply deletes to our segment.
@@ -147,7 +146,7 @@ struct InnerSegmentUpdater {
     generation: AtomicUsize,
     killed: AtomicBool,
     stamper: Stamper,
-    merge_operations: MergeOperationInventory
+    merge_operations: MergeOperationInventory,
 }
 
 impl SegmentUpdater {
@@ -174,7 +173,7 @@ impl SegmentUpdater {
             generation: AtomicUsize::default(),
             killed: AtomicBool::new(false),
             stamper,
-            merge_operations: Default::default()
+            merge_operations: Default::default(),
         })))
     }
 
@@ -298,11 +297,13 @@ impl SegmentUpdater {
 
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
         let commit_opstamp = self.load_metas().opstamp;
-        let merge_operation = MergeOperation::new(&self.0.merge_operations, commit_opstamp, segment_ids.to_vec());
-        self.run_async(move |segment_updater| {
-            segment_updater.start_merge_impl(merge_operation)
-        })
-        .wait()?
+        let merge_operation = MergeOperation::new(
+            &self.0.merge_operations,
+            commit_opstamp,
+            segment_ids.to_vec(),
+        );
+        self.run_async(move |segment_updater| segment_updater.start_merge_impl(merge_operation))
+            .wait()?
     }
 
     fn store_meta(&self, index_meta: &IndexMeta) {
@@ -314,19 +315,24 @@ impl SegmentUpdater {
 
     // `segment_ids` is required to be non-empty.
     fn start_merge_impl(&self, merge_operation: MergeOperation) -> Result<Receiver<SegmentMeta>> {
-
-        assert!(!merge_operation.segment_ids().is_empty(), "Segment_ids cannot be empty.");
+        assert!(
+            !merge_operation.segment_ids().is_empty(),
+            "Segment_ids cannot be empty."
+        );
 
         let segment_updater_clone = self.clone();
-        let segment_entries: Vec<SegmentEntry> =
-            self.0.segment_manager.start_merge(merge_operation.segment_ids())?;
+        let segment_entries: Vec<SegmentEntry> = self
+            .0
+            .segment_manager
+            .start_merge(merge_operation.segment_ids())?;
 
-//        let segment_ids_vec = merge_operation.segment_ids.to_vec();
+        //        let segment_ids_vec = merge_operation.segment_ids.to_vec();
 
         let merging_thread_id = self.get_merging_thread_id();
         info!(
             "Starting merge thread #{} - {:?}",
-            merging_thread_id, merge_operation.segment_ids()
+            merging_thread_id,
+            merge_operation.segment_ids()
         );
         let (merging_future_send, merging_future_recv) = oneshot();
 
@@ -356,7 +362,11 @@ impl SegmentUpdater {
                         let _merging_future_res = merging_future_send.send(merged_segment_meta);
                     }
                     Err(e) => {
-                        warn!("Merge of {:?} was cancelled: {:?}", merge_operation.segment_ids(), e);
+                        warn!(
+                            "Merge of {:?} was cancelled: {:?}",
+                            merge_operation.segment_ids(),
+                            e
+                        );
                         // ... cancel merge
                         if cfg!(test) {
                             panic!("Merge failed.");
@@ -396,20 +406,18 @@ impl SegmentUpdater {
         let mut merge_candidates: Vec<MergeOperation> = merge_policy
             .compute_merge_candidates(&uncommitted_segments)
             .into_iter()
-            .map(|merge_candidate|
-                MergeOperation::new(&self.0.merge_operations,
-                                    current_opstamp,
-                                    merge_candidate.0))
+            .map(|merge_candidate| {
+                MergeOperation::new(&self.0.merge_operations, current_opstamp, merge_candidate.0)
+            })
             .collect();
 
         let commit_opstamp = self.load_metas().opstamp;
         let committed_merge_candidates = merge_policy
             .compute_merge_candidates(&committed_segments)
             .into_iter()
-            .map(|merge_candidate|
-                 MergeOperation::new(&self.0.merge_operations,
-                                     commit_opstamp,
-                                     merge_candidate.0))
+            .map(|merge_candidate| {
+                MergeOperation::new(&self.0.merge_operations, commit_opstamp, merge_candidate.0)
+            })
             .collect::<Vec<_>>();
         merge_candidates.extend(committed_merge_candidates.into_iter());
         for merge_operation in merge_candidates {
@@ -447,7 +455,8 @@ impl SegmentUpdater {
                     {
                         error!(
                             "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
-                            merge_operation.segment_ids(), e
+                            merge_operation.segment_ids(),
+                            e
                         );
                         if cfg!(test) {
                             panic!("Merge failed.");
@@ -494,7 +503,7 @@ impl SegmentUpdater {
                 mem::replace(merging_threads.deref_mut(), HashMap::new())
             };
             if merging_threads.is_empty() {
-                return Ok(())
+                return Ok(());
             }
             debug!("wait merging thread {}", merging_threads.len());
             for (_, merging_thread_handle) in merging_threads {
