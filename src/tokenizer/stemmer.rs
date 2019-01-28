@@ -27,9 +27,8 @@ pub enum Language {
 }
 
 impl Language {
-    fn algorithm(&self) -> Algorithm {
+    fn algorithm(self) -> Algorithm {
         use self::Language::*;
-
         match self {
             Arabic => Algorithm::Arabic,
             Danish => Algorithm::Danish,

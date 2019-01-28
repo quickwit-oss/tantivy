@@ -26,8 +26,8 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
         (Some(single_docset), None) => single_docset,
         (Some(left), Some(right)) => {
             {
-                let all_term_scorers = [&left, &right].into_iter().all(|scorer| {
-                    let scorer_ref: &Scorer = (*scorer).borrow();
+                let all_term_scorers = [&left, &right].iter().all(|&scorer| {
+                    let scorer_ref: &Scorer = <Box<Scorer> as Borrow<Scorer>>::borrow(scorer);
                     Downcast::<TermScorer>::is_type(scorer_ref)
                 });
                 if all_term_scorers {

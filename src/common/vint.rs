@@ -69,8 +69,8 @@ pub fn serialize_vint_u32(val: u32) -> (u64, usize) {
 /// # May Panic
 /// If the payload does not start by a valid `vint`
 fn vint_len(data: &[u8]) -> usize {
-    for i in 0..5.min(data.len()) {
-        if data[i] >= STOP_BIT {
+    for (i, &val) in data.iter().enumerate().take(5) {
+        if val >= STOP_BIT {
             return i + 1;
         }
     }

@@ -41,6 +41,6 @@ impl SegmentComponent {
             SegmentComponent::STORE,
             SegmentComponent::DELETE,
         ];
-        SEGMENT_COMPONENTS.into_iter()
+        SEGMENT_COMPONENTS.iter()
     }
 }
