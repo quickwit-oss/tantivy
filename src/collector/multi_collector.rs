@@ -1,7 +1,6 @@
 use super::Collector;
 use super::SegmentCollector;
 use collector::Fruit;
-use downcast::Downcast;
 use std::marker::PhantomData;
 use DocId;
 use Result;
@@ -37,11 +36,10 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
         let typed_fruit: Vec<TCollector::Fruit> = children
             .into_iter()
             .map(|untyped_fruit| {
-                Downcast::<TCollector::Fruit>::downcast(untyped_fruit)
+                untyped_fruit.downcast::<TCollector::Fruit>()
                     .map(|boxed_but_typed| *boxed_but_typed)
-                    .map_err(|e| {
-                        let err_msg = format!("Failed to cast child collector fruit. {:?}", e);
-                        TantivyError::InvalidArgument(err_msg)
+                    .map_err(|_| {
+                        TantivyError::InvalidArgument("Failed to cast child fruit.".to_string())
                     })
             })
             .collect::<Result<_>>()?;
@@ -89,7 +87,7 @@ pub struct FruitHandle<TFruit: Fruit> {
 impl<TFruit: Fruit> FruitHandle<TFruit> {
     pub fn extract(self, fruits: &mut MultiFruit) -> TFruit {
         let boxed_fruit = fruits.sub_fruits[self.pos].take().expect("");
-        *Downcast::<TFruit>::downcast(boxed_fruit).expect("Failed")
+        *boxed_fruit.downcast::<TFruit>().map_err(|_| ()).expect("Failed to downcast collector fruit.")
     }
 }
 

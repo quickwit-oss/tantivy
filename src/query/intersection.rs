@@ -1,11 +1,9 @@
 use docset::{DocSet, SkipResult};
-use downcast::Downcast;
-use query::term_query::TermScorer;
 use query::EmptyScorer;
 use query::Scorer;
-use std::borrow::Borrow;
 use DocId;
 use Score;
+use query::term_query::TermScorer;
 
 /// Returns the intersection scorer.
 ///
@@ -27,12 +25,11 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
         (Some(left), Some(right)) => {
             {
                 let all_term_scorers = [&left, &right].iter().all(|&scorer| {
-                    let scorer_ref: &Scorer = <Box<Scorer> as Borrow<Scorer>>::borrow(scorer);
-                    Downcast::<TermScorer>::is_type(scorer_ref)
+                    scorer.is::<TermScorer>()
                 });
                 if all_term_scorers {
-                    let left = *Downcast::<TermScorer>::downcast(left).unwrap();
-                    let right = *Downcast::<TermScorer>::downcast(right).unwrap();
+                    let left = *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap());
+                    let right = *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap());
                     return Box::new(Intersection {
                         left,
                         right,

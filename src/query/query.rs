@@ -1,6 +1,6 @@
 use super::Weight;
 use core::searcher::Searcher;
-use downcast;
+use downcast_rs;
 use std::collections::BTreeSet;
 use std::fmt;
 use Result;
@@ -39,7 +39,7 @@ use Term;
 ///
 /// When implementing a new type of `Query`, it is normal to implement a
 /// dedicated `Query`, `Weight` and `Scorer`.
-pub trait Query: QueryClone + downcast::Any + fmt::Debug {
+pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     /// Create the weight associated to a query.
     ///
     /// If scoring is not required, setting `scoring_enabled` to `false`
@@ -96,7 +96,4 @@ impl QueryClone for Box<Query> {
     }
 }
 
-#[allow(missing_docs)]
-mod downcast_impl {
-    downcast!(super::Query);
-}
+impl_downcast!(Query);
