@@ -12,7 +12,6 @@ use crossbeam::channel;
 use docset::DocSet;
 use error::TantivyError;
 use fastfield::write_delete_bitset;
-use futures::sync::oneshot::Receiver;
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
@@ -29,6 +28,7 @@ use std::mem;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
+use futures::{Future, Canceled};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -454,7 +454,7 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<Receiver<SegmentMeta>> {
+    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<impl Future<Item=SegmentMeta, Error=Canceled>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
