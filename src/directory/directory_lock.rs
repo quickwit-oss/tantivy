@@ -13,9 +13,9 @@ use std::path::PathBuf;
 ///
 #[derive(Debug)]
 pub struct Lock {
-   /// The lock needs to be associated with its own file `path`.
-   /// Depending on the platform, the lock might rely on the creation
-   /// and deletion of this filepath.
+    /// The lock needs to be associated with its own file `path`.
+    /// Depending on the platform, the lock might rely on the creation
+    /// and deletion of this filepath.
     pub filepath: PathBuf,
     /// `lock_params` describes whether acquiring the lock is meant
     /// to be a blocking operation or a non-blocking.
@@ -27,7 +27,6 @@ pub struct Lock {
     /// the lock.
     pub is_blocking: bool,
 }
-
 
 lazy_static! {
      /// Only one process should be able to write tantivy's index at a time.
@@ -55,4 +54,3 @@ lazy_static! {
         is_blocking: true
     };
 }
-

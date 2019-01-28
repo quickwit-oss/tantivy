@@ -10,11 +10,13 @@ pub enum LockError {
     /// client.
     /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
     /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
-    #[fail(display = "Could not acquire lock as it is already held, possibly by a different process.")]
+    #[fail(
+        display = "Could not acquire lock as it is already held, possibly by a different process."
+    )]
     LockBusy,
     /// Trying to acquire a lock failed with an `IOError`
     #[fail(display = "Failed to acquire the lock due to an io:Error.")]
-    IOError(io::Error)
+    IOError(io::Error),
 }
 
 /// General IO error with an optional path to the offending file.

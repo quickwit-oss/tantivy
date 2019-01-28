@@ -1,5 +1,8 @@
 use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
+use directory::DirectoryLock;
+use directory::Lock;
+use directory::META_LOCK;
 use directory::{ReadOnlySource, WritePtr};
 use error::DataCorruption;
 use serde_json;
@@ -12,9 +15,6 @@ use std::sync::RwLockWriteGuard;
 use std::sync::{Arc, RwLock};
 use Directory;
 use Result;
-use directory::META_LOCK;
-use directory::Lock;
-use directory::DirectoryLock;
 
 /// Returns true iff the file is "managed".
 /// Non-managed file are not subject to garbage collection.

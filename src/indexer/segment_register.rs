@@ -76,9 +76,7 @@ impl SegmentRegister {
     }
 
     pub fn get(&self, segment_id: &SegmentId) -> Option<SegmentEntry> {
-        self.segment_states
-            .get(segment_id)
-            .map(|segment_entry| segment_entry.clone())
+        self.segment_states.get(segment_id).cloned()
     }
 
     pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor) -> SegmentRegister {

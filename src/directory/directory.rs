@@ -1,3 +1,5 @@
+use directory::directory_lock::Lock;
+use directory::error::LockError;
 use directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::fmt;
@@ -6,13 +8,10 @@ use std::io::Write;
 use std::marker::Send;
 use std::marker::Sync;
 use std::path::Path;
-use std::result;
-use directory::error::LockError;
-use std::time::Duration;
-use std::thread;
 use std::path::PathBuf;
-use directory::directory_lock::Lock;
-
+use std::result;
+use std::thread;
+use std::time::Duration;
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -51,7 +50,7 @@ pub struct DirectoryLock(Box<Drop + Send + 'static>);
 
 struct DirectoryLockGuard {
     directory: Box<Directory>,
-    path: PathBuf
+    path: PathBuf,
 }
 
 impl<T: Drop + Send + 'static> From<Box<T>> for DirectoryLock {
@@ -73,20 +72,20 @@ enum TryAcquireLockError {
     IOError(io::Error),
 }
 
-fn try_acquire_lock(filepath: &Path, directory: &mut Directory) -> Result<DirectoryLock, TryAcquireLockError> {
+fn try_acquire_lock(
+    filepath: &Path,
+    directory: &mut Directory,
+) -> Result<DirectoryLock, TryAcquireLockError> {
     let mut write = directory.open_write(filepath).map_err(|e| match e {
         OpenWriteError::FileAlreadyExists(_) => TryAcquireLockError::FileExists,
         OpenWriteError::IOError(io_error) => TryAcquireLockError::IOError(io_error.into()),
     })?;
-    write
-        .flush()
-        .map_err(TryAcquireLockError::IOError)?;
+    write.flush().map_err(TryAcquireLockError::IOError)?;
     Ok(DirectoryLock::from(Box::new(DirectoryLockGuard {
         directory: directory.box_clone(),
         path: filepath.to_owned(),
     })))
 }
-
 
 fn retry_policy(is_blocking: bool) -> RetryPolicy {
     if is_blocking {
@@ -165,7 +164,6 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// The file may or may not previously exist.
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()>;
-
 
     /// Acquire a lock in the given directory.
     ///

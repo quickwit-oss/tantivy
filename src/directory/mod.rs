@@ -8,21 +8,21 @@ WORM directory abstraction.
 mod mmap_directory;
 
 mod directory;
+mod directory_lock;
 mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod shared_vec_slice;
-mod directory_lock;
 
 /// Errors specific to the directory module.
 pub mod error;
 
-use std::io::{BufWriter, Seek, Write};
 pub use self::directory::DirectoryLock;
 pub use self::directory::{Directory, DirectoryClone};
+pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;
-pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
+use std::io::{BufWriter, Seek, Write};
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;

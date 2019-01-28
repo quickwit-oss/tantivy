@@ -125,23 +125,37 @@ fn test_directory(directory: &mut Directory) {
 
 fn test_lock_non_blocking(directory: &mut Directory) {
     {
-        let lock_a_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: false });
+        let lock_a_res = directory.acquire_lock(&Lock {
+            filepath: PathBuf::from("a.lock"),
+            is_blocking: false,
+        });
         assert!(lock_a_res.is_ok());
-        let lock_b_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("b.lock"), is_blocking: false });
+        let lock_b_res = directory.acquire_lock(&Lock {
+            filepath: PathBuf::from("b.lock"),
+            is_blocking: false,
+        });
         assert!(lock_b_res.is_ok());
-        let lock_a_res2 = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: false });
+        let lock_a_res2 = directory.acquire_lock(&Lock {
+            filepath: PathBuf::from("a.lock"),
+            is_blocking: false,
+        });
         assert!(lock_a_res2.is_err());
     }
-    let lock_a_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: false });
+    let lock_a_res = directory.acquire_lock(&Lock {
+        filepath: PathBuf::from("a.lock"),
+        is_blocking: false,
+    });
     assert!(lock_a_res.is_ok());
 }
 
-
-
 fn test_lock_blocking(directory: &mut Directory) {
-    let lock_a_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: true });
+    let lock_a_res = directory.acquire_lock(&Lock {
+        filepath: PathBuf::from("a.lock"),
+        is_blocking: true,
+    });
     assert!(lock_a_res.is_ok());
-    std::thread::spawn(move || { //< lock_a_res is sent to the thread.
+    std::thread::spawn(move || {
+        //< lock_a_res is sent to the thread.
         std::thread::sleep(time::Duration::from_millis(10));
         // explicitely droping lock_a_res. It would have been sufficient to just force it
         // to be part of the move, but the intent seems clearer that way.
@@ -149,12 +163,19 @@ fn test_lock_blocking(directory: &mut Directory) {
     });
     {
         // A non-blocking call should fail, as the thread is running and holding the lock.
-        let lock_a_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: false });
+        let lock_a_res = directory.acquire_lock(&Lock {
+            filepath: PathBuf::from("a.lock"),
+            is_blocking: false,
+        });
         assert!(lock_a_res.is_err());
     }
-    {   // the blocking call should wait for at least 10ms.
+    {
+        // the blocking call should wait for at least 10ms.
         let start = time::Instant::now();
-        let lock_a_res = directory.acquire_lock(&Lock { filepath: PathBuf::from("a.lock"), is_blocking: true });
+        let lock_a_res = directory.acquire_lock(&Lock {
+            filepath: PathBuf::from("a.lock"),
+            is_blocking: true,
+        });
         assert!(lock_a_res.is_ok());
         assert!(start.elapsed().subsec_millis() >= 10);
     }

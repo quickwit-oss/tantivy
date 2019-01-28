@@ -9,9 +9,11 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::SegmentReader;
 use crossbeam::channel;
+use directory::DirectoryLock;
 use docset::DocSet;
 use error::TantivyError;
 use fastfield::write_delete_bitset;
+use futures::{Canceled, Future};
 use indexer::delete_queue::{DeleteCursor, DeleteQueue};
 use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
@@ -28,8 +30,6 @@ use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use Result;
-use directory::DirectoryLock;
-use futures::{Future, Canceled};
 
 // Size of the margin for the heap. A segment is closed when the remaining memory
 // in the heap goes below MARGIN_IN_BYTES.
@@ -459,7 +459,10 @@ impl IndexWriter {
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
-    pub fn merge(&mut self, segment_ids: &[SegmentId]) -> Result<impl Future<Item=SegmentMeta, Error=Canceled>> {
+    pub fn merge(
+        &mut self,
+        segment_ids: &[SegmentId],
+    ) -> Result<impl Future<Item = SegmentMeta, Error = Canceled>> {
         self.segment_updater.start_merge(segment_ids)
     }
 
@@ -652,12 +655,12 @@ impl IndexWriter {
 mod tests {
 
     use super::initial_table_size;
+    use directory::error::LockError;
     use error::*;
     use indexer::NoMergePolicy;
     use schema::{self, Document};
     use Index;
     use Term;
-    use directory::error::LockError;
 
     #[test]
     fn test_lockfile_stops_duplicates() {

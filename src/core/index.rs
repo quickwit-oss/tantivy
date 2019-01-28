@@ -12,6 +12,8 @@ use core::META_FILEPATH;
 use directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
+use directory::INDEX_WRITER_LOCK;
+use directory::META_LOCK;
 use directory::{Directory, RAMDirectory};
 use error::DataCorruption;
 use error::TantivyError;
@@ -32,8 +34,6 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
-use directory::INDEX_WRITER_LOCK;
-use directory::META_LOCK;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -242,14 +242,21 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        let directory_lock = self.directory.acquire_lock(&INDEX_WRITER_LOCK)
+        let directory_lock = self
+            .directory
+            .acquire_lock(&INDEX_WRITER_LOCK)
             .map_err(|err| {
-                TantivyError::LockFailure(err,
-                                          Some("Failed to acquire index lock. If you are using\
-                                          a regular directory, this means there is already an \
-                                          `IndexWriter` working on this `Directory`, in this process \
-                                          or in a different process.".to_string()))}
-            )?;
+                TantivyError::LockFailure(
+                    err,
+                    Some(
+                        "Failed to acquire index lock. If you are using\
+                         a regular directory, this means there is already an \
+                         `IndexWriter` working on this `Directory`, in this process \
+                         or in a different process."
+                            .to_string(),
+                    ),
+                )
+            })?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
             self,

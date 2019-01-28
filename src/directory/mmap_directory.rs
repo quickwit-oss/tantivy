@@ -3,9 +3,12 @@ extern crate fs2;
 use self::fs2::FileExt;
 use atomicwrites;
 use common::make_io_err;
+use directory::error::LockError;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use directory::shared_vec_slice::SharedVecSlice;
 use directory::Directory;
+use directory::DirectoryLock;
+use directory::Lock;
 use directory::ReadOnlySource;
 use directory::WritePtr;
 use fst::raw::MmapReadOnly;
@@ -22,9 +25,6 @@ use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tempdir::TempDir;
-use directory::Lock;
-use directory::DirectoryLock;
-use directory::error::LockError;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -233,7 +233,7 @@ impl MmapDirectory {
 /// is closed.
 struct ReleaseLockFile {
     _file: File,
-    path: PathBuf
+    path: PathBuf,
 }
 
 impl Drop for ReleaseLockFile {
@@ -386,23 +386,21 @@ impl Directory for MmapDirectory {
 
     fn acquire_lock(&self, lock: &Lock) -> Result<DirectoryLock, LockError> {
         let full_path = self.resolve_path(&lock.filepath);
-            // We make sure that the file exists.
+        // We make sure that the file exists.
         let file: File = OpenOptions::new()
             .write(true)
             .create(true) //< if the file does not exist yet, create it.
             .open(&full_path)
-            .map_err(|err| LockError::IOError(err))?;
+            .map_err(LockError::IOError)?;
         if lock.is_blocking {
-            file.lock_exclusive()
-                .map_err(LockError::IOError)?;
+            file.lock_exclusive().map_err(LockError::IOError)?;
         } else {
-            file.try_lock_exclusive()
-                .map_err(|_| LockError::LockBusy)?
+            file.try_lock_exclusive().map_err(|_| LockError::LockBusy)?
         }
         // dropping the file handle will release the lock.
         Ok(DirectoryLock::from(Box::new(ReleaseLockFile {
             path: lock.filepath.clone(),
-            _file: file
+            _file: file,
         })))
     }
 }
