@@ -1,6 +1,6 @@
 extern crate fs2;
 
-use fs2::FileExt;
+use self::fs2::FileExt;
 use atomicwrites;
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
