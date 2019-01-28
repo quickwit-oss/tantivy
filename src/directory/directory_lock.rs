@@ -50,13 +50,9 @@ lazy_static! {
     /// here, but it is difficult to achieve on Windows.
     ///
     /// Opening segment readers is a very fast process.
-    /// Right now if the lock cannot be acquire on the first attempt, the logic
-    /// is very simplistic. We retry after `100ms` until we effectively
-    /// acquire the lock.
-    /// This lock should not have much contention in normal usage.
     pub static ref META_LOCK: Lock = Lock {
         filepath: PathBuf::from(".tantivy-meta.lock"),
-        is_blocking: false
+        is_blocking: true
     };
 }
 

@@ -8,8 +8,8 @@ use std::path::PathBuf;
 pub enum LockError {
     /// Failed to acquired a lock as it is already hold by another
     /// client.
-    /// If blocking, the lock was not released within some `timeout` period.
-    /// If non-blocking, the lock was busy at the moment of the call.
+    /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
+    /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.
     #[fail(display = "Could not acquire lock as it is already held, possibly by a different process.")]
     LockBusy,
     /// Trying to acquire a lock failed with an `IOError`

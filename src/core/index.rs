@@ -233,7 +233,8 @@ impl Index {
     /// Each thread will receive a budget of  `overall_heap_size_in_bytes / num_threads`.
     ///
     /// # Errors
-    /// If the lockfile already exists, returns `Error::FileAlreadyExists`.
+    /// If the lockfile already exists, returns `Error::DirectoryLockBusy` or an `Error::IOError`.
+    ///
     /// # Panics
     /// If the heap size per thread is too small, panics.
     pub fn writer_with_num_threads(

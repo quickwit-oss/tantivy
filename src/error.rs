@@ -57,10 +57,7 @@ pub enum TantivyError {
     #[fail(display = "Index already exists")]
     IndexAlreadyExists,
     /// Failed to acquire file lock
-    #[fail(
-        display = "Failed to acquire Lockfile: {:?}. Possible causes: another IndexWriter instance or panic during previous lock drop.",
-        _0
-    )]
+    #[fail(display = "Failed to acquire Lockfile: {:?}.",  _0)]
     LockFailure(LockError),
     /// IO Error.
     #[fail(display = "An IO error occurred: '{}'", _0)]

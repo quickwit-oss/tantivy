@@ -121,6 +121,14 @@ impl MmapCache {
 ///
 /// The Mmap object are cached to limit the
 /// system calls.
+///
+/// In the `MmapDirectory`, locks are implemented using the `fs2` crate definition of locks.
+///
+/// On MacOS & linux, it relies on `flock` (aka `BSD Lock`). These locks solve most of the
+/// problems related to POSIX Locks, but may their contract may not be respected on `NFS`
+/// depending on the implementation.
+///
+/// On Windows the semantics are again different.
 #[derive(Clone)]
 pub struct MmapDirectory {
     root_path: PathBuf,
@@ -381,7 +389,7 @@ impl Directory for MmapDirectory {
             // We make sure that the file exists.
         let file: File = OpenOptions::new()
             .write(true)
-            .create(true)
+            .create(true) //< if the file does not exist yet, create it.
             .open(&full_path)
             .map_err(|err| LockError::IOError(err))?;
         if lock.is_blocking {
