@@ -2,13 +2,8 @@ use census::{Inventory, TrackedObject};
 use std::collections::HashSet;
 use SegmentId;
 
+#[derive(Default)]
 pub struct MergeOperationInventory(Inventory<InnerMergeOperation>);
-
-impl Default for MergeOperationInventory {
-    fn default() -> Self {
-        MergeOperationInventory(Inventory::new())
-    }
-}
 
 impl MergeOperationInventory {
     pub fn segment_in_merge(&self) -> HashSet<SegmentId> {
