@@ -124,21 +124,17 @@ impl SegmentPostings {
 }
 
 fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
-    let mut start = 0;
     let end = arr.len();
+    debug_assert!(arr.len() <= 128);
     debug_assert!(target <= arr[end - 1]);
-    let mut jump = 1;
-    loop {
-        let new = start + jump;
-        if new >= end {
-            return (start, end);
+    let mut begin = 0;
+    for &pivot in [1,3,7,15,31,63].iter().take_while(|&&el| el < end) {
+        if arr[pivot] > target {
+            return (begin, pivot);
         }
-        if arr[new] > target {
-            return (start, new);
-        }
-        start = new;
-        jump *= 2;
+        begin = pivot;
     }
+    (begin, end)
 }
 
 /// Search the first index containing an element greater or equal to the target.
