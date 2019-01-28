@@ -242,7 +242,14 @@ impl Index {
         num_threads: usize,
         overall_heap_size_in_bytes: usize,
     ) -> Result<IndexWriter> {
-        let directory_lock = self.directory.acquire_lock(&INDEX_WRITER_LOCK)?;
+        let directory_lock = self.directory.acquire_lock(&INDEX_WRITER_LOCK)
+            .map_err(|err| {
+                TantivyError::LockFailure(err,
+                                          Some("Failed to acquire index lock. If you are using\
+                                          a regular directory, this means there is already an \
+                                          `IndexWriter` working on this `Directory`, in this process \
+                                          or in a different process.".to_string()))}
+            )?;
         let heap_size_in_bytes_per_thread = overall_heap_size_in_bytes / num_threads;
         open_index_writer(
             self,

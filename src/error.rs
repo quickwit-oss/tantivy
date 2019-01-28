@@ -57,8 +57,8 @@ pub enum TantivyError {
     #[fail(display = "Index already exists")]
     IndexAlreadyExists,
     /// Failed to acquire file lock
-    #[fail(display = "Failed to acquire Lockfile: {:?}.",  _0)]
-    LockFailure(LockError),
+    #[fail(display = "Failed to acquire Lockfile: {:?}. {:?}",  _0, _1)]
+    LockFailure(LockError, Option<String>),
     /// IO Error.
     #[fail(display = "An IO error occurred: '{}'", _0)]
     IOError(#[cause] IOError),
@@ -99,7 +99,7 @@ impl From<FastFieldNotAvailableError> for TantivyError {
 
 impl From<LockError> for TantivyError {
     fn from(lock_error: LockError) -> TantivyError {
-        TantivyError::LockFailure(lock_error)
+        TantivyError::LockFailure(lock_error, None)
     }
 }
 
