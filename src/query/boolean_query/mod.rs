@@ -75,7 +75,25 @@ mod tests {
         assert!(scorer.is::<TermScorer>());
     }
 
-    /*
+    #[test]
+    pub fn test_boolean_termonly_intersection() {
+        let (index, text_field) = aux_test_helper();
+        let query_parser = QueryParser::for_index(&index, vec![text_field]);
+        let searcher = index.searcher();
+        {
+            let query = query_parser.parse_query("+a +b +c").unwrap();
+            let weight = query.weight(&searcher, true).unwrap();
+            let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
+            assert!(scorer.is::<Intersection<TermScorer>>());
+        }
+        {
+            let query = query_parser.parse_query("+a +(b c)").unwrap();
+            let weight = query.weight(&searcher, true).unwrap();
+            let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
+            assert!(scorer.is::<Intersection<Box<Scorer>>>());
+        }
+    }
+
     #[test]
     pub fn test_boolean_reqopt() {
         let (index, text_field) = aux_test_helper();
@@ -85,18 +103,16 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<
-                RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>,
-            >::is_type(&*scorer));
+            assert!(scorer.is::<RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>>());
         }
         {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&searcher, false).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(Downcast::<TermScorer>::is_type(&*scorer));
+            assert!(scorer.is::<TermScorer>());
         }
      }
-     */
+
 
     #[test]
     pub fn test_boolean_query() {
