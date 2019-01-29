@@ -1,6 +1,6 @@
 use common::BitSet;
 use docset::{DocSet, SkipResult};
-use downcast;
+use downcast_rs;
 use std::ops::DerefMut;
 use DocId;
 use Score;
@@ -8,7 +8,7 @@ use Score;
 /// Scored set of documents matching a query within a specific segment.
 ///
 /// See [`Query`](./trait.Query.html).
-pub trait Scorer: downcast::Any + DocSet + 'static {
+pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
     /// Returns the score.
     ///
     /// This method will perform a bit of computation and is not cached.
@@ -23,10 +23,8 @@ pub trait Scorer: downcast::Any + DocSet + 'static {
     }
 }
 
-#[allow(missing_docs)]
-mod downcast_impl {
-    downcast!(super::Scorer);
-}
+impl_downcast!(Scorer);
+
 
 impl Scorer for Box<Scorer> {
     fn score(&mut self) -> Score {

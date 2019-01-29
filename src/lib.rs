@@ -168,7 +168,7 @@ extern crate maplit;
 extern crate test;
 
 #[macro_use]
-extern crate downcast;
+extern crate downcast_rs;
 
 #[macro_use]
 extern crate fail;

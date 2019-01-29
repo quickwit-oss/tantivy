@@ -85,7 +85,7 @@ See the `custom_collector` example.
 
 */
 
-use downcast;
+use downcast_rs;
 use DocId;
 use Result;
 use Score;
@@ -111,9 +111,9 @@ pub use self::facet_collector::FacetCollector;
 
 /// `Fruit` is the type for the result of our collection.
 /// e.g. `usize` for the `Count` collector.
-pub trait Fruit: Send + downcast::Any {}
+pub trait Fruit: Send + downcast_rs::Downcast {}
 
-impl<T> Fruit for T where T: Send + downcast::Any {}
+impl<T> Fruit for T where T: Send + downcast_rs::Downcast {}
 
 /// Collectors are in charge of collecting and retaining relevant
 /// information from the document found and scored by the query.
@@ -358,10 +358,7 @@ where
     }
 }
 
-#[allow(missing_docs)]
-mod downcast_impl {
-    downcast!(super::Fruit);
-}
+impl_downcast!(Fruit);
 
 #[cfg(test)]
 pub mod tests;
