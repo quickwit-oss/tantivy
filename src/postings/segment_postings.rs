@@ -123,32 +123,10 @@ impl SegmentPostings {
     }
 }
 
-// target is assumed to be <= to the last element of arr.
-//
-// returns i such that
-//     - arr[res - 1] < target
-//     - arr[res] >= target
-fn binary_search(arr: &[u32], mut base: usize, mut len: usize, target: u32) -> usize {
-    while len > 1 {
-        let half = len / 2;
-        let mid = base + half;
-        let pivot = *unsafe { arr.get_unchecked(mid) };
-        base = if pivot > target { base } else { mid };
-        //        Unfortunately, rustc does not compiles this to a conditional mov.
-        //        since rustc 1.25.
-        //
-        //        See https://github.com/rust-lang/rust/issues/53823 for detail
-        //
-        //        unsafe {
-        //            let pivot: u32 = *arr.get_unchecked(mid);
-        //            asm!("cmpl $2, $1\ncmovge $3, $0"
-        //                 : "+r"(base)
-        //                 :  "r"(target),  "r"(pivot), "r"(mid))
-        //            ;
-        //        }
-        len -= half;
-    }
-    base + ((*unsafe { arr.get_unchecked(base) } < target) as usize)
+fn linear_search(arr: &[u32], target: u32) -> usize {
+    arr.iter()
+       .map(|&el| if el < target { 1 } else { 0 })
+       .sum()
 }
 
 fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
@@ -175,7 +153,7 @@ fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
 /// The target is assumed smaller or equal to the last element.
 fn search_within_block(block_docs: &[u32], target: u32) -> usize {
     let (start, end) = exponential_search(block_docs, target);
-    binary_search(&block_docs, start, end - start, target)
+    start + linear_search(&block_docs[start..end], target)
 }
 
 impl DocSet for SegmentPostings {
@@ -641,7 +619,7 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
-    use super::binary_search;
+    use super::linear_search;
     use super::exponential_search;
     use super::search_within_block;
     use super::BlockSegmentPostings;
@@ -659,11 +637,11 @@ mod tests {
     use SkipResult;
 
     #[test]
-    fn test_binary_search() {
+    fn test_linear_search() {
         let len: usize = 50;
         let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32) * 2).collect();
         for target in 1..*arr.last().unwrap() {
-            let res = binary_search(&arr[..], 0, len, target);
+            let res = linear_search(&arr[..], target);
             if res > 0 {
                 assert!(arr[res - 1] < target);
             }
