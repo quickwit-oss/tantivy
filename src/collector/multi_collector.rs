@@ -36,7 +36,8 @@ impl<TCollector: Collector> Collector for CollectorWrapper<TCollector> {
         let typed_fruit: Vec<TCollector::Fruit> = children
             .into_iter()
             .map(|untyped_fruit| {
-                untyped_fruit.downcast::<TCollector::Fruit>()
+                untyped_fruit
+                    .downcast::<TCollector::Fruit>()
                     .map(|boxed_but_typed| *boxed_but_typed)
                     .map_err(|_| {
                         TantivyError::InvalidArgument("Failed to cast child fruit.".to_string())
@@ -87,7 +88,10 @@ pub struct FruitHandle<TFruit: Fruit> {
 impl<TFruit: Fruit> FruitHandle<TFruit> {
     pub fn extract(self, fruits: &mut MultiFruit) -> TFruit {
         let boxed_fruit = fruits.sub_fruits[self.pos].take().expect("");
-        *boxed_fruit.downcast::<TFruit>().map_err(|_| ()).expect("Failed to downcast collector fruit.")
+        *boxed_fruit
+            .downcast::<TFruit>()
+            .map_err(|_| ())
+            .expect("Failed to downcast collector fruit.")
     }
 }
 

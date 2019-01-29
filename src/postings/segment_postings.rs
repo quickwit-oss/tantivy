@@ -1,4 +1,3 @@
-
 use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
@@ -135,18 +134,18 @@ fn binary_search(arr: &[u32], mut base: usize, mut len: usize, target: u32) -> u
         let mid = base + half;
         let pivot = *unsafe { arr.get_unchecked(mid) };
         base = if pivot > target { base } else { mid };
-//        Unfortunately, rustc does not compiles this to a conditional mov.
-//        since rustc 1.25.
-//
-//        See https://github.com/rust-lang/rust/issues/53823 for detail
-//
-//        unsafe {
-//            let pivot: u32 = *arr.get_unchecked(mid);
-//            asm!("cmpl $2, $1\ncmovge $3, $0"
-//                 : "+r"(base)
-//                 :  "r"(target),  "r"(pivot), "r"(mid))
-//            ;
-//        }
+        //        Unfortunately, rustc does not compiles this to a conditional mov.
+        //        since rustc 1.25.
+        //
+        //        See https://github.com/rust-lang/rust/issues/53823 for detail
+        //
+        //        unsafe {
+        //            let pivot: u32 = *arr.get_unchecked(mid);
+        //            asm!("cmpl $2, $1\ncmovge $3, $0"
+        //                 : "+r"(base)
+        //                 :  "r"(target),  "r"(pivot), "r"(mid))
+        //            ;
+        //        }
         len -= half;
     }
     base + ((*unsafe { arr.get_unchecked(base) } < target) as usize)
@@ -155,12 +154,12 @@ fn binary_search(arr: &[u32], mut base: usize, mut len: usize, target: u32) -> u
 fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
     let end = arr.len();
     let mut begin = 0;
-    for &pivot in &[1,3,7,15,31,63] {
+    for &pivot in &[1, 3, 7, 15, 31, 63] {
         if pivot >= end {
             break;
         }
         if arr[pivot] > target {
-            return  (begin, pivot);
+            return (begin, pivot);
         }
         begin = pivot;
     }
@@ -642,6 +641,7 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
+    use super::binary_search;
     use super::exponential_search;
     use super::search_within_block;
     use super::BlockSegmentPostings;
@@ -657,12 +657,11 @@ mod tests {
     use schema::INT_INDEXED;
     use DocId;
     use SkipResult;
-    use super::binary_search;
 
     #[test]
     fn test_binary_search() {
         let len: usize = 50;
-        let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32)*2).collect();
+        let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32) * 2).collect();
         for target in 1..*arr.last().unwrap() {
             let res = binary_search(&arr[..], 0, len, target);
             if res > 0 {
@@ -702,10 +701,10 @@ mod tests {
 
     #[test]
     fn test_exponentiel_search() {
-        assert_eq!(exponential_search(&[1, 2],0), (0, 1));
-        assert_eq!(exponential_search(&[1, 2], 1 ), (0, 1));
+        assert_eq!(exponential_search(&[1, 2], 0), (0, 1));
+        assert_eq!(exponential_search(&[1, 2], 1), (0, 1));
         assert_eq!(
-            exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7 ),
+            exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7),
             (3, 7)
         );
     }

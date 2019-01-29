@@ -1,9 +1,9 @@
 use docset::{DocSet, SkipResult};
+use query::term_query::TermScorer;
 use query::EmptyScorer;
 use query::Scorer;
 use DocId;
 use Score;
-use query::term_query::TermScorer;
 
 /// Returns the intersection scorer.
 ///
@@ -24,9 +24,9 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
         (Some(single_docset), None) => single_docset,
         (Some(left), Some(right)) => {
             {
-                let all_term_scorers = [&left, &right].iter().all(|&scorer| {
-                    scorer.is::<TermScorer>()
-                });
+                let all_term_scorers = [&left, &right]
+                    .iter()
+                    .all(|&scorer| scorer.is::<TermScorer>());
                 if all_term_scorers {
                     let left = *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap());
                     let right = *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap());

@@ -25,7 +25,6 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
 
 impl_downcast!(Scorer);
 
-
 impl Scorer for Box<Scorer> {
     fn score(&mut self) -> Score {
         self.deref_mut().score()

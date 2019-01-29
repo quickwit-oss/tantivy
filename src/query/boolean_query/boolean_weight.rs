@@ -1,5 +1,4 @@
 use core::SegmentReader;
-use downcast_rs::Downcast;
 use query::intersect_scorers;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use query::term_query::TermScorer;
@@ -23,13 +22,11 @@ where
     }
 
     {
-        let is_all_term_queries = scorers.iter().all(|scorer| {
-            scorer.is::<TermScorer>()
-        });
+        let is_all_term_queries = scorers.iter().all(|scorer| scorer.is::<TermScorer>());
         if is_all_term_queries {
             let scorers: Vec<TermScorer> = scorers
                 .into_iter()
-                .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap() ))
+                .map(|scorer| *(scorer.downcast::<TermScorer>().map_err(|_| ()).unwrap()))
                 .collect();
             let scorer: Box<Scorer> = Box::new(Union::<TermScorer, TScoreCombiner>::from(scorers));
             return scorer;

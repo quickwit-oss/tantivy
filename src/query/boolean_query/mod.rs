@@ -103,7 +103,8 @@ mod tests {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
-            assert!(scorer.is::<RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>>());
+            assert!(scorer
+                .is::<RequiredOptionalScorer<Box<Scorer>, Box<Scorer>, SumWithCoordsCombiner>>());
         }
         {
             let query = query_parser.parse_query("+a b").unwrap();
@@ -111,8 +112,7 @@ mod tests {
             let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
             assert!(scorer.is::<TermScorer>());
         }
-     }
-
+    }
 
     #[test]
     pub fn test_boolean_query() {
