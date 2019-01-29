@@ -1,3 +1,4 @@
+
 use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
@@ -123,14 +124,43 @@ impl SegmentPostings {
     }
 }
 
-fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
+// target is assumed to be <= to the last element of arr.
+//
+// returns i such that
+//     - arr[res - 1] < target
+//     - arr[res] >= target
+fn binary_search(arr: &[u32], mut base: usize, mut len: usize, target: u32) -> usize {
+    while len > 1 {
+        let half = len / 2;
+        let mid = base + half;
+        let pivot = *unsafe { arr.get_unchecked(mid) };
+        base = if pivot > target { base } else { mid };
+//        Unfortunately, rustc does not compiles this to a conditional mov.
+//        since rustc 1.25.
+//
+//        See https://github.com/rust-lang/rust/issues/53823 for detail
+//
+//        unsafe {
+//            let pivot: u32 = *arr.get_unchecked(mid);
+//            asm!("cmpl $2, $1\ncmovge $3, $0"
+//                 : "+r"(base)
+//                 :  "r"(target),  "r"(pivot), "r"(mid))
+//            ;
+//        }
+        len -= half;
+    }
+    base + ((*unsafe { arr.get_unchecked(base) } < target) as usize)
+}
+
+fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
     let end = arr.len();
-    debug_assert!(arr.len() <= 128);
-    debug_assert!(target <= arr[end - 1]);
     let mut begin = 0;
-    for &pivot in [1,3,7,15,31,63].iter().take_while(|&&el| el < end) {
+    for &pivot in &[1,3,7,15,31,63] {
+        if pivot >= end {
+            break;
+        }
         if arr[pivot] > target {
-            return (begin, pivot);
+            return  (begin, pivot);
         }
         begin = pivot;
     }
@@ -145,12 +175,8 @@ fn exponential_search(target: u32, arr: &[u32]) -> (usize, usize) {
 /// The target is assumed greater or equal to the first element.
 /// The target is assumed smaller or equal to the last element.
 fn search_within_block(block_docs: &[u32], target: u32) -> usize {
-    let (start, end) = exponential_search(target, block_docs);
-    start.wrapping_add(
-        block_docs[start..end]
-            .binary_search(&target)
-            .unwrap_or_else(|e| e),
-    )
+    let (start, end) = exponential_search(block_docs, target);
+    binary_search(&block_docs, start, end - start, target)
 }
 
 impl DocSet for SegmentPostings {
@@ -631,6 +657,22 @@ mod tests {
     use schema::INT_INDEXED;
     use DocId;
     use SkipResult;
+    use super::binary_search;
+
+    #[test]
+    fn test_binary_search() {
+        let len: usize = 50;
+        let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32)*2).collect();
+        for target in 1..*arr.last().unwrap() {
+            let res = binary_search(&arr[..], 0, len, target);
+            if res > 0 {
+                assert!(arr[res - 1] < target);
+            }
+            if res < len {
+                assert!(arr[res] >= target);
+            }
+        }
+    }
 
     #[test]
     fn test_empty_segment_postings() {
@@ -660,10 +702,10 @@ mod tests {
 
     #[test]
     fn test_exponentiel_search() {
-        assert_eq!(exponential_search(0, &[1, 2]), (0, 1));
-        assert_eq!(exponential_search(1, &[1, 2]), (0, 1));
+        assert_eq!(exponential_search(&[1, 2],0), (0, 1));
+        assert_eq!(exponential_search(&[1, 2], 1 ), (0, 1));
         assert_eq!(
-            exponential_search(7, &[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+            exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7 ),
             (3, 7)
         );
     }
