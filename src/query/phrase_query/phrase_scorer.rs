@@ -43,7 +43,7 @@ impl<TPostings: Postings> DocSet for PostingsWithOffset<TPostings> {
 
 pub struct PhraseScorer<TPostings: Postings> {
     intersection_docset: Intersection<PostingsWithOffset<TPostings>, PostingsWithOffset<TPostings>>,
-    num_docsets: usize,
+    num_terms: usize,
     left: Vec<u32>,
     right: Vec<u32>,
     phrase_count: u32,
@@ -138,7 +138,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
             .collect::<Vec<_>>();
         PhraseScorer {
             intersection_docset: Intersection::new(postings_with_offsets),
-            num_docsets,
+            num_terms: num_docsets,
             left: Vec::with_capacity(100),
             right: Vec::with_capacity(100),
             phrase_count: 0u32,
@@ -165,7 +165,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_docsets - 1 {
+        for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
@@ -178,7 +178,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
 
         self.intersection_docset
-            .docset_mut_specialized(self.num_docsets - 1)
+            .docset_mut_specialized(self.num_terms - 1)
             .positions(&mut self.right);
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
@@ -190,7 +190,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
                 .positions(&mut self.left);
         }
         let mut intersection_len = self.left.len();
-        for i in 1..self.num_docsets - 1 {
+        for i in 1..self.num_terms - 1 {
             {
                 self.intersection_docset
                     .docset_mut_specialized(i)
@@ -203,7 +203,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
 
         self.intersection_docset
-            .docset_mut_specialized(self.num_docsets - 1)
+            .docset_mut_specialized(self.num_terms - 1)
             .positions(&mut self.right);
         intersection_count(&self.left[..intersection_len], &self.right[..]) as u32
     }
