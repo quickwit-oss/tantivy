@@ -15,7 +15,7 @@ previous index format.*
   for int fields. (@fulmicoton)
 - Added DateTime field (@barrotsteindev)
 - Added IndexReader. By default, index is reloaded automatically upon new commits (@fulmicoton)
-
+- SIMD linear search within blocks (@fulmicoton)
 
 Tantivy 0.8.2
 =====================
