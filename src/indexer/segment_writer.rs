@@ -171,7 +171,7 @@ impl SegmentWriter {
                         }
                     }
                 }
-                FieldType::I64(ref int_option) => {
+                FieldType::I64(ref int_option) | FieldType::Date(ref int_option) | FieldType::Date(ref int_option) => {
                     if int_option.is_indexed() {
                         for field_value in field_values {
                             let term = Term::from_field_i64(

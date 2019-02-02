@@ -229,6 +229,12 @@ impl QueryParser {
                 let term = Term::from_field_i64(field, val);
                 Ok(vec![(0, term)])
             }
+            // TODO: parse strings for date queries.
+            FieldType::Date(_) => {
+                let val: i64 = i64::from_str(phrase)?;
+                let term = Term::from_field_i64(field, val);
+                Ok(vec![(0, term)])
+            }
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);

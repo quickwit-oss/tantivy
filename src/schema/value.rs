@@ -13,6 +13,8 @@ pub enum Value {
     U64(u64),
     /// Signed 64-bits Integer `i64`
     I64(i64),
+    /// Signed 64-bits Date time stamp `date`
+    Date(i64),
     /// Hierarchical Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -27,7 +29,7 @@ impl Serialize for Value {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::U64(u) => serializer.serialize_u64(u),
-            Value::I64(u) => serializer.serialize_i64(u),
+            Value::I64(u) | Value::Date(u) => serializer.serialize_i64(u),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
         }
@@ -163,7 +165,7 @@ mod binary_serialize {
                     U64_CODE.serialize(writer)?;
                     val.serialize(writer)
                 }
-                Value::I64(ref val) => {
+                Value::I64(ref val) | Value::Date(ref val) => {
                     I64_CODE.serialize(writer)?;
                     val.serialize(writer)
                 }
