@@ -43,6 +43,8 @@ impl BlockEncoder {
     }
 }
 
+/// We ensure that the OutputBuffer is align on 128 bits
+/// in order to run SSE2 linear search on it.
 #[repr(align(128))]
 struct OutputBuffer([u32; COMPRESSION_BLOCK_SIZE + 1]);
 

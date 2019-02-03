@@ -23,6 +23,8 @@ use termdict::TermMerger;
 use termdict::TermOrdinal;
 use DocId;
 use Result;
+use common::MAX_DOC_LIMIT;
+use TantivyError;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -149,6 +151,11 @@ impl IndexMerger {
                 max_doc += reader.num_docs();
                 readers.push(reader);
             }
+        }
+        if max_doc >= MAX_DOC_LIMIT {
+            let err_msg = format!("The segment resulting from this merge would have {} docs,\
+             which exceeds the limit {}.", max_doc, MAX_DOC_LIMIT);
+            return Err(TantivyError::InvalidArgument(err_msg));
         }
         Ok(IndexMerger {
             schema,

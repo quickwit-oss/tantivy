@@ -1,3 +1,9 @@
+/// This modules define the logic used to search for a doc in a given
+/// block. (at most 128 docs)
+///
+/// Searching within a block is a hotspot when running intersection.
+/// so it was worth defining it in its own module.
+
 use postings::compression::COMPRESSION_BLOCK_SIZE;
 
 #[cfg(target_arch = "x86_64")]
@@ -5,31 +11,52 @@ mod sse2 {
     use std::arch::x86_64::__m128i as DataType;
     use std::arch::x86_64::_mm_setzero_si128 as set0;
     use std::arch::x86_64::_mm_set1_epi32 as set1;
-    use std::arch::x86_64::_mm_cmplt_epi32 as op_cmp;
+    use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
     use std::arch::x86_64::_mm_add_epi32 as op_add;
     use std::arch::x86_64::_mm_sub_epi32 as op_sub;
-    use std::arch::x86_64::_mm_load_si128 as op_load;
+    use std::arch::x86_64::_mm_load_si128 as op_load; // requires 128-bits alignment
     use std::arch::x86_64::{_mm_shuffle_epi32, _mm_cvtsi128_si32};
+    use postings::compression::COMPRESSION_BLOCK_SIZE;
 
     const MASK1: i32 = 78;
     const MASK2: i32 = 177;
 
+    /// Performs an exhaustive linear search over the
+    ///
+    /// There is no early exit here. We simply count the
+    /// number of elements that are `< target`.
     pub fn linear_search_sse2_128(arr: &[u32], target: u32) -> usize {
         unsafe {
             let ptr = arr.as_ptr() as *const DataType;
             let vkey = set1(target as i32);
             let mut cnt = set0();
-            for i in 0..(128 / 16) {
-                let cmp1 = op_cmp(op_load(ptr.offset(i*4)), vkey);
-                let cmp2 = op_cmp(op_load(ptr.offset(i*4 + 1)), vkey);
-                let cmp3 = op_cmp(op_load(ptr.offset(i*4 + 2)), vkey);
-                let cmp4 = op_cmp(op_load(ptr.offset(i*4 + 3)), vkey);
+            // We work over 4 `__m128i` at a time.
+            // A single `__m128i` actual contains 4 `u32`.
+            for i in 0..(COMPRESSION_BLOCK_SIZE as isize) / (4 * 4) {
+                let cmp1 = op_lt(op_load(ptr.offset(i*4)), vkey);
+                let cmp2 = op_lt(op_load(ptr.offset(i*4 + 1)), vkey);
+                let cmp3 = op_lt(op_load(ptr.offset(i*4 + 2)), vkey);
+                let cmp4 = op_lt(op_load(ptr.offset(i*4 + 3)), vkey);
                 let sum = op_add(op_add(cmp1, cmp2), op_add(cmp3, cmp4));
                 cnt = op_sub(cnt, sum);
             }
             cnt = op_add(cnt, _mm_shuffle_epi32(cnt, MASK1));
             cnt = op_add(cnt, _mm_shuffle_epi32(cnt, MASK2));
             _mm_cvtsi128_si32(cnt) as usize
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::linear_search_sse2_128;
+
+        #[test]
+        fn test_linear_search_sse2_128_u32() {
+            for i in 0..23 {
+                dbg!(i);
+                let arr: Vec<u32> = (0..128).map(|el| el * 2 + 1 << 18).collect();
+                assert_eq!(linear_search_sse2_128(&arr, arr[64] + 1), 65);
+            }
         }
     }
 }
@@ -80,11 +107,32 @@ impl BlockSearcher {
     /// Search the first index containing an element greater or equal to
     /// the target.
     ///
+    /// The results should be equivalent to
+    /// ```ignore
+    /// block[..]
+    //       .iter()
+    //       .take_while(|&&val| val < target)
+    //       .count()
+    /// ```
+    ///
+    /// The `start` argument is just used to hint that the response is
+    /// greater than beyond `start`. The implementation may or may not use
+    /// it for optimization.
+    ///
     /// # Assumption
     ///
-    /// The array is assumed non empty.
-    /// The target is assumed greater or equal to the first element.
-    /// The target is assumed smaller or equal to the last element.
+    /// The array len is > start.
+    /// The block is sorted
+    /// The target is assumed greater or equal to the `arr[start]`.
+    /// The target is assumed smaller or equal to the last element of the block.
+    ///
+    /// Currently the scalar implementation starts by an exponential search, and
+    /// then operates a linear search in the result subarray.
+    ///
+    /// If SSE2 instructions are available in the `(platform, running CPU)`,
+    /// then we use a different implementation that does an exhaustive linear search over
+    /// the full block whenever the block is full (`len == 128`). It is surprisingly faster, most likely because of the lack
+    /// of branch.
     pub fn search_in_block(&self, block_docs: &[u32], start: usize, target: u32) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
@@ -169,30 +217,25 @@ mod tests {
     fn search_in_block_trivial_but_slow(block: &[u32], target: u32) -> usize {
         block
             .iter()
-            .cloned()
-            .enumerate()
-            .filter(|&(_, ref val)| *val >= target)
-            .next()
-            .unwrap()
-            .0
+            .take_while(|&&val| val < target)
+            .count()
+    }
+
+    fn test_search_in_block_util(block_searcher: BlockSearcher) {
+        for len in 1u32..128u32 {
+            let v: Vec<u32> = (0..len).map(|i| i * 2).collect();
+            util_test_search_in_block_all(block_searcher, &v[..]);
+        }
     }
 
     #[test]
     fn test_search_in_block_scalar() {
-        let block_search = BlockSearcher::Scalar;
-        for len in 1u32..128u32 {
-            let v: Vec<u32> = (0..len).map(|i| i * 2).collect();
-            util_test_search_in_block_all(block_search, &v[..]);
-        }
+        test_search_in_block_util(BlockSearcher::Scalar);
     }
 
     #[cfg(target_arch = "x86_64")]
     #[test]
     fn test_search_in_block_sse2() {
-        let block_search = BlockSearcher::SSE2;
-        for len in 1u32..128u32 {
-            let v: Vec<u32> = (0..len).map(|i| i * 2).collect();
-            util_test_search_in_block_all(block_search, &v[..]);
-        }
+        test_search_in_block_util(BlockSearcher::SSE2);
     }
 }
