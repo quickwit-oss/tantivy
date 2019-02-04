@@ -62,6 +62,24 @@ impl<Item: FastValue> FastFieldReader<Item> {
         Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc as usize))
     }
 
+    /// Internally `multivalued` also use SingleValue Fast fields.
+    /// It works as follows... A first column contains the list of start index
+    /// for each document, a second column contains the actual values.
+    ///
+    /// The values associated to a given doc, are then
+    ///  `second_column[first_column.get(doc)..first_column.get(doc+1)]`.
+    ///
+    /// Which means single value fast field reader can be indexed internally with
+    /// something different from a `DocId`. For this use case, we want to use `u64`
+    /// values.
+    ///
+    /// See `get_range` for an actual documentation about this method.
+    pub(crate) fn get_range_u64(&self, start: u64, output: &mut [Item]) -> Item {
+        for (i, out) in output.iter_mut().enumerate() {
+            *out = self.get(start + i as u32);
+        }
+    }
+
     /// Fills an output buffer with the fast field values
     /// associated with the `DocId` going from
     /// `start` to `start + output.len()`.
@@ -75,13 +93,8 @@ impl<Item: FastValue> FastFieldReader<Item> {
     ///
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
-    ///
-    // TODO change start to `u64`.
-    // For multifastfield, start is an index in a second fastfield, not a `DocId`
-    pub fn get_range(&self, start: u32, output: &mut [Item]) {
-        for (i, out) in output.iter_mut().enumerate() {
-            *out = self.get(start + i as u32);
-        }
+    pub fn get_range(&self, start: DocId, output: &mut [Item]) {
+        self.get_range_u64(start as u64, output)
     }
 
     /// Returns the minimum value for this fast field.
