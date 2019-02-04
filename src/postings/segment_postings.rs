@@ -7,6 +7,7 @@ use positions::PositionReader;
 use postings::compression::compressed_block_size;
 use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use postings::serializer::PostingsSerializer;
+use postings::BlockSearcher;
 use postings::FreqReadingOption;
 use postings::Postings;
 use postings::SkipReader;
@@ -15,7 +16,6 @@ use schema::IndexRecordOption;
 use std::cmp::Ordering;
 use tantivy_fst::Streamer;
 use DocId;
-use postings::BlockSearcher;
 
 struct PositionComputer {
     // store the amount of position int
@@ -61,7 +61,7 @@ pub struct SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
     position_computer: Option<PositionComputer>,
-    block_searcher: BlockSearcher
+    block_searcher: BlockSearcher,
 }
 
 impl SegmentPostings {
@@ -120,7 +120,7 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             position_computer: positions_stream_opt.map(PositionComputer::new),
-            block_searcher: BlockSearcher::default()
+            block_searcher: BlockSearcher::default(),
         }
     }
 }
@@ -202,7 +202,9 @@ impl DocSet for SegmentPostings {
 
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
-        let new_cur = self.block_searcher.search_in_block(&block_docs, self.cur, target);
+        let new_cur = self
+            .block_searcher
+            .search_in_block(&block_docs, self.cur, target);
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
                 .iter()
@@ -598,7 +600,6 @@ mod tests {
     use DocId;
     use SkipResult;
 
-
     #[test]
     fn test_empty_segment_postings() {
         let mut postings = SegmentPostings::empty();
@@ -613,8 +614,6 @@ mod tests {
         assert!(!postings.advance());
         assert_eq!(postings.doc_freq(), 0);
     }
-
-
 
     #[test]
     fn test_block_segment_postings() {

@@ -137,7 +137,7 @@ pub(crate) mod test {
     #[test]
     fn test_max_doc() {
         // this is the first time I write a unit test for a constant.
-        assert!(((super::MAX_DOC_LIMIT-1) as i32) >= 0);
+        assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
         assert!((super::MAX_DOC_LIMIT as i32) < 0);
     }
 }

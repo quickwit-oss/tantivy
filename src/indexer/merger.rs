@@ -1,3 +1,4 @@
+use common::MAX_DOC_LIMIT;
 use core::Segment;
 use core::SegmentReader;
 use core::SerializableSegment;
@@ -23,7 +24,6 @@ use termdict::TermMerger;
 use termdict::TermOrdinal;
 use DocId;
 use Result;
-use common::MAX_DOC_LIMIT;
 use TantivyError;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
@@ -153,8 +153,11 @@ impl IndexMerger {
             }
         }
         if max_doc >= MAX_DOC_LIMIT {
-            let err_msg = format!("The segment resulting from this merge would have {} docs,\
-             which exceeds the limit {}.", max_doc, MAX_DOC_LIMIT);
+            let err_msg = format!(
+                "The segment resulting from this merge would have {} docs,\
+                 which exceeds the limit {}.",
+                max_doc, MAX_DOC_LIMIT
+            );
             return Err(TantivyError::InvalidArgument(err_msg));
         }
         Ok(IndexMerger {

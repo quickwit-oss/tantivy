@@ -3,20 +3,19 @@
 ///
 /// Searching within a block is a hotspot when running intersection.
 /// so it was worth defining it in its own module.
-
 use postings::compression::COMPRESSION_BLOCK_SIZE;
 
 #[cfg(target_arch = "x86_64")]
 mod sse2 {
-    use std::arch::x86_64::__m128i as DataType;
-    use std::arch::x86_64::_mm_setzero_si128 as set0;
-    use std::arch::x86_64::_mm_set1_epi32 as set1;
-    use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
-    use std::arch::x86_64::_mm_add_epi32 as op_add;
-    use std::arch::x86_64::_mm_sub_epi32 as op_sub;
-    use std::arch::x86_64::_mm_load_si128 as op_load; // requires 128-bits alignment
-    use std::arch::x86_64::{_mm_shuffle_epi32, _mm_cvtsi128_si32};
     use postings::compression::COMPRESSION_BLOCK_SIZE;
+    use std::arch::x86_64::__m128i as DataType;
+    use std::arch::x86_64::_mm_add_epi32 as op_add;
+    use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
+    use std::arch::x86_64::_mm_load_si128 as op_load; // requires 128-bits alignment
+    use std::arch::x86_64::_mm_set1_epi32 as set1;
+    use std::arch::x86_64::_mm_setzero_si128 as set0;
+    use std::arch::x86_64::_mm_sub_epi32 as op_sub;
+    use std::arch::x86_64::{_mm_cvtsi128_si32, _mm_shuffle_epi32};
 
     const MASK1: i32 = 78;
     const MASK2: i32 = 177;
@@ -33,10 +32,10 @@ mod sse2 {
             // We work over 4 `__m128i` at a time.
             // A single `__m128i` actual contains 4 `u32`.
             for i in 0..(COMPRESSION_BLOCK_SIZE as isize) / (4 * 4) {
-                let cmp1 = op_lt(op_load(ptr.offset(i*4)), vkey);
-                let cmp2 = op_lt(op_load(ptr.offset(i*4 + 1)), vkey);
-                let cmp3 = op_lt(op_load(ptr.offset(i*4 + 2)), vkey);
-                let cmp4 = op_lt(op_load(ptr.offset(i*4 + 3)), vkey);
+                let cmp1 = op_lt(op_load(ptr.offset(i * 4)), vkey);
+                let cmp2 = op_lt(op_load(ptr.offset(i * 4 + 1)), vkey);
+                let cmp3 = op_lt(op_load(ptr.offset(i * 4 + 2)), vkey);
+                let cmp4 = op_lt(op_load(ptr.offset(i * 4 + 3)), vkey);
                 let sum = op_add(op_add(cmp1, cmp2), op_add(cmp3, cmp4));
                 cnt = op_sub(cnt, sum);
             }
@@ -61,16 +60,13 @@ mod sse2 {
     }
 }
 
-
 /// This `linear search` browser exhaustively through the array.
 /// but the early exit is very difficult to predict.
 ///
 /// Coupled with `exponential search` this function is likely
 /// to be called with the same `len`
 fn linear_search(arr: &[u32], target: u32) -> usize {
-    arr.iter()
-        .map(|&el| if el < target { 1 } else { 0 })
-        .sum()
+    arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
 }
 
 fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
@@ -93,14 +89,13 @@ fn galloping(block_docs: &[u32], target: u32) -> usize {
     start + linear_search(&block_docs[start..end], target)
 }
 
-
 /// Tantivy may rely on SIMD instructions to search for a specific document within
 /// a given block.
 #[derive(Clone, Copy, PartialEq)]
 pub enum BlockSearcher {
     #[cfg(target_arch = "x86_64")]
     SSE2,
-    Scalar
+    Scalar,
 }
 
 impl BlockSearcher {
@@ -158,11 +153,10 @@ impl Default for BlockSearcher {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::linear_search;
     use super::exponential_search;
+    use super::linear_search;
     use super::BlockSearcher;
 
     #[test]
@@ -193,10 +187,7 @@ mod tests {
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
         for i in 0..cursor {
-            assert_eq!(
-                block_searcher.search_in_block(block, i, target),
-                cursor
-            );
+            assert_eq!(block_searcher.search_in_block(block, i, target), cursor);
         }
     }
 
@@ -215,10 +206,7 @@ mod tests {
     }
 
     fn search_in_block_trivial_but_slow(block: &[u32], target: u32) -> usize {
-        block
-            .iter()
-            .take_while(|&&val| val < target)
-            .count()
+        block.iter().take_while(|&&val| val < target).count()
     }
 
     fn test_search_in_block_util(block_searcher: BlockSearcher) {

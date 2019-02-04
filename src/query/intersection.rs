@@ -32,7 +32,7 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
     if all_term_scorers {
         return Box::new(Intersection {
             left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
-            right:  *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
+            right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
             others: scorers,
             num_docsets,
         });
@@ -43,7 +43,6 @@ pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
         others: scorers,
         num_docsets,
     })
-
 }
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.

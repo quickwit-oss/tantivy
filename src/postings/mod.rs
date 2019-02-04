@@ -2,6 +2,7 @@
 Postings module (also called inverted index)
 */
 
+mod block_search;
 pub(crate) mod compression;
 /// Postings module
 ///
@@ -15,7 +16,6 @@ mod serializer;
 mod skip;
 mod stacker;
 mod term_info;
-mod block_search;
 
 pub(crate) use self::block_search::BlockSearcher;
 
