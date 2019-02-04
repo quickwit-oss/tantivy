@@ -64,7 +64,7 @@ pub struct BitUnpacker<Data>
 where
     Data: Deref<Target = [u8]>,
 {
-    num_bits: usize,
+    num_bits: u64,
     mask: u64,
     data: Data,
 }
@@ -80,13 +80,13 @@ where
             (1u64 << num_bits) - 1u64
         };
         BitUnpacker {
-            num_bits: num_bits as usize,
+            num_bits: num_bits as u64,
             mask,
             data,
         }
     }
 
-    pub fn get(&self, idx: usize) -> u64 {
+    pub fn get(&self, idx: u64) -> u64 {
         if self.num_bits == 0 {
             return 0u64;
         }
@@ -97,10 +97,10 @@ where
         let addr = addr_in_bits >> 3;
         let bit_shift = addr_in_bits & 7;
         debug_assert!(
-            addr + 8 <= data.len(),
+            addr + 8 <= data.len() as u64,
             "The fast field field should have been padded with 7 bytes."
         );
-        let val_unshifted_unmasked: u64 = LittleEndian::read_u64(&data[addr..]);
+        let val_unshifted_unmasked: u64 = LittleEndian::read_u64(&data[(addr as usize)..]);
         let val_shifted = (val_unshifted_unmasked >> bit_shift) as u64;
         val_shifted & mask
     }
@@ -129,7 +129,7 @@ mod test {
     fn test_bitpacker_util(len: usize, num_bits: u8) {
         let (bitunpacker, vals) = create_fastfield_bitpacker(len, num_bits);
         for (i, val) in vals.iter().enumerate() {
-            assert_eq!(bitunpacker.get(i), *val);
+            assert_eq!(bitunpacker.get(i as u64), *val);
         }
     }
 
