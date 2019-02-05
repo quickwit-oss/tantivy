@@ -1,4 +1,4 @@
-use crossbeam::queue::MsQueue;
+use crossbeam::queue::SegQueue;
 use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
@@ -11,14 +11,14 @@ pub struct GenerationItem<T> {
 }
 
 pub struct Pool<T> {
-    queue: Arc<MsQueue<GenerationItem<T>>>,
+    queue: Arc<SegQueue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
     next_generation: AtomicUsize,
 }
 
 impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
-        let queue = Arc::new(MsQueue::new());
+        let queue = Arc::new(SegQueue::new());
         Pool {
             queue,
             freshest_generation: AtomicUsize::default(),
@@ -64,7 +64,7 @@ impl<T> Pool<T> {
     pub fn acquire(&self) -> LeasedItem<T> {
         let generation = self.generation();
         loop {
-            let gen_item = self.queue.pop();
+            let gen_item = self.queue.pop().unwrap();
             if gen_item.generation >= generation {
                 return LeasedItem {
                     gen_item: Some(gen_item),
@@ -80,7 +80,7 @@ impl<T> Pool<T> {
 
 pub struct LeasedItem<T> {
     gen_item: Option<GenerationItem<T>>,
-    recycle_queue: Arc<MsQueue<GenerationItem<T>>>,
+    recycle_queue: Arc<SegQueue<GenerationItem<T>>>,
 }
 
 impl<T> Deref for LeasedItem<T> {

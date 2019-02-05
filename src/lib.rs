@@ -164,6 +164,10 @@ extern crate rand;
 #[macro_use]
 extern crate maplit;
 
+#[cfg(test)]
+#[macro_use]
+extern crate assert_matches;
+
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
