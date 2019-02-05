@@ -1,5 +1,7 @@
 Tantivy 0.9.0
 =====================
+*0.9.0 index format is not compatible with the 
+previous index format.*
 - Removed most unsafe (@fulmicoton)
 - Indexer memory footprint improved. (VInt comp, inlining the first block. (@fulmicoton)
 - Stemming in other language possible (@pentlander)

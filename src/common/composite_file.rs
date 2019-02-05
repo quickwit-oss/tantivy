@@ -39,7 +39,7 @@ impl BinarySerializable for FileAddr {
 /// A `CompositeWrite` is used to write a `CompositeFile`.
 pub struct CompositeWrite<W = WritePtr> {
     write: CountingWriter<W>,
-    offsets: HashMap<FileAddr, usize>,
+    offsets: HashMap<FileAddr, u64>,
 }
 
 impl<W: Write> CompositeWrite<W> {
