@@ -42,7 +42,7 @@ stable_deref_trait = "1.0.0"
 rust-stemmers = "1.1"
 downcast-rs = { version="1.0" }
 matches = "0.1"
-bitpacking = "0.5"
+bitpacking = "0.6"
 census = "0.2"
 fnv = "1.0.6"
 owned-read = "0.4"

@@ -34,10 +34,6 @@ const COMPRESSION_BLOCK_SIZE: usize = BitPacker4x::BLOCK_LEN;
 const LONG_SKIP_IN_BLOCKS: usize = 1_024;
 const LONG_SKIP_INTERVAL: u64 = (LONG_SKIP_IN_BLOCKS * COMPRESSION_BLOCK_SIZE) as u64;
 
-lazy_static! {
-    static ref BIT_PACKER: BitPacker4x = BitPacker4x::new();
-}
-
 #[cfg(test)]
 pub mod tests {
 

@@ -18,7 +18,6 @@
 /// A given block obviously takes `(128 x  num_bit_for_the_block / num_bits_in_a_byte)`,
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
-use super::BIT_PACKER;
 use bitpacking::{BitPacker, BitPacker4x};
 use common::{BinarySerializable, FixedSize};
 use directory::ReadOnlySource;
@@ -29,6 +28,7 @@ use positions::LONG_SKIP_IN_BLOCKS;
 use postings::compression::compressed_block_size;
 
 struct Positions {
+    bit_packer: BitPacker4x,
     skip_source: ReadOnlySource,
     position_source: ReadOnlySource,
     long_skip_source: ReadOnlySource,
@@ -42,6 +42,7 @@ impl Positions {
         let body_split = body.len() - u64::SIZE_IN_BYTES * (num_long_skips as usize);
         let (skip_source, long_skip_source) = body.split(body_split);
         Positions {
+            bit_packer: BitPacker4x::new(),
             skip_source,
             long_skip_source,
             position_source,
@@ -55,8 +56,8 @@ impl Positions {
         if long_skip_id == 0 {
             return 0;
         }
-        let mut long_skip_blocks: &[u8] =
-            &self.long_skip_source.as_slice()[(long_skip_id - 1) * 8..][..8];
+        let long_skip_slice = self.long_skip_source.as_slice();
+        let mut long_skip_blocks: &[u8] = &long_skip_slice[(long_skip_id - 1) * 8..][..8];
         u64::deserialize(&mut long_skip_blocks).expect("Index corrupted")
     }
 
@@ -69,6 +70,7 @@ impl Positions {
         let mut skip_read = OwnedRead::new(self.skip_source.clone());
         skip_read.advance(long_skip_id * LONG_SKIP_IN_BLOCKS);
         let mut position_reader = PositionReader {
+            bit_packer: self.bit_packer,
             skip_read,
             position_read,
             inner_offset: 0,
@@ -83,6 +85,7 @@ impl Positions {
 pub struct PositionReader {
     skip_read: OwnedRead,
     position_read: OwnedRead,
+    bit_packer: BitPacker4x,
     inner_offset: usize,
     buffer: Box<[u32; 128]>,
     ahead: Option<usize>, // if None, no block is loaded.
@@ -99,6 +102,7 @@ pub struct PositionReader {
 // If the requested number of els ends exactly at a given block, the next
 // block is not decompressed.
 fn read_impl(
+    bit_packer: BitPacker4x,
     mut position: &[u8],
     buffer: &mut [u32; 128],
     mut inner_offset: usize,
@@ -108,7 +112,6 @@ fn read_impl(
     let mut output_start = 0;
     let mut output_len = output.len();
     let mut ahead = 0;
-    let bitpacker = BitPacker4x::new();
     loop {
         let available_len = COMPRESSION_BLOCK_SIZE - inner_offset;
         // We have enough elements in the current block.
@@ -123,7 +126,7 @@ fn read_impl(
         output_start += available_len;
         inner_offset = 0;
         let num_bits = num_bits[ahead];
-        bitpacker.decompress(position, &mut buffer[..], num_bits);
+        bit_packer.decompress(position, &mut buffer[..], num_bits);
         let block_len = compressed_block_size(num_bits);
         position = &position[block_len..];
         ahead += 1;
@@ -148,11 +151,12 @@ impl PositionReader {
         if self.ahead != Some(0) {
             // the block currently available is not the block
             // for the current position
-            BIT_PACKER.decompress(position_data, self.buffer.as_mut(), num_bits);
+            self.bit_packer.decompress(position_data, self.buffer.as_mut(), num_bits);
             self.ahead = Some(0);
         }
         let block_len = compressed_block_size(num_bits);
         self.ahead = Some(read_impl(
+            self.bit_packer,
             &position_data[block_len..],
             self.buffer.as_mut(),
             self.inner_offset,
