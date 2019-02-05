@@ -39,7 +39,7 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
         let (start, stop) = self.range(doc);
         let len = (stop - start) as usize;
         vals.resize(len, Item::default());
-        self.vals_reader.get_range(start as u32, &mut vals[..]);
+        self.vals_reader.get_range_u64(start, &mut vals[..]);
     }
 }
 
