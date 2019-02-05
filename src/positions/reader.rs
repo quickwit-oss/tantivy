@@ -1,4 +1,3 @@
-use bitpacking::{BitPacker, BitPacker4x};
 /// Positions works as a long sequence of compressed block.
 /// All terms are chained one after the other.
 ///
@@ -19,8 +18,8 @@ use bitpacking::{BitPacker, BitPacker4x};
 /// A given block obviously takes `(128 x  num_bit_for_the_block / num_bits_in_a_byte)`,
 /// so skipping a block without decompressing it is just a matter of advancing that many
 /// bytes.
-
 use super::BIT_PACKER;
+use bitpacking::{BitPacker, BitPacker4x};
 use common::{BinarySerializable, FixedSize};
 use directory::ReadOnlySource;
 use owned_read::OwnedRead;
@@ -32,8 +31,7 @@ use postings::compression::compressed_block_size;
 struct Positions {
     skip_source: ReadOnlySource,
     position_source: ReadOnlySource,
-    long_skip_source: ReadOnlySource
-
+    long_skip_source: ReadOnlySource,
 }
 
 impl Positions {
@@ -46,7 +44,7 @@ impl Positions {
         Positions {
             skip_source,
             long_skip_source,
-            position_source
+            position_source,
         }
     }
 
@@ -159,7 +157,7 @@ impl PositionReader {
             self.buffer.as_mut(),
             self.inner_offset,
             &skip_data[1..],
-            output
+            output,
         ));
     }
 

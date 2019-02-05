@@ -66,7 +66,6 @@ impl<Item: FastValue> FastFieldReader<Item> {
         Item::from_u64(self.min_value_u64 + self.bit_unpacker.get(doc))
     }
 
-
     /// Internally `multivalued` also use SingleValue Fast fields.
     /// It works as follows... A first column contains the list of start index
     /// for each document, a second column contains the actual values.
