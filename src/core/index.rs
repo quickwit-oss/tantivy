@@ -111,7 +111,6 @@ impl Index {
     }
 
     /// Opens or creates a new index in the provided directory
-    #[cfg(feature = "mmap")]
     pub fn open_or_create<Dir: Directory>(dir: Dir, schema: Schema) -> Result<Index> {
         if Index::exists(&dir) {
             let index = Index::open(dir)?;

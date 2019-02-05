@@ -36,22 +36,22 @@ fn read_impl(
     let mut output_start = 0;
     let mut output_len = output.len();
     let mut ahead = 0;
+    let bitpacker = BitPacker4x::new();
     loop {
-        let available_len = 128 - inner_offset;
+        let available_len = COMPRESSION_BLOCK_SIZE - inner_offset;
         if output_len <= available_len {
             output[output_start..].copy_from_slice(&buffer[inner_offset..][..output_len]);
             return ahead;
-        } else {
-            output[output_start..][..available_len].copy_from_slice(&buffer[inner_offset..]);
-            output_len -= available_len;
-            output_start += available_len;
-            inner_offset = 0;
-            let num_bits = num_bits[ahead];
-            BitPacker4x::new().decompress(position, &mut buffer[..], num_bits);
-            let block_len = compressed_block_size(num_bits);
-            position = &position[block_len..];
-            ahead += 1;
         }
+        output[output_start..][..available_len].copy_from_slice(&buffer[inner_offset..]);
+        output_len -= available_len;
+        output_start += available_len;
+        inner_offset = 0;
+        let num_bits = num_bits[ahead];
+        bitpacker.decompress(position, &mut buffer[..], num_bits);
+        let block_len = compressed_block_size(num_bits);
+        position = &position[block_len..];
+        ahead += 1;
     }
 }
 
