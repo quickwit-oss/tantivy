@@ -75,8 +75,7 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().expect("Commit failed");
-        index.load_searchers().expect("Reloading searchers");
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut facet_reader = segment_reader.facet_reader(facet_field).unwrap();
 

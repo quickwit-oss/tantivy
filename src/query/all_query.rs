@@ -101,8 +101,9 @@ mod tests {
         index_writer.commit().unwrap();
         index_writer.add_document(doc!(field=>"ccc"));
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        reader.load_searchers().unwrap();
+        let searcher = reader.searcher();
         let weight = AllQuery.weight(&searcher, false).unwrap();
         {
             let reader = searcher.segment_reader(0);

@@ -304,9 +304,8 @@ mod test {
     fn test_empty() {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema.clone());
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert_eq!(0, searcher_space_usage.total());
     }
@@ -344,8 +343,8 @@ mod test {
             index_writer.commit().unwrap();
         }
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
@@ -384,8 +383,8 @@ mod test {
             index_writer.commit().unwrap();
         }
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
@@ -423,9 +422,8 @@ mod test {
             index_writer.add_document(doc!(name => "hello hi goodbye"));
             index_writer.commit().unwrap();
         }
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());
@@ -471,9 +469,8 @@ mod test {
             index_writer2.commit().unwrap();
         }
 
-        index.load_searchers().unwrap();
-
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
         assert_eq!(1, searcher_space_usage.segments().len());

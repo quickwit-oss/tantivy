@@ -177,7 +177,7 @@ mod tests {
                 size => 16u64,
             ));
         });
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
@@ -204,7 +204,7 @@ mod tests {
                 size => 12u64,
             ));
         });
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(Field(2));
         let segment_reader = searcher.segment_reader(0u32);
         top_collector
@@ -224,7 +224,7 @@ mod tests {
                 size => 12u64,
             ));
         });
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let segment = searcher.segment_reader(0);
         let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(size);
         assert_matches!(
@@ -247,8 +247,6 @@ mod tests {
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         doc_adder(&mut index_writer);
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-
         let query_parser = QueryParser::for_index(&index, vec![query_field]);
         let query = query_parser.parse_query(query).unwrap();
         (index, query)

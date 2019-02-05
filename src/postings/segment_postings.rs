@@ -773,8 +773,7 @@ mod tests {
             last_doc = doc + 1;
         }
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(int_field);
         let term = Term::from_field_u64(int_field, 0u64);
@@ -842,8 +841,7 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         let mut block_segments;

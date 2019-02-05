@@ -29,11 +29,12 @@ mod tests {
         index_writer.add_document(doc!(field=>5u64, field=>20u64,field=>1u64));
         assert!(index_writer.commit().is_ok());
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
-        let reader = searcher.segment_reader(0);
+        let searcher = index.reader().searcher();
+        let segment_reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
-        let multi_value_reader = reader.multi_fast_field_reader::<u64>(field).unwrap();
+        let multi_value_reader = segment_reader
+            .multi_fast_field_reader::<u64>(field)
+            .unwrap();
         {
             multi_value_reader.get_vals(2, &mut vals);
             assert_eq!(&vals, &[4u64]);
@@ -64,8 +65,7 @@ mod tests {
         index_writer.add_document(doc!(field=> -5i64, field => -20i64, field=>1i64));
         assert!(index_writer.commit().is_ok());
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let reader = searcher.segment_reader(0);
         let mut vals = Vec::new();
         let multi_value_reader = reader.multi_fast_field_reader::<i64>(field).unwrap();

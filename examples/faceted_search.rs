@@ -55,9 +55,9 @@ fn main() -> tantivy::Result<()> {
 
     index_writer.commit()?;
 
-    index.load_searchers()?;
+    let reader = index.reader();
 
-    let searcher = index.searcher();
+    let searcher = reader.searcher();
 
     let mut facet_collector = FacetCollector::for_field(tags);
     facet_collector.add_facet("/pools");

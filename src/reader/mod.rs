@@ -32,11 +32,25 @@ impl IndexReaderBuilder {
             index,
         }
     }
+
+    pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
+        self.reload_policy = reload_policy;
+        self
+    }
+
+    pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
+        self.num_searchers = num_searchers;
+        self
+    }
 }
 
 impl Into<IndexReader> for IndexReaderBuilder {
     fn into(self) -> IndexReader {
-        IndexReader::new(self.index, self.num_searchers, self.reload_policy)
+        let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
+        if let Err(err) = reader.load_searchers() {
+            error!("Failed to load searchers.");
+        }
+        reader
     }
 }
 

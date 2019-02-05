@@ -864,9 +864,9 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-
+        let reader = index.reader();
         let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
+            let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
             searcher.doc_freq(&term)
         };
@@ -884,13 +884,13 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"c"));
             }
             assert!(index_writer.commit().is_ok());
-            index.load_searchers().unwrap();
+            reader.load_searchers().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
             assert_eq!(num_docs_containing("c"), 1);
         }
-        index.load_searchers().unwrap();
-        index.searcher();
+        reader.load_searchers().unwrap();
+        reader.searcher();
     }
 
     #[test]
@@ -898,32 +898,29 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
+        let reader = index.reader();
         let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+            reader.searcher().doc_freq(&term_a)
         };
         {
             // writing the segment
             let mut index_writer = index.writer(12_000_000).unwrap();
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"a"));
             }
             index_writer.commit().expect("commit failed");
             for _doc in 0..100 {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"a"));
             }
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
             index_writer
                 .wait_merging_threads()
                 .expect("waiting merging thread failed");
-            index.load_searchers().unwrap();
+
+            reader.load_searchers().unwrap();
 
             assert_eq!(num_docs_containing("a"), 200);
             assert!(index.searchable_segments().unwrap().len() < 8);
@@ -990,11 +987,9 @@ mod tests {
             }
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
         let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+            index.reader().searcher().doc_freq(&term_a)
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);
@@ -1026,11 +1021,9 @@ mod tests {
             index_writer.add_document(doc!(text_field => "b"));
         }
         assert!(index_writer.commit().is_err());
-        index.load_searchers().unwrap();
         let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
+            index.reader().searcher().doc_freq(&term_a)
         };
         assert_eq!(num_docs_containing("a"), 100);
         assert_eq!(num_docs_containing("b"), 0);

@@ -51,7 +51,6 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-        index.load_searchers().unwrap();
         (index, text_field)
     }
 
@@ -60,7 +59,8 @@ mod tests {
         let (index, text_field) = aux_test_helper();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("(+a +b) d").unwrap();
-        assert_eq!(query.count(&*index.searcher()).unwrap(), 3);
+        let searcher = index.reader().searcher();
+        assert_eq!(query.count(&searcher).unwrap(), 3);
     }
 
     #[test]
@@ -68,7 +68,7 @@ mod tests {
         let (index, text_field) = aux_test_helper();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("+a").unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let weight = query.weight(&searcher, true).unwrap();
         let scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
         assert!(scorer.is::<TermScorer>());
@@ -78,7 +78,7 @@ mod tests {
     pub fn test_boolean_termonly_intersection() {
         let (index, text_field) = aux_test_helper();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         {
             let query = query_parser.parse_query("+a +b +c").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
@@ -97,7 +97,7 @@ mod tests {
     pub fn test_boolean_reqopt() {
         let (index, text_field) = aux_test_helper();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         {
             let query = query_parser.parse_query("+a b").unwrap();
             let weight = query.weight(&searcher, true).unwrap();
@@ -126,10 +126,13 @@ mod tests {
             query
         };
 
+        let reader = index.reader();
+
         let matching_docs = |boolean_query: &Query| {
-            let searcher = index.searcher();
-            let test_docs = searcher.search(boolean_query, &TestCollector).unwrap();
-            test_docs
+            reader
+                .searcher()
+                .search(boolean_query, &TestCollector)
+                .unwrap()
                 .docs()
                 .iter()
                 .cloned()
@@ -185,10 +188,12 @@ mod tests {
             let query: Box<Query> = Box::new(term_query);
             query
         };
-
+        let reader = index.reader();
         let score_docs = |boolean_query: &Query| {
-            let searcher = index.searcher();
-            let fruit = searcher.search(boolean_query, &TestCollector).unwrap();
+            let fruit = reader
+                .searcher()
+                .search(boolean_query, &TestCollector)
+                .unwrap();
             fruit.scores().to_vec()
         };
 

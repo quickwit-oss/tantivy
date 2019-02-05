@@ -22,6 +22,7 @@ fn test_indexing() {
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();
+    let reader = index.reader();
 
     let mut rng = thread_rng();
 
@@ -36,8 +37,8 @@ fn test_indexing() {
             index_writer.commit().expect("Commit failed");
             committed_docs.extend(&uncommitted_docs);
             uncommitted_docs.clear();
-            index.load_searchers().unwrap();
-            let searcher = index.searcher();
+            reader.load_searchers().unwrap();
+            let searcher = reader.searcher();
             // check that everything is correct.
             check_index_content(&searcher, &committed_docs);
         } else {
