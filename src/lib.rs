@@ -211,6 +211,9 @@ pub mod space_usage;
 pub mod store;
 pub mod termdict;
 
+mod reader;
+
+pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy};
 mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 
@@ -299,6 +302,7 @@ mod tests {
     use Index;
     use IndexWriter;
     use Postings;
+    use ReloadPolicy;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(
@@ -387,7 +391,8 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            index.load_searchers().unwrap();
+            let index_reader = index.reader(ReloadPolicy::MANUAL);
+            indexer_reader.load_searchers().unwrap();
             let searcher = index.searcher();
             let term_a = Term::from_field_text(text_field, "a");
             assert_eq!(searcher.doc_freq(&term_a), 3);
