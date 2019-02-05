@@ -151,7 +151,8 @@ impl PositionReader {
         if self.ahead != Some(0) {
             // the block currently available is not the block
             // for the current position
-            self.bit_packer.decompress(position_data, self.buffer.as_mut(), num_bits);
+            self.bit_packer
+                .decompress(position_data, self.buffer.as_mut(), num_bits);
             self.ahead = Some(0);
         }
         let block_len = compressed_block_size(num_bits);
