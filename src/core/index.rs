@@ -187,7 +187,7 @@ impl Index {
         }
     }
 
-    pub fn reader(&self, reload_policy: ReloadPolicy) -> IndexReader {
+    pub fn reader(&self) -> IndexReader {
         self.reader_builder().into()
     }
 

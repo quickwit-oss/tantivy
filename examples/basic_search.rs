@@ -170,10 +170,8 @@ fn main() -> tantivy::Result<()> {
     //
     // ### Searcher
     //
-    // Let's search our index. Start by reloading
-    // searchers in the index. This should be done
-    // after every `commit()`.
-    index.load_searchers()?;
+    // TODO explain what a reader does
+    let reader = index.reader();
 
     // We now need to acquire a searcher.
     // Some search experience might require more than
@@ -187,7 +185,7 @@ fn main() -> tantivy::Result<()> {
     // You should acquire a searcher every time you
     // start processing a request and
     // and release it right after your query is finished.
-    let searcher = index.searcher();
+    let searcher = reader.searcher();
 
     // ### Query
 

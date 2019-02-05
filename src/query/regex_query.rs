@@ -108,8 +108,8 @@ mod test {
             ));
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader();
+        let searcher = reader.searcher();
         {
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             let scored_docs = searcher

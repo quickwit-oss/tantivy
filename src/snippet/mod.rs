@@ -528,9 +528,8 @@ Survey in 2016, 2017, and 2018."#;
             index_writer.add_document(doc!(text_field => "a"));
             index_writer.add_document(doc!(text_field => "a b"));
             index_writer.commit().unwrap();
-            index.load_searchers().unwrap();
         }
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         {
             let query = query_parser.parse_query("e").unwrap();
@@ -587,8 +586,7 @@ Survey in 2016, 2017, and 2018."#;
             }
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("rust design").unwrap();
         let mut snippet_generator =

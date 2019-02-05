@@ -32,9 +32,7 @@ mod tests {
             }
             assert!(index_writer.commit().is_ok());
         }
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let term_query = TermQuery::new(
             Term::from_field_text(text_field, "a"),
             IndexRecordOption::Basic,
@@ -65,8 +63,7 @@ mod tests {
             index_writer.add_document(doc!(left_field => "left4 left1"));
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         {
             let term = Term::from_field_text(left_field, "left2");
             let term_query = TermQuery::new(term, IndexRecordOption::WithFreqs);
