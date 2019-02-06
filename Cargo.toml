@@ -41,7 +41,7 @@ owning_ref = "0.4"
 stable_deref_trait = "1.0.0"
 rust-stemmers = "1"
 downcast-rs = { version="1.0" }
-matches = "0.1"
+matches = "0.1.8"
 bitpacking = "0.5"
 census = "0.2"
 fnv = "1.0.6"
@@ -58,7 +58,6 @@ winapi = "0.2"
 [dev-dependencies]
 rand = "0.6"
 maplit = "1"
-assert_matches = "1.3"
 
 [profile.release]
 opt-level = 3
