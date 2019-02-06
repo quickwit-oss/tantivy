@@ -1,4 +1,4 @@
-use super::operation::AddOperation;
+use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
 use bit_set::BitSet;
@@ -43,8 +43,8 @@ pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-type DocumentSender = channel::Sender<AddOperation>;
-type DocumentReceiver = channel::Receiver<AddOperation>;
+type DocumentSender = channel::Sender<Vec<AddOperation>>;
+type DocumentReceiver = channel::Receiver<Vec<AddOperation>>;
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -266,7 +266,7 @@ fn index_documents(
     memory_budget: usize,
     segment: &Segment,
     generation: usize,
-    document_iterator: &mut impl Iterator<Item = AddOperation>,
+    document_iterator: &mut Iterator<Item = Vec<AddOperation>>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
@@ -274,11 +274,11 @@ fn index_documents(
     let segment_id = segment.id();
     let table_size = initial_table_size(memory_budget);
     let mut segment_writer = SegmentWriter::for_segment(table_size, segment.clone(), &schema)?;
-    for doc in document_iterator {
-        segment_writer.add_document(doc, &schema)?;
-
+    for documents in document_iterator {
+        for doc in documents {
+            segment_writer.add_document(doc, &schema)?;
+        }
         let mem_usage = segment_writer.mem_usage();
-
         if mem_usage >= memory_budget - MARGIN_IN_BYTES {
             info!(
                 "Buffer limit reached, flushing segment with maxdoc={}.",
@@ -409,8 +409,12 @@ impl IndexWriter {
                     // this is a valid guarantee as the
                     // peeked document now belongs to
                     // our local iterator.
-                    if let Some(operation) = document_iterator.peek() {
-                        delete_cursor.skip_to(operation.opstamp);
+                    if let Some(operations) = document_iterator.peek() {
+                        if let Some(last) = operations.last() {
+                            delete_cursor.skip_to(last.opstamp);
+                        } else {
+                            return Ok(());
+                        }
                     } else {
                         // No more documents.
                         // Happens when there is a commit, or if the `IndexWriter`
@@ -643,11 +647,44 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
-        let send_result = self.document_sender.send(add_operation);
+        let send_result = self.document_sender.send(vec![add_operation]);
         if let Err(e) = send_result {
             panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
         }
         opstamp
+    }
+
+    /// Runs a group of document operations.
+    pub fn run(&mut self, user_operations: &[UserOperation]) -> Option<u64> {
+        let mut stamps = self.stamper.stamps(user_operations.len() as u64);
+        let mut adds: Vec<AddOperation> = Vec::new();
+        let mut last_opstamp: Option<u64> = None;
+
+        for user_op in user_operations {
+            let opstamp = stamps.next().unwrap();
+            last_opstamp = Some(opstamp);
+            match user_op {
+                UserOperation::Delete(term) => {
+                    let delete_operation = DeleteOperation {
+                        opstamp: opstamp,
+                        term: term.clone(),
+                    };
+                    self.delete_queue.push(delete_operation);
+                }
+                UserOperation::Add(doc) => {
+                    let add_operation = AddOperation {
+                        opstamp: opstamp,
+                        document: doc.clone(),
+                    };
+                    adds.push(add_operation);
+                }
+            }
+        }
+        let send_result = self.document_sender.send(adds);
+        if let Err(e) = send_result {
+            panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
+        };
+        last_opstamp
     }
 }
 
