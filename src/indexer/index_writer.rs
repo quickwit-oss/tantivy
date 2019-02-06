@@ -85,8 +85,8 @@ pub struct IndexWriter {
 
     workers_join_handle: Vec<JoinHandle<Result<()>>>,
 
-    document_receiver: DocumentReceiver,
-    document_sender: DocumentSender,
+    operation_receiver: OperationReceiver,
+    operation_sender: OperationSender,
 
     segment_updater: SegmentUpdater,
 
@@ -133,7 +133,7 @@ pub fn open_index_writer(
         let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
         return Err(TantivyError::InvalidArgument(err_msg));
     }
-    let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
+    let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
         channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
     let delete_queue = DeleteQueue::new();
@@ -151,8 +151,8 @@ pub fn open_index_writer(
         heap_size_in_bytes_per_thread,
         index: index.clone(),
 
-        document_receiver,
-        document_sender,
+        operation_receiver: document_receiver,
+        operation_sender: document_sender,
 
         segment_updater,
 
@@ -335,7 +335,7 @@ impl IndexWriter {
     pub fn wait_merging_threads(mut self) -> Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
-        drop(self.document_sender);
+        drop(self.operation_sender);
 
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
@@ -384,7 +384,7 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
-        let document_receiver_clone = self.document_receiver.clone();
+        let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
 
         let generation = self.generation;
@@ -479,11 +479,11 @@ impl IndexWriter {
     /// when no documents are remaining.
     ///
     /// Returns the former segment_ready channel.
-    fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
+    fn recreate_document_channel(&mut self) -> OperationReceiver {
+        let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        mem::replace(&mut self.document_sender, document_sender);
-        mem::replace(&mut self.document_receiver, document_receiver)
+        mem::replace(&mut self.operation_sender, document_sender);
+        mem::replace(&mut self.operation_receiver, document_receiver)
     }
 
     /// Rollback to the last commit
@@ -501,7 +501,7 @@ impl IndexWriter {
         // segment updates will be ignored.
         self.segment_updater.kill();
 
-        let document_receiver = self.document_receiver.clone();
+        let document_receiver = self.operation_receiver.clone();
 
         // take the directory lock to create a new index_writer.
         let directory_lock = self
