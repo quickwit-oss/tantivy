@@ -1,5 +1,4 @@
 use crossbeam::queue::MsQueue;
-use std::mem;
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -10,6 +9,12 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
+
+/// An object pool
+///
+/// This is used in tantivy to create a pool of `Searcher`.
+/// Object are wrapped in a `LeasedItem` wrapper and are
+/// released automatically back into the pool on `Drop`.
 pub struct Pool<T> {
     queue: Arc<MsQueue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
@@ -26,6 +31,10 @@ impl<T> Pool<T> {
         }
     }
 
+    /// Publishes a new generation of `Searcher`.
+    ///
+    /// After publish, all new `Searcher` acquired will be
+    /// of the new generation.
     pub fn publish_new_generation(&self, items: Vec<T>) {
         let next_generation = self.next_generation.fetch_add(1, Ordering::SeqCst) + 1;
         for item in items {
@@ -61,6 +70,10 @@ impl<T> Pool<T> {
         self.freshest_generation.load(Ordering::Acquire)
     }
 
+    /// Acquires a new searcher.
+    ///
+    /// If no searcher is available, this methods block until
+    /// a searcher is released.
     pub fn acquire(&self) -> LeasedItem<T> {
         let generation = self.generation();
         loop {
@@ -107,9 +120,9 @@ impl<T> DerefMut for LeasedItem<T> {
 
 impl<T> Drop for LeasedItem<T> {
     fn drop(&mut self) {
-        let gen_item: GenerationItem<T> = mem::replace(&mut self.gen_item, None)
-            .expect("Unwrapping a leased item should never fail");
-        self.recycle_queue.push(gen_item);
+        if let Some(gen_item) = self.gen_item.take() {
+            self.recycle_queue.push(gen_item);
+        }
     }
 }
 
