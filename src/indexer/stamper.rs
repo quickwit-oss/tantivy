@@ -1,4 +1,4 @@
-use std::iter::Iterator;
+use std::ops::Range;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -64,32 +64,11 @@ impl Stamper {
 
     /// Given a desired count `n`, `stamps` returns an iterator that
     /// will supply `n` number of u64 stamps.
-    pub fn stamps(&self, n: u64) -> MultiStamp {
-        MultiStamp {
-            value: self.0.fetch_add(n, Ordering::SeqCst),
-            n_remaining: n,
-        }
-    }
-}
-
-/// MultiStamp is an iterator supplies u64 stamps until it runs out.
-pub struct MultiStamp {
-    value: u64,
-    n_remaining: u64,
-}
-
-impl Iterator for MultiStamp {
-    type Item = u64;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self.n_remaining {
-            0 => None,
-            _ => {
-                let output = self.value.clone();
-                self.value += 1;
-                self.n_remaining -= 1;
-                Some(output)
-            }
+    pub fn stamps(&self, n: u64) -> Range<u64> {
+        let start = self.0.fetch_add(n, Ordering::SeqCst);
+        Range {
+            start: start,
+            end: start + n,
         }
     }
 }
@@ -97,7 +76,7 @@ impl Iterator for MultiStamp {
 #[cfg(test)]
 mod test {
 
-    use super::{MultiStamp, Stamper};
+    use super::Stamper;
 
     #[test]
     fn test_stamper() {
@@ -111,27 +90,13 @@ mod test {
         assert_eq!(stamper.stamp(), 10u64);
         assert_eq!(stamper_clone.stamp(), 11u64);
 
-        let mut multi_stamp = stamper.stamps(3u64);
-        assert_eq!(multi_stamp.n_remaining, 3u64);
-        assert_eq!(multi_stamp.value, 12u64);
-        assert_eq!(multi_stamp.next(), Some(12u64));
-        assert_eq!(multi_stamp.next(), Some(13u64));
-        assert_eq!(multi_stamp.next(), Some(14u64));
-        assert_eq!(multi_stamp.next(), None as Option<u64>);
+        let mut stamp_range = stamper.stamps(3u64);
+        assert_eq!(stamp_range.start, 12u64);
+        assert_eq!(stamp_range.end, 15u64);
+        assert_eq!(stamp_range.next(), Some(12u64));
+        assert_eq!(stamp_range.next(), Some(13u64));
+        assert_eq!(stamp_range.next(), Some(14u64));
+        assert_eq!(stamp_range.next(), None as Option<u64>);
         assert_eq!(stamper.stamp(), 15u64);
-    }
-
-    #[test]
-    fn test_multi_stamp() {
-        let mut multi_stamp = MultiStamp {
-            value: 4,
-            n_remaining: 3,
-        };
-        assert_eq!(Some(4), multi_stamp.next());
-        assert_eq!(Some(5), multi_stamp.next());
-        assert_eq!(Some(6), multi_stamp.next());
-        assert_eq!(None, multi_stamp.next());
-        assert_eq!(7, multi_stamp.value);
-        assert_eq!(0, multi_stamp.n_remaining);
     }
 }
