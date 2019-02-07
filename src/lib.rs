@@ -164,7 +164,6 @@ extern crate rand;
 #[macro_use]
 extern crate maplit;
 
-
 #[cfg(all(test, feature = "unstable"))]
 extern crate test;
 
