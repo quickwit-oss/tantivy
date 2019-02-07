@@ -89,14 +89,7 @@ mod test {
 
         assert_eq!(stamper.stamp(), 10u64);
         assert_eq!(stamper_clone.stamp(), 11u64);
-
-        let mut stamp_range = stamper.stamps(3u64);
-        assert_eq!(stamp_range.start, 12u64);
-        assert_eq!(stamp_range.end, 15u64);
-        assert_eq!(stamp_range.next(), Some(12u64));
-        assert_eq!(stamp_range.next(), Some(13u64));
-        assert_eq!(stamp_range.next(), Some(14u64));
-        assert_eq!(stamp_range.next(), None as Option<u64>);
+        assert_eq!(stamper.stamps(3u64), (12..15));
         assert_eq!(stamper.stamp(), 15u64);
     }
 }
