@@ -16,6 +16,14 @@ use Result as TantivyResult;
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
+    // soft commits can advance committed segment to a future delete
+    // opstamp.
+    //
+    // In that case the same `SegmentId` can appear in both `committed`
+    // and in `committed_in_the_future`.
+    //
+    // TODO: which one should be considered for merges?
+    committed_in_the_future: SegmentRegister
 }
 
 /// The segment manager stores the list of segments
@@ -63,6 +71,7 @@ impl SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas, delete_cursor),
+                committed_in_the_future: SegmentRegister::default()
             }),
         }
     }
@@ -121,9 +130,34 @@ impl SegmentManager {
     pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
+        registers_lock.committed_in_the_future.clear();
         registers_lock.uncommitted.clear();
         for segment_entry in segment_entries {
-            registers_lock.committed.add_segment_entry(segment_entry);
+            registers_lock.committed.register_segment_entry(segment_entry);
+        }
+    }
+
+    pub fn soft_commit(&self, segment_entries: Vec<SegmentEntry>) {
+        let mut registers_lock = self.write();
+        for segment_entry in segment_entries {
+            let segment_id = segment_entry.segment_id();
+            if let Some(committed_segment_entry) = registers_lock.committed.get(&segment_id) {
+                // this is a committed segment.
+                if committed_segment_entry.meta().delete_opstamp() == segment_entry.meta().delete_opstamp() {
+                    // Actually, there was no change made to the segment...No need to do anything.
+                    continue;
+                }
+                // Our `segment_entry` is a commited in which *future* deletes (as in, sent after the last
+                // commit)
+                // Let's append it to a dedicated register for that.
+                registers_lock.committed_in_the_future.register_segment_entry(segment_entry);
+                // TODO make sure we use `committed_in_the_future` segments,
+                // when we `commit`, to avoid replaying deletes several times.
+
+            } else if let Some(uncommitted_segment) = registers_lock.uncommitted.get(&segment_id) {
+                // This will override our previous entry.
+                registers_lock.uncommitted.register_segment_entry(segment_entry);
+            }
         }
     }
 
@@ -160,7 +194,7 @@ impl SegmentManager {
 
     pub fn add_segment(&self, segment_entry: SegmentEntry) {
         let mut registers_lock = self.write();
-        registers_lock.uncommitted.add_segment_entry(segment_entry);
+        registers_lock.uncommitted.register_segment_entry(segment_entry);
     }
 
     pub fn end_merge(
@@ -188,7 +222,7 @@ impl SegmentManager {
         for segment_id in before_merge_segment_ids {
             target_register.remove_segment(segment_id);
         }
-        target_register.add_segment_entry(after_merge_segment_entry);
+        target_register.register_segment_entry(after_merge_segment_entry);
     }
 
     pub fn committed_segment_metas(&self) -> Vec<SegmentMeta> {

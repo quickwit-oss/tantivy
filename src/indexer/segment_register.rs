@@ -66,7 +66,11 @@ impl SegmentRegister {
             .all(|segment_id| self.segment_states.contains_key(segment_id))
     }
 
-    pub fn add_segment_entry(&mut self, segment_entry: SegmentEntry) {
+    /// Registers a `SegmentEntry`.
+    ///
+    /// If a segment entry associated to this `SegmentId` is already there,
+    /// override it with the new `SegmentEntry`.
+    pub fn register_segment_entry(&mut self, segment_entry: SegmentEntry) {
         let segment_id = segment_entry.segment_id();
         self.segment_states.insert(segment_id, segment_entry);
     }
@@ -117,20 +121,20 @@ mod tests {
         {
             let segment_meta = SegmentMeta::new(segment_id_a, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
-            segment_register.add_segment_entry(segment_entry);
+            segment_register.register_segment_entry(segment_entry);
         }
         assert_eq!(segment_ids(&segment_register), vec![segment_id_a]);
         {
             let segment_meta = SegmentMeta::new(segment_id_b, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta, delete_queue.cursor(), None);
-            segment_register.add_segment_entry(segment_entry);
+            segment_register.register_segment_entry(segment_entry);
         }
         segment_register.remove_segment(&segment_id_a);
         segment_register.remove_segment(&segment_id_b);
         {
             let segment_meta_merged = SegmentMeta::new(segment_id_merged, 0u32);
             let segment_entry = SegmentEntry::new(segment_meta_merged, delete_queue.cursor(), None);
-            segment_register.add_segment_entry(segment_entry);
+            segment_register.register_segment_entry(segment_entry);
         }
         assert_eq!(segment_ids(&segment_register), vec![segment_id_merged]);
     }

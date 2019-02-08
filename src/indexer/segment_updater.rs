@@ -220,10 +220,9 @@ impl SegmentUpdater {
         !self.0.killed.load(Ordering::Acquire)
     }
 
-    /// Apply deletes up to the target opstamp to all segments.
+    /// Apply deletes up to the target opstamp to all segments (committed and uncommitted).
     ///
-    /// Tne method returns copies of the segment entries,
-    /// updated with the delete information.
+    /// Tne method returns copies of the segment entries, updated with the delete information.
     fn purge_deletes(&self, target_opstamp: u64) -> Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.0.segment_manager.segment_entries();
         for segment_entry in &mut segment_entries {
@@ -234,35 +233,36 @@ impl SegmentUpdater {
     }
 
     pub fn save_metas(&self, opstamp: u64, commit_message: Option<String>) {
-        if self.is_alive() {
-            let index = &self.0.index;
-            let directory = index.directory();
-            let mut commited_segment_metas = self.0.segment_manager.committed_segment_metas();
-
-            // We sort segment_readers by number of documents.
-            // This is an heuristic to make multithreading more efficient.
-            //
-            // This is not done at the searcher level because I had a strange
-            // use case in which I was dealing with a large static index,
-            // dispatched over 5 SSD drives.
-            //
-            // A `UnionDirectory` makes it possible to read from these
-            // 5 different drives and creates a meta.json on the fly.
-            // In order to optimize the throughput, it creates a lasagna of segments
-            // from the different drives.
-            //
-            // Segment 1 from disk 1, Segment 1 from disk 2, etc.
-            commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
-            let index_meta = IndexMeta {
-                segments: commited_segment_metas,
-                schema: index.schema(),
-                opstamp,
-                payload: commit_message,
-            };
-            save_metas(&index_meta, directory.box_clone().borrow_mut())
-                .expect("Could not save metas.");
-            self.store_meta(&index_meta);
+        if !self.is_alive() {
+            return;
         }
+        let index = &self.0.index;
+        let directory = index.directory();
+        let mut commited_segment_metas = self.0.segment_manager.committed_segment_metas();
+
+        // We sort segment_readers by number of documents.
+        // This is an heuristic to make multithreading more efficient.
+        //
+        // This is not done at the searcher level because I had a strange
+        // use case in which I was dealing with a large static index,
+        // dispatched over 5 SSD drives.
+        //
+        // A `UnionDirectory` makes it possible to read from these
+        // 5 different drives and creates a meta.json on the fly.
+        // In order to optimize the throughput, it creates a lasagna of segments
+        // from the different drives.
+        //
+        // Segment 1 from disk 1, Segment 1 from disk 2, etc.
+        commited_segment_metas.sort_by_key(|segment_meta| -(segment_meta.max_doc() as i32));
+        let index_meta = IndexMeta {
+            segments: commited_segment_metas,
+            schema: index.schema(),
+            opstamp,
+            payload: commit_message,
+        };
+        save_metas(&index_meta, directory.box_clone().borrow_mut())
+            .expect("Could not save metas.");
+        self.store_meta(&index_meta);
     }
 
     pub fn garbage_collect_files(&self) -> Result<()> {
@@ -280,17 +280,27 @@ impl SegmentUpdater {
             .garbage_collect(|| self.0.segment_manager.list_files());
     }
 
-    pub fn commit(&self, opstamp: u64, payload: Option<String>) -> Result<()> {
+    pub fn commit(&self, opstamp: u64, payload: Option<String>, soft: bool) -> Result<()> {
         self.run_async(move |segment_updater| {
-            if segment_updater.is_alive() {
-                let segment_entries = segment_updater
-                    .purge_deletes(opstamp)
-                    .expect("Failed purge deletes");
+            let segment_entries = segment_updater
+                .purge_deletes(opstamp)
+                .expect("Failed purge deletes");
+            if soft {
+                // Soft commit.
+                //
+                // The list `segment_entries` above is what we might want to use as searchable
+                // segment. However, we do not want to mark them as committed, and we want
+                // to keep the current set of committed segment.
+                segment_updater.0.segment_manager.soft_commit(segment_entries);
+                // ... obviously we do not save the meta file.
+            } else {
+                // Hard_commit. We register the new segment entries as committed.
                 segment_updater.0.segment_manager.commit(segment_entries);
                 segment_updater.save_metas(opstamp, payload);
-                segment_updater.garbage_collect_files_exec();
-                segment_updater.consider_merge_options();
             }
+            segment_updater.garbage_collect_files_exec();
+            segment_updater.consider_merge_options();
+
         })
         .wait()
     }

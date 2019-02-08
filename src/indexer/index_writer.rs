@@ -549,6 +549,16 @@ impl IndexWriter {
     /// using this API.
     /// See [`PreparedCommit::set_payload()`](PreparedCommit.html)
     pub fn prepare_commit(&mut self) -> Result<PreparedCommit> {
+        info!("Preparing commit");
+        self.prepare_commit_internal(false)
+    }
+
+    pub(crate) fn prepare_commit_soft(&mut self) -> Result<PreparedCommit> {
+        info!("Preparing soft commit");
+        self.prepare_commit_internal(true)
+    }
+
+    pub(crate) fn prepare_commit_internal(&mut self, soft: bool) -> Result<PreparedCommit> {
         // Here, because we join all of the worker threads,
         // all of the segment update for this commit have been
         // sent.
@@ -571,13 +581,13 @@ impl IndexWriter {
             let indexing_worker_result = worker_handle
                 .join()
                 .map_err(|e| TantivyError::ErrorInThread(format!("{:?}", e)))?;
-            indexing_worker_result?;
-            // add a new worker for the next generation.
+            // add a new worker for the next generation, whether the worker failed or not.
             self.add_indexing_worker()?;
+            indexing_worker_result?;
         }
 
         let commit_opstamp = self.stamper.stamp();
-        let prepared_commit = PreparedCommit::new(self, commit_opstamp);
+        let prepared_commit = PreparedCommit::new(self, commit_opstamp, soft);
         info!("Prepared commit {}", commit_opstamp);
         Ok(prepared_commit)
     }
