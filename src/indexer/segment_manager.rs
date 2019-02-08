@@ -154,7 +154,7 @@ impl SegmentManager {
                 // TODO make sure we use `committed_in_the_future` segments,
                 // when we `commit`, to avoid replaying deletes several times.
 
-            } else if let Some(uncommitted_segment) = registers_lock.uncommitted.get(&segment_id) {
+            } else if registers_lock.uncommitted.get(&segment_id).is_some() {
                 // This will override our previous entry.
                 registers_lock.uncommitted.register_segment_entry(segment_entry);
             }

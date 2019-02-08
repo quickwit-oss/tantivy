@@ -522,7 +522,7 @@ impl IndexWriter {
         //
         // This will reach an end as the only document_sender
         // was dropped with the index_writer.
-        for _ in document_receiver.clone() {}
+        for _ in document_receiver.iter() {}
 
         Ok(())
     }
@@ -553,7 +553,7 @@ impl IndexWriter {
         self.prepare_commit_internal(false)
     }
 
-    pub(crate) fn prepare_commit_soft(&mut self) -> Result<PreparedCommit> {
+    pub fn prepare_commit_soft(&mut self) -> Result<PreparedCommit> {
         info!("Preparing soft commit");
         self.prepare_commit_internal(true)
     }
