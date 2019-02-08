@@ -1,9 +1,9 @@
 use bitpacking::BitPacker;
+use bitpacking::BitPacker4x;
 use common::BinarySerializable;
 use common::CountingWriter;
 use positions::{COMPRESSION_BLOCK_SIZE, LONG_SKIP_INTERVAL};
 use std::io::{self, Write};
-use bitpacking::BitPacker4x;
 
 pub struct PositionSerializer<W: io::Write> {
     bit_packer: BitPacker4x,
@@ -53,7 +53,9 @@ impl<W: io::Write> PositionSerializer<W> {
     fn flush_block(&mut self) -> io::Result<()> {
         let num_bits = self.bit_packer.num_bits(&self.block[..]);
         self.write_skiplist.write_all(&[num_bits])?;
-        let written_len = self.bit_packer.compress(&self.block[..], &mut self.buffer, num_bits);
+        let written_len = self
+            .bit_packer
+            .compress(&self.block[..], &mut self.buffer, num_bits);
         self.write_stream.write_all(&self.buffer[..written_len])?;
         self.block.clear();
         if (self.num_ints % LONG_SKIP_INTERVAL) == 0u64 {

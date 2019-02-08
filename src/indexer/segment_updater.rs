@@ -260,8 +260,7 @@ impl SegmentUpdater {
             opstamp,
             payload: commit_message,
         };
-        save_metas(&index_meta, directory.box_clone().borrow_mut())
-            .expect("Could not save metas.");
+        save_metas(&index_meta, directory.box_clone().borrow_mut()).expect("Could not save metas.");
         self.store_meta(&index_meta);
     }
 
@@ -291,8 +290,11 @@ impl SegmentUpdater {
                 // The list `segment_entries` above is what we might want to use as searchable
                 // segment. However, we do not want to mark them as committed, and we want
                 // to keep the current set of committed segment.
-                segment_updater.0.segment_manager.soft_commit(segment_entries);
-                // ... obviously we do not save the meta file.
+                segment_updater
+                    .0
+                    .segment_manager
+                    .soft_commit(segment_entries);
+            // ... obviously we do not save the meta file.
             } else {
                 // Hard_commit. We register the new segment entries as committed.
                 segment_updater.0.segment_manager.commit(segment_entries);
@@ -300,7 +302,6 @@ impl SegmentUpdater {
             }
             segment_updater.garbage_collect_files_exec();
             segment_updater.consider_merge_options();
-
         })
         .wait()
     }

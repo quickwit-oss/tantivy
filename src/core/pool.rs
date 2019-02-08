@@ -9,7 +9,6 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
-
 /// An object pool
 ///
 /// This is used in tantivy to create a pool of `Searcher`.

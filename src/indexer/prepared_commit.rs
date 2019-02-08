@@ -6,16 +6,20 @@ pub struct PreparedCommit<'a> {
     index_writer: &'a mut IndexWriter,
     payload: Option<String>,
     opstamp: u64,
-    soft: bool
+    soft: bool,
 }
 
 impl<'a> PreparedCommit<'a> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: u64, soft: bool) -> PreparedCommit {
+    pub(crate) fn new(
+        index_writer: &'a mut IndexWriter,
+        opstamp: u64,
+        soft: bool,
+    ) -> PreparedCommit {
         PreparedCommit {
             index_writer,
             payload: None,
             opstamp,
-            soft
+            soft,
         }
     }
 
