@@ -133,4 +133,23 @@ mod tests {
             assert_eq!(*pool.acquire(), 11);
         }
     }
+
+    #[test]
+    fn test_pool_dont_panic_on_empty_pop() {
+        use std::{thread, time};
+        let pool = Pool::new();
+        let elements_for_pool = vec![1, 2];
+        // Clone vector, so we can calculate its length later
+        pool.publish_new_generation(elements_for_pool.clone());
+
+        let mut threads = vec![];
+        let sleep_dur = time::Duration::from_millis(10);
+        // spawn one more thread than there are elements in the pool
+        for _thread_idx in 0..elements_for_pool.len() + 1 {
+            threads.push(thread::spawn(move || {
+                pool.acquire();
+                thread::sleep(sleep_dur);
+            }));
+        }
+    }
 }
