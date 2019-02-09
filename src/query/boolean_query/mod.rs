@@ -8,7 +8,6 @@ mod tests {
 
     use super::*;
     use collector::tests::TestCollector;
-    use downcast_rs::Downcast;
     use query::score_combiner::SumWithCoordsCombiner;
     use query::term_query::TermScorer;
     use query::Intersection;

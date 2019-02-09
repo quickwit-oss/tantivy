@@ -124,9 +124,7 @@ impl SegmentPostings {
 }
 
 fn linear_search(arr: &[u32], target: u32) -> usize {
-    arr.iter()
-       .map(|&el| if el < target { 1 } else { 0 })
-       .sum()
+    arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
 }
 
 fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
@@ -619,8 +617,8 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 #[cfg(test)]
 mod tests {
 
-    use super::linear_search;
     use super::exponential_search;
+    use super::linear_search;
     use super::search_within_block;
     use super::BlockSegmentPostings;
     use super::BlockSegmentPostingsSkipResult;

@@ -258,7 +258,7 @@ pub fn advance_deletes(
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
     }
-    segment_entry.set_meta((*segment.meta()).clone());
+    segment_entry.set_meta(segment.meta().clone());
     Ok(())
 }
 
@@ -266,7 +266,7 @@ fn index_documents(
     memory_budget: usize,
     segment: &Segment,
     generation: usize,
-    document_iterator: &mut Iterator<Item = AddOperation>,
+    document_iterator: &mut impl Iterator<Item = AddOperation>,
     segment_updater: &mut SegmentUpdater,
     mut delete_cursor: DeleteCursor,
 ) -> Result<bool> {
