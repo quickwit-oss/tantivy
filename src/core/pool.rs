@@ -1,4 +1,5 @@
-use crossbeam::queue::SegQueue;
+use crossbeam::crossbeam_channel::unbounded;
+use crossbeam::{Receiver, RecvError, Sender};
 use std::ops::{Deref, DerefMut};
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
@@ -9,20 +10,50 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
+/// Queue to replace the Michael-Scott Queue, now deprecated in crossbeam
+/// Uses the unbounded Linked-List type queue from crossbeam-channel
+/// Splits the Queue into sender and receiver
+struct Queue<T> {
+    sender: Sender<T>,
+    receiver: Receiver<T>,
+}
+
+impl<T> Queue<T> {
+    fn new() -> Self {
+        let (s, r) = unbounded();
+        Queue {
+            sender: s,
+            receiver: r,
+        }
+    }
+
+    /// Sender trait returns a Result type, which is ignored.
+    /// The Result is not handled at the moment
+    fn push(&self, elem: T) {
+        self.sender.send(elem);
+    }
+
+    /// Relies on the underlying crossbeam-channel Receiver
+    /// to block on empty queue
+    fn pop(&self) -> Result<T, RecvError> {
+        self.receiver.recv()
+    }
+}
+
 /// An object pool
 ///
 /// This is used in tantivy to create a pool of `Searcher`.
 /// Object are wrapped in a `LeasedItem` wrapper and are
 /// released automatically back into the pool on `Drop`.
 pub struct Pool<T> {
-    queue: Arc<SegQueue<GenerationItem<T>>>,
+    queue: Arc<Queue<GenerationItem<T>>>,
     freshest_generation: AtomicUsize,
     next_generation: AtomicUsize,
 }
 
 impl<T> Pool<T> {
     pub fn new() -> Pool<T> {
-        let queue = Arc::new(SegQueue::new());
+        let queue = Arc::new(Queue::new());
         Pool {
             queue,
             freshest_generation: AtomicUsize::default(),
@@ -92,7 +123,7 @@ impl<T> Pool<T> {
 
 pub struct LeasedItem<T> {
     gen_item: Option<GenerationItem<T>>,
-    recycle_queue: Arc<SegQueue<GenerationItem<T>>>,
+    recycle_queue: Arc<Queue<GenerationItem<T>>>,
 }
 
 impl<T> Deref for LeasedItem<T> {
@@ -129,6 +160,7 @@ impl<T> Drop for LeasedItem<T> {
 mod tests {
 
     use super::Pool;
+    use super::Queue;
     use std::iter;
 
     #[test]
@@ -147,21 +179,43 @@ mod tests {
     }
 
     #[test]
-    fn test_pool_dont_panic_on_empty_pop() {
-        use std::{thread, time};
-        let pool = Pool::new();
-        let elements_for_pool = vec![1, 2];
-        // Clone vector, so we can calculate its length later
-        pool.publish_new_generation(elements_for_pool.clone());
+    fn test_queue() {
+        let q = Queue::new();
+        let elem = 5;
+        q.push(elem);
+        let res = q.pop();
+        assert_eq!(res.unwrap(), elem);
+    }
 
-        let mut threads = vec![];
-        let sleep_dur = time::Duration::from_millis(10);
-        // spawn one more thread than there are elements in the pool
-        for _thread_idx in 0..elements_for_pool.len() + 1 {
-            threads.push(thread::spawn(move || {
-                pool.acquire();
-                thread::sleep(sleep_dur);
-            }));
+    #[test]
+    fn test_queue_pushes_and_pops_order() {
+        let elements = vec![1, 2, 3, 4];
+        let q = Queue::new();
+        for el in elements.iter() {
+            q.push(el);
+        }
+        for elem in elements.iter() {
+            let popped_el = q.pop().unwrap();
+            assert_eq!(popped_el, elem);
         }
     }
+
+    // #[test]
+    //     fn test_pool_dont_panic_on_empty_pop() {
+    //         use std::{thread, time};
+    //         let pool = Pool::new();
+    //         let elements_for_pool = vec![1, 2];
+    //         // Clone vector, so we can calculate its length later
+    //         pool.publish_new_generation(elements_for_pool.clone());
+
+    //         let mut threads = vec![];
+    //         let sleep_dur = time::Duration::from_millis(10);
+    //         // spawn one more thread than there are elements in the pool
+    //         for _thread_idx in 0..elements_for_pool.len() + 1 {
+    //             threads.push(thread::spawn(move || {
+    //                 pool.acquire();
+    //                 thread::sleep(sleep_dur);
+    //             }));
+    //         }
+    //     }
 }
