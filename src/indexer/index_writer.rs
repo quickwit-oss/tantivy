@@ -258,7 +258,7 @@ pub fn advance_deletes(
             write_delete_bitset(&delete_bitset, &mut delete_file)?;
         }
     }
-    segment_entry.set_meta(segment.meta().clone());
+    segment_entry.set_meta(target_opstamp, segment.meta().clone());
     Ok(())
 }
 
@@ -325,7 +325,11 @@ fn index_documents(
         // to even open the segment.
         None
     };
-    let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, delete_bitset_opt);
+    let segment_entry = SegmentEntry::new(
+        segment_meta,
+        delete_cursor,
+        delete_bitset_opt,
+        last_docstamp);
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 
@@ -360,9 +364,9 @@ impl IndexWriter {
     }
 
     #[doc(hidden)]
-    pub fn add_segment(&mut self, segment_meta: SegmentMeta) {
+    pub fn add_segment(&mut self, segment_meta: SegmentMeta, opstamp: u64) {
         let delete_cursor = self.delete_queue.cursor();
-        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None);
+        let segment_entry = SegmentEntry::new(segment_meta, delete_cursor, None, opstamp);
         self.segment_updater
             .add_segment(self.generation, segment_entry);
     }

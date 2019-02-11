@@ -125,7 +125,7 @@ fn perform_merge(
 
     let segment_meta = SegmentMeta::new(merged_segment.id(), num_docs);
 
-    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None);
+    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None, target_opstamp);
     Ok(after_merge_segment_entry)
 }
 
@@ -155,8 +155,10 @@ impl SegmentUpdater {
         stamper: Stamper,
         delete_cursor: &DeleteCursor,
     ) -> Result<SegmentUpdater> {
-        let segments = index.searchable_segment_metas()?;
-        let segment_manager = SegmentManager::from_segments(segments, delete_cursor);
+        let index_meta = index.load_metas()?;
+        let segments = index_meta.segments.clone();
+        let opstamp = index_meta.opstamp;
+        let segment_manager = SegmentManager::from_segments(segments, delete_cursor, opstamp);
         let pool = CpuPoolBuilder::new()
             .name_prefix("segment_updater")
             .pool_size(1)

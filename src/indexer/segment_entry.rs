@@ -22,6 +22,7 @@ pub struct SegmentEntry {
     meta: SegmentMeta,
     delete_bitset: Option<BitSet>,
     delete_cursor: DeleteCursor,
+    opstamp: u64,
 }
 
 impl SegmentEntry {
@@ -30,11 +31,12 @@ impl SegmentEntry {
         segment_meta: SegmentMeta,
         delete_cursor: DeleteCursor,
         delete_bitset: Option<BitSet>,
-    ) -> SegmentEntry {
+        opstamp: u64) -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             delete_bitset,
             delete_cursor,
+            opstamp
         }
     }
 
@@ -46,7 +48,8 @@ impl SegmentEntry {
     }
 
     /// Set the `SegmentMeta` for this segment.
-    pub fn set_meta(&mut self, segment_meta: SegmentMeta) {
+    pub fn set_meta(&mut self, opstamp: u64, segment_meta: SegmentMeta) {
+        self.opstamp = opstamp;
         self.meta = segment_meta;
     }
 
