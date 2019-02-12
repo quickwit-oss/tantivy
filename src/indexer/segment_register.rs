@@ -17,6 +17,7 @@ use std::fmt::{self, Debug, Formatter};
 #[derive(Default)]
 pub struct SegmentRegister {
     segment_states: HashMap<SegmentId, SegmentEntry>,
+    opstamp_constraint: Option<u64>
 }
 
 impl Debug for SegmentRegister {
@@ -71,8 +72,21 @@ impl SegmentRegister {
     /// If a segment entry associated to this `SegmentId` is already there,
     /// override it with the new `SegmentEntry`.
     pub fn register_segment_entry(&mut self, segment_entry: SegmentEntry) {
+        if let Some(expected_opstamp) = self.opstamp_constraint {
+            if expected_opstamp != segment_entry.opstamp() {
+                panic!(format!("Invalid segment. Expect opstamp {}, got {}.", expected_opstamp, segment_entry.opstamp()));
+            }
+        }
         let segment_id = segment_entry.segment_id();
         self.segment_states.insert(segment_id, segment_entry);
+    }
+
+    pub fn set_commit(&mut self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
+        assert!(self.segment_states.is_empty());
+        self.opstamp_constraint = Some(opstamp);
+        for segment_entry in segment_entries {
+            self.register_segment_entry(segment_entry);
+        }
     }
 
     pub fn remove_segment(&mut self, segment_id: &SegmentId) {
@@ -90,7 +104,10 @@ impl SegmentRegister {
             let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone(), None, opstamp);
             segment_states.insert(segment_id, segment_entry);
         }
-        SegmentRegister { segment_states }
+        SegmentRegister {
+            segment_states,
+            opstamp_constraint: Some(opstamp)
+        }
     }
 }
 

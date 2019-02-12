@@ -299,7 +299,7 @@ impl SegmentUpdater {
             // ... obviously we do not save the meta file.
             } else {
                 // Hard_commit. We register the new segment entries as committed.
-                segment_updater.0.segment_manager.commit(segment_entries);
+                segment_updater.0.segment_manager.commit(opstamp, segment_entries);
                 segment_updater.save_metas(opstamp, payload);
             }
             segment_updater.garbage_collect_files_exec();

@@ -40,6 +40,10 @@ impl SegmentEntry {
         }
     }
 
+    pub fn opstamp(&self) -> u64 {
+        self.opstamp
+    }
+
     /// Return a reference to the segment entry deleted bitset.
     ///
     /// `DocId` in this bitset are flagged as deleted.

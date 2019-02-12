@@ -128,16 +128,14 @@ impl SegmentManager {
             });
     }
 
-    pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
+    pub fn commit(&self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();
         registers_lock.committed_in_the_future.clear();
         registers_lock.uncommitted.clear();
-        for segment_entry in segment_entries {
-            registers_lock
-                .committed
-                .register_segment_entry(segment_entry);
-        }
+        registers_lock
+            .committed
+            .set_commit(opstamp, segment_entries);
     }
 
     pub fn soft_commit(&self, segment_entries: Vec<SegmentEntry>) {
