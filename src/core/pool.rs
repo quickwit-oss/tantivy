@@ -107,7 +107,7 @@ impl<T> Pool<T> {
     pub fn acquire(&self) -> LeasedItem<T> {
         let generation = self.generation();
         loop {
-            let gen_item = self.queue.pop();
+            let gen_item = self.queue.pop().unwrap();
             if gen_item.generation >= generation {
                 return LeasedItem {
                     gen_item: Some(gen_item),
