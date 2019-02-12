@@ -123,15 +123,14 @@ mod tests {
         }
     }
 
-}
-
-#[test]
-fn test_map_multithread() {
-    let result: Vec<usize> = Executor::multi_thread(3, "search-test")
-        .map(|i| Ok(i * 2), 0..10)
-        .unwrap();
-    assert_eq!(result.len(), 10);
-    for i in 0..10 {
-        assert_eq!(result[i], i * 2);
+    #[test]
+    fn test_map_multithread() {
+        let result: Vec<usize> = Executor::multi_thread(3, "search-test")
+            .map(|i| Ok(i * 2), 0..10)
+            .unwrap();
+        assert_eq!(result.len(), 10);
+        for i in 0..10 {
+            assert_eq!(result[i], i * 2);
+        }
     }
 }
