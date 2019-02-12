@@ -740,6 +740,7 @@ mod tests {
 
     #[test]
     fn test_operations_group() {
+        // an operations group with 2 items should cause 3 opstamps 0, 1, and 2.
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
