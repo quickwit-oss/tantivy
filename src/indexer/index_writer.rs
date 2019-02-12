@@ -732,7 +732,9 @@ mod tests {
     use directory::error::LockError;
     use error::*;
     use indexer::NoMergePolicy;
-    use schema::{self, Document};
+    use schema::{self, Document, IndexRecordOption};
+    use query::{TermQuery};
+    use collector::TopDocs;
     use Index;
     use Term;
 
@@ -748,6 +750,50 @@ mod tests {
         ];
         let batch_opstamp1 = index_writer.run(operations);
         assert_eq!(batch_opstamp1, 2u64);
+    }
+
+    #[test]
+    fn test_ordered_batched_operations() {
+        // * one delete for `doc!(field=>"a")`
+        // * one add for `doc!(field=>"a")`
+        // * one add for `doc!(field=>"b")`
+        // * one delete for `doc!(field=>"b")`
+        // after commit there is one doc with "a" and 0 doc with "b"
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let a_term = Term::from_field_text(text_field, "a");
+        let b_term = Term::from_field_text(text_field, "b");
+        let operations = vec![
+            UserOperation::Delete(a_term),
+            UserOperation::Add(doc!(text_field=>"a")),
+            UserOperation::Add(doc!(text_field=>"b")),
+            UserOperation::Delete(b_term),
+        ];
+
+        index_writer.run(operations);
+        index_writer.commit().expect("failed to commit");
+        index.load_searchers().expect("failed to load searchers");
+        
+        let a_term = Term::from_field_text(text_field, "a");
+        let b_term = Term::from_field_text(text_field, "b");
+        
+        let a_query = TermQuery::new(a_term, IndexRecordOption::Basic);
+        let b_query = TermQuery::new(b_term, IndexRecordOption::Basic);
+
+        let searcher = index.searcher();
+
+        let a_docs = searcher
+            .search(&a_query, &TopDocs::with_limit(1))
+            .expect("search for a failed");
+
+        let b_docs = searcher
+            .search(&b_query, &TopDocs::with_limit(1))
+            .expect("search for b failed");
+
+        assert_eq!(a_docs.len(), 1);
+        assert_eq!(b_docs.len(), 0);
     }
 
     #[test]
