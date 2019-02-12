@@ -411,8 +411,8 @@ impl IndexWriter {
                     // peeked document now belongs to
                     // our local iterator.
                     if let Some(operations) = document_iterator.peek() {
-                        if let Some(last) = operations.last() {
-                            delete_cursor.skip_to(last.opstamp);
+                        if let Some(first) = operations.first() {
+                            delete_cursor.skip_to(first.opstamp);
                         } else {
                             return Ok(());
                         }
@@ -741,7 +741,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let operations = vec![
             UserOperation::Add(doc!(text_field=>"a")),
             UserOperation::Add(doc!(text_field=>"b")),
