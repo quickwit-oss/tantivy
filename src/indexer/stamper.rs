@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
@@ -60,6 +61,16 @@ impl Stamper {
     pub fn stamp(&self) -> u64 {
         self.0.fetch_add(1u64, Ordering::SeqCst) as u64
     }
+
+    /// Given a desired count `n`, `stamps` returns an iterator that
+    /// will supply `n` number of u64 stamps.
+    pub fn stamps(&self, n: u64) -> Range<u64> {
+        let start = self.0.fetch_add(n, Ordering::SeqCst);
+        Range {
+            start: start,
+            end: start + n,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -78,5 +89,7 @@ mod test {
 
         assert_eq!(stamper.stamp(), 10u64);
         assert_eq!(stamper_clone.stamp(), 11u64);
+        assert_eq!(stamper.stamps(3u64), (12..15));
+        assert_eq!(stamper.stamp(), 15u64);
     }
 }
