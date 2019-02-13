@@ -329,7 +329,8 @@ fn index_documents(
         segment_meta,
         delete_cursor,
         delete_bitset_opt,
-        last_docstamp);
+        last_docstamp,
+    );
     Ok(segment_updater.add_segment(generation, segment_entry))
 }
 

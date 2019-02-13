@@ -31,12 +31,13 @@ impl SegmentEntry {
         segment_meta: SegmentMeta,
         delete_cursor: DeleteCursor,
         delete_bitset: Option<BitSet>,
-        opstamp: u64) -> SegmentEntry {
+        opstamp: u64,
+    ) -> SegmentEntry {
         SegmentEntry {
             meta: segment_meta,
             delete_bitset,
             delete_cursor,
-            opstamp
+            opstamp,
         }
     }
 

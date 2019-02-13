@@ -17,7 +17,7 @@ use std::fmt::{self, Debug, Formatter};
 #[derive(Default)]
 pub struct SegmentRegister {
     segment_states: HashMap<SegmentId, SegmentEntry>,
-    opstamp_constraint: Option<u64>
+    opstamp_constraint: Option<u64>,
 }
 
 impl Debug for SegmentRegister {
@@ -74,7 +74,11 @@ impl SegmentRegister {
     pub fn register_segment_entry(&mut self, segment_entry: SegmentEntry) {
         if let Some(expected_opstamp) = self.opstamp_constraint {
             if expected_opstamp != segment_entry.opstamp() {
-                panic!(format!("Invalid segment. Expect opstamp {}, got {}.", expected_opstamp, segment_entry.opstamp()));
+                panic!(format!(
+                    "Invalid segment. Expect opstamp {}, got {}.",
+                    expected_opstamp,
+                    segment_entry.opstamp()
+                ));
             }
         }
         let segment_id = segment_entry.segment_id();
@@ -82,7 +86,7 @@ impl SegmentRegister {
     }
 
     pub fn set_commit(&mut self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
-        assert!(self.segment_states.is_empty());
+        self.segment_states.clear();
         self.opstamp_constraint = Some(opstamp);
         for segment_entry in segment_entries {
             self.register_segment_entry(segment_entry);
@@ -97,16 +101,21 @@ impl SegmentRegister {
         self.segment_states.get(segment_id).cloned()
     }
 
-    pub fn new(segment_metas: Vec<SegmentMeta>, delete_cursor: &DeleteCursor, opstamp: u64) -> SegmentRegister {
+    pub fn new(
+        segment_metas: Vec<SegmentMeta>,
+        delete_cursor: &DeleteCursor,
+        opstamp: u64,
+    ) -> SegmentRegister {
         let mut segment_states = HashMap::new();
         for segment_meta in segment_metas {
             let segment_id = segment_meta.id();
-            let segment_entry = SegmentEntry::new(segment_meta, delete_cursor.clone(), None, opstamp);
+            let segment_entry =
+                SegmentEntry::new(segment_meta, delete_cursor.clone(), None, opstamp);
             segment_states.insert(segment_id, segment_entry);
         }
         SegmentRegister {
             segment_states,
-            opstamp_constraint: Some(opstamp)
+            opstamp_constraint: Some(opstamp),
         }
     }
 }
@@ -150,7 +159,8 @@ mod tests {
         segment_register.remove_segment(&segment_id_b);
         {
             let segment_meta_merged = SegmentMeta::new(segment_id_merged, 0u32);
-            let segment_entry = SegmentEntry::new(segment_meta_merged, delete_queue.cursor(), None, 3u64);
+            let segment_entry =
+                SegmentEntry::new(segment_meta_merged, delete_queue.cursor(), None, 3u64);
             segment_register.register_segment_entry(segment_entry);
         }
         assert_eq!(segment_ids(&segment_register), vec![segment_id_merged]);

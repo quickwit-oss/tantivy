@@ -125,7 +125,8 @@ fn perform_merge(
 
     let segment_meta = SegmentMeta::new(merged_segment.id(), num_docs);
 
-    let after_merge_segment_entry = SegmentEntry::new(segment_meta.clone(), delete_cursor, None, target_opstamp);
+    let after_merge_segment_entry =
+        SegmentEntry::new(segment_meta.clone(), delete_cursor, None, target_opstamp);
     Ok(after_merge_segment_entry)
 }
 
@@ -295,11 +296,14 @@ impl SegmentUpdater {
                 segment_updater
                     .0
                     .segment_manager
-                    .soft_commit(segment_entries);
+                    .soft_commit(opstamp, segment_entries);
             // ... obviously we do not save the meta file.
             } else {
                 // Hard_commit. We register the new segment entries as committed.
-                segment_updater.0.segment_manager.commit(opstamp, segment_entries);
+                segment_updater
+                    .0
+                    .segment_manager
+                    .commit(opstamp, segment_entries);
                 segment_updater.save_metas(opstamp, payload);
             }
             segment_updater.garbage_collect_files_exec();

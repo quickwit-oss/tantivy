@@ -12,18 +12,19 @@ use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use Result as TantivyResult;
 
-#[derive(Default)]
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
     committed: SegmentRegister,
-    // soft commits can advance committed segment to a future delete
-    // opstamp.
-    //
-    // In that case the same `SegmentId` can appear in both `committed`
-    // and in `committed_in_the_future`.
-    //
-    // We do not consider these segments for merges.
-    committed_in_the_future: SegmentRegister,
+    /// soft commits can advance committed segment to a future delete
+    /// opstamp.
+    ///
+    /// In that case the same `SegmentId` can appear in both `committed`
+    /// and in `committed_in_the_future`.
+    ///
+    /// We do not consider these segments for merges.
+    soft_committed: SegmentRegister,
+    /// `DeleteCursor`, positionned on the soft commit.
+    delete_cursor: DeleteCursor,
 }
 
 /// The segment manager stores the list of segments
@@ -31,7 +32,6 @@ struct SegmentRegisters {
 ///
 /// It guarantees the atomicity of the
 /// changes (merges especially)
-#[derive(Default)]
 pub struct SegmentManager {
     registers: RwLock<SegmentRegisters>,
 }
@@ -66,13 +66,14 @@ impl SegmentManager {
     pub fn from_segments(
         segment_metas: Vec<SegmentMeta>,
         delete_cursor: &DeleteCursor,
-        opstamp: u64
+        opstamp: u64,
     ) -> SegmentManager {
         SegmentManager {
             registers: RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas, delete_cursor, opstamp),
-                committed_in_the_future: SegmentRegister::default(),
+                committed: SegmentRegister::new(segment_metas.clone(), delete_cursor, opstamp),
+                soft_committed: SegmentRegister::new(segment_metas, delete_cursor, opstamp),
+                delete_cursor: delete_cursor.clone(),
             }),
         }
     }
@@ -130,41 +131,23 @@ impl SegmentManager {
 
     pub fn commit(&self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
-        registers_lock.committed.clear();
-        registers_lock.committed_in_the_future.clear();
         registers_lock.uncommitted.clear();
         registers_lock
             .committed
+            .set_commit(opstamp, segment_entries.clone());
+        registers_lock
+            .soft_committed
             .set_commit(opstamp, segment_entries);
+        registers_lock.delete_cursor.skip_to(opstamp);
     }
 
-    pub fn soft_commit(&self, segment_entries: Vec<SegmentEntry>) {
+    pub fn soft_commit(&self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
-        for segment_entry in segment_entries {
-            let segment_id = segment_entry.segment_id();
-            if let Some(committed_segment_entry) = registers_lock.committed.get(&segment_id) {
-                // this is a committed segment.
-                if committed_segment_entry.meta().delete_opstamp()
-                    == segment_entry.meta().delete_opstamp()
-                {
-                    // Actually, there was no change made to the segment...No need to do anything.
-                    continue;
-                }
-                // Our `segment_entry` is a commited in which *future* deletes (as in, sent after the last
-                // commit)
-                // Let's append it to a dedicated register for that.
-                registers_lock
-                    .committed_in_the_future
-                    .register_segment_entry(segment_entry);
-            // TODO make sure we use `committed_in_the_future` segments,
-            // when we `commit`, to avoid replaying deletes several times.
-            } else if registers_lock.uncommitted.get(&segment_id).is_some() {
-                // This will override our previous entry.
-                registers_lock
-                    .uncommitted
-                    .register_segment_entry(segment_entry);
-            }
-        }
+        registers_lock.uncommitted.clear();
+        registers_lock
+            .soft_committed
+            .set_commit(opstamp, segment_entries);
+        registers_lock.delete_cursor.skip_to(opstamp);
     }
 
     /// Marks a list of segments as in merge.
