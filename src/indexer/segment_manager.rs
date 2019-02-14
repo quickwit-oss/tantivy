@@ -11,6 +11,31 @@ use std::path::PathBuf;
 use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use Result as TantivyResult;
+use std::sync::Arc;
+
+/// Provides a read-only view of the available segments.
+#[derive(Clone)]
+pub struct AvailableSegments {
+    registers: Arc<RwLock<SegmentRegisters>>,
+}
+
+impl AvailableSegments {
+    fn committed(&self) -> Vec<SegmentMeta> {
+        self.registers
+            .read()
+            .unwrap()
+            .committed
+            .segment_metas()
+    }
+
+    fn soft_committed(&self) -> Vec<SegmentMeta> {
+        self.registers
+            .read()
+            .unwrap()
+            .soft_committed
+            .segment_metas()
+    }
+}
 
 struct SegmentRegisters {
     uncommitted: SegmentRegister,
@@ -33,7 +58,7 @@ struct SegmentRegisters {
 /// It guarantees the atomicity of the
 /// changes (merges especially)
 pub struct SegmentManager {
-    registers: RwLock<SegmentRegisters>,
+    registers: Arc<RwLock<SegmentRegisters>>
 }
 
 impl Debug for SegmentManager {
@@ -69,12 +94,18 @@ impl SegmentManager {
         opstamp: u64,
     ) -> SegmentManager {
         SegmentManager {
-            registers: RwLock::new(SegmentRegisters {
+            registers: Arc::new(RwLock::new(SegmentRegisters {
                 uncommitted: SegmentRegister::default(),
                 committed: SegmentRegister::new(segment_metas.clone(), delete_cursor, opstamp),
                 soft_committed: SegmentRegister::new(segment_metas, delete_cursor, opstamp),
                 delete_cursor: delete_cursor.clone(),
-            }),
+            }))
+        }
+    }
+
+    pub fn available_segments_view(&self) -> AvailableSegments {
+        AvailableSegments {
+            registers: self.registers.clone()
         }
     }
 
