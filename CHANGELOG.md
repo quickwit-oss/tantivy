@@ -7,6 +7,13 @@ previous index format.*
 - Stemming in other language possible (@pentlander)
 - Segments with no docs are deleted earlier (@barrotsteindev)
 
+Tantivy 0.8.2
+=====================
+Fixing build for x86_64 platforms. (#496)
+No need to update from 0.8.1 if tantivy
+is building on your platform.
+
+
 Tantivy 0.8.1
 =====================
 Hotfix of #476.
