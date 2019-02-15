@@ -12,6 +12,7 @@ use std::sync::RwLock;
 use std::sync::{RwLockReadGuard, RwLockWriteGuard};
 use Result as TantivyResult;
 use std::sync::Arc;
+use std::collections::HashMap;
 
 /// Provides a read-only view of the available segments.
 #[derive(Clone)]
@@ -20,7 +21,7 @@ pub struct AvailableSegments {
 }
 
 impl AvailableSegments {
-    fn committed(&self) -> Vec<SegmentMeta> {
+    pub fn committed(&self) -> Vec<SegmentMeta> {
         self.registers
             .read()
             .unwrap()
@@ -28,7 +29,7 @@ impl AvailableSegments {
             .segment_metas()
     }
 
-    fn soft_committed(&self) -> Vec<SegmentMeta> {
+    pub fn soft_committed(&self) -> Vec<SegmentMeta> {
         self.registers
             .read()
             .unwrap()
@@ -37,8 +38,9 @@ impl AvailableSegments {
     }
 }
 
+
 struct SegmentRegisters {
-    uncommitted: SegmentRegister,
+    uncommitted: HashMap<SegmentId, SegmentEntry>,
     committed: SegmentRegister,
     /// soft commits can advance committed segment to a future delete
     /// opstamp.
@@ -79,11 +81,17 @@ pub fn get_mergeable_segments(
     let registers_lock = segment_manager.read();
     (
         registers_lock
-            .committed
+            .soft_committed
             .get_mergeable_segments(in_merge_segment_ids),
         registers_lock
             .uncommitted
-            .get_mergeable_segments(in_merge_segment_ids),
+            .values()
+            .map(|segment_entry| segment_entry.meta())
+            .filter(|segment_meta| {
+                !in_merge_segment_ids.contains(&segment_meta.id())
+            })
+            .cloned()
+            .collect::<Vec<_>>()
     )
 }
 
@@ -95,9 +103,9 @@ impl SegmentManager {
     ) -> SegmentManager {
         SegmentManager {
             registers: Arc::new(RwLock::new(SegmentRegisters {
-                uncommitted: SegmentRegister::default(),
-                committed: SegmentRegister::new(segment_metas.clone(), delete_cursor, opstamp),
-                soft_committed: SegmentRegister::new(segment_metas, delete_cursor, opstamp),
+                uncommitted: HashMap::default(),
+                committed: SegmentRegister::new(segment_metas.clone(), opstamp),
+                soft_committed: SegmentRegister::new(segment_metas, opstamp),
                 delete_cursor: delete_cursor.clone(),
             }))
         }
@@ -107,14 +115,6 @@ impl SegmentManager {
         AvailableSegments {
             registers: self.registers.clone()
         }
-    }
-
-    /// Returns all of the segment entries (committed or uncommitted)
-    pub fn segment_entries(&self) -> Vec<SegmentEntry> {
-        let registers_lock = self.read();
-        let mut segment_entries = registers_lock.uncommitted.segment_entries();
-        segment_entries.extend(registers_lock.committed.segment_entries());
-        segment_entries
     }
 
     /// List the files that are useful to the index.
@@ -150,15 +150,34 @@ impl SegmentManager {
         let mut registers_lock = self.write();
         registers_lock
             .committed
-            .segment_entries()
+            .segment_metas()
             .iter()
-            .filter(|segment| segment.meta().num_docs() == 0)
-            .for_each(|segment| {
+            .filter(|segment_meta| segment_meta.num_docs() == 0)
+            .for_each(|segment_meta| {
                 registers_lock
                     .committed
-                    .remove_segment(&segment.segment_id())
+                    .remove_segment(&segment_meta.id())
+            });
+        registers_lock
+            .soft_committed
+            .segment_metas()
+            .iter()
+            .filter(|segment_meta| segment_meta.num_docs() == 0)
+            .for_each(|segment_meta| {
+                registers_lock
+                    .committed
+                    .remove_segment(&segment_meta.id())
             });
     }
+
+    /// Returns all of the segment entries (soft committed or uncommitted)
+    pub fn segment_entries(&self) -> Vec<SegmentEntry> {
+        let registers_lock = self.read();
+        let mut segment_entries: Vec<SegmentEntry   > = registers_lock.uncommitted.values().cloned().collect();
+        segment_entries.extend(registers_lock.soft_committed.segment_entries(&registers_lock.delete_cursor).into_iter());
+        segment_entries
+    }
+
 
     pub fn commit(&self, opstamp: u64, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
@@ -181,25 +200,26 @@ impl SegmentManager {
         registers_lock.delete_cursor.skip_to(opstamp);
     }
 
-    /// Marks a list of segments as in merge.
+    /// Gets the list of segment_entries associated to a list of `segment_ids`.
+    /// This method is used when starting a merge operations.
     ///
     /// Returns an error if some segments are missing, or if
-    /// the `segment_ids` are not either all committed or all
+    /// the `segment_ids` are not either all soft_committed or all
     /// uncommitted.
     pub fn start_merge(&self, segment_ids: &[SegmentId]) -> TantivyResult<Vec<SegmentEntry>> {
         let registers_lock = self.read();
         let mut segment_entries = vec![];
-        if registers_lock.uncommitted.contains_all(segment_ids) {
+        if segment_ids.iter().all(|segment_id| registers_lock.uncommitted.contains_key(segment_id)) {
             for segment_id in segment_ids {
                 let segment_entry = registers_lock.uncommitted
                     .get(segment_id)
                     .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
-                segment_entries.push(segment_entry);
+                segment_entries.push(segment_entry.clone());
             }
-        } else if registers_lock.committed.contains_all(segment_ids) {
+        } else if registers_lock.soft_committed.contains_all(segment_ids) {
             for segment_id in segment_ids {
-                let segment_entry = registers_lock.committed
-                    .get(segment_id)
+                let segment_entry = registers_lock.soft_committed
+                    .get(segment_id, &registers_lock.delete_cursor)
                     .expect("Segment id not found {}. Should never happen because of the contains all if-block.");
                 segment_entries.push(segment_entry);
             }
@@ -216,35 +236,30 @@ impl SegmentManager {
         let mut registers_lock = self.write();
         registers_lock
             .uncommitted
-            .register_segment_entry(segment_entry);
+            .insert(segment_entry.segment_id(), segment_entry);
     }
 
     pub fn end_merge(
         &self,
         before_merge_segment_ids: &[SegmentId],
-        after_merge_segment_entry: SegmentEntry,
+        after_merge_segment_entry: SegmentEntry
     ) {
         let mut registers_lock = self.write();
-        let target_register: &mut SegmentRegister = {
-            if registers_lock
+
+        if before_merge_segment_ids.iter().all(|seg_id|
+            registers_lock
                 .uncommitted
-                .contains_all(before_merge_segment_ids)
-            {
-                &mut registers_lock.uncommitted
-            } else if registers_lock
-                .committed
-                .contains_all(before_merge_segment_ids)
-            {
-                &mut registers_lock.committed
-            } else {
-                warn!("couldn't find segment in SegmentManager");
-                return;
+                .contains_key(seg_id))
+        {
+            for segment_id in before_merge_segment_ids {
+                registers_lock.uncommitted.remove(&segment_id);
             }
-        };
-        for segment_id in before_merge_segment_ids {
-            target_register.remove_segment(segment_id);
+            registers_lock.uncommitted.insert(after_merge_segment_entry.segment_id(),
+                                              after_merge_segment_entry);
+        } else {
+            registers_lock.committed.receive_merge(&before_merge_segment_ids, &after_merge_segment_entry);
+            registers_lock.soft_committed.receive_merge(&before_merge_segment_ids, &after_merge_segment_entry)
         }
-        target_register.register_segment_entry(after_merge_segment_entry);
     }
 
     pub fn committed_segment_metas(&self) -> Vec<SegmentMeta> {

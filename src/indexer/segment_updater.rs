@@ -343,8 +343,6 @@ impl SegmentUpdater {
             .segment_manager
             .start_merge(merge_operation.segment_ids())?;
 
-        //        let segment_ids_vec = merge_operation.segment_ids.to_vec();
-
         let merging_thread_id = self.get_merging_thread_id();
         info!(
             "Starting merge thread #{} - {:?}",

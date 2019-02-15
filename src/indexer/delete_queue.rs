@@ -179,6 +179,11 @@ pub struct DeleteCursor {
 }
 
 impl DeleteCursor {
+
+    pub fn empty() -> DeleteCursor {
+        DeleteQueue::new().cursor()
+    }
+
     /// Skips operations and position it so that
     /// - either all of the delete operation currently in the
     ///   queue are consume and the next get will return None.
