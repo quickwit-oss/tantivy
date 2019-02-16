@@ -22,9 +22,7 @@ mod tests {
         index_writer.add_document(doc!(field=>vec![1u8, 3, 5, 7, 9]));
         index_writer.add_document(doc!(field=>vec![0u8; 1000]));
         assert!(index_writer.commit().is_ok());
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let reader = searcher.segment_reader(0);
         let bytes_reader = reader.bytes_fast_field_reader(field).unwrap();
 

@@ -278,8 +278,7 @@ mod tests {
             index_writer.add_document(doc!(text=>"abc"));
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let term = Term::from_field_text(text, "abc");
         let query = TermQuery::new(term, IndexRecordOption::Basic);
 

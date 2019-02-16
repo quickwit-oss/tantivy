@@ -1,19 +1,14 @@
-use super::pool::LeasedItem;
-use super::pool::Pool;
 use super::segment::create_segment;
 use super::segment::Segment;
-use core::searcher::Searcher;
 use core::Executor;
 use core::IndexMeta;
 use core::SegmentId;
 use core::SegmentMeta;
-use core::SegmentReader;
 use core::META_FILEPATH;
 use directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::INDEX_WRITER_LOCK;
-use directory::META_LOCK;
 use directory::{Directory, RAMDirectory};
 use error::DataCorruption;
 use error::TantivyError;
@@ -21,6 +16,8 @@ use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use num_cpus;
+use reader::IndexReaderBuilder;
+use reader::{IndexReader, ReloadPolicy};
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -28,7 +25,6 @@ use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
@@ -52,8 +48,6 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
-    num_searchers: Arc<AtomicUsize>,
-    searcher_pool: Arc<Pool<Searcher>>,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
 }
@@ -158,16 +152,12 @@ impl Index {
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
-        let n_cpus = num_cpus::get();
         let index = Index {
             directory,
             schema,
-            num_searchers: Arc::new(AtomicUsize::new(n_cpus)),
-            searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
         };
-        index.load_searchers()?;
         Ok(index)
     }
 
@@ -195,6 +185,14 @@ impl Index {
                 field_entry.name()
             ))),
         }
+    }
+
+    pub fn reader(&self) -> IndexReader {
+        self.reader_builder().into()
+    }
+
+    pub fn reader_builder(&self) -> IndexReaderBuilder {
+        IndexReaderBuilder::new(self.clone())
     }
 
     /// Opens a new directory from an index path.
@@ -335,53 +333,6 @@ impl Index {
             .map(|segment_meta| segment_meta.id())
             .collect())
     }
-
-    /// Sets the number of searchers to use
-    ///
-    /// Only works after the next call to `load_searchers`
-    pub fn set_num_searchers(&mut self, num_searchers: usize) {
-        self.num_searchers.store(num_searchers, Ordering::Release);
-    }
-
-    /// Update searchers so that they reflect the state of the last
-    /// `.commit()`.
-    ///
-    /// If indexing happens in the same process as searching,
-    /// you most likely want to call `.load_searchers()` right after each
-    /// successful call to `.commit()`.
-    ///
-    /// If indexing and searching happen in different processes, the way to
-    /// get the freshest `index` at all time, is to watch `meta.json` and
-    /// call `load_searchers` whenever a changes happen.
-    pub fn load_searchers(&self) -> Result<()> {
-        let _meta_lock = self.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.searchable_segments()?;
-        let segment_readers: Vec<SegmentReader> = searchable_segments
-            .iter()
-            .map(SegmentReader::open)
-            .collect::<Result<_>>()?;
-        let schema = self.schema();
-        let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
-        let searchers = (0..num_searchers)
-            .map(|_| Searcher::new(schema.clone(), self.clone(), segment_readers.clone()))
-            .collect();
-        self.searcher_pool.publish_new_generation(searchers);
-        Ok(())
-    }
-
-    /// Returns a searcher
-    ///
-    /// This method should be called every single time a search
-    /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
-    ///
-    /// The same searcher must be used for a given query, as it ensures
-    /// the use of a consistent segment set.
-    pub fn searcher(&self) -> LeasedItem<Searcher> {
-        self.searcher_pool.acquire()
-    }
 }
 
 impl fmt::Debug for Index {
@@ -395,8 +346,6 @@ impl Clone for Index {
         Index {
             directory: self.directory.clone(),
             schema: self.schema.clone(),
-            num_searchers: Arc::clone(&self.num_searchers),
-            searcher_pool: Arc::clone(&self.searcher_pool),
             tokenizers: self.tokenizers.clone(),
             executor: self.executor.clone(),
         }

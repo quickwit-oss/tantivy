@@ -43,8 +43,8 @@ pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-type DocumentSender = channel::Sender<AddOperation>;
-type DocumentReceiver = channel::Receiver<AddOperation>;
+type OperationSender = channel::Sender<AddOperation>;
+type OperationReceiver = channel::Receiver<AddOperation>;
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -84,8 +84,8 @@ pub struct IndexWriter {
 
     workers_join_handle: Vec<JoinHandle<Result<()>>>,
 
-    document_receiver: DocumentReceiver,
-    document_sender: DocumentSender,
+    operation_receiver: OperationReceiver,
+    operation_sender: OperationSender,
 
     segment_updater: SegmentUpdater,
 
@@ -132,7 +132,7 @@ pub fn open_index_writer(
         let err_msg = format!("The heap size per thread cannot exceed {}", HEAP_SIZE_MAX);
         return Err(TantivyError::InvalidArgument(err_msg));
     }
-    let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
+    let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
         channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
 
     let delete_queue = DeleteQueue::new();
@@ -150,8 +150,8 @@ pub fn open_index_writer(
         heap_size_in_bytes_per_thread,
         index: index.clone(),
 
-        document_receiver,
-        document_sender,
+        operation_receiver: document_receiver,
+        operation_sender: document_sender,
 
         segment_updater,
 
@@ -339,7 +339,7 @@ impl IndexWriter {
     pub fn wait_merging_threads(mut self) -> Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
-        drop(self.document_sender);
+        drop(self.operation_sender);
 
         let former_workers_handles = mem::replace(&mut self.workers_join_handle, vec![]);
         for join_handle in former_workers_handles {
@@ -388,7 +388,7 @@ impl IndexWriter {
     /// The thread consumes documents from the pipeline.
     ///
     fn add_indexing_worker(&mut self) -> Result<()> {
-        let document_receiver_clone = self.document_receiver.clone();
+        let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
 
         let generation = self.generation;
@@ -479,11 +479,11 @@ impl IndexWriter {
     /// when no documents are remaining.
     ///
     /// Returns the former segment_ready channel.
-    fn recreate_document_channel(&mut self) -> DocumentReceiver {
-        let (document_sender, document_receiver): (DocumentSender, DocumentReceiver) =
+    fn recreate_document_channel(&mut self) -> OperationReceiver {
+        let (document_sender, document_receiver): (OperationSender, OperationReceiver) =
             channel::bounded(PIPELINE_MAX_SIZE_IN_DOCS);
-        mem::replace(&mut self.document_sender, document_sender);
-        mem::replace(&mut self.document_receiver, document_receiver)
+        mem::replace(&mut self.operation_sender, document_sender);
+        mem::replace(&mut self.operation_receiver, document_receiver)
     }
 
     /// Rollback to the last commit
@@ -501,7 +501,7 @@ impl IndexWriter {
         // segment updates will be ignored.
         self.segment_updater.kill();
 
-        let document_receiver = self.document_receiver.clone();
+        let document_receiver = self.operation_receiver.clone();
 
         // take the directory lock to create a new index_writer.
         let directory_lock = self
@@ -663,7 +663,7 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
-        let send_result = self.document_sender.send(add_operation);
+        let send_result = self.operation_sender.send(add_operation);
         if let Err(e) = send_result {
             panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
         }
@@ -681,6 +681,8 @@ mod tests {
     use schema::{self, Document};
     use Index;
     use Term;
+    use snap::Reader;
+    use IndexReader;
 
     #[test]
     fn test_lockfile_stops_duplicates() {
@@ -737,9 +739,9 @@ mod tests {
         let _index_writer_two = index.writer(3_000_000).unwrap();
     }
 
-    fn num_docs_containing_text(index: &Index, term: &str) -> u64 {
-        let searcher = index.searcher();
-        let text_field = index.schema().get_field("text").unwrap();
+    fn num_docs_containing_text(reader: &IndexReader, term: &str) -> u64 {
+        let searcher = reader.searcher();
+        let text_field = reader.schema().get_field("text").unwrap();
         let term = Term::from_field_text(text_field, term);
         searcher.doc_freq(&term)
     }
@@ -749,6 +751,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
+        let reader = index.reader();
 
         // writing the segment
         let mut index_writer = index.writer(3_000_000).unwrap();
@@ -756,51 +759,50 @@ mod tests {
         index_writer.rollback().unwrap();
 
         assert_eq!(index_writer.commit_opstamp(), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "a"), 0);
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0);
         {
             index_writer.add_document(doc!(text_field=>"b"));
             index_writer.add_document(doc!(text_field=>"c"));
         }
         assert!(index_writer.commit().is_ok());
-        index.load_searchers().unwrap();
-        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
-        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+        reader.load_searchers().unwrap();
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&reader, "c"), 1u64);
         index_writer.rollback().unwrap();
-        index.load_searchers().unwrap();
-        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
-        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+        reader.load_searchers().unwrap();
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&reader, "c"), 1u64);
     }
-
 
     #[test]
     fn test_softcommit_and_rollback() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-
+        let reader = index.reader();
         // writing the segment
         let mut index_writer = index.writer(3_000_000).unwrap();
         index_writer.add_document(doc!(text_field=>"a"));
         index_writer.rollback().unwrap();
 
         assert_eq!(index_writer.commit_opstamp(), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0u64);
         {
             index_writer.add_document(doc!(text_field=>"b"));
             index_writer.add_document(doc!(text_field=>"c"));
         }
         assert!(index_writer.soft_commit().is_ok());
-        index.load_searchers().unwrap(); // we need to load soft committed stuff.
-        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
-        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+        reader.load_searchers().unwrap(); // we need to load soft committed stuff.
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&reader, "c"), 1u64);
         index_writer.rollback().unwrap();
-        index.load_searchers().unwrap();
-        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "b"), 0u64);
-        assert_eq!(num_docs_containing_text(&index, "c"), 0u64);
+        reader.load_searchers().unwrap();
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "b"), 0u64);
+        assert_eq!(num_docs_containing_text(&reader, "c"), 0u64);
     }
 
     #[test]
@@ -808,30 +810,27 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-
+        let reader = index.reader();
         {
             // writing the segment
             let mut index_writer = index.writer(12_000_000).unwrap();
             // create 8 segments with 100 tiny docs
             for _doc in 0..100 {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"a"));
             }
             index_writer.commit().expect("commit failed");
             for _doc in 0..100 {
-                let mut doc = Document::default();
-                doc.add_text(text_field, "a");
-                index_writer.add_document(doc);
+                index_writer.add_document(doc!(text_field=>"a"));
             }
             // this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
             index_writer
                 .wait_merging_threads()
                 .expect("waiting merging thread failed");
-            index.load_searchers().unwrap();
 
-            assert_eq!(num_docs_containing_text(&index, "a"), 200);
+            reader.load_searchers().unwrap();
+
+            assert_eq!(num_docs_containing_text(&reader, "a"), 200);
             assert!(index.searchable_segments().unwrap().len() < 8);
         }
     }
@@ -874,7 +873,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-
+        let reader = index.reader();
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
@@ -896,9 +895,8 @@ mod tests {
             }
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        assert_eq!(num_docs_containing_text(&index, "a"), 0);
-        assert_eq!(num_docs_containing_text(&index, "b"), 100);
+        assert_eq!(num_docs_containing_text(&reader, "a"), 0);
+        assert_eq!(num_docs_containing_text(&reader, "b"), 100);
     }
 
     #[test]
@@ -927,7 +925,6 @@ mod tests {
             index_writer.add_document(doc!(text_field => "b"));
         }
         assert!(index_writer.commit().is_err());
-        index.load_searchers().unwrap();
         assert_eq!(num_docs_containing(&index, "a"), 100);
         assert_eq!(num_docs_containing(&index, "b"), 0);
         fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
