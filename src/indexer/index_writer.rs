@@ -615,6 +615,11 @@ impl IndexWriter {
         self.prepare_commit()?.commit()
     }
 
+
+    pub fn soft_commit(&mut self) -> Result<u64> {
+        self.prepare_commit_soft()?.commit()
+    }
+
     pub(crate) fn segment_updater(&self) -> &SegmentUpdater {
         &self.segment_updater
     }
@@ -732,38 +737,70 @@ mod tests {
         let _index_writer_two = index.writer(3_000_000).unwrap();
     }
 
+    fn num_docs_containing_text(index: &Index, term: &str) -> u64 {
+        let searcher = index.searcher();
+        let text_field = index.schema().get_field("text").unwrap();
+        let term = Term::from_field_text(text_field, term);
+        searcher.doc_freq(&term)
+    }
+
     #[test]
     fn test_commit_and_rollback() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
 
-        let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
-            let term = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term)
-        };
+        // writing the segment
+        let mut index_writer = index.writer(3_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"));
+        index_writer.rollback().unwrap();
 
+        assert_eq!(index_writer.commit_opstamp(), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "a"), 0);
         {
-            // writing the segment
-            let mut index_writer = index.writer(3_000_000).unwrap();
-            index_writer.add_document(doc!(text_field=>"a"));
-            index_writer.rollback().unwrap();
-
-            assert_eq!(index_writer.commit_opstamp(), 0u64);
-            assert_eq!(num_docs_containing("a"), 0);
-            {
-                index_writer.add_document(doc!(text_field=>"b"));
-                index_writer.add_document(doc!(text_field=>"c"));
-            }
-            assert!(index_writer.commit().is_ok());
-            index.load_searchers().unwrap();
-            assert_eq!(num_docs_containing("a"), 0);
-            assert_eq!(num_docs_containing("b"), 1);
-            assert_eq!(num_docs_containing("c"), 1);
+            index_writer.add_document(doc!(text_field=>"b"));
+            index_writer.add_document(doc!(text_field=>"c"));
         }
+        assert!(index_writer.commit().is_ok());
         index.load_searchers().unwrap();
-        index.searcher();
+        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+        index_writer.rollback().unwrap();
+        index.load_searchers().unwrap();
+        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+    }
+
+
+    #[test]
+    fn test_softcommit_and_rollback() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+
+        // writing the segment
+        let mut index_writer = index.writer(3_000_000).unwrap();
+        index_writer.add_document(doc!(text_field=>"a"));
+        index_writer.rollback().unwrap();
+
+        assert_eq!(index_writer.commit_opstamp(), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        {
+            index_writer.add_document(doc!(text_field=>"b"));
+            index_writer.add_document(doc!(text_field=>"c"));
+        }
+        assert!(index_writer.soft_commit().is_ok());
+        index.load_searchers().unwrap(); // we need to load soft committed stuff.
+        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "b"), 1u64);
+        assert_eq!(num_docs_containing_text(&index, "c"), 1u64);
+        index_writer.rollback().unwrap();
+        index.load_searchers().unwrap();
+        assert_eq!(num_docs_containing_text(&index, "a"), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "b"), 0u64);
+        assert_eq!(num_docs_containing_text(&index, "c"), 0u64);
     }
 
     #[test]
@@ -771,11 +808,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
-            let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
-        };
+
         {
             // writing the segment
             let mut index_writer = index.writer(12_000_000).unwrap();
@@ -798,7 +831,7 @@ mod tests {
                 .expect("waiting merging thread failed");
             index.load_searchers().unwrap();
 
-            assert_eq!(num_docs_containing("a"), 200);
+            assert_eq!(num_docs_containing_text(&index, "a"), 200);
             assert!(index.searchable_segments().unwrap().len() < 8);
         }
     }
@@ -864,13 +897,8 @@ mod tests {
             index_writer.commit().unwrap();
         }
         index.load_searchers().unwrap();
-        let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
-            let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
-        };
-        assert_eq!(num_docs_containing("a"), 0);
-        assert_eq!(num_docs_containing("b"), 100);
+        assert_eq!(num_docs_containing_text(&index, "a"), 0);
+        assert_eq!(num_docs_containing_text(&index, "b"), 100);
     }
 
     #[test]
@@ -900,13 +928,8 @@ mod tests {
         }
         assert!(index_writer.commit().is_err());
         index.load_searchers().unwrap();
-        let num_docs_containing = |s: &str| {
-            let searcher = index.searcher();
-            let term_a = Term::from_field_text(text_field, s);
-            searcher.doc_freq(&term_a)
-        };
-        assert_eq!(num_docs_containing("a"), 100);
-        assert_eq!(num_docs_containing("b"), 0);
+        assert_eq!(num_docs_containing(&index, "a"), 100);
+        assert_eq!(num_docs_containing(&index, "b"), 0);
         fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
     }
 }
