@@ -6,6 +6,7 @@ previous index format.*
 - Indexer memory footprint improved. (VInt comp, inlining the first block. (@fulmicoton)
 - Stemming in other language possible (@pentlander)
 - Segments with no docs are deleted earlier (@barrotsteindev)
+- Added batched, same-segmented add and delete operations. (@elbow-jason)
 
 Tantivy 0.8.2
 =====================
