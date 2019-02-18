@@ -6,7 +6,9 @@ previous index format.*
 - Indexer memory footprint improved. (VInt comp, inlining the first block. (@fulmicoton)
 - Stemming in other language possible (@pentlander)
 - Segments with no docs are deleted earlier (@barrotsteindev)
-- Added batched, same-segmented add and delete operations. (@elbow-jason)
+- Added grouped add and delete operations. 
+  Grouped adds are guaranteed to happen together (e.g.: they cannot be split across commits)
+  and on the same segment. (@elbow-jason)
 
 Tantivy 0.8.2
 =====================
