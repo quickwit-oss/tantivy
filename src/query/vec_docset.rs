@@ -5,8 +5,6 @@ use docset::DocSet;
 use std::num::Wrapping;
 use DocId;
 
-const EMPTY_ARRAY: [u32; 0] = [];
-
 /// Simulate a `Postings` objects from a `VecPostings`.
 /// `VecPostings` only exist for testing purposes.
 ///
