@@ -11,7 +11,6 @@ mod directory;
 mod managed_directory;
 mod ram_directory;
 mod read_only_source;
-mod shared_vec_slice;
 
 /// Errors specific to the directory module.
 pub mod error;

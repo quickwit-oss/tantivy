@@ -2,7 +2,7 @@ use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
-use fst::Streamer;
+use tantivy_fst::Streamer;
 use owned_read::OwnedRead;
 use positions::PositionReader;
 use postings::compression::compressed_block_size;
@@ -628,7 +628,7 @@ mod tests {
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
-    use fst::Streamer;
+    use tantivy_fst::Streamer;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;

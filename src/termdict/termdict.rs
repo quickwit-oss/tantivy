@@ -3,15 +3,15 @@ use super::{TermStreamer, TermStreamerBuilder};
 use common::BinarySerializable;
 use common::CountingWriter;
 use directory::ReadOnlySource;
-use fst;
-use fst::raw::Fst;
-use fst::Automaton;
+use tantivy_fst;
+use tantivy_fst::raw::Fst;
+use tantivy_fst::Automaton;
 use postings::TermInfo;
 use schema::FieldType;
 use std::io::{self, Write};
 use termdict::TermOrdinal;
 
-fn convert_fst_error(e: fst::Error) -> io::Error {
+fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {
     io::Error::new(io::ErrorKind::Other, e)
 }
 
@@ -19,7 +19,7 @@ fn convert_fst_error(e: fst::Error) -> io::Error {
 ///
 /// Inserting must be done in the order of the `keys`.
 pub struct TermDictionaryBuilder<W> {
-    fst_builder: fst::MapBuilder<W>,
+    fst_builder: tantivy_fst::MapBuilder<W>,
     term_info_store_writer: TermInfoStoreWriter,
     term_ord: u64,
 }
@@ -30,7 +30,7 @@ where
 {
     /// Creates a new `TermDictionaryBuilder`
     pub fn create(w: W, _field_type: &FieldType) -> io::Result<Self> {
-        let fst_builder = fst::MapBuilder::new(w).map_err(convert_fst_error)?;
+        let fst_builder = tantivy_fst::MapBuilder::new(w).map_err(convert_fst_error)?;
         Ok(TermDictionaryBuilder {
             fst_builder,
             term_info_store_writer: TermInfoStoreWriter::new(),
@@ -87,17 +87,9 @@ where
     }
 }
 
-fn open_fst_index(source: ReadOnlySource) -> fst::Map {
-    let fst = match source {
-        ReadOnlySource::Anonymous(data) => {
-            Fst::from_shared_bytes(data.data, data.start, data.len).expect("FST data is corrupted")
-        }
-        #[cfg(feature = "mmap")]
-        ReadOnlySource::Mmap(mmap_readonly) => {
-            Fst::from_mmap(mmap_readonly).expect("FST data is corrupted")
-        }
-    };
-    fst::Map::from(fst)
+fn open_fst_index(source: ReadOnlySource) -> tantivy_fst::Map<ReadOnlySource> {
+    let fst = Fst::new(source).expect("FST data is corrupted");
+    tantivy_fst::Map::from(fst)
 }
 
 /// The term dictionary contains all of the terms in
@@ -107,7 +99,7 @@ fn open_fst_index(source: ReadOnlySource) -> fst::Map {
 /// respective `TermOrdinal`. The `TermInfoStore` then makes it
 /// possible to fetch the associated `TermInfo`.
 pub struct TermDictionary {
-    fst_index: fst::Map,
+    fst_index: tantivy_fst::Map<ReadOnlySource>,
     term_info_store: TermInfoStore,
 }
 
@@ -136,7 +128,7 @@ impl TermDictionary {
                 .expect("Creating a TermDictionaryBuilder in a Vec<u8> should never fail")
                 .finish()
                 .expect("Writing in a Vec<u8> should never fail");
-        let source = ReadOnlySource::from(term_dictionary_data);
+        let source = ReadOnlySource::new(term_dictionary_data);
         Self::from_source(&source)
     }
 

@@ -1,5 +1,5 @@
 use error::TantivyError;
-use fst_regex::Regex;
+use tantivy_fst::Regex;
 use query::{AutomatonWeight, Query, Weight};
 use schema::Field;
 use std::clone::Clone;

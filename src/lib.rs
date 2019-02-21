@@ -124,6 +124,8 @@ extern crate log;
 extern crate failure;
 
 #[cfg(feature = "mmap")]
+extern crate memmap;
+#[cfg(feature = "mmap")]
 extern crate atomicwrites;
 extern crate base64;
 extern crate bit_set;
@@ -135,8 +137,7 @@ extern crate combine;
 
 extern crate crossbeam;
 extern crate fnv;
-extern crate fst;
-extern crate fst_regex;
+extern crate tantivy_fst;
 extern crate futures;
 extern crate futures_cpupool;
 extern crate htmlescape;

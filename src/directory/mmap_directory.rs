@@ -1,12 +1,9 @@
 use atomicwrites;
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
-use directory::shared_vec_slice::SharedVecSlice;
 use directory::Directory;
 use directory::ReadOnlySource;
 use directory::WritePtr;
-use fst::raw::MmapReadOnly;
-use std::collections::hash_map::Entry as HashMapEntry;
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
@@ -19,11 +16,14 @@ use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tempdir::TempDir;
+use memmap::Mmap;
+use std::sync::Weak;
+use std::ops::Deref;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
 ///
-fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadError> {
+fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
     let file = File::open(full_path).map_err(|e| {
         if e.kind() == io::ErrorKind::NotFound {
             OpenReadError::FileDoesNotExist(full_path.to_owned())
@@ -42,7 +42,7 @@ fn open_mmap(full_path: &Path) -> result::Result<Option<MmapReadOnly>, OpenReadE
         return Ok(None);
     }
     unsafe {
-        MmapReadOnly::open(&file)
+        memmap::Mmap::map(&file)
             .map(Some)
             .map_err(|e| From::from(IOError::with_path(full_path.to_owned(), e)))
     }
@@ -65,7 +65,7 @@ pub struct CacheInfo {
 
 struct MmapCache {
     counters: CacheCounters,
-    cache: HashMap<PathBuf, MmapReadOnly>,
+    cache: HashMap<PathBuf, Weak<Box<Deref<Target=[u8]> + Send + Sync>>>,
 }
 
 impl Default for MmapCache {
@@ -78,10 +78,6 @@ impl Default for MmapCache {
 }
 
 impl MmapCache {
-    /// Removes a `MmapReadOnly` entry from the mmap cache.
-    fn discard_from_cache(&mut self, full_path: &Path) -> bool {
-        self.cache.remove(full_path).is_some()
-    }
 
     fn get_info(&mut self) -> CacheInfo {
         let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
@@ -91,23 +87,27 @@ impl MmapCache {
         }
     }
 
-    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<MmapReadOnly>, OpenReadError> {
-        Ok(match self.cache.entry(full_path.to_owned()) {
-            HashMapEntry::Occupied(occupied_entry) => {
-                let mmap = occupied_entry.get();
-                self.counters.hit += 1;
-                Some(mmap.clone())
-            }
-            HashMapEntry::Vacant(vacant_entry) => {
-                self.counters.miss += 1;
-                if let Some(mmap) = open_mmap(full_path)? {
-                    vacant_entry.insert(mmap.clone());
-                    Some(mmap)
-                } else {
-                    None
+    // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
+    fn get_mmap(&mut self, full_path: &Path) -> Result<Option<Arc<Box<Deref<Target=[u8]> + Send + Sync>>>, OpenReadError> {
+        let path_in_cache = self.cache.contains_key(full_path);
+        if path_in_cache {
+            {
+                let mmap_weak_opt = self.cache.get(full_path);
+                if let Some(mmap_arc) = mmap_weak_opt.and_then(|mmap_weak| mmap_weak.upgrade()) {
+                    self.counters.hit += 1;
+                    return Ok(Some(mmap_arc));
                 }
             }
-        })
+            self.cache.remove(full_path);
+        }
+        self.counters.miss += 1;
+        if let Some(mmap) = open_mmap(full_path)? {
+            let res: Arc<Box<Deref<Target=[u8]> + Send + Sync>> = Arc::new(Box::new(mmap));
+            self.cache.insert(full_path.to_owned(), Arc::downgrade(&res));
+            Ok(Some(res))
+        } else {
+            Ok(None)
+        }
     }
 }
 
@@ -253,11 +253,10 @@ impl Directory for MmapDirectory {
             );
             IOError::with_path(path.to_owned(), make_io_err(msg))
         })?;
-
         Ok(mmap_cache
             .get_mmap(&full_path)?
-            .map(ReadOnlySource::Mmap)
-            .unwrap_or_else(|| ReadOnlySource::Anonymous(SharedVecSlice::empty())))
+            .map(ReadOnlySource::from)
+            .unwrap_or_else(|| ReadOnlySource::empty()))
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -295,20 +294,6 @@ impl Directory for MmapDirectory {
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
         debug!("Deleting file {:?}", path);
         let full_path = self.resolve_path(path);
-        let mut mmap_cache = self.mmap_cache.write().map_err(|_| {
-            let msg = format!(
-                "Failed to acquired write lock \
-                 on mmap cache while deleting {:?}",
-                path
-            );
-            IOError::with_path(path.to_owned(), make_io_err(msg))
-        })?;
-        mmap_cache.discard_from_cache(path);
-
-        // Removing the entry in the MMap cache.
-        // The munmap will appear on Drop,
-        // when the last reference is gone.
-        mmap_cache.cache.remove(&full_path);
         match fs::remove_file(&full_path) {
             Ok(_) => self
                 .sync_directory()
@@ -403,25 +388,50 @@ mod tests {
                 w.flush().unwrap();
             }
         }
-        {
-            for (i, path) in paths.iter().enumerate() {
-                let _r = mmap_directory.open_read(path).unwrap();
-                assert_eq!(mmap_directory.get_cache_info().mmapped.len(), i + 1);
-            }
-            for path in paths.iter() {
-                let _r = mmap_directory.open_read(path).unwrap();
-                assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
-            }
-            for (i, path) in paths.iter().enumerate() {
-                mmap_directory.delete(path).unwrap();
-                assert_eq!(
-                    mmap_directory.get_cache_info().mmapped.len(),
-                    num_paths - i - 1
-                );
-            }
+
+        let mut keep = vec![];
+        for (i, path) in paths.iter().enumerate() {
+            keep.push(mmap_directory.open_read(path).unwrap());
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), i + 1);
+        }
+        assert_eq!(mmap_directory.get_cache_info().counters.hit, 0);
+        assert_eq!(mmap_directory.get_cache_info().counters.miss, 10);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+        for path in paths.iter() {
+            let _r = mmap_directory.open_read(path).unwrap();
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
         }
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 10);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 10);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+
+        for path in paths.iter() {
+            let _r = mmap_directory.open_read(path).unwrap();
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
+        }
+        assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
+        assert_eq!(mmap_directory.get_cache_info().counters.miss, 10);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+        drop(keep);
+        for path in paths.iter() {
+            let _r = mmap_directory.open_read(path).unwrap();
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
+        }
+        assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
+        assert_eq!(mmap_directory.get_cache_info().counters.miss, 20);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+
+        for path in &paths {
+            mmap_directory.delete(path).unwrap();
+        }
+        assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
+        assert_eq!(mmap_directory.get_cache_info().counters.miss, 20);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+        for path in paths.iter() {
+            assert!(mmap_directory.open_read(path).is_err());
+        }
+        assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
+        assert_eq!(mmap_directory.get_cache_info().counters.miss, 30);
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }
 
