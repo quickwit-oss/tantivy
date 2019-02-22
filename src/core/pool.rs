@@ -10,7 +10,7 @@ pub struct GenerationItem<T> {
     item: T,
 }
 
-/// Queue to replace the Michael-Scott Queue, now deprecated in crossbeam
+/// Queue implementation for the Object Pool below
 /// Uses the unbounded Linked-List type queue from crossbeam-channel
 /// Splits the Queue into sender and receiver
 struct Queue<T> {
@@ -30,7 +30,9 @@ impl<T> Queue<T> {
     /// Sender trait returns a Result type, which is ignored.
     /// The Result is not handled at the moment
     fn push(&self, elem: T) {
-        self.sender.send(elem);
+        self.sender
+            .send(elem)
+            .expect("Sending an item to crossbeam-queue shouldn't fail");
     }
 
     /// Relies on the underlying crossbeam-channel Receiver
@@ -188,34 +190,36 @@ mod tests {
     }
 
     #[test]
-    fn test_queue_pushes_and_pops_order() {
-        let elements = vec![1, 2, 3, 4];
-        let q = Queue::new();
-        for el in elements.iter() {
-            q.push(el);
-        }
-        for elem in elements.iter() {
-            let popped_el = q.pop().unwrap();
-            assert_eq!(popped_el, elem);
-        }
+    fn test_pool_dont_panic_on_empty_pop() {
+        // When the object pool is exhausted, it shouldn't panic on pop()
+        use std::sync::Arc;
+        use std::{thread, time};
+
+        // Wrap the pool in an Arc, same way as its used in `core/index.rs`
+        let pool = Arc::new(Pool::new());
+        // clone pools outside the move scope of each new thread
+        let pool1 = Arc::clone(&pool);
+        let pool2 = Arc::clone(&pool);
+        let elements_for_pool = vec![1, 2];
+        pool.publish_new_generation(elements_for_pool);
+
+        let mut threads = vec![];
+        let sleep_dur = time::Duration::from_millis(10);
+        // spawn one more thread than there are elements in the pool
+        threads.push(thread::spawn(move || {
+            // leasing to make sure it's not dropped before sleep is called
+            let _leased_searcher = &pool.acquire();
+            thread::sleep(sleep_dur);
+        }));
+        threads.push(thread::spawn(move || {
+            // leasing to make sure it's not dropped before sleep is called
+            let _leased_searcher = &pool1.acquire();
+            thread::sleep(sleep_dur);
+        }));
+        threads.push(thread::spawn(move || {
+            // leasing to make sure it's not dropped before sleep is called
+            let _leased_searcher = &pool2.acquire();
+            thread::sleep(sleep_dur);
+        }));
     }
-
-    // #[test]
-    //     fn test_pool_dont_panic_on_empty_pop() {
-    //         use std::{thread, time};
-    //         let pool = Pool::new();
-    //         let elements_for_pool = vec![1, 2];
-    //         // Clone vector, so we can calculate its length later
-    //         pool.publish_new_generation(elements_for_pool.clone());
-
-    //         let mut threads = vec![];
-    //         let sleep_dur = time::Duration::from_millis(10);
-    //         // spawn one more thread than there are elements in the pool
-    //         for _thread_idx in 0..elements_for_pool.len() + 1 {
-    //             threads.push(thread::spawn(move || {
-    //                 pool.acquire();
-    //                 thread::sleep(sleep_dur);
-    //             }));
-    //         }
-    //     }
 }
