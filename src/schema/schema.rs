@@ -178,15 +178,7 @@ impl Schema {
         SchemaBuilder::default()
     }
 
-    /// Returns the field options associated with a given name.
-    ///
-    /// # Panics
-    /// Panics if the field name does not exist.
-    /// It is meant as an helper for user who created
-    /// and control the content of their schema.
-    ///
-    /// If panicking is not an option for you,
-    /// you may use `get(&self, field_name: &str)`.
+    /// Returns the field option associated with a given name.
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
         self.0.fields_map.get(field_name).cloned()
     }
