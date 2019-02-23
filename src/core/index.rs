@@ -17,7 +17,7 @@ use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use num_cpus;
 use reader::IndexReaderBuilder;
-use reader::{IndexReader, ReloadPolicy};
+use reader::IndexReader;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -30,6 +30,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
+use std::convert::TryInto;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -189,7 +190,7 @@ impl Index {
     }
 
     pub fn reader(&self) -> IndexReader {
-        self.reader_builder().into()
+        self.reader_builder().try_into()
     }
 
     pub fn reader_builder(&self) -> IndexReaderBuilder {

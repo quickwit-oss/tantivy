@@ -44,8 +44,8 @@ pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-type DocumentSender = channel::Sender<Vec<AddOperation>>;
-type DocumentReceiver = channel::Receiver<Vec<AddOperation>>;
+type OperationSender= channel::Sender<Vec<AddOperation>>;
+type OperationReceiver = channel::Receiver<Vec<AddOperation>>;
 
 /// Split the thread memory budget into
 /// - the heap size
@@ -648,7 +648,7 @@ impl IndexWriter {
     pub fn add_document(&mut self, document: Document) -> u64 {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
-        let send_result = self.document_sender.send(vec![add_operation]);
+        let send_result = self.operation_sender.send(vec![add_operation]);
         if let Err(e) = send_result {
             panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
         }
@@ -709,7 +709,7 @@ impl IndexWriter {
                 }
             }
         }
-        let send_result = self.document_sender.send(adds);
+        let send_result = self.operation_sender.send(adds);
         if let Err(e) = send_result {
             panic!("Failed to index document. Sending to indexing channel failed. This probably means all of the indexing threads have panicked. {:?}", e);
         };
@@ -723,12 +723,12 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use super::initial_table_size;
-    use collector::TopDocs;
     use directory::error::LockError;
     use error::*;
     use indexer::NoMergePolicy;
     use query::TermQuery;
     use schema::{self, Document, IndexRecordOption};
+    use collector::TopDocs;
     use Index;
     use Term;
 
@@ -757,6 +757,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
+        let reader = index.reader();
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
@@ -769,15 +770,15 @@ mod tests {
 
         index_writer.run(operations);
         index_writer.commit().expect("failed to commit");
-        index.load_searchers().expect("failed to load searchers");
-
+        reader.load_searchers().expect("failed to load searchers");
+        
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
 
         let a_query = TermQuery::new(a_term, IndexRecordOption::Basic);
         let b_query = TermQuery::new(b_term, IndexRecordOption::Basic);
 
-        let searcher = index.searcher();
+        let searcher = reader.searcher();
 
         let a_docs = searcher
             .search(&a_query, &TopDocs::with_limit(1))

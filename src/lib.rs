@@ -302,7 +302,6 @@ mod tests {
     use Index;
     use IndexWriter;
     use Postings;
-    use ReloadPolicy;
 
     pub fn assert_nearly_equals(expected: f32, val: f32) {
         assert!(

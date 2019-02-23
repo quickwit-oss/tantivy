@@ -19,6 +19,7 @@ fn run() -> Result<()> {
     let year_field = schema_builder.add_u64_field("year", INDEXED);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
+    let reader = index.reader();
     {
         let mut index_writer = index.writer_with_num_threads(1, 6_000_000)?;
         for year in 1950u64..2019u64 {
@@ -27,8 +28,8 @@ fn run() -> Result<()> {
         index_writer.commit()?;
         // The index will be a range of years
     }
-    index.load_searchers()?;
-    let searcher = index.searcher();
+    reader.load_searchers()?;
+    let searcher = reader.searcher();
     // The end is excluded i.e. here we are searching up to 1969
     let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
     // Uses a Count collector to sum the total number of docs in the range

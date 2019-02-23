@@ -47,7 +47,7 @@ impl IndexReaderBuilder {
 impl Into<IndexReader> for IndexReaderBuilder {
     fn into(self) -> IndexReader {
         let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
-        if let Err(err) = reader.load_searchers() {
+        if let Err(_err) = reader.load_searchers() {
             error!("Failed to load searchers.");
         }
         reader
