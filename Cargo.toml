@@ -16,7 +16,7 @@ base64 = "0.10.0"
 byteorder = "1.0"
 lazy_static = "1"
 regex = "1.0"
-tantivy-fst = {path="../tantivy-search/fst", version="0.1"}
+tantivy-fst = "0.1"
 memmap = "0.7"
 fst-regex = { version="0.2" }
 lz4 = {version="1.20", optional=true}
