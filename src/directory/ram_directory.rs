@@ -1,4 +1,3 @@
-use super::shared_vec_slice::SharedVecSlice;
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
@@ -71,7 +70,7 @@ impl Write for VecWriter {
 }
 
 #[derive(Clone)]
-struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, Arc<Vec<u8>>>>>);
+struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, ReadOnlySource>>>);
 
 impl InnerDirectory {
     fn new() -> InnerDirectory {
@@ -85,7 +84,7 @@ impl InnerDirectory {
                 path
             ))
         })?;
-        let prev_value = map.insert(path, Arc::new(Vec::from(data)));
+        let prev_value = map.insert(path, ReadOnlySource::new(Vec::from(data)));
         Ok(prev_value.is_some())
     }
 
@@ -105,8 +104,7 @@ impl InnerDirectory {
                 readable_map
                     .get(path)
                     .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-                    .map(Arc::clone)
-                    .map(|data| ReadOnlySource::Anonymous(SharedVecSlice::new(data)))
+                    .map(|el| el.clone())
             })
     }
 

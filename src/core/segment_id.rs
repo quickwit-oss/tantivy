@@ -19,7 +19,7 @@ pub struct SegmentId(Uuid);
 #[cfg(test)]
 lazy_static! {
     static ref AUTO_INC_COUNTER: atomic::AtomicUsize = atomic::AtomicUsize::default();
-    static ref EMPTY_ARR: [u8; 8] = [0u8; 8];
+    static ref ZERO_ARRAY: [u8; 8] = [0u8; 8];
 }
 
 // During tests, we generate the segment id in a autoincrement manner
@@ -30,7 +30,7 @@ lazy_static! {
 #[cfg(test)]
 fn create_uuid() -> Uuid {
     let new_auto_inc_id = (*AUTO_INC_COUNTER).fetch_add(1, atomic::Ordering::SeqCst);
-    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &*EMPTY_ARR).unwrap()
+    Uuid::from_fields(new_auto_inc_id as u32, 0, 0, &*ZERO_ARRAY).unwrap()
 }
 
 #[cfg(not(test))]

@@ -2,7 +2,7 @@ use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
-use fst::Streamer;
+use tantivy_fst::Streamer;
 use owned_read::OwnedRead;
 use positions::PositionReader;
 use postings::compression::compressed_block_size;
@@ -15,8 +15,6 @@ use postings::USE_SKIP_INFO_LIMIT;
 use schema::IndexRecordOption;
 use std::cmp::Ordering;
 use DocId;
-
-const EMPTY_ARR: [u8; 0] = [];
 
 struct PositionComputer {
     // store the amount of position int
@@ -369,7 +367,7 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, record_option),
-            None => SkipReader::new(OwnedRead::new(&EMPTY_ARR[..]), record_option),
+            None => SkipReader::new(OwnedRead::new(&[][..]), record_option),
         };
         let doc_freq = doc_freq as usize;
         let num_vint_docs = doc_freq % COMPRESSION_BLOCK_SIZE;
@@ -403,7 +401,7 @@ impl BlockSegmentPostings {
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data);
         } else {
-            self.skip_reader.reset(OwnedRead::new(&EMPTY_ARR[..]))
+            self.skip_reader.reset(OwnedRead::new(&[][..]))
         }
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
@@ -626,7 +624,7 @@ mod tests {
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
-    use fst::Streamer;
+    use tantivy_fst::Streamer;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;

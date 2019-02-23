@@ -16,7 +16,8 @@ base64 = "0.10.0"
 byteorder = "1.0"
 lazy_static = "1"
 regex = "1.0"
-fst = {version="0.3", default-features=false}
+tantivy-fst = {path="../tantivy-search/fst", version="0.1"}
+memmap = "0.7"
 fst-regex = { version="0.2" }
 lz4 = {version="1.20", optional=true}
 snap = {version="0.2"}
@@ -71,7 +72,7 @@ overflow-checks = true
 [features]
 # by default no-fail is disabled. We manually enable it when running test.
 default = ["mmap", "no_fail"]
-mmap = ["fst/mmap", "atomicwrites", "fs2"]
+mmap = ["atomicwrites", "fs2"]
 lz4-compression = ["lz4"]
 no_fail = ["fail/no_fail"]
 unstable = [] # useful for benches.

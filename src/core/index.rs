@@ -49,6 +49,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 }
 
 /// Search Index
+#[derive(Clone)]
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
@@ -387,19 +388,6 @@ impl Index {
 impl fmt::Debug for Index {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "Index({:?})", self.directory)
-    }
-}
-
-impl Clone for Index {
-    fn clone(&self) -> Index {
-        Index {
-            directory: self.directory.clone(),
-            schema: self.schema.clone(),
-            num_searchers: Arc::clone(&self.num_searchers),
-            searcher_pool: Arc::clone(&self.searcher_pool),
-            tokenizers: self.tokenizers.clone(),
-            executor: self.executor.clone(),
-        }
     }
 }
 
