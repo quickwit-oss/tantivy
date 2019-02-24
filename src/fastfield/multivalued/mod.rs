@@ -7,7 +7,9 @@ pub use self::writer::MultiValueIntFastFieldWriter;
 #[cfg(test)]
 mod tests {
 
+    use schema;
     use schema::Cardinality;
+    use schema::Facet;
     use schema::IntOptions;
     use schema::Schema;
     use Index;
@@ -84,5 +86,22 @@ mod tests {
             multi_value_reader.get_vals(3, &mut vals);
             assert_eq!(&vals, &[-5i64, -20i64, 1i64]);
         }
+    }
+    #[test]
+    fn test_facet() {
+        let mut schema_builder = Schema::builder();
+        let field = schema_builder.add_facet_field("facetfield");
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        for i in 0..100000 {
+            index_writer.add_document(doc!(field=> Facet::from(format!("/lang/{}", i).as_str())));
+
+            // this will make it work
+            // if i % 1000 == 0 {
+            //     index_writer.commit();
+            // }
+        }
+        assert!(index_writer.commit().is_ok());
     }
 }
