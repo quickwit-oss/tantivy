@@ -31,7 +31,6 @@ pub(crate) use self::stacker::compute_table_size;
 pub use common::HasLen;
 
 pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
-
 pub(crate) type UnorderedTermId = u64;
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]

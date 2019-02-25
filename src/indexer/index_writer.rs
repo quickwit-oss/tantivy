@@ -1008,9 +1008,9 @@ mod tests {
 
     #[test]
     fn test_hashmap_size() {
-        assert_eq!(initial_table_size(100_000), 12);
-        assert_eq!(initial_table_size(1_000_000), 15);
-        assert_eq!(initial_table_size(10_000_000), 18);
+        assert_eq!(initial_table_size(100_000), 11);
+        assert_eq!(initial_table_size(1_000_000), 14);
+        assert_eq!(initial_table_size(10_000_000), 17);
         assert_eq!(initial_table_size(1_000_000_000), 19);
     }
 
