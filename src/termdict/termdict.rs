@@ -3,12 +3,12 @@ use super::{TermStreamer, TermStreamerBuilder};
 use common::BinarySerializable;
 use common::CountingWriter;
 use directory::ReadOnlySource;
-use tantivy_fst;
-use tantivy_fst::raw::Fst;
-use tantivy_fst::Automaton;
 use postings::TermInfo;
 use schema::FieldType;
 use std::io::{self, Write};
+use tantivy_fst;
+use tantivy_fst::raw::Fst;
+use tantivy_fst::Automaton;
 use termdict::TermOrdinal;
 
 fn convert_fst_error(e: tantivy_fst::Error) -> io::Error {

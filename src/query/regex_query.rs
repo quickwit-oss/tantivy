@@ -1,8 +1,8 @@
 use error::TantivyError;
-use tantivy_fst::Regex;
 use query::{AutomatonWeight, Query, Weight};
 use schema::Field;
 use std::clone::Clone;
+use tantivy_fst::Regex;
 use Result;
 use Searcher;
 

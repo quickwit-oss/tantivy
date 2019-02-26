@@ -3,7 +3,7 @@ use stable_deref_trait::{CloneStableDeref, StableDeref};
 use std::ops::Deref;
 use std::sync::Arc;
 
-pub type BoxedData = Box<Deref<Target=[u8]> + Send + Sync + 'static>;
+pub type BoxedData = Box<Deref<Target = [u8]> + Send + Sync + 'static>;
 
 /// Read object that represents files in tantivy.
 ///
@@ -14,7 +14,7 @@ pub type BoxedData = Box<Deref<Target=[u8]> + Send + Sync + 'static>;
 pub struct ReadOnlySource {
     data: Arc<BoxedData>,
     start: usize,
-    stop: usize
+    stop: usize,
 }
 
 unsafe impl StableDeref for ReadOnlySource {}
@@ -28,27 +28,27 @@ impl Deref for ReadOnlySource {
     }
 }
 
-
 impl From<Arc<BoxedData>> for ReadOnlySource {
     fn from(data: Arc<BoxedData>) -> Self {
         let len = data.len();
         ReadOnlySource {
             data,
             start: 0,
-            stop: len
+            stop: len,
         }
     }
 }
 
 impl ReadOnlySource {
-
     pub(crate) fn new<D>(data: D) -> ReadOnlySource
-        where D: Deref<Target=[u8]> + Send + Sync + 'static {
+    where
+        D: Deref<Target = [u8]> + Send + Sync + 'static,
+    {
         let len = data.len();
         ReadOnlySource {
             data: Arc::new(Box::new(data)),
             start: 0,
-            stop: len
+            stop: len,
         }
     }
 
@@ -90,8 +90,8 @@ impl ReadOnlySource {
         assert!(stop <= self.len());
         ReadOnlySource {
             data: self.data.clone(),
-            start: self.start  + start,
-            stop: self.start + stop
+            start: self.start + start,
+            stop: self.start + stop,
         }
     }
 

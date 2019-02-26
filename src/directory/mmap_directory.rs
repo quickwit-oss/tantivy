@@ -5,11 +5,13 @@ use atomicwrites;
 use common::make_io_err;
 use directory::error::LockError;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
+use directory::read_only_source::BoxedData;
 use directory::Directory;
 use directory::DirectoryLock;
 use directory::Lock;
 use directory::ReadOnlySource;
 use directory::WritePtr;
+use memmap::Mmap;
 use std::collections::HashMap;
 use std::convert::From;
 use std::fmt;
@@ -21,10 +23,8 @@ use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tempdir::TempDir;
-use memmap::Mmap;
 use std::sync::Weak;
-use directory::read_only_source::BoxedData;
+use tempdir::TempDir;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -84,7 +84,6 @@ impl Default for MmapCache {
 }
 
 impl MmapCache {
-
     fn get_info(&mut self) -> CacheInfo {
         let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
         CacheInfo {
@@ -109,7 +108,8 @@ impl MmapCache {
         self.counters.miss += 1;
         if let Some(mmap) = open_mmap(full_path)? {
             let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
-            self.cache.insert(full_path.to_owned(), Arc::downgrade(&mmap_arc));
+            self.cache
+                .insert(full_path.to_owned(), Arc::downgrade(&mmap_arc));
             Ok(Some(mmap_arc))
         } else {
             Ok(None)

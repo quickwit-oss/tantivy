@@ -2,7 +2,6 @@ use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
-use tantivy_fst::Streamer;
 use owned_read::OwnedRead;
 use positions::PositionReader;
 use postings::compression::compressed_block_size;
@@ -14,6 +13,7 @@ use postings::SkipReader;
 use postings::USE_SKIP_INFO_LIMIT;
 use schema::IndexRecordOption;
 use std::cmp::Ordering;
+use tantivy_fst::Streamer;
 use DocId;
 
 struct PositionComputer {
@@ -624,11 +624,11 @@ mod tests {
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
-    use tantivy_fst::Streamer;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;
     use schema::INT_INDEXED;
+    use tantivy_fst::Streamer;
     use DocId;
     use SkipResult;
 

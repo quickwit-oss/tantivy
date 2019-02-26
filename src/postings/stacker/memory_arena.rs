@@ -40,7 +40,6 @@ const PAGE_SIZE: usize = 1 << NUM_BITS_PAGE_ADDR; // pages are 1 MB large
 #[derive(Copy, Clone, Debug)]
 pub struct Addr(u32);
 
-
 impl Addr {
     /// Creates a null pointer.
     pub fn null_pointer() -> Addr {

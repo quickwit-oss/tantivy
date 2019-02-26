@@ -5,10 +5,10 @@ use self::murmurhash32::murmurhash2;
 use super::{Addr, MemoryArena};
 use byteorder::{ByteOrder, NativeEndian};
 use postings::stacker::memory_arena::store;
+use postings::UnorderedTermId;
 use std::iter;
 use std::mem;
 use std::slice;
-use postings::UnorderedTermId;
 
 /// Returns the actual memory size in bytes
 /// required to create a table of size $2^num_bits$.
@@ -60,7 +60,7 @@ pub struct TermHashMap {
     pub heap: MemoryArena,
     mask: usize,
     occupied: Vec<usize>,
-    len: usize
+    len: usize,
 }
 
 struct QuadraticProbing {
@@ -108,7 +108,7 @@ impl TermHashMap {
             heap,
             mask: table_size - 1,
             occupied: Vec::with_capacity(table_size / 2),
-            len: 0
+            len: 0,
         }
     }
 
@@ -144,12 +144,12 @@ impl TermHashMap {
 
     fn set_bucket(&mut self, hash: u32, key_value_addr: Addr, bucket: usize) -> UnorderedTermId {
         self.occupied.push(bucket);
-        let unordered_term_id = self.len  as UnorderedTermId;
+        let unordered_term_id = self.len as UnorderedTermId;
         self.len += 1;
         self.table[bucket] = KeyValue {
             key_value_addr,
             hash,
-            unordered_term_id
+            unordered_term_id,
         };
         unordered_term_id
     }
@@ -191,7 +191,11 @@ impl TermHashMap {
     /// will be in charge of returning a default value.
     /// If the key already as an associated value, then it will be passed
     /// `Some(previous_value)`.
-    pub fn mutate_or_create<S, V, TMutator>(&mut self, key: S, mut updater: TMutator) -> UnorderedTermId
+    pub fn mutate_or_create<S, V, TMutator>(
+        &mut self,
+        key: S,
+        mut updater: TMutator,
+    ) -> UnorderedTermId
     where
         S: AsRef<[u8]>,
         V: Copy + 'static,
@@ -224,7 +228,6 @@ impl TermHashMap {
                 if let Some(val_addr) =
                     self.get_value_addr_if_key_match(key_bytes, kv.key_value_addr)
                 {
-
                     let v = self.heap.read(val_addr);
                     let new_v = updater(Some(v));
                     self.heap.write_at(val_addr, new_v);

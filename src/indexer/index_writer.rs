@@ -675,16 +675,16 @@ impl IndexWriter {
     /// Runs a group of document operations ensuring that the operations are
     /// assigned contigous u64 opstamps and that add operations of the same
     /// group are flushed into the same segment.
-    /// 
+    ///
     /// If the indexing pipeline is full, this call may block.
-    /// 
+    ///
     /// Each operation of the given `user_operations` will receive an in-order,
     /// contiguous u64 opstamp. The entire batch itself is also given an
-    /// opstamp that is 1 greater than the last given operation. This 
+    /// opstamp that is 1 greater than the last given operation. This
     /// `batch_opstamp` is the return value of `run`. An empty group of
     /// `user_operations`, an empty `Vec<UserOperation>`, still receives
     /// a valid opstamp even though no changes were _actually_ made to the index.
-    /// 
+    ///
     /// Like adds and deletes (see `IndexWriter.add_document` and
     /// `IndexWriter.delete_term`), the changes made by calling `run` will be
     /// visible to readers only after calling `commit()`.
@@ -729,12 +729,12 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use super::initial_table_size;
+    use collector::TopDocs;
     use directory::error::LockError;
     use error::*;
     use indexer::NoMergePolicy;
+    use query::TermQuery;
     use schema::{self, Document, IndexRecordOption};
-    use query::{TermQuery};
-    use collector::TopDocs;
     use Index;
     use Term;
 
@@ -776,10 +776,10 @@ mod tests {
         index_writer.run(operations);
         index_writer.commit().expect("failed to commit");
         index.load_searchers().expect("failed to load searchers");
-        
+
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
-        
+
         let a_query = TermQuery::new(a_term, IndexRecordOption::Basic);
         let b_query = TermQuery::new(b_term, IndexRecordOption::Basic);
 

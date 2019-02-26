@@ -51,8 +51,9 @@ pub struct MultiFieldPostingsWriter {
     per_field_postings_writers: Vec<Box<PostingsWriter>>,
 }
 
-
-fn make_field_partition(term_offsets: & Vec<(&[u8], Addr, UnorderedTermId)>) -> Vec<(Field, usize, usize)> {
+fn make_field_partition(
+    term_offsets: &Vec<(&[u8], Addr, UnorderedTermId)>,
+) -> Vec<(Field, usize, usize)> {
     let term_offsets_it = term_offsets
         .iter()
         .map(|(key, _, _)| Term::wrap(key).field())
@@ -67,10 +68,10 @@ fn make_field_partition(term_offsets: & Vec<(&[u8], Addr, UnorderedTermId)>) -> 
             offsets.push(offset);
         }
     }
-    offsets .push(term_offsets.len());
+    offsets.push(term_offsets.len());
     let mut field_offsets = vec![];
     for i in 0..fields.len() {
-        field_offsets.push((fields[i], offsets[i] , offsets[i+1]));
+        field_offsets.push((fields[i], offsets[i], offsets[i + 1]));
     }
     field_offsets
 }
@@ -120,10 +121,8 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self
-            .term_index
-            .iter()
-            .collect();
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
+            self.term_index.iter().collect();
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
 
         let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
