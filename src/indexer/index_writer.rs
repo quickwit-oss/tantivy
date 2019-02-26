@@ -666,7 +666,7 @@ impl IndexWriter {
         let Range { start, end } = self.stamper.stamps(count + 1u64);
         let last_opstamp = end - 1;
         let stamps = Range {
-            start: start,
+            start,
             end: last_opstamp,
         };
         (last_opstamp, stamps)
@@ -701,15 +701,15 @@ impl IndexWriter {
             match user_op {
                 UserOperation::Delete(term) => {
                     let delete_operation = DeleteOperation {
-                        opstamp: opstamp,
-                        term: term,
+                        opstamp,
+                        term,
                     };
                     self.delete_queue.push(delete_operation);
                 }
-                UserOperation::Add(doc) => {
+                UserOperation::Add(document) => {
                     let add_operation = AddOperation {
-                        opstamp: opstamp,
-                        document: doc,
+                        opstamp,
+                        document
                     };
                     adds.push(add_operation);
                 }

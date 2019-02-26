@@ -67,7 +67,7 @@ impl Stamper {
     pub fn stamps(&self, n: u64) -> Range<u64> {
         let start = self.0.fetch_add(n, Ordering::SeqCst);
         Range {
-            start: start,
+            start,
             end: start + n,
         }
     }

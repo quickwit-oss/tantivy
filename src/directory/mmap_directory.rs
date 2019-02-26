@@ -285,7 +285,7 @@ impl Directory for MmapDirectory {
         Ok(mmap_cache
             .get_mmap(&full_path)?
             .map(ReadOnlySource::from)
-            .unwrap_or_else(|| ReadOnlySource::empty()))
+            .unwrap_or_else(ReadOnlySource::empty))
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {

@@ -59,7 +59,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     /// May panic if `doc` is greater than the segment
     // `maxdoc`.
     pub fn get(&self, doc: DocId) -> Item {
-        self.get_u64(doc as u64)
+        self.get_u64(u64::from(doc ))
     }
 
     pub(crate) fn get_u64(&self, doc: u64) -> Item {
@@ -98,7 +98,7 @@ impl<Item: FastValue> FastFieldReader<Item> {
     /// May panic if `start + output.len()` is greater than
     /// the segment's `maxdoc`.
     pub fn get_range(&self, start: DocId, output: &mut [Item]) {
-        self.get_range_u64(start as u64, output);
+        self.get_range_u64(u64::from(start), output);
     }
 
     /// Returns the minimum value for this fast field.
