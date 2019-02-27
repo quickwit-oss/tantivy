@@ -675,7 +675,7 @@ mod tests {
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let add_score_bytes = |doc: &mut Document, score: u32| {
             let mut bytes = Vec::new();
             bytes
@@ -837,7 +837,7 @@ mod tests {
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let search_term = |searcher: &Searcher, term: Term| {
             let collector = FastFieldTestCollector::for_field(score_field);
             let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
@@ -1144,7 +1144,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
@@ -1264,7 +1264,7 @@ mod tests {
         index_writer.commit().expect("commit failed");
         index_writer.add_document(doc!(int_field => 1u64));
         index_writer.commit().expect("commit failed");
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 2);
         index_writer.delete_term(Term::from_field_u64(int_field, 1));
@@ -1290,7 +1290,7 @@ mod tests {
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let mut doc = Document::default();
@@ -1361,9 +1361,7 @@ mod tests {
 
             index_writer.commit().expect("committed");
         }
-        let reader = index.reader();
-        reader.load_searchers().unwrap();
-
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
 
         let mut vals: Vec<u64> = Vec::new();

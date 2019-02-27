@@ -171,7 +171,7 @@ fn main() -> tantivy::Result<()> {
     // ### Searcher
     //
     // TODO explain what a reader does
-    let reader = index.reader();
+    let reader = index.reader()?;
 
     // We now need to acquire a searcher.
     // Some search experience might require more than

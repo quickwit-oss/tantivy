@@ -22,7 +22,7 @@ fn test_indexing() {
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();
-    let reader = index.reader();
+    let reader = index.reader().unwrap();
 
     let mut rng = thread_rng();
 

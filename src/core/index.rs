@@ -30,7 +30,6 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
-use std::convert::TryInto;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -189,7 +188,7 @@ impl Index {
         }
     }
 
-    pub fn reader(&self) -> IndexReader {
+    pub fn reader(&self) -> Result<IndexReader> {
         self.reader_builder().try_into()
     }
 

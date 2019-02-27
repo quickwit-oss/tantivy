@@ -565,7 +565,7 @@ mod tests {
             index_writer.delete_term(term);
             assert!(index_writer.commit().is_ok());
         }
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         assert_eq!(reader.searcher().num_docs(), 302);
 
         {
@@ -635,7 +635,7 @@ mod tests {
                 .expect("waiting for merging threads");
         }
 
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
 
         let seg_ids = index

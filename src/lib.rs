@@ -75,9 +75,9 @@
 //!
 //! // # Searching
 //!
-//! index.load_searchers()?;
+//! let reader = index.reader()?;
 //!
-//! let searcher = index.searcher();
+//! let searcher = reader.searcher();
 //!
 //! let query_parser = QueryParser::for_index(&index, vec![title, body]);
 //!
@@ -390,7 +390,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let reader = index.reader();
+            let reader = index.reader().unwrap();
             let searcher = reader.searcher();
             let term_a = Term::from_field_text(text_field, "a");
             assert_eq!(searcher.doc_freq(&term_a), 3);
@@ -418,7 +418,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let index_reader = index.reader();
+            let index_reader = index.reader().unwrap();
             let searcher = index_reader.searcher();
             let reader = searcher.segment_reader(0);
             {
@@ -454,7 +454,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let reader = index.reader();
+            let reader = index.reader().unwrap();
             let searcher = reader.searcher();
             let segment_reader: &SegmentReader = searcher.segment_reader(0);
             let fieldnorms_reader = segment_reader.get_fieldnorms_reader(text_field);
@@ -504,7 +504,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let reader = index.reader();
+            let reader = index.reader().unwrap();
             let searcher = reader.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(text_field);
@@ -540,7 +540,7 @@ mod tests {
             index_writer.rollback().unwrap();
         }
         {
-            let index_reader = index.reader();
+            let index_reader = index.reader().unwrap();
             let searcher = index_reader.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(term_abcd.field());
@@ -577,7 +577,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let reader = index.reader();
+            let reader = index.reader().unwrap();
             let searcher = reader.searcher();
             let segment_reader = searcher.segment_reader(0);
             let inverted_index = segment_reader.inverted_index(term_abcd.field());
@@ -621,7 +621,7 @@ mod tests {
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         index_writer.add_document(doc!(field=>1u64));
         index_writer.commit().unwrap();
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let term = Term::from_field_u64(field, 1u64);
         let mut postings = searcher
@@ -645,7 +645,7 @@ mod tests {
         let negative_val = -1i64;
         index_writer.add_document(doc!(value_field => negative_val));
         index_writer.commit().unwrap();
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let term = Term::from_field_i64(value_field, negative_val);
         let mut postings = searcher
@@ -668,7 +668,7 @@ mod tests {
         let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
         index_writer.add_document(doc!(text_field=>"a"));
         assert!(index_writer.commit().is_ok());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         assert!(reader.load_searchers().is_ok());
         let searcher = reader.searcher();
         let segment_reader = searcher.segment_reader(0);
@@ -681,7 +681,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
 
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
@@ -728,7 +728,7 @@ mod tests {
             index_writer.commit().unwrap();
         }
         {
-            let index_reader = index.reader();
+            let index_reader = index.reader().unwrap();
             let searcher = index_reader.searcher();
             let reader = searcher.segment_reader(0);
             let inverted_index = reader.inverted_index(text_field);
@@ -753,7 +753,7 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         {
             // writing the segment
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
@@ -824,7 +824,7 @@ mod tests {
             }
             index_writer.commit().unwrap();
         }
-        index.reader().searcher();
+        index.reader().unwrap().searcher();
     }
 
     #[test]
@@ -861,7 +861,7 @@ mod tests {
             index_writer.add_document(document);
             index_writer.commit().unwrap();
         }
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {

@@ -96,7 +96,7 @@ fn main() -> tantivy::Result<()> {
 
     index_writer.commit()?;
 
-    let reader = index.reader();
+    let reader = index.reader()?;
 
     let searcher = reader.searcher();
 

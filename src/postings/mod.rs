@@ -101,7 +101,7 @@ pub mod tests {
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         index_writer.commit().unwrap();
 
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
         let term = Term::from_field_text(title, "abc");
 
@@ -292,7 +292,7 @@ pub mod tests {
             assert!(index_writer.commit().is_ok());
         }
         let term_a = Term::from_field_text(text_field, "a");
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut postings = segment_reader
             .inverted_index(text_field)
@@ -331,7 +331,7 @@ pub mod tests {
             }
             index
         };
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         // check that the basic usage works
@@ -399,7 +399,7 @@ pub mod tests {
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         // make sure seeking still works
@@ -448,7 +448,7 @@ pub mod tests {
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
 
         // finally, check that it's empty
         {

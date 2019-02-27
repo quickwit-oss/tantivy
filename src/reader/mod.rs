@@ -9,6 +9,7 @@ use Index;
 use Result;
 use Searcher;
 use SegmentReader;
+use TantivyError;
 
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
@@ -33,6 +34,19 @@ impl IndexReaderBuilder {
         }
     }
 
+    /// Builds the reader.
+    ///
+    /// Building the reader is a non-trivial operation that requires
+    /// to open different segment readers. It may take hundreds of milliseconds
+    /// of time and it may return an error.
+    /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
+    pub fn try_into(self) -> Result<IndexReader> {
+        let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
+        reader.load_searchers()?;
+        Ok(reader)
+    }
+
+
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
         self
@@ -41,16 +55,6 @@ impl IndexReaderBuilder {
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
-    }
-}
-
-impl Into<IndexReader> for IndexReaderBuilder {
-    fn into(self) -> IndexReader {
-        let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
-        if let Err(_err) = reader.load_searchers() {
-            error!("Failed to load searchers.");
-        }
-        reader
     }
 }
 

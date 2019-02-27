@@ -53,7 +53,7 @@ use tantivy::collector::{Count, TopDocs};
 #     index_writer.add_document(doc!(
 #        title => "The Diary of Muadib",
 #     ));
-#     index_writer.commit().unwrap();
+#     index_writer.commit()?;
 #     let reader = index.reader()?;
 #     let searcher = reader.searcher();
 #     let query_parser = QueryParser::for_index(&index, vec![title]);

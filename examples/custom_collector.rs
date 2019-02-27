@@ -171,7 +171,8 @@ fn main() -> tantivy::Result<()> {
     ));
     index_writer.commit()?;
 
-    let searcher = index.reader().searcher();
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![product_name, product_description]);
 
     // here we want to get a hit on the 'ken' in Frankenstein

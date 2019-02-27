@@ -89,7 +89,7 @@ fn main() -> tantivy::Result<()> {
        isbn => "978-9176370711",
     ));
     index_writer.commit()?;
-    let reader = index.reader();
+    let reader = index.reader()?;
 
     let frankenstein_isbn = Term::from_field_text(isbn, "978-9176370711");
 
