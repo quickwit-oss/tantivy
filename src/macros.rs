@@ -61,7 +61,7 @@ macro_rules! doc(
     };
     // if there is a trailing comma retry with the trailing comma stripped.
     ($($field:expr => $value:expr),+ ,) => {
-        doc!( $( $field => $value ), *);
+        doc!( $( $field => $value ), *)
     };
 );
 
