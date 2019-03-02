@@ -50,11 +50,19 @@ pub enum QueryParserError {
     /// The query contains a range query with a phrase as one of the bounds.
     /// Only terms can be used as bounds.
     RangeMustNotHavePhrase,
+    /// The format for the date field is not RFC 3339 compliant.
+    DateFormatError(chrono::ParseError),
 }
 
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
         QueryParserError::ExpectedInt(err)
+    }
+}
+
+impl From<chrono::ParseError> for QueryParserError {
+    fn from(err: chrono::ParseError) -> QueryParserError {
+        QueryParserError::DateFormatError(err)
     }
 }
 
@@ -229,11 +237,11 @@ impl QueryParser {
                 let term = Term::from_field_i64(field, val);
                 Ok(vec![(0, term)])
             }
-            // TODO: parse strings for date queries.
             FieldType::Date(_) => {
-                let val: i64 = i64::from_str(phrase)?;
-                let term = Term::from_field_i64(field, val);
-                Ok(vec![(0, term)])
+                match chrono::DateTime::parse_from_rfc3339(phrase) {
+                    Ok(x)  => Ok(vec![(0, Term::from_field_i64(field, x.timestamp()))]),
+                    Err(e) => Err(QueryParserError::DateFormatError(e))
+                }
             }
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;

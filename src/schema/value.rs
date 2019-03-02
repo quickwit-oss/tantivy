@@ -2,6 +2,7 @@ use schema::Facet;
 use serde::de::Visitor;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::fmt;
+use DateTime;
 
 /// Value represents the value of a any field.
 /// It is an enum over all over all of the possible field type.
@@ -14,7 +15,7 @@ pub enum Value {
     /// Signed 64-bits Integer `i64`
     I64(i64),
     /// Signed 64-bits Date time stamp `date`
-    Date(i64),
+    Date(DateTime<chrono::Utc>),
     /// Hierarchical Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -29,7 +30,8 @@ impl Serialize for Value {
         match *self {
             Value::Str(ref v) => serializer.serialize_str(v),
             Value::U64(u) => serializer.serialize_u64(u),
-            Value::I64(u) | Value::Date(u) => serializer.serialize_i64(u),
+            Value::I64(u) => serializer.serialize_i64(u),
+            Value::Date(ref date) => serializer.serialize_i64(date.timestamp()),
             Value::Facet(ref facet) => facet.serialize(serializer),
             Value::Bytes(ref bytes) => serializer.serialize_bytes(bytes),
         }
@@ -104,6 +106,17 @@ impl Value {
             _ => panic!("This is not a text field."),
         }
     }
+
+   /// Returns the Date-value, provided the value is of the `Date` type.
+   ///
+   /// # Panics
+   /// If the value is not of type `Date`
+    pub fn date_value(&self) -> DateTime<chrono::Utc> {
+        match *self {
+            Value::Date(ref value) => *value,
+            _ => panic!("This is not a date field."),
+        }
+    }
 }
 
 impl From<String> for Value {
@@ -122,6 +135,10 @@ impl From<i64> for Value {
     fn from(v: i64) -> Value {
         Value::I64(v)
     }
+}
+
+impl From<DateTime<chrono::Utc>> for Value {
+    fn from(date_time: DateTime<chrono::Utc>) -> Value { Value::Date(date_time) }
 }
 
 impl<'a> From<&'a str> for Value {
@@ -147,12 +164,14 @@ mod binary_serialize {
     use common::BinarySerializable;
     use schema::Facet;
     use std::io::{self, Read, Write};
+    use chrono::{Utc, TimeZone};
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
     const I64_CODE: u8 = 2;
     const HIERARCHICAL_FACET_CODE: u8 = 3;
     const BYTES_CODE: u8 = 4;
+    const DATE_CODE: u8 = 5;
 
     impl BinarySerializable for Value {
         fn serialize<W: Write>(&self, writer: &mut W) -> io::Result<()> {
@@ -165,9 +184,13 @@ mod binary_serialize {
                     U64_CODE.serialize(writer)?;
                     val.serialize(writer)
                 }
-                Value::I64(ref val) | Value::Date(ref val) => {
+                Value::I64(ref val) => {
                     I64_CODE.serialize(writer)?;
                     val.serialize(writer)
+                }
+                Value::Date(ref val) => {
+                    DATE_CODE.serialize(writer)?;
+                    val.timestamp().serialize(writer)
                 }
                 Value::Facet(ref facet) => {
                     HIERARCHICAL_FACET_CODE.serialize(writer)?;
@@ -193,6 +216,10 @@ mod binary_serialize {
                 I64_CODE => {
                     let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
+                }
+                DATE_CODE=> {
+                    let timestamp = i64::deserialize(reader)?;
+                    Ok(Value::Date(Utc.timestamp(timestamp, 0)))
                 }
                 HIERARCHICAL_FACET_CODE => Ok(Value::Facet(Facet::deserialize(reader)?)),
                 BYTES_CODE => Ok(Value::Bytes(Vec::<u8>::deserialize(reader)?)),

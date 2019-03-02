@@ -3,6 +3,7 @@ use common::BinarySerializable;
 use common::VInt;
 use itertools::Itertools;
 use std::io::{self, Read, Write};
+use DateTime;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -88,7 +89,7 @@ impl Document {
     }
 
     /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: i64) {
+    pub fn add_date(&mut self, field: Field, value: DateTime<chrono::Utc>) {
         self.add(FieldValue::new(field, Value::Date(value)));
     }
 
