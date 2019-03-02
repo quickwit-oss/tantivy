@@ -517,12 +517,12 @@ mod test {
         let text = schema_builder.add_text_field("text", TEXT);
         schema_builder.add_i64_field("signed", INDEXED);
         schema_builder.add_u64_field("unsigned", INDEXED);
-        schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_text_field("notindexed_text", STORED);
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);
         schema_builder.add_text_field("nottokenized", STRING);
         schema_builder.add_text_field("with_stop_words", text_options);
+        schema_builder.add_date_field("date", INDEXED);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
