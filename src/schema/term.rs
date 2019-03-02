@@ -5,6 +5,7 @@ use byteorder::{BigEndian, ByteOrder};
 use common;
 use schema::Facet;
 use std::str;
+use DateTime;
 
 /// Size (in bytes) of the buffer of a int field.
 const INT_TERM_LEN: usize = 4 + 8;
@@ -28,6 +29,18 @@ impl Term {
     pub fn from_field_i64(field: Field, val: i64) -> Term {
         let val_u64: u64 = common::i64_to_u64(val);
         Term::from_field_u64(field, val_u64)
+    }
+
+    /// Builds a term given a field, and a DateTime value
+    ///
+    /// Assuming the term has a field id of 1, and a timestamp i64 value of 3234,
+    /// the Term will have 8 bytes.
+    ///
+    /// The first four byte are dedicated to storing the field id as a u64.
+    /// The 4 following bytes are encoding the DateTime as i64 timestamp value.
+    pub fn from_field_date(field: Field, val: DateTime<chrono::Utc>) -> Term {
+        let val_timestamp = val.timestamp();
+        Term::from_field_i64(field, val_timestamp)
     }
 
     /// Creates a `Term` given a facet.

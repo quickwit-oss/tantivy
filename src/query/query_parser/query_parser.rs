@@ -517,6 +517,7 @@ mod test {
         let text = schema_builder.add_text_field("text", TEXT);
         schema_builder.add_i64_field("signed", INDEXED);
         schema_builder.add_u64_field("unsigned", INDEXED);
+        schema_builder.add_date_field("date", INDEXED);
         schema_builder.add_text_field("notindexed_text", STORED);
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);
@@ -779,6 +780,16 @@ mod test {
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_date() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("date:18a"),
+            Err(QueryParserError::DateFormatError(_))
+        );
+        assert!(query_parser.parse_query("date:\"1985-04-12T23:20:50.52Z\"").is_ok());
     }
 
     #[test]
