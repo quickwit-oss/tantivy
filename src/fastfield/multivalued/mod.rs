@@ -88,7 +88,6 @@ mod tests {
 
         {
             let parser = QueryParser::for_index(&index, vec![date_field]);
-            println!("{}", first_time_stamp.to_rfc3339());
             let query = parser.parse_query(&format!("\"{}\"", first_time_stamp.to_rfc3339()).to_string())
                 .expect("could not parse query");
             let results = searcher.search(&query, &TopDocs::with_limit(5))
