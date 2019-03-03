@@ -239,7 +239,7 @@ impl QueryParser {
             }
             FieldType::Date(_) => {
                 match chrono::DateTime::parse_from_rfc3339(phrase) {
-                    Ok(x)  => Ok(vec![(0, Term::from_field_i64(field, x.timestamp()))]),
+                    Ok(x)  => Ok(vec![(0, Term::from_field_date(field, &x.with_timezone(&chrono::Utc)))]),
                     Err(e) => Err(QueryParserError::DateFormatError(e))
                 }
             }

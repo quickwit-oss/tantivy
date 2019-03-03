@@ -694,7 +694,7 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u64(score_field, 3);
-                    doc.add_date(date_field, curr_time);
+                    doc.add_date(date_field, &curr_time);
                     add_score_bytes(&mut doc, 3);
                     index_writer.add_document(doc);
                 }
@@ -720,7 +720,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
-                    doc.add_date(date_field, curr_time);
+                    doc.add_date(date_field, &curr_time);
                     doc.add_u64(score_field, 11);
                     add_score_bytes(&mut doc, 11);
                     index_writer.add_document(doc);
@@ -779,7 +779,7 @@ mod tests {
                     ]
                 );
                 assert_eq!(
-                    get_doc_ids(vec![Term::from_field_date(date_field, curr_time)]),
+                    get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)]),
                     vec![
                         DocAddress(0, 0),
                         DocAddress(0, 3)

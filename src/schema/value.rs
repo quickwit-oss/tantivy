@@ -111,9 +111,9 @@ impl Value {
    ///
    /// # Panics
    /// If the value is not of type `Date`
-    pub fn date_value(&self) -> DateTime<chrono::Utc> {
+    pub fn date_value(&self) -> &DateTime<chrono::Utc> {
         match *self {
-            Value::Date(ref value) => *value,
+            Value::Date(ref value) => value,
             _ => panic!("This is not a date field."),
         }
     }

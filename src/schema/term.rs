@@ -38,7 +38,7 @@ impl Term {
     ///
     /// The first four byte are dedicated to storing the field id as a u64.
     /// The 4 following bytes are encoding the DateTime as i64 timestamp value.
-    pub fn from_field_date(field: Field, val: DateTime<chrono::Utc>) -> Term {
+    pub fn from_field_date(field: Field, val: &DateTime<chrono::Utc>) -> Term {
         let val_timestamp = val.timestamp();
         Term::from_field_i64(field, val_timestamp)
     }

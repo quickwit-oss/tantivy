@@ -89,8 +89,8 @@ impl Document {
     }
 
     /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: DateTime<chrono::Utc>) {
-        self.add(FieldValue::new(field, Value::Date(value)));
+    pub fn add_date(&mut self, field: Field, value: &DateTime<chrono::Utc>) {
+        self.add(FieldValue::new(field, Value::Date(DateTime::from(*value))));
     }
 
     /// Add a bytes field
