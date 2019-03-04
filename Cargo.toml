@@ -72,7 +72,7 @@ overflow-checks = true
 [features]
 # by default no-fail is disabled. We manually enable it when running test.
 default = ["mmap", "no_fail"]
-mmap = ["atomicwrites", "fs2", "memmap"]
+mmap = ["atomicwrites", "fs2", "memmap", "fst-regex/mmap"]
 lz4-compression = ["lz4"]
 no_fail = ["fail/no_fail"]
 unstable = [] # useful for benches.
