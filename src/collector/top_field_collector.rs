@@ -76,6 +76,11 @@ impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
     /// The given field name must be a fast field, otherwise the collector have an error while
     /// collecting results.
     ///
+    /// This constructor is crate-private. Client are supposed to call
+    /// build `TopDocsByField`  object using the `TopDocs` API.
+    ///
+    /// e.g.: `TopDocs::with_limit(2).order_by_field(sort_by_field)`
+    ///
     /// # Panics
     /// The method panics if limit is 0
     pub(crate) fn new(field: Field, limit: usize) -> TopDocsByField<T> {
