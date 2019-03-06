@@ -79,7 +79,8 @@ impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
     /// This constructor is crate-private. Client are supposed to call
     /// build `TopDocsByField`  object using the `TopDocs` API.
     ///
-    /// e.g.: `TopDocs::with_limit(2).order_by_field(sort_by_field)`
+    /// e.g.:
+    ///   `TopDocs::with_limit(2).order_by_field(sort_by_field)`
     ///
     /// # Panics
     /// The method panics if limit is 0

@@ -700,17 +700,11 @@ impl IndexWriter {
         for (user_op, opstamp) in user_operations.into_iter().zip(stamps) {
             match user_op {
                 UserOperation::Delete(term) => {
-                    let delete_operation = DeleteOperation {
-                        opstamp,
-                        term,
-                    };
+                    let delete_operation = DeleteOperation { opstamp, term };
                     self.delete_queue.push(delete_operation);
                 }
                 UserOperation::Add(document) => {
-                    let add_operation = AddOperation {
-                        opstamp,
-                        document
-                    };
+                    let add_operation = AddOperation { opstamp, document };
                     adds.push(add_operation);
                 }
             }

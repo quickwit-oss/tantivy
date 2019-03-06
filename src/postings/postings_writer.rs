@@ -52,7 +52,7 @@ pub struct MultiFieldPostingsWriter {
 }
 
 fn make_field_partition(
-    term_offsets: &[(&[u8], Addr, UnorderedTermId)]
+    term_offsets: &[(&[u8], Addr, UnorderedTermId)],
 ) -> Vec<(Field, usize, usize)> {
     let term_offsets_it = term_offsets
         .iter()

@@ -80,7 +80,7 @@ where
             (1u64 << num_bits) - 1u64
         };
         BitUnpacker {
-            num_bits: u64::from(num_bits)   ,
+            num_bits: u64::from(num_bits),
             mask,
             data,
         }
