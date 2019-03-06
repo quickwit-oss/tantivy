@@ -295,8 +295,7 @@ mod test {
     use core::Index;
     use schema::Field;
     use schema::Schema;
-    use schema::STORED;
-    use schema::{FAST, INT_INDEXED, TEXT};
+    use schema::{FAST, INDEXED, STORED, TEXT};
     use space_usage::ByteCount;
     use space_usage::PerFieldSpaceUsage;
     use Term;
@@ -332,7 +331,7 @@ mod test {
     #[test]
     fn test_fast_indexed() {
         let mut schema_builder = Schema::builder();
-        let name = schema_builder.add_u64_field("name", FAST | INT_INDEXED);
+        let name = schema_builder.add_u64_field("name", FAST | INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
 
@@ -450,7 +449,7 @@ mod test {
     #[test]
     fn test_deletes() {
         let mut schema_builder = Schema::builder();
-        let name = schema_builder.add_u64_field("name", INT_INDEXED);
+        let name = schema_builder.add_u64_field("name", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
 

@@ -52,9 +52,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_u64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
+    pub fn add_u64_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_u64(field_name, field_options);
+        let field_entry = FieldEntry::new_u64(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -68,9 +72,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_i64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
+    pub fn add_i64_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_i64(field_name, field_options);
+        let field_entry = FieldEntry::new_i64(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -84,9 +92,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_text_field(&mut self, field_name_str: &str, field_options: TextOptions) -> Field {
+    pub fn add_text_field<T: Into<TextOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_text(field_name, field_options);
+        let field_entry = FieldEntry::new_text(field_name, field_options.into());
         self.add_field(field_entry)
     }
 

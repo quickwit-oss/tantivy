@@ -487,7 +487,7 @@ mod test {
     use query::Query;
     use schema::Field;
     use schema::{IndexRecordOption, TextFieldIndexing, TextOptions};
-    use schema::{Schema, Term, INT_INDEXED, STORED, STRING, TEXT};
+    use schema::{Schema, Term, INDEXED, STORED, STRING, TEXT};
     use tokenizer::{LowerCaser, SimpleTokenizer, StopWordFilter, Tokenizer, TokenizerManager};
     use Index;
 
@@ -501,8 +501,8 @@ mod test {
             .set_stored();
         let title = schema_builder.add_text_field("title", TEXT);
         let text = schema_builder.add_text_field("text", TEXT);
-        schema_builder.add_i64_field("signed", INT_INDEXED);
-        schema_builder.add_u64_field("unsigned", INT_INDEXED);
+        schema_builder.add_i64_field("signed", INDEXED);
+        schema_builder.add_u64_field("unsigned", INDEXED);
         schema_builder.add_text_field("notindexed_text", STORED);
         schema_builder.add_text_field("notindexed_u64", STORED);
         schema_builder.add_text_field("notindexed_i64", STORED);

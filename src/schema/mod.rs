@@ -116,6 +116,8 @@ mod named_field_document;
 mod text_options;
 mod value;
 
+mod flags;
+
 pub use self::named_field_document::NamedFieldDocument;
 pub use self::schema::DocParsingError;
 pub use self::schema::{Schema, SchemaBuilder};
@@ -135,15 +137,12 @@ pub use self::field_value::FieldValue;
 pub use self::index_record_option::IndexRecordOption;
 pub use self::text_options::TextFieldIndexing;
 pub use self::text_options::TextOptions;
-pub use self::text_options::STORED;
 pub use self::text_options::STRING;
 pub use self::text_options::TEXT;
 
+pub use self::flags::{FAST, INDEXED, STORED};
 pub use self::int_options::Cardinality;
 pub use self::int_options::IntOptions;
-pub use self::int_options::FAST;
-pub use self::int_options::INT_INDEXED;
-pub use self::int_options::INT_STORED;
 
 use regex::Regex;
 

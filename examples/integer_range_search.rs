@@ -7,15 +7,16 @@
 extern crate tantivy;
 use tantivy::collector::Count;
 use tantivy::query::RangeQuery;
-use tantivy::schema::{Schema, INT_INDEXED};
+use tantivy::schema::{Schema, INDEXED};
 use tantivy::Index;
 use tantivy::Result;
 
 fn run() -> Result<()> {
     // For the sake of simplicity, this schema will only have 1 field
     let mut schema_builder = Schema::builder();
-    // INT_INDEXED is shorthand for such fields
-    let year_field = schema_builder.add_u64_field("year", INT_INDEXED);
+
+    // `INDEXED` is a short-hand to indicate that our field should be "searchable".
+    let year_field = schema_builder.add_u64_field("year", INDEXED);
     let schema = schema_builder.build();
     let index = Index::create_in_ram(schema);
     {

@@ -17,7 +17,7 @@ use tantivy::collector::{Collector, SegmentCollector};
 use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
-use tantivy::schema::{Schema, FAST, INT_INDEXED, TEXT};
+use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
 use tantivy::Index;
 use tantivy::SegmentReader;
 
@@ -137,7 +137,7 @@ fn main() -> tantivy::Result<()> {
     // products, and with a name, a description, and a price.
     let product_name = schema_builder.add_text_field("name", TEXT);
     let product_description = schema_builder.add_text_field("description", TEXT);
-    let price = schema_builder.add_u64_field("price", INT_INDEXED | FAST);
+    let price = schema_builder.add_u64_field("price", INDEXED | FAST);
     let schema = schema_builder.build();
 
     // # Indexing documents

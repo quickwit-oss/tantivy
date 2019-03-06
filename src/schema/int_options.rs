@@ -1,3 +1,4 @@
+use schema::flags::{SchemaFlagList, FAST_FLAG, INDEXED_FLAG, STORED_FLAG};
 use std::ops::BitOr;
 
 /// Express whether a field is single-value or multi-valued.
@@ -85,41 +86,62 @@ impl Default for IntOptions {
     }
 }
 
-/// Shortcut for a u64 fast field.
-///
-/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
-pub const FAST: IntOptions = IntOptions {
-    indexed: false,
-    stored: false,
-    fast: Some(Cardinality::SingleValue),
-};
+impl From<()> for IntOptions {
+    fn from(_: ()) -> IntOptions {
+        IntOptions::default()
+    }
+}
 
-/// Shortcut for a u64 indexed field.
-///
-/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
-pub const INT_INDEXED: IntOptions = IntOptions {
-    indexed: true,
-    stored: false,
-    fast: None,
-};
+impl From<FAST_FLAG> for IntOptions {
+    fn from(_: FAST_FLAG) -> Self {
+        IntOptions {
+            indexed: false,
+            stored: false,
+            fast: Some(Cardinality::SingleValue),
+        }
+    }
+}
 
-/// Shortcut for a u64 stored field.
-///
-/// Such a shortcut can be composed as follows `STORED | FAST | INT_INDEXED`
-pub const INT_STORED: IntOptions = IntOptions {
-    indexed: false,
-    stored: true,
-    fast: None,
-};
+impl From<STORED_FLAG> for IntOptions {
+    fn from(_: STORED_FLAG) -> Self {
+        IntOptions {
+            indexed: false,
+            stored: true,
+            fast: None,
+        }
+    }
+}
 
-impl BitOr for IntOptions {
+impl From<INDEXED_FLAG> for IntOptions {
+    fn from(_: INDEXED_FLAG) -> Self {
+        IntOptions {
+            indexed: true,
+            stored: false,
+            fast: None,
+        }
+    }
+}
+
+impl<T: Into<IntOptions>> BitOr<T> for IntOptions {
     type Output = IntOptions;
 
-    fn bitor(self, other: IntOptions) -> IntOptions {
+    fn bitor(self, other: T) -> IntOptions {
         let mut res = IntOptions::default();
+        let other = other.into();
         res.indexed = self.indexed | other.indexed;
         res.stored = self.stored | other.stored;
         res.fast = self.fast.or(other.fast);
         res
+    }
+}
+
+impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for IntOptions
+where
+    Head: Clone,
+    Tail: Clone,
+    Self: BitOr<Output = Self> + From<Head> + From<Tail>,
+{
+    fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
+        Self::from(head_tail.head) | Self::from(head_tail.tail)
     }
 }

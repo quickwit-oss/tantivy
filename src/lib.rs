@@ -611,7 +611,7 @@ mod tests {
     #[test]
     fn test_indexed_u64() {
         let mut schema_builder = Schema::builder();
-        let field = schema_builder.add_u64_field("value", INT_INDEXED);
+        let field = schema_builder.add_u64_field("value", INDEXED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn test_indexed_i64() {
         let mut schema_builder = Schema::builder();
-        let value_field = schema_builder.add_i64_field("value", INT_INDEXED);
+        let value_field = schema_builder.add_i64_field("value", INDEXED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
@@ -846,7 +846,7 @@ mod tests {
         let fast_field_unsigned = schema_builder.add_u64_field("unsigned", FAST);
         let fast_field_signed = schema_builder.add_i64_field("signed", FAST);
         let text_field = schema_builder.add_text_field("text", TEXT);
-        let stored_int_field = schema_builder.add_u64_field("text", INT_STORED);
+        let stored_int_field = schema_builder.add_u64_field("text", STORED);
         let schema = schema_builder.build();
 
         let index = Index::create_in_ram(schema);
