@@ -1,5 +1,5 @@
 use schema::flags::SchemaFlagList;
-use schema::flags::STORED_FLAG;
+use schema::flags::StoredFlag;
 use schema::IndexRecordOption;
 use std::borrow::Cow;
 use std::ops::BitOr;
@@ -129,8 +129,8 @@ impl From<()> for TextOptions {
     }
 }
 
-impl From<STORED_FLAG> for TextOptions {
-    fn from(_: STORED_FLAG) -> TextOptions {
+impl From<StoredFlag> for TextOptions {
+    fn from(_: StoredFlag) -> TextOptions {
         TextOptions {
             indexing: None,
             stored: true,

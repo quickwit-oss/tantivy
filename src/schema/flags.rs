@@ -2,46 +2,45 @@ use schema::IntOptions;
 use schema::TextOptions;
 use std::ops::BitOr;
 
+#[derive(Clone)]
+pub struct StoredFlag;
+/// Flag to mark the field as stored.
+/// This flag can apply to any kind of field.
+///
 /// A stored fields of a document can be retrieved given its `DocId`.
 /// Stored field are stored together and LZ4 compressed.
 /// Reading the stored fields of a document is relatively slow.
-/// (100 microsecs)
-#[derive(Clone)]
-pub struct STORED_FLAG;
-impl SchemaFlag for STORED_FLAG {}
-pub const STORED: SchemaFlagList<STORED_FLAG, ()> = SchemaFlagList {
-    head: STORED_FLAG,
+/// (~ 100 microsecs)
+///
+/// It should not be used during scoring or collection.
+pub const STORED: SchemaFlagList<StoredFlag, ()> = SchemaFlagList {
+    head: StoredFlag,
     tail: (),
 };
 
 #[derive(Clone)]
-pub struct INDEXED_FLAG;
-impl SchemaFlag for INDEXED_FLAG {}
-pub const INDEXED: SchemaFlagList<INDEXED_FLAG, ()> = SchemaFlagList {
-    head: INDEXED_FLAG,
+pub struct IndexedFlag;
+/// Flag to mark the field as indexed.
+///
+/// The `INDEXED` flag can only be used when building `IntOptions` (`u64` and `i64` fields)
+/// Of course, text fields can also be indexed... But this is expressed by using either the
+/// `STRING` (untokenized) or `TEXT` (tokenized with the english tokenizer) flags.
+pub const INDEXED: SchemaFlagList<IndexedFlag, ()> = SchemaFlagList {
+    head: IndexedFlag,
     tail: (),
 };
 
 #[derive(Clone)]
-pub struct FAST_FLAG;
-impl SchemaFlag for FAST_FLAG {}
-pub const FAST: SchemaFlagList<FAST_FLAG, ()> = SchemaFlagList {
-    head: FAST_FLAG,
+pub struct FastFlag;
+/// Flag to mark the field as a fast field (similar to Lucene's DocValues)
+///
+/// Fast fields can be random-accessed rapidly. Fields useful for scoring, filtering
+/// or collection should be mark as fast fields.
+/// The `FAST` flag can only be used when building `IntOptions` (`u64` and `i64` fields)
+pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
+    head: FastFlag,
     tail: (),
 };
-
-pub trait SchemaFlag: Clone {}
-
-impl<Left: SchemaFlag, Right: SchemaFlag> BitOr<Right> for SchemaFlagList<Left, ()> {
-    type Output = SchemaFlagList<Left, Right>;
-
-    fn bitor(self, rhs: Right) -> Self::Output {
-        SchemaFlagList {
-            head: self.head.clone(),
-            tail: rhs.clone(),
-        }
-    }
-}
 
 impl<Head, OldHead, OldTail> BitOr<SchemaFlagList<Head, ()>> for SchemaFlagList<OldHead, OldTail>
     where Head: Clone, OldHead: Clone, OldTail: Clone {

@@ -1,4 +1,4 @@
-use schema::flags::{SchemaFlagList, FAST_FLAG, INDEXED_FLAG, STORED_FLAG};
+use schema::flags::{SchemaFlagList, FastFlag, IndexedFlag, StoredFlag};
 use std::ops::BitOr;
 
 /// Express whether a field is single-value or multi-valued.
@@ -92,8 +92,8 @@ impl From<()> for IntOptions {
     }
 }
 
-impl From<FAST_FLAG> for IntOptions {
-    fn from(_: FAST_FLAG) -> Self {
+impl From<FastFlag> for IntOptions {
+    fn from(_: FastFlag) -> Self {
         IntOptions {
             indexed: false,
             stored: false,
@@ -102,8 +102,8 @@ impl From<FAST_FLAG> for IntOptions {
     }
 }
 
-impl From<STORED_FLAG> for IntOptions {
-    fn from(_: STORED_FLAG) -> Self {
+impl From<StoredFlag> for IntOptions {
+    fn from(_: StoredFlag) -> Self {
         IntOptions {
             indexed: false,
             stored: true,
@@ -112,8 +112,8 @@ impl From<STORED_FLAG> for IntOptions {
     }
 }
 
-impl From<INDEXED_FLAG> for IntOptions {
-    fn from(_: INDEXED_FLAG) -> Self {
+impl From<IndexedFlag> for IntOptions {
+    fn from(_: IndexedFlag) -> Self {
         IntOptions {
             indexed: true,
             stored: false,

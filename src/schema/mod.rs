@@ -33,7 +33,7 @@ let title_options = TextOptions::default()
     .set_indexing_options(TextFieldIndexing::default()
         .set_tokenizer("default")
         .set_index_option(IndexRecordOption::WithFreqsAndPositions));
-schema_builder.add_text_field("title_options", title_options);
+schema_builder.add_text_field("title", title_options);
 let schema = schema_builder.build();
 ```
 
@@ -53,23 +53,8 @@ The effect of each possible setting is described more in detail
 On the other hand setting the field as stored or not determines whether the field should be returned
 when [`searcher.doc(doc_address)`](../struct.Searcher.html#method.doc) is called.
 
-### Shortcuts
 
-For convenience, a few special values of `TextOptions`.
-They can be composed using the `|` operator.
-The example can be rewritten :
-
-
-```
-use tantivy::schema::*;
-let mut schema_builder = Schema::builder();
-schema_builder.add_text_field("title_options", TEXT | STORED);
-let schema = schema_builder.build();
-```
-
-
-
-## Setting a u64 field
+## Setting a u64 or a i64 field
 
 ### Example
 
@@ -98,6 +83,24 @@ u64 that are indexed as fast will be stored in a special data structure that wil
 make it possible to access the u64 value given the doc id rapidly. This is useful if the value of
 the field is required during scoring or collection for instance.
 
+
+### Shortcuts
+
+
+For convenience, it is possible to define your field indexing options by combining different flags
+using the  `|` operator.
+
+For instance, a schema containing the two fields defined in the example above could be rewritten :
+
+```
+use tantivy::schema::*;
+let mut schema_builder = Schema::builder();
+schema_builder.add_u64_field("num_stars", INDEXED | STORED);
+schema_builder.add_text_field("title", TEXT | STORED);
+let schema = schema_builder.build();
+```
+
+
 */
 
 mod document;
@@ -124,7 +127,7 @@ pub use self::schema::{Schema, SchemaBuilder};
 pub use self::value::Value;
 
 pub use self::facet::Facet;
-pub use self::facet::FACET_SEP_BYTE;
+pub(crate) use self::facet::FACET_SEP_BYTE;
 
 pub use self::document::Document;
 pub use self::field::Field;
