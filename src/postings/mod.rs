@@ -57,7 +57,7 @@ pub mod tests {
     use rand::{Rng, SeedableRng};
     use schema::Field;
     use schema::IndexRecordOption;
-    use schema::{Document, Schema, Term, INT_INDEXED, STRING, TEXT};
+    use schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
     use std::iter;
     use DocId;
     use Score;
@@ -316,7 +316,7 @@ pub mod tests {
 
         let index = {
             let mut schema_builder = Schema::builder();
-            let value_field = schema_builder.add_u64_field("value", INT_INDEXED);
+            let value_field = schema_builder.add_u64_field("value", INDEXED);
             let schema = schema_builder.build();
 
             let index = Index::create_in_ram(schema);

@@ -394,13 +394,13 @@ impl fmt::Debug for Index {
 #[cfg(test)]
 mod tests {
     use directory::RAMDirectory;
-    use schema::{Schema, INT_INDEXED, TEXT};
+    use schema::{Schema, INDEXED, TEXT};
     use Index;
 
     #[test]
     fn test_indexer_for_field() {
         let mut schema_builder = Schema::builder();
-        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INDEXED);
         let body_field = schema_builder.add_text_field("body", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -458,7 +458,7 @@ mod tests {
 
     fn throw_away_schema() -> Schema {
         let mut schema_builder = Schema::builder();
-        let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let _ = schema_builder.add_u64_field("num_likes", INDEXED);
         schema_builder.build()
     }
 }

@@ -1,3 +1,5 @@
+use schema::flags::SchemaFlagList;
+use schema::flags::StoredFlag;
 use schema::IndexRecordOption;
 use std::borrow::Cow;
 use std::ops::BitOr;
@@ -109,23 +111,41 @@ pub const TEXT: TextOptions = TextOptions {
     stored: false,
 };
 
-/// A stored fields of a document can be retrieved given its `DocId`.
-/// Stored field are stored together and LZ4 compressed.
-/// Reading the stored fields of a document is relatively slow.
-/// (100 microsecs)
-pub const STORED: TextOptions = TextOptions {
-    indexing: None,
-    stored: true,
-};
-
-impl BitOr for TextOptions {
+impl<T: Into<TextOptions>> BitOr<T> for TextOptions {
     type Output = TextOptions;
 
-    fn bitor(self, other: TextOptions) -> TextOptions {
+    fn bitor(self, other: T) -> TextOptions {
+        let other = other.into();
         let mut res = TextOptions::default();
         res.indexing = self.indexing.or(other.indexing);
         res.stored = self.stored | other.stored;
         res
+    }
+}
+
+impl From<()> for TextOptions {
+    fn from(_: ()) -> TextOptions {
+        TextOptions::default()
+    }
+}
+
+impl From<StoredFlag> for TextOptions {
+    fn from(_: StoredFlag) -> TextOptions {
+        TextOptions {
+            indexing: None,
+            stored: true,
+        }
+    }
+}
+
+impl<Head, Tail> From<SchemaFlagList<Head, Tail>> for TextOptions
+where
+    Head: Clone,
+    Tail: Clone,
+    Self: BitOr<Output = Self> + From<Head> + From<Tail>,
+{
+    fn from(head_tail: SchemaFlagList<Head, Tail>) -> Self {
+        Self::from(head_tail.head) | Self::from(head_tail.tail)
     }
 }
 

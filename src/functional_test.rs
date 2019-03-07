@@ -17,8 +17,8 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 fn test_indexing() {
     let mut schema_builder = Schema::builder();
 
-    let id_field = schema_builder.add_u64_field("id", INT_INDEXED);
-    let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);
+    let id_field = schema_builder.add_u64_field("id", INDEXED);
+    let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();

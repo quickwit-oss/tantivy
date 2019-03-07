@@ -9,6 +9,9 @@ previous index format.*
 - Added grouped add and delete operations. 
   They are guaranteed to happen together (i.e. they cannot be split by a commit). 
   In addition, adds are guaranteed to happen on the same segment. (@elbow-jason)
+- Removed `INT_STORED` and `INT_INDEXED`. It is now possible to use `STORED` and `INDEXED`
+  for int fields. (@fulmicoton)
+
 
 Tantivy 0.8.2
 =====================

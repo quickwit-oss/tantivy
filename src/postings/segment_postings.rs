@@ -627,7 +627,7 @@ mod tests {
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;
-    use schema::INT_INDEXED;
+    use schema::INDEXED;
     use tantivy_fst::Streamer;
     use DocId;
     use SkipResult;
@@ -760,7 +760,7 @@ mod tests {
 
     fn build_block_postings(docs: &[DocId]) -> BlockSegmentPostings {
         let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
@@ -831,7 +831,7 @@ mod tests {
     #[test]
     fn test_reset_block_segment_postings() {
         let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();

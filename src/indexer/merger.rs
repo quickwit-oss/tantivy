@@ -654,7 +654,7 @@ mod tests {
     use schema::IntOptions;
     use schema::Term;
     use schema::TextFieldIndexing;
-    use schema::INT_INDEXED;
+    use schema::INDEXED;
     use std::io::Cursor;
     use DocAddress;
     use IndexWriter;
@@ -1256,7 +1256,7 @@ mod tests {
     #[test]
     fn test_bug_merge() {
         let mut schema_builder = schema::Schema::builder();
-        let int_field = schema_builder.add_u64_field("intvals", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         index_writer.add_document(doc!(int_field => 1u64));
