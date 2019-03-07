@@ -100,7 +100,6 @@ schema_builder.add_text_field("title", TEXT | STORED);
 let schema = schema_builder.build();
 ```
 
-
 */
 
 mod document;
