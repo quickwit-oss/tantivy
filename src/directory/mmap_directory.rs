@@ -1,7 +1,12 @@
 extern crate fs2;
+extern crate notify;
 
+
+use self::notify::{RecursiveMode, DebouncedEvent};
 use self::fs2::FileExt;
+use std::sync::mpsc::{channel, Receiver};
 use atomicwrites;
+use self::notify::Watcher;
 use common::make_io_err;
 use directory::error::LockError;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
@@ -11,6 +16,7 @@ use directory::DirectoryLock;
 use directory::Lock;
 use directory::ReadOnlySource;
 use directory::WritePtr;
+use directory::WatchCallback;
 use memmap::Mmap;
 use std::collections::HashMap;
 use std::convert::From;
@@ -24,7 +30,11 @@ use std::result;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
+use std::thread;
 use tempdir::TempDir;
+use std::time::Duration;
+use directory::WatchEventRouter;
+use directory::WatchHandle;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -131,31 +141,117 @@ impl MmapCache {
 /// On Windows the semantics are again different.
 #[derive(Clone)]
 pub struct MmapDirectory {
+    inner: Arc<MmapDirectoryInner>
+}
+
+
+struct WatcherWrapper {
+    watcher: notify::RecommendedWatcher,
+    watcher_router: WatchEventRouter,
+}
+
+impl WatcherWrapper {
+    fn new(watcher: notify::RecommendedWatcher) -> Self {
+        WatcherWrapper {
+            watcher,
+            watcher_router: Default::default()
+        }
+    }
+
+    fn trigger(&mut self, path: &Path) {
+        if self.watcher_router.broadcast(path) {
+            self.watcher.unwatch(path);
+        }
+    }
+
+    fn watch(&mut self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        let (has_changed, handle) = self.watcher_router.suscribe(path, watch_callback);
+        if has_changed {
+            self.watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
+        }
+        handle
+    }
+}
+
+struct MmapDirectoryInner {
     root_path: PathBuf,
-    mmap_cache: Arc<RwLock<MmapCache>>,
-    _temp_directory: Arc<Option<TempDir>>,
+    mmap_cache: RwLock<MmapCache>,
+    _temp_directory: Option<TempDir>,
+    watcher: RwLock<WatcherWrapper>,
+}
+
+impl MmapDirectoryInner {
+
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> (MmapDirectoryInner, Receiver<notify::DebouncedEvent>) {
+        let (tx, watcher_recv) = channel();
+        let watcher = notify::watcher(tx,Duration::from_secs(1)).unwrap(); // TODO unwrap
+        let inner = MmapDirectoryInner {
+            root_path,
+            mmap_cache: Default::default(),
+            _temp_directory: temp_directory,
+            watcher: RwLock::new(WatcherWrapper::new(watcher))
+        };
+        (inner, watcher_recv)
+    }
+
+    fn trigger(&self, path: &Path) {
+        let mut wlock = self.watcher.write().unwrap();
+        wlock.trigger(path);
+    }
+
+    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        let mut wlock = self.watcher.write().unwrap();
+        wlock.watch(path, watch_callback)
+    }
 }
 
 impl fmt::Debug for MmapDirectory {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "MmapDirectory({:?})", self.root_path)
+        write!(f, "MmapDirectory({:?})", self.inner.root_path)
+    }
+}
+
+fn extract_path_from_event(evt: notify::DebouncedEvent) -> Option<PathBuf> {
+    match evt {
+        notify::DebouncedEvent::NoticeWrite(path) => Some(path),
+        notify::DebouncedEvent::Rename(from_path, dest_path) => Some(dest_path),
+        _ => None
     }
 }
 
 impl MmapDirectory {
+
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Result<MmapDirectory, OpenDirectoryError> {
+        let (inner, watcher_recv) = MmapDirectoryInner::new(root_path, temp_directory);
+        let inner_arc = Arc::new(inner);
+        let inner_arc_clone = inner_arc.clone();
+        thread::spawn(move || {
+            loop {
+                match watcher_recv.recv().map(extract_path_from_event) {
+                    Ok(Some(path)) => {
+                        inner_arc_clone.trigger(&path);
+                    },
+                    Ok(None) => {
+                        // not an event we are interested in.
+                    }
+                    Err(e) => {
+                        // the watch send channel was dropped
+                        break;
+                    }
+                }
+            }
+        });
+        Ok(MmapDirectory { inner: inner_arc })
+    }
+
     /// Creates a new MmapDirectory in a temporary directory.
     ///
     /// This is mostly useful to test the MmapDirectory itself.
     /// For your unit tests, prefer the RAMDirectory.
-    pub fn create_from_tempdir() -> io::Result<MmapDirectory> {
-        let tempdir = TempDir::new("index")?;
+    pub fn create_from_tempdir() -> Result<MmapDirectory, OpenDirectoryError> {
+        let tempdir = TempDir::new("index").map_err(OpenDirectoryError::FailedToCreateTempDir)?;
         let tempdir_path = PathBuf::from(tempdir.path());
-        let directory = MmapDirectory {
-            root_path: tempdir_path,
-            mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
-            _temp_directory: Arc::new(Some(tempdir)),
-        };
-        Ok(directory)
+        MmapDirectory::new(tempdir_path, Some(tempdir))
     }
 
     /// Opens a MmapDirectory in a directory.
@@ -173,18 +269,14 @@ impl MmapDirectory {
                 directory_path,
             )))
         } else {
-            Ok(MmapDirectory {
-                root_path: PathBuf::from(directory_path),
-                mmap_cache: Arc::new(RwLock::new(MmapCache::default())),
-                _temp_directory: Arc::new(None),
-            })
+            Ok(MmapDirectory::new(PathBuf::from(directory_path), None)?)
         }
     }
 
     /// Joins a relative_path to the directory `root_path`
     /// to create a proper complete `filepath`.
     fn resolve_path(&self, relative_path: &Path) -> PathBuf {
-        self.root_path.join(relative_path)
+        self.inner.root_path.join(relative_path)
     }
 
     /// Sync the root directory.
@@ -209,7 +301,7 @@ impl MmapDirectory {
                 .custom_flags(winbase::FILE_FLAG_BACKUP_SEMANTICS);
         }
 
-        let fd = open_opts.open(&self.root_path)?;
+        let fd = open_opts.open(&self.inner.root_path)?;
         fd.sync_all()?;
         Ok(())
     }
@@ -220,7 +312,8 @@ impl MmapDirectory {
     /// The `MmapDirectory` embeds a `MmapDirectory`
     /// to avoid multiplying the `mmap` system calls.
     pub fn get_cache_info(&mut self) -> CacheInfo {
-        self.mmap_cache
+        self.inner
+            .mmap_cache
             .write()
             .expect("Mmap cache lock is poisoned.")
             .get_info()
@@ -274,7 +367,7 @@ impl Directory for MmapDirectory {
         debug!("Open Read {:?}", path);
         let full_path = self.resolve_path(path);
 
-        let mut mmap_cache = self.mmap_cache.write().map_err(|_| {
+        let mut mmap_cache = self.inner.mmap_cache.write().map_err(|_| {
             let msg = format!(
                 "Failed to acquired write lock \
                  on mmap cache while reading {:?}",
@@ -286,6 +379,30 @@ impl Directory for MmapDirectory {
             .get_mmap(&full_path)?
             .map(ReadOnlySource::from)
             .unwrap_or_else(ReadOnlySource::empty))
+    }
+
+    /// Any entry associated to the path in the mmap will be
+    /// removed before the file is deleted.
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        debug!("Deleting file {:?}", path);
+        let full_path = self.resolve_path(path);
+        match fs::remove_file(&full_path) {
+            Ok(_) => self
+                .sync_directory()
+                .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
+            Err(e) => {
+                if e.kind() == io::ErrorKind::NotFound {
+                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
+                } else {
+                    Err(IOError::with_path(path.to_owned(), e).into())
+                }
+            }
+        }
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        let full_path = self.resolve_path(path);
+        full_path.exists()
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
@@ -316,30 +433,6 @@ impl Directory for MmapDirectory {
 
         let writer = SafeFileWriter::new(file);
         Ok(BufWriter::new(Box::new(writer)))
-    }
-
-    /// Any entry associated to the path in the mmap will be
-    /// removed before the file is deleted.
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        debug!("Deleting file {:?}", path);
-        let full_path = self.resolve_path(path);
-        match fs::remove_file(&full_path) {
-            Ok(_) => self
-                .sync_directory()
-                .map_err(|e| IOError::with_path(path.to_owned(), e).into()),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::NotFound {
-                    Err(DeleteError::FileDoesNotExist(path.to_owned()))
-                } else {
-                    Err(IOError::with_path(path.to_owned(), e).into())
-                }
-            }
-        }
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        let full_path = self.resolve_path(path);
-        full_path.exists()
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
@@ -387,6 +480,10 @@ impl Directory for MmapDirectory {
             path: lock.filepath.clone(),
             _file: file,
         })))
+    }
+
+    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        self.inner.watch(path, watch_callback)
     }
 }
 

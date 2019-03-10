@@ -1,6 +1,7 @@
 use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use directory::DirectoryLock;
+use directory::{WatchCallback, WatchHandle};
 use directory::Lock;
 use directory::META_LOCK;
 use directory::{ReadOnlySource, WritePtr};
@@ -240,6 +241,10 @@ impl Directory for ManagedDirectory {
 
     fn acquire_lock(&self, lock: &Lock) -> result::Result<DirectoryLock, LockError> {
         self.directory.acquire_lock(lock)
+    }
+
+    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        self.directory.watch(path, watch_callback)
     }
 }
 

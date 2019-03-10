@@ -73,6 +73,7 @@ pub enum OpenDirectoryError {
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
     NotADirectory(PathBuf),
+    FailedToCreateTempDir(io::Error)
 }
 
 impl fmt::Display for OpenDirectoryError {
@@ -83,6 +84,9 @@ impl fmt::Display for OpenDirectoryError {
             }
             OpenDirectoryError::NotADirectory(ref path) => {
                 write!(f, "the path '{:?}' exists but is not a directory", path)
+            }
+            OpenDirectoryError::FailedToCreateTempDir(_) => {
+                write!(f, "Failed to create temp directory.")
             }
         }
     }

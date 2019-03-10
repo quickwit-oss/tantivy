@@ -1,5 +1,6 @@
 use directory::directory_lock::Lock;
 use directory::error::LockError;
+use directory::WatchHandle;
 use directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use directory::{ReadOnlySource, WritePtr};
 use std::fmt;
@@ -12,6 +13,9 @@ use std::path::PathBuf;
 use std::result;
 use std::thread;
 use std::time::Duration;
+use std::sync::Weak;
+use std::sync::Arc;
+use directory::WatchCallback;
 
 /// Retry the logic of acquiring locks is pretty simple.
 /// We just retry `n` times after a given `duratio`, both
@@ -20,6 +24,7 @@ struct RetryPolicy {
     num_retries: usize,
     wait_in_ms: u64,
 }
+
 
 impl RetryPolicy {
     fn no_retry() -> RetryPolicy {
@@ -97,6 +102,7 @@ fn retry_policy(is_blocking: bool) -> RetryPolicy {
         RetryPolicy::no_retry()
     }
 }
+
 
 /// Write-once read many (WORM) abstraction for where
 /// tantivy's data should be stored.
@@ -187,6 +193,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
             }
         }
     }
+
+    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle;
 }
 
 /// DirectoryClone

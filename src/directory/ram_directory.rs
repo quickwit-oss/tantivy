@@ -1,13 +1,14 @@
 use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
-use directory::{Directory, ReadOnlySource};
+use directory::{Directory, ReadOnlySource, WatchHandle, WatchCallback};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
+use std::sync::Weak;
 
 /// Writer associated with the `RAMDirectory`
 ///
@@ -21,13 +22,13 @@ use std::sync::{Arc, RwLock};
 ///
 struct VecWriter {
     path: PathBuf,
-    shared_directory: InnerDirectory,
+    shared_directory: RAMDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
 }
 
 impl VecWriter {
-    fn new(path_buf: PathBuf, shared_directory: InnerDirectory) -> VecWriter {
+    fn new(path_buf: PathBuf, shared_directory: RAMDirectory) -> VecWriter {
         VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
@@ -64,19 +65,16 @@ impl Write for VecWriter {
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
         self.shared_directory
+            .fs
             .write(self.path.clone(), self.data.get_ref())?;
         Ok(())
     }
 }
 
-#[derive(Clone)]
-struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, ReadOnlySource>>>);
+#[derive(Default)]
+struct InnerDirectory(RwLock<HashMap<PathBuf, ReadOnlySource>>);
 
 impl InnerDirectory {
-    fn new() -> InnerDirectory {
-        InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
-    }
-
     fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
         let mut map = self.0.write().map_err(|_| {
             make_io_err(format!(
@@ -132,6 +130,10 @@ impl InnerDirectory {
             .expect("Failed to get read lock directory.")
             .contains_key(path)
     }
+
+    fn watch(&self, path: &Path, watch_handle: WatchCallback) -> WatchHandle {
+        unimplemented!("");
+    }
 }
 
 impl fmt::Debug for RAMDirectory {
@@ -145,17 +147,15 @@ impl fmt::Debug for RAMDirectory {
 /// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
 ///
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct RAMDirectory {
-    fs: InnerDirectory,
+    fs: Arc<InnerDirectory>,
 }
 
 impl RAMDirectory {
     /// Constructor
     pub fn create() -> RAMDirectory {
-        RAMDirectory {
-            fs: InnerDirectory::new(),
-        }
+        Self::default()
     }
 }
 
@@ -164,9 +164,17 @@ impl Directory for RAMDirectory {
         self.fs.open_read(path)
     }
 
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        self.fs.delete(path)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.fs.exists(path)
+    }
+
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
+        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
 
         let exists = self
             .fs
@@ -180,14 +188,6 @@ impl Directory for RAMDirectory {
         }
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        self.fs.delete(path)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        self.fs.exists(path)
-    }
-
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
         let read = self.open_read(path)?;
         Ok(read.as_slice().to_owned())
@@ -199,10 +199,14 @@ impl Directory for RAMDirectory {
             msg.unwrap_or("Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
-        let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
+        let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         self.fs.write(path_buf, &Vec::new())?;
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         Ok(())
+    }
+
+    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        self.fs.watch(path, watch_callback)
     }
 }

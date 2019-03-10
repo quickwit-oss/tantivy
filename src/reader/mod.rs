@@ -13,9 +13,9 @@ use TantivyError;
 
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
+    // TODO add NEAR_REAL_TIME(target_ms),
     MANUAL,
-    // NEAR_REAL_TIME(target_ms),
-    ON_COMMIT,
+    ON_COMMIT
 }
 
 #[derive(Clone)]
