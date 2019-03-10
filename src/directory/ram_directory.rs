@@ -1,4 +1,3 @@
-use common::make_io_err;
 use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
 use directory::{Directory, ReadOnlySource, WatchHandle, WatchCallback};
@@ -8,7 +7,7 @@ use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
-use std::sync::Weak;
+use directory::WatchEventRouter;
 
 /// Writer associated with the `RAMDirectory`
 ///
@@ -64,75 +63,50 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        self.shared_directory
-            .fs
-            .write(self.path.clone(), self.data.get_ref())?;
+        let mut fs = self.shared_directory.fs.write().unwrap();
+        fs.write(self.path.clone(), self.data.get_ref())?;
+        fs.watch_router.broadcast(&self.path);
         Ok(())
     }
 }
 
 #[derive(Default)]
-struct InnerDirectory(RwLock<HashMap<PathBuf, ReadOnlySource>>);
+struct InnerDirectory {
+    fs: HashMap<PathBuf, ReadOnlySource>,
+    watch_router: WatchEventRouter
+}
 
 impl InnerDirectory {
-    fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let mut map = self.0.write().map_err(|_| {
-            make_io_err(format!(
-                "Failed to lock the directory, when trying to write {:?}",
-                path
-            ))
-        })?;
-        let prev_value = map.insert(path, ReadOnlySource::new(Vec::from(data)));
+    // TODO Result is now useless
+    fn write(&mut self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
+        let prev_value = self.fs.insert(path, ReadOnlySource::new(Vec::from(data)));
         Ok(prev_value.is_some())
     }
 
     fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
-        self.0
-            .read()
-            .map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire read lock for the \
-                     directory when trying to read {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|readable_map| {
-                readable_map
-                    .get(path)
-                    .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-                    .map(|el| el.clone())
-            })
+        self.fs
+            .get(path)
+            .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
+            .map(|el| el.clone())
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        self.0
-            .write()
-            .map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire write lock for the \
-                     directory when trying to delete {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|mut writable_map| match writable_map.remove(path) {
-                Some(_) => Ok(()),
-                None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
-            })
+    fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
+        match self.fs.remove(path) {
+            Some(_) => {
+                self.watch_router.broadcast(path);
+                Ok(())
+            }
+            None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+        }
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.0
-            .read()
-            .expect("Failed to get read lock directory.")
-            .contains_key(path)
+        self.fs.contains_key(path)
     }
 
-    fn watch(&self, path: &Path, watch_handle: WatchCallback) -> WatchHandle {
-        unimplemented!("");
+    fn watch(&mut self, path: &Path, watch_handle: WatchCallback) -> WatchHandle {
+        let (_, watch_handle) = self.watch_router.suscribe(path, watch_handle);
+        watch_handle
     }
 }
 
@@ -149,7 +123,7 @@ impl fmt::Debug for RAMDirectory {
 ///
 #[derive(Clone, Default)]
 pub struct RAMDirectory {
-    fs: Arc<InnerDirectory>,
+    fs: Arc<RwLock<InnerDirectory>>,
 }
 
 impl RAMDirectory {
@@ -161,23 +135,25 @@ impl RAMDirectory {
 
 impl Directory for RAMDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.fs.open_read(path)
+        self.fs.read().unwrap().open_read(path)
     }
 
     fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        self.fs.delete(path)
+        self.fs.write().unwrap().delete(path)
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.fs.exists(path)
+        self.fs.read().unwrap().exists(path)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
+        let vec_writer = VecWriter::new(
 
-        let exists = self
-            .fs
+
+            path_buf.clone(), self.clone());
+        let exists = fs
             .write(path_buf.clone(), &Vec::new())
             .map_err(|err| IOError::with_path(path.to_owned(), err))?;
         // force the creation of the file to mimic the MMap directory.
@@ -189,8 +165,7 @@ impl Directory for RAMDirectory {
     }
 
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        let read = self.open_read(path)?;
-        Ok(read.as_slice().to_owned())
+        Ok(self.open_read(path)?.as_slice().to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -199,14 +174,18 @@ impl Directory for RAMDirectory {
             msg.unwrap_or("Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
+        {   // Reserve the path to prevent calls to .write() to succeed.
+            let mut inner = self.fs.write().unwrap();
+            inner.write(path_buf.clone(), &Vec::new())?;
+        }
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
-        self.fs.write(path_buf, &Vec::new())?;
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
         Ok(())
     }
 
     fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        self.fs.watch(path, watch_callback)
+        self.fs.write().unwrap().watch(path, watch_callback)
     }
+
 }

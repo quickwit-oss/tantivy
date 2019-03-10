@@ -727,7 +727,7 @@ mod tests {
     use error::*;
     use indexer::NoMergePolicy;
     use query::TermQuery;
-    use schema::{self, Document, IndexRecordOption};
+    use schema::{self, IndexRecordOption};
     use collector::TopDocs;
     use Index;
     use Term;

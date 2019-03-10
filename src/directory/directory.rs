@@ -13,8 +13,6 @@ use std::path::PathBuf;
 use std::result;
 use std::thread;
 use std::time::Duration;
-use std::sync::Weak;
-use std::sync::Arc;
 use directory::WatchCallback;
 
 /// Retry the logic of acquiring locks is pretty simple.

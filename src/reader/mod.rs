@@ -9,7 +9,6 @@ use Index;
 use Result;
 use Searcher;
 use SegmentReader;
-use TantivyError;
 
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {

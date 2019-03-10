@@ -2,7 +2,7 @@ extern crate fs2;
 extern crate notify;
 
 
-use self::notify::{RecursiveMode, DebouncedEvent};
+use self::notify::RecursiveMode;
 use self::fs2::FileExt;
 use std::sync::mpsc::{channel, Receiver};
 use atomicwrites;
