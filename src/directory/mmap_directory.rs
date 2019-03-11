@@ -165,7 +165,7 @@ impl WatcherWrapper {
     }
 
     fn watch(&mut self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        let (has_changed, handle) = self.watcher_router.suscribe(path, watch_callback);
+        let (has_changed, handle) = self.watcher_router.subscribe(path, watch_callback);
         if has_changed {
             self.watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
         }

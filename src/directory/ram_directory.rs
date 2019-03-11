@@ -105,7 +105,7 @@ impl InnerDirectory {
     }
 
     fn watch(&mut self, path: &Path, watch_handle: WatchCallback) -> WatchHandle {
-        let (_, watch_handle) = self.watch_router.suscribe(path, watch_handle);
+        let (_, watch_handle) = self.watch_router.subscribe(path, watch_handle);
         watch_handle
     }
 }
