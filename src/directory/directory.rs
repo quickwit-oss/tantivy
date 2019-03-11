@@ -192,6 +192,10 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
         }
     }
 
+    /// Registers a callback that will be called on any change of the file on `path`.
+    ///
+    /// The file will be watched for the lifetime of the returned `WatchHandle`.
+    /// The caller is required to keep it.
     fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle;
 }
 

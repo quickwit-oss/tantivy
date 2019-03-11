@@ -2,6 +2,12 @@ use super::*;
 use std::io::{Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::time;
+use std::sync::Arc;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
+use std::thread;
+use std::time::Duration;
+use std::mem;
 
 lazy_static! {
     static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
@@ -30,19 +36,18 @@ fn ram_directory_panics_if_flush_forgotten() {
 
 fn test_simple(directory: &mut Directory) {
     {
-        {
-            let mut write_file = directory.open_write(*TEST_PATH).unwrap();
-            assert!(directory.exists(*TEST_PATH));
-            write_file.write_all(&[4]).unwrap();
-            write_file.write_all(&[3]).unwrap();
-            write_file.write_all(&[7, 3, 5]).unwrap();
-            write_file.flush().unwrap();
-        }
+        let mut write_file = directory.open_write(*TEST_PATH).unwrap();
+        assert!(directory.exists(*TEST_PATH));
+        write_file.write_all(&[4]).unwrap();
+        write_file.write_all(&[3]).unwrap();
+        write_file.write_all(&[7, 3, 5]).unwrap();
+        write_file.flush().unwrap();
+    }
+    {
         let read_file = directory.open_read(*TEST_PATH).unwrap();
         let data: &[u8] = &*read_file;
         assert_eq!(data, &[4u8, 3u8, 7u8, 3u8, 5u8]);
     }
-
     assert!(directory.delete(*TEST_PATH).is_ok());
     assert!(!directory.exists(*TEST_PATH));
 }
@@ -121,6 +126,29 @@ fn test_directory(directory: &mut Directory) {
     test_directory_delete(directory);
     test_lock_non_blocking(directory);
     test_lock_blocking(directory);
+    test_watch(directory);
+}
+
+fn test_watch(directory: &mut Directory) {
+    let counter: Arc<AtomicUsize> = Default::default();
+    let counter_clone = counter.clone();
+    let watch_callback = Box::new(move || {
+        counter_clone.fetch_add(1, Ordering::SeqCst);
+    });
+    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data").is_ok());
+    thread::sleep(Duration::new(0, 100_000));
+    assert_eq!(0, counter.load(Ordering::SeqCst));
+
+    let watch_handle = directory.watch(Path::new("test_watch"), watch_callback);
+    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data_2").is_ok());
+    thread::sleep(Duration::from_secs(10));
+    assert_eq!(1, counter.load(Ordering::SeqCst));
+
+    mem::drop(watch_handle);
+    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data").is_ok());
+    thread::sleep(Duration::new(0, 10_000));
+    assert_eq!(1, counter.load(Ordering::SeqCst));
+
 }
 
 fn test_lock_non_blocking(directory: &mut Directory) {

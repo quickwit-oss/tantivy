@@ -13,8 +13,8 @@ use SegmentReader;
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
     // TODO add NEAR_REAL_TIME(target_ms),
-    MANUAL,
-    ON_COMMIT
+    Manual,
+    OnCommit
 }
 
 #[derive(Clone)]
@@ -28,7 +28,7 @@ impl IndexReaderBuilder {
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
             num_searchers: num_cpus::get(),
-            reload_policy: ReloadPolicy::MANUAL,
+            reload_policy: ReloadPolicy::Manual,
             index,
         }
     }

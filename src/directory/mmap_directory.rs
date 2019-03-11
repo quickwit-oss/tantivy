@@ -1,7 +1,6 @@
 extern crate fs2;
 extern crate notify;
 
-
 use self::notify::RecursiveMode;
 use self::fs2::FileExt;
 use std::sync::mpsc::{channel, Receiver};
@@ -127,6 +126,76 @@ impl MmapCache {
     }
 }
 
+struct InnerWatcherWrapper {
+    _watcher: notify::RecommendedWatcher,
+    watcher_router: WatchEventRouter,
+}
+
+impl InnerWatcherWrapper {
+    pub fn new(path: &Path) -> Result<(Self, Receiver<notify::DebouncedEvent>), notify::Error> {
+        let (tx, watcher_recv) = channel();
+        let mut watcher = notify::watcher(tx,Duration::new(0, 1))?;
+        watcher.watch(path, RecursiveMode::Recursive).unwrap();
+        let inner = InnerWatcherWrapper {
+            _watcher: watcher,
+            watcher_router: Default::default()
+        };
+        Ok((inner, watcher_recv))
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct WatcherWrapper {
+    inner: Arc<InnerWatcherWrapper>
+}
+
+impl WatcherWrapper {
+    pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
+        let (inner, watcher_recv) = InnerWatcherWrapper::new(path)
+            .map_err(|err| {
+                match err {
+                    notify::Error::PathNotFound => {
+                        OpenDirectoryError::DoesNotExist(path.to_owned())
+                    }
+                    _ => {
+                        panic!("Unknown error while starting watching directory {:?}", path);
+                    }
+                }
+            })?;
+        let watcher_wrapper = WatcherWrapper {
+            inner: Arc::new(inner)
+        };
+        let root = path.to_owned();
+        let watcher_wrapper_clone = watcher_wrapper.clone();
+        thread::spawn( move || {
+            loop {
+                match watcher_recv.recv().map(extract_path_from_event) {
+                    Ok(Some(path)) => {
+                        if let Ok(relative_path) = path.strip_prefix(&root) {
+                            watcher_wrapper_clone
+                                .inner
+                                .watcher_router
+                                .broadcast(relative_path);
+                        }
+                    },
+                    Ok(None) => {
+                        // not an event we are interested in.
+                    }
+                    Err(_e) => {
+                        // the watch send channel was dropped
+                        break;
+                    }
+                }
+            }
+        });
+        Ok(watcher_wrapper)
+    }
+
+    pub fn watch(&mut self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
+        self.inner.watcher_router.subscribe(path, watch_callback)
+    }
+}
+
 /// Directory storing data in files, read via mmap.
 ///
 /// The Mmap object are cached to limit the
@@ -141,37 +210,9 @@ impl MmapCache {
 /// On Windows the semantics are again different.
 #[derive(Clone)]
 pub struct MmapDirectory {
-    inner: Arc<MmapDirectoryInner>
+    inner: Arc<MmapDirectoryInner>,
 }
 
-
-struct WatcherWrapper {
-    watcher: notify::RecommendedWatcher,
-    watcher_router: WatchEventRouter,
-}
-
-impl WatcherWrapper {
-    fn new(watcher: notify::RecommendedWatcher) -> Self {
-        WatcherWrapper {
-            watcher,
-            watcher_router: Default::default()
-        }
-    }
-
-    fn trigger(&mut self, path: &Path) {
-        if self.watcher_router.broadcast(path) {
-            self.watcher.unwatch(path);
-        }
-    }
-
-    fn watch(&mut self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        let (has_changed, handle) = self.watcher_router.subscribe(path, watch_callback);
-        if has_changed {
-            self.watcher.watch(path, RecursiveMode::NonRecursive).unwrap();
-        }
-        handle
-    }
-}
 
 struct MmapDirectoryInner {
     root_path: PathBuf,
@@ -182,21 +223,14 @@ struct MmapDirectoryInner {
 
 impl MmapDirectoryInner {
 
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> (MmapDirectoryInner, Receiver<notify::DebouncedEvent>) {
-        let (tx, watcher_recv) = channel();
-        let watcher = notify::watcher(tx,Duration::from_secs(1)).unwrap(); // TODO unwrap
-        let inner = MmapDirectoryInner {
+    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Result<MmapDirectoryInner, OpenDirectoryError> {
+        let watch_wrapper = WatcherWrapper::new(&root_path)?;
+        Ok(MmapDirectoryInner {
             root_path,
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
-            watcher: RwLock::new(WatcherWrapper::new(watcher))
-        };
-        (inner, watcher_recv)
-    }
-
-    fn trigger(&self, path: &Path) {
-        let mut wlock = self.watcher.write().unwrap();
-        wlock.trigger(path);
+            watcher: RwLock::new(watch_wrapper)
+        })
     }
 
     fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
@@ -213,35 +247,15 @@ impl fmt::Debug for MmapDirectory {
 
 fn extract_path_from_event(evt: notify::DebouncedEvent) -> Option<PathBuf> {
     match evt {
-        notify::DebouncedEvent::NoticeWrite(path) => Some(path),
-        notify::DebouncedEvent::Rename(from_path, dest_path) => Some(dest_path),
+        notify::DebouncedEvent::Create(path) => Some(path),
         _ => None
     }
 }
 
 impl MmapDirectory {
-
     fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Result<MmapDirectory, OpenDirectoryError> {
-        let (inner, watcher_recv) = MmapDirectoryInner::new(root_path, temp_directory);
-        let inner_arc = Arc::new(inner);
-        let inner_arc_clone = inner_arc.clone();
-        thread::spawn(move || {
-            loop {
-                match watcher_recv.recv().map(extract_path_from_event) {
-                    Ok(Some(path)) => {
-                        inner_arc_clone.trigger(&path);
-                    },
-                    Ok(None) => {
-                        // not an event we are interested in.
-                    }
-                    Err(e) => {
-                        // the watch send channel was dropped
-                        break;
-                    }
-                }
-            }
-        });
-        Ok(MmapDirectory { inner: inner_arc })
+        let inner = MmapDirectoryInner::new(root_path, temp_directory)?;
+        Ok(MmapDirectory { inner: Arc::new(inner) })
     }
 
     /// Creates a new MmapDirectory in a temporary directory.
@@ -483,7 +497,7 @@ impl Directory for MmapDirectory {
     }
 
     fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        self.inner.watch(path, watch_callback)
+        self.inner.watch(&path, watch_callback)
     }
 }
 
@@ -494,6 +508,10 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::fs;
+    use std::time::Duration;
+    use std::thread;
 
     #[test]
     fn test_open_non_existant_path() {
@@ -518,7 +536,7 @@ mod tests {
 
     #[test]
     fn test_cache() {
-        let content = "abc".as_bytes();
+        let content = b"abc";
 
         // here we test if the cache releases
         // mmaps correctly.
@@ -581,4 +599,19 @@ mod tests {
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }
 
+    #[test]
+    fn test_watch_wrapper() {
+        let counter: Arc<AtomicUsize> = Default::default();
+        let counter_clone = counter.clone();
+        let tmp_dir: TempDir = tempdir::TempDir::new("test_watch_wrapper").unwrap();
+        let tmp_dirpath = tmp_dir.path().to_owned();
+        let mut watch_wrapper = WatcherWrapper::new(&tmp_dirpath).unwrap();
+        let tmp_file = tmp_dirpath.join("coucou");
+        let _handle = watch_wrapper.watch(&tmp_file, Box::new(move || {
+            counter_clone.fetch_add(1, Ordering::SeqCst);
+        }));
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        fs::write(&tmp_file, b"whateverwilldo").unwrap();
+        thread::sleep(Duration::new(0, 1_000u32));
+    }
 }

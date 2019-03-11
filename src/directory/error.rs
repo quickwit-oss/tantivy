@@ -26,6 +26,7 @@ pub struct IOError {
     err: io::Error,
 }
 
+
 impl Into<io::Error> for IOError {
     fn into(self) -> io::Error {
         self.err
