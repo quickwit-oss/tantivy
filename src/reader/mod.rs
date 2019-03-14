@@ -2,6 +2,7 @@ mod pool;
 
 use self::pool::{LeasedItem, Pool};
 use core::Segment;
+use core::META_FILEPATH;
 use directory::Directory;
 use directory::META_LOCK;
 use std::sync::Arc;
@@ -9,6 +10,7 @@ use Index;
 use Result;
 use Searcher;
 use SegmentReader;
+use directory::WatchHandle;
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -62,9 +64,36 @@ impl IndexReaderBuilder {
     /// of time and it may return an error.
     /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
     pub fn try_into(self) -> Result<IndexReader> {
-        let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
-        reader.load_searchers()?;
-        Ok(reader)
+        let inner_reader = InnerIndexReader {
+            index: self.index,
+            num_searchers: self.num_searchers,
+            searcher_pool: Pool::new(),
+        };
+        inner_reader.load_searchers()?;
+        let inner_reader_arc = Arc::new(inner_reader);
+        let watch_handle_opt: Option<WatchHandle>;
+        match self.reload_policy {
+            ReloadPolicy::Manual => {
+                // No need to set anything...
+                watch_handle_opt = None;
+            }
+            ReloadPolicy::OnCommit => {
+                let inner_reader_arc_clone = inner_reader_arc.clone();
+                let callback = move || {
+                    if let Err(err) = inner_reader_arc_clone.load_searchers() {
+                        error!("Error while loading searcher after commit was detected. {:?}", err);
+                    }
+                };
+                let watch_handle = inner_reader_arc.index
+                    .directory()
+                    .watch(&META_FILEPATH, Box::new(callback));
+                watch_handle_opt = Some(watch_handle);
+            }
+        }
+        Ok(IndexReader {
+            inner: inner_reader_arc,
+            watch_handle_opt,
+        })
     }
 
     /// Sets the reload_policy.
@@ -85,7 +114,6 @@ impl IndexReaderBuilder {
 struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
-    _reload_policy: ReloadPolicy,
     index: Index,
 }
 
@@ -119,8 +147,13 @@ impl InnerIndexReader {
 ///
 /// It controls when a new version of the index should be loaded and lends
 /// you instances of `Searcher` for the last loaded version.
+///
+/// `Clone` does not clone the different pool of searcher. `IndexReader`
+/// just wraps and `Arc`.
+#[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
+    watch_handle_opt: Option<WatchHandle>
 }
 
 impl IndexReader {
@@ -150,20 +183,5 @@ impl IndexReader {
     /// the use of a consistent segment set.
     pub fn searcher(&self) -> LeasedItem<Searcher> {
         self.inner.searcher()
-    }
-
-    pub(crate) fn new(
-        index: Index,
-        num_searchers: usize,
-        reload_policy: ReloadPolicy,
-    ) -> IndexReader {
-        IndexReader {
-            inner: Arc::new(InnerIndexReader {
-                index,
-                num_searchers,
-                searcher_pool: Pool::new(),
-                _reload_policy: reload_policy,
-            }),
-        }
     }
 }

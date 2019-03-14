@@ -8,7 +8,6 @@ use std::sync::RwLock;
 /// Type alias for callbacks registered when watching files of a `Directory`.
 pub type WatchCallback = Box<Fn()->() + Sync + Send>;
 
-
 /// Helper struct to implement the watch method in `Directory` implementations.
 ///
 /// It registers callbacks associated to a given path (See `.subscribe(...)`) and
@@ -22,9 +21,10 @@ pub struct WatchEventRouter {
 
 /// Controls how long a directory should watch for a file change.
 ///
-/// After the `WatchHandle` is dropped, the associated will not be called when a file change is
-/// detected.
+/// After all the clones of `WatchHandle` are dropped, the associated will not be called when a
+/// file change is detected.
 #[must_use = "This `WatchHandle` controls the lifetime of the watch and should therefore be used."]
+#[derive(Clone)]
 pub struct WatchHandle(Arc<WatchCallback>);
 
 impl WatchEventRouter {
@@ -68,9 +68,12 @@ impl WatchEventRouter {
     ///
     /// This method might panick if one the callbacks panicks.
     pub fn broadcast(&self, path: &Path) {
-        for callback in self.list_callback(path) {
-            callback();
-        }
+        let callbacks = self.list_callback(path);
+        std::thread::spawn(move || {
+            for callback in callbacks {
+                callback();
+            }
+        });
     }
 
     /// For tests purpose
@@ -86,7 +89,11 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use std::path::Path;
+    use std::thread;
     use std::mem;
+    use std::time::Duration;
+
+    const WAIT_TIME: u64 = 20;
 
     #[test]
     fn test_watch_event_router_empty() {
@@ -105,16 +112,20 @@ mod tests {
         watch_event_router.broadcast(Path::new("a"));
         assert_eq!(0, counter.load(Ordering::SeqCst));
         let handle_a = watch_event_router.subscribe(Path::new("a"), inc_callback);
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(watch_event_router.len(), 1);
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(1, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(4, counter.load(Ordering::SeqCst));
         mem::drop(handle_a);
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(4, counter.load(Ordering::SeqCst));
     }
 
@@ -130,17 +141,21 @@ mod tests {
         };
         let handle_a = watch_event_router.subscribe(Path::new("a"), inc_callback(1));
         let handle_a2 = watch_event_router.subscribe(Path::new("a"), inc_callback(10));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(watch_event_router.len(), 1); //< counts keys, not listeners
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(22, counter.load(Ordering::SeqCst));
         mem::drop(handle_a);
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(32, counter.load(Ordering::SeqCst));
         mem::drop(handle_a2);
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(32, counter.load(Ordering::SeqCst));
         assert_eq!(watch_event_router.len(), 0);
     }
@@ -162,18 +177,22 @@ mod tests {
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(2, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast(Path::new("b"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(12, counter.load(Ordering::SeqCst));
         mem::drop(handle_a);
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("b"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(22, counter.load(Ordering::SeqCst));
         mem::drop(handle_b);
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("a"));
         watch_event_router.broadcast(Path::new("b"));
         watch_event_router.broadcast(Path::new("b"));
+        thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(22, counter.load(Ordering::SeqCst));
         assert_eq!(0, watch_event_router.len());
     }

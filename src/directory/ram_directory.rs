@@ -65,7 +65,8 @@ impl Write for VecWriter {
         self.is_flushed = true;
         let mut fs = self.shared_directory.fs.write().unwrap();
         fs.write(self.path.clone(), self.data.get_ref())?;
-        fs.watch_router.broadcast(&self.path);
+        let path_clone = self.path.clone();
+        fs.watch_router.broadcast(&path_clone);
         Ok(())
     }
 }

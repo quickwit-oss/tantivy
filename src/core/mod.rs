@@ -24,6 +24,7 @@ pub use self::segment_reader::SegmentReader;
 use std::path::PathBuf;
 
 lazy_static! {
+
     /// The meta file contains all the information about the list of segments and the schema
     /// of the index.
     pub static ref META_FILEPATH: PathBuf = PathBuf::from("meta.json");

@@ -356,6 +356,9 @@ mod tests {
     use directory::RAMDirectory;
     use schema::{Schema, INDEXED, TEXT};
     use Index;
+    use std::thread;
+    use std::time::Duration;
+    use ReloadPolicy;
 
     #[test]
     fn test_indexer_for_field() {
@@ -420,5 +423,40 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let _ = schema_builder.add_u64_field("num_likes", INDEXED);
         schema_builder.build()
+    }
+
+
+    #[test]
+    fn test_index_on_commit_reload_policy() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let index = Index::create_in_ram(schema);
+        let reader = index.reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        writer.add_document(doc!(field=>1u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..10 {
+            count = reader.searcher().num_docs();
+            if count > 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 1);
+        writer.add_document(doc!(field=>2u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..10 {
+            count = reader.searcher().num_docs();
+            if count > 1 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 2);
     }
 }
