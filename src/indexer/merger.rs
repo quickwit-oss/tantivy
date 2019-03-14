@@ -671,7 +671,7 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
-        let date_field = schema_builder.add_date_field("date", INT_INDEXED);
+        let date_field = schema_builder.add_date_field("date", INDEXED);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");

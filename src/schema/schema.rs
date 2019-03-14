@@ -94,9 +94,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_date_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
+    pub fn add_date_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_date(field_name, field_options);
+        let field_entry = FieldEntry::new_date(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
