@@ -89,7 +89,7 @@ impl Document {
     }
 
     /// Add a date field
-    pub fn add_date(&mut self, field: Field, value: &DateTime<chrono::Utc>) {
+    pub fn add_date(&mut self, field: Field, value: &DateTime) {
         self.add(FieldValue::new(field, Value::Date(DateTime::from(*value))));
     }
 

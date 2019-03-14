@@ -187,13 +187,13 @@ pub use error::TantivyError as Error;
 
 extern crate census;
 extern crate owned_read;
-extern crate chrono;
+pub extern crate chrono;
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, error::TantivyError>;
 
 /// Tantivy DateTime
-pub type DateTime<Tz> = chrono::DateTime<Tz>;
+pub type DateTime = chrono::DateTime<chrono::Utc>;
 
 mod common;
 mod core;

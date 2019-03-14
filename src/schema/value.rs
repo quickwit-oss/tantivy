@@ -15,7 +15,7 @@ pub enum Value {
     /// Signed 64-bits Integer `i64`
     I64(i64),
     /// Signed 64-bits Date time stamp `date`
-    Date(DateTime<chrono::Utc>),
+    Date(DateTime),
     /// Hierarchical Facet
     Facet(Facet),
     /// Arbitrarily sized byte array
@@ -111,7 +111,7 @@ impl Value {
    ///
    /// # Panics
    /// If the value is not of type `Date`
-    pub fn date_value(&self) -> &DateTime<chrono::Utc> {
+    pub fn date_value(&self) -> &DateTime {
         match *self {
             Value::Date(ref value) => value,
             _ => panic!("This is not a date field."),
@@ -137,8 +137,8 @@ impl From<i64> for Value {
     }
 }
 
-impl From<DateTime<chrono::Utc>> for Value {
-    fn from(date_time: DateTime<chrono::Utc>) -> Value { Value::Date(date_time) }
+impl From<DateTime> for Value {
+    fn from(date_time: DateTime) -> Value { Value::Date(date_time) }
 }
 
 impl<'a> From<&'a str> for Value {
