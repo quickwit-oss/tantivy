@@ -11,7 +11,7 @@ previous index format.*
   In addition, adds are guaranteed to happen on the same segment. (@elbow-jason)
 - Removed `INT_STORED` and `INT_INDEXED`. It is now possible to use `STORED` and `INDEXED`
   for int fields. (@fulmicoton)
-
+- Added DateTime field (@barrotsteindev)
 
 Tantivy 0.8.2
 =====================
