@@ -192,10 +192,18 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
         }
     }
 
-    /// Registers a callback that will be called on any change of the file on `path`.
+    /// Registers a callback that will be called on any change of the file on `path`
+    /// using the `atomic_write` API.
     ///
-    /// The file will be watched for the lifetime of the returned `WatchHandle`.
-    /// The caller is required to keep it.
+    /// The behavior when using `.watch()` on a file using `.open_write(...)` is, on the other
+    /// hand, undefined.
+    ///
+    /// The file will be watched for the lifetime of the returned `WatchHandle`. The caller is
+    /// required to keep it.
+    ///
+    /// Internally, tantivy only uses this API to detect new commits by watching the `meta.json`.
+    /// It is ok to avoid implementing watch but in this case, the `ReloadPolicy` `OnCommit` will
+    /// not behave as expected.
     fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle;
 }
 

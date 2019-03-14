@@ -22,8 +22,11 @@ pub use self::directory::{Directory, DirectoryClone};
 pub use self::directory_lock::{Lock, INDEX_WRITER_LOCK, META_LOCK};
 pub use self::ram_directory::RAMDirectory;
 pub use self::read_only_source::ReadOnlySource;
-pub use self::watch_event_router::{WatchEventRouter, WatchCallback, WatchHandle};
+pub(crate) use self::watch_event_router::WatchEventRouter;
+pub use self::watch_event_router::{WatchCallback, WatchHandle};
 use std::io::{BufWriter, Seek, Write};
+
+
 
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;

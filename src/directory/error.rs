@@ -74,6 +74,7 @@ pub enum OpenDirectoryError {
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
     NotADirectory(PathBuf),
+    /// Failed to create a temporary directory.
     FailedToCreateTempDir(io::Error)
 }
 

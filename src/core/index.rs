@@ -188,10 +188,19 @@ impl Index {
         }
     }
 
+    /// Create a default `IndexReader` for the given index.
+    ///
+    /// See [`Index.reader_builder()`](#method.reader_builder).
     pub fn reader(&self) -> Result<IndexReader> {
         self.reader_builder().try_into()
     }
 
+
+    /// Create a `IndexReader` for the given index.
+    ///
+    /// Most project should create at most one reader for a given index.
+    /// This method is typically called only once per `Index` instance,
+    /// over the lifetime of most problem.
     pub fn reader_builder(&self) -> IndexReaderBuilder {
         IndexReaderBuilder::new(self.clone())
     }

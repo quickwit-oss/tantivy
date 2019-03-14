@@ -10,13 +10,35 @@ use Result;
 use Searcher;
 use SegmentReader;
 
+/// Defines when a new version of the index should be reloaded.
+///
+/// Regardless of whether you search and index in the same process, tantivy does not necessarily
+/// reflects the change that are commited to your index. `ReloadPolicy` precisely helps you define
+/// when you want your index to be reloaded.
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
-    // TODO add NEAR_REAL_TIME(target_ms),
+    /// The index is entirely reloaded manually.
+    /// All updates of the index should be manual.
+    ///
+    /// No change is reflected automatically. You are required to call `.load_seacher()` manually.
     Manual,
+    /// The index is reloaded within milliseconds after a new commit is available.
+    /// This is made possible by watching changes in the `meta.json` file.
     OnCommit
+    // TODO add NEAR_REAL_TIME(target_ms),
 }
 
+/// `IndexReader` builder
+///
+/// It makes it possible to set the following values.
+///
+/// - `num_searchers` (by default, the number of detected CPU threads):
+///
+///   When `num_searchers` queries are requested at the same time, the `num_searchers` will block
+///   until the one of the searcher in-use gets released.
+/// - `reload_policy` (by default `ReloadPolicy::OnCommit`):
+///
+///   See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
 #[derive(Clone)]
 pub struct IndexReaderBuilder {
     num_searchers: usize,
@@ -45,12 +67,15 @@ impl IndexReaderBuilder {
         Ok(reader)
     }
 
-
+    /// Sets the reload_policy.
+    ///
+    /// See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
         self
     }
 
+    /// Sets the number of `Searcher` in the searcher pool.
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
@@ -60,7 +85,7 @@ impl IndexReaderBuilder {
 struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
-    reload_policy: ReloadPolicy,
+    _reload_policy: ReloadPolicy,
     index: Index,
 }
 
@@ -90,6 +115,10 @@ impl InnerIndexReader {
     }
 }
 
+/// `IndexReader` is your entry point to read and search the index.
+///
+/// It controls when a new version of the index should be loaded and lends
+/// you instances of `Searcher` for the last loaded version.
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
 }
@@ -133,7 +162,7 @@ impl IndexReader {
                 index,
                 num_searchers,
                 searcher_pool: Pool::new(),
-                reload_policy,
+                _reload_policy: reload_policy,
             }),
         }
     }

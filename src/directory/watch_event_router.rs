@@ -5,7 +5,8 @@ use std::path::Path;
 use std::sync::Arc;
 use std::sync::RwLock;
 
-pub type WatchCallback = Box<Fn()->() + 'static + Sync + Send>;
+/// Type alias for callbacks registered when watching files of a `Directory`.
+pub type WatchCallback = Box<Fn()->() + Sync + Send>;
 
 
 /// Helper struct to implement the watch method in `Directory` implementations.
@@ -19,6 +20,10 @@ pub struct WatchEventRouter {
     router: RwLock<HashMap<PathBuf, Vec<Weak<WatchCallback>>>>
 }
 
+/// Controls how long a directory should watch for a file change.
+///
+/// After the `WatchHandle` is dropped, the associated will not be called when a file change is
+/// detected.
 #[must_use = "This `WatchHandle` controls the lifetime of the watch and should therefore be used."]
 pub struct WatchHandle(Arc<WatchCallback>);
 
