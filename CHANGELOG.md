@@ -13,6 +13,7 @@ previous index format.*
   for int fields. (@fulmicoton)
 - Added DateTime field (@barrotsteindev)
 
+
 Tantivy 0.8.2
 =====================
 Fixing build for x86_64 platforms. (#496)
