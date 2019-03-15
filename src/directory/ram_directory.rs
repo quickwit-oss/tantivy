@@ -7,7 +7,7 @@ use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
-use directory::WatchEventRouter;
+use directory::WatchCallbackList;
 
 /// Writer associated with the `RAMDirectory`
 ///
@@ -65,8 +65,7 @@ impl Write for VecWriter {
         self.is_flushed = true;
         let mut fs = self.shared_directory.fs.write().unwrap();
         fs.write(self.path.clone(), self.data.get_ref())?;
-        let path_clone = self.path.clone();
-        fs.watch_router.broadcast(&path_clone);
+        fs.watch_router.broadcast();
         Ok(())
     }
 }
@@ -74,7 +73,7 @@ impl Write for VecWriter {
 #[derive(Default)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, ReadOnlySource>,
-    watch_router: WatchEventRouter
+    watch_router: WatchCallbackList
 }
 
 impl InnerDirectory {
@@ -94,7 +93,7 @@ impl InnerDirectory {
     fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
         match self.fs.remove(path) {
             Some(_) => {
-                self.watch_router.broadcast(path);
+                self.watch_router.broadcast();
                 Ok(())
             }
             None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
@@ -105,8 +104,8 @@ impl InnerDirectory {
         self.fs.contains_key(path)
     }
 
-    fn watch(&mut self, path: &Path, watch_handle: WatchCallback) -> WatchHandle {
-        self.watch_router.subscribe(path, watch_handle)
+    fn watch(&mut self  , watch_handle: WatchCallback) -> WatchHandle {
+        self.watch_router.subscribe(watch_handle)
     }
 }
 
@@ -184,8 +183,8 @@ impl Directory for RAMDirectory {
         Ok(())
     }
 
-    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        self.fs.write().unwrap().watch(path, watch_callback)
+    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+        self.fs.write().unwrap().watch(watch_callback)
     }
 
 }

@@ -2,7 +2,6 @@ mod pool;
 
 use self::pool::{LeasedItem, Pool};
 use core::Segment;
-use core::META_FILEPATH;
 use directory::Directory;
 use directory::META_LOCK;
 use std::sync::Arc;
@@ -86,7 +85,7 @@ impl IndexReaderBuilder {
                 };
                 let watch_handle = inner_reader_arc.index
                     .directory()
-                    .watch(&META_FILEPATH, Box::new(callback));
+                    .watch(Box::new(callback));
                 watch_handle_opt = Some(watch_handle);
             }
         }

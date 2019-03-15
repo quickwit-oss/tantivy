@@ -162,7 +162,7 @@ impl From<OpenDirectoryError> for TantivyError {
             OpenDirectoryError::NotADirectory(directory_path) => {
                 TantivyError::InvalidArgument(format!("{:?} is not a directory", directory_path))
             }
-            OpenDirectoryError::FailedToCreateTempDir(err) => {
+            OpenDirectoryError::IoError(err) => {
                 TantivyError::IOError(IOError::from(err))
             }
         }

@@ -135,19 +135,26 @@ fn test_watch(directory: &mut Directory) {
     let watch_callback = Box::new(move || {
         counter_clone.fetch_add(1, Ordering::SeqCst);
     });
-    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data").is_ok());
-    thread::sleep(Duration::new(0, 100_000));
+    assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data").is_ok());
+    thread::sleep(Duration::new(0, 10_000));
     assert_eq!(0, counter.load(Ordering::SeqCst));
 
-    let watch_handle = directory.watch(Path::new("test_watch"), watch_callback);
-    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data_2").is_ok());
-    thread::sleep(Duration::from_secs(10));
-    assert_eq!(1, counter.load(Ordering::SeqCst));
-
+    let watch_handle = directory.watch(watch_callback);
+    for i in 0..10 {
+        assert_eq!(i, counter.load(Ordering::SeqCst));
+        assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data_2").is_ok());
+        for _ in 0..100 {
+            if counter.load(Ordering::SeqCst) > i {
+                break;
+            }
+            thread::sleep(Duration::from_millis(10));
+        }
+        assert_eq!(i + 1, counter.load(Ordering::SeqCst));
+    }
     mem::drop(watch_handle);
-    assert!(directory.atomic_write(Path::new("test_watch"), b"random_test_data").is_ok());
-    thread::sleep(Duration::new(0, 10_000));
-    assert_eq!(1, counter.load(Ordering::SeqCst));
+    assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data").is_ok());
+    thread::sleep(Duration::from_millis(200));
+    assert_eq!(10, counter.load(Ordering::SeqCst));
 
 }
 

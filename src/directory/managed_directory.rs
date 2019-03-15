@@ -243,8 +243,8 @@ impl Directory for ManagedDirectory {
         self.directory.acquire_lock(lock)
     }
 
-    fn watch(&self, path: &Path, watch_callback: WatchCallback) -> WatchHandle {
-        self.directory.watch(path, watch_callback)
+    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+        self.directory.watch(watch_callback)
     }
 }
 
