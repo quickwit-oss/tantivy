@@ -50,11 +50,19 @@ pub enum QueryParserError {
     /// The query contains a range query with a phrase as one of the bounds.
     /// Only terms can be used as bounds.
     RangeMustNotHavePhrase,
+    /// The format for the date field is not RFC 3339 compliant.
+    DateFormatError(chrono::ParseError),
 }
 
 impl From<ParseIntError> for QueryParserError {
     fn from(err: ParseIntError) -> QueryParserError {
         QueryParserError::ExpectedInt(err)
+    }
+}
+
+impl From<chrono::ParseError> for QueryParserError {
+    fn from(err: chrono::ParseError) -> QueryParserError {
+        QueryParserError::DateFormatError(err)
     }
 }
 
@@ -126,6 +134,8 @@ fn trim_ast(logical_ast: LogicalAST) -> Option<LogicalAST> {
 ///   inclusive or exclusive. e.g., `title:[a TO c}` will find all documents whose title contains
 ///   a word lexicographically between `a` and `c` (inclusive lower bound, exclusive upper bound).
 ///   Inclusive bounds are `[]`, exclusive are `{}`.
+///
+/// * date values: The query parser supports rfc3339 formatted dates. For example "2002-10-02T15:00:00.05Z"
 ///
 /// *  all docs query: A plain `*` will match all documents in the index.
 ///
@@ -228,6 +238,12 @@ impl QueryParser {
                 let val: i64 = i64::from_str(phrase)?;
                 let term = Term::from_field_i64(field, val);
                 Ok(vec![(0, term)])
+            }
+            FieldType::Date(_) => {
+                match chrono::DateTime::parse_from_rfc3339(phrase) {
+                    Ok(x)  => Ok(vec![(0, Term::from_field_date(field, &x.with_timezone(&chrono::Utc)))]),
+                    Err(e) => Err(QueryParserError::DateFormatError(e))
+                }
             }
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
@@ -508,6 +524,7 @@ mod test {
         schema_builder.add_text_field("notindexed_i64", STORED);
         schema_builder.add_text_field("nottokenized", STRING);
         schema_builder.add_text_field("with_stop_words", text_options);
+        schema_builder.add_date_field("date", INDEXED);
         let schema = schema_builder.build();
         let default_fields = vec![title, text];
         let tokenizer_manager = TokenizerManager::default();
@@ -765,6 +782,16 @@ mod test {
             query_parser.parse_query("signed:18b"),
             Err(QueryParserError::ExpectedInt(_))
         );
+    }
+
+    #[test]
+    pub fn test_query_parser_expected_date() {
+        let query_parser = make_query_parser();
+        assert_matches!(
+            query_parser.parse_query("date:18a"),
+            Err(QueryParserError::DateFormatError(_))
+        );
+        assert!(query_parser.parse_query("date:\"1985-04-12T23:20:50.52Z\"").is_ok());
     }
 
     #[test]

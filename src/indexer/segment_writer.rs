@@ -171,6 +171,17 @@ impl SegmentWriter {
                         }
                     }
                 }
+                FieldType::Date(ref int_option) => {
+                    if int_option.is_indexed() {
+                        for field_value in field_values {
+                            let term = Term::from_field_i64(
+                                field_value.field(),
+                                field_value.value().date_value().timestamp(),
+                            );
+                            self.multifield_postings.subscribe(doc_id, &term);
+                        }
+                    }
+                }
                 FieldType::I64(ref int_option) => {
                     if int_option.is_indexed() {
                         for field_value in field_values {

@@ -194,7 +194,7 @@ impl IndexMerger {
                         fast_field_serializer,
                     )?;
                 }
-                FieldType::U64(ref options) | FieldType::I64(ref options) => {
+                FieldType::U64(ref options) | FieldType::I64(ref options) | FieldType::Date(ref options) => {
                     match options.get_fastfield_cardinality() {
                         Some(Cardinality::SingleValue) => {
                             self.write_single_fast_field(field, fast_field_serializer)?;
@@ -671,10 +671,12 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let date_field = schema_builder.add_date_field("date", INDEXED);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
+        let curr_time = chrono::Utc::now();
 
         let add_score_bytes = |doc: &mut Document, score: u32| {
             let mut bytes = Vec::new();
@@ -692,6 +694,7 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u64(score_field, 3);
+                    doc.add_date(date_field, &curr_time);
                     add_score_bytes(&mut doc, 3);
                     index_writer.add_document(doc);
                 }
@@ -717,6 +720,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
+                    doc.add_date(date_field, &curr_time);
                     doc.add_u64(score_field, 11);
                     add_score_bytes(&mut doc, 11);
                     index_writer.add_document(doc);
@@ -772,6 +776,13 @@ mod tests {
                         DocAddress(0, 2),
                         DocAddress(0, 3),
                         DocAddress(0, 4)
+                    ]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)]),
+                    vec![
+                        DocAddress(0, 0),
+                        DocAddress(0, 3)
                     ]
                 );
             }
