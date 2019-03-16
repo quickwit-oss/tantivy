@@ -78,11 +78,6 @@ mod tests {
     const WAIT_TIME: u64 = 20;
 
     #[test]
-    fn test_watch_event_router_empty() {
-        assert_eq!(WatchCallbackList::default().len(), 0);
-    }
-
-    #[test]
     fn test_watch_event_router_simple() {
         let watch_event_router = WatchCallbackList::default();
         let counter: Arc<AtomicUsize> = Default::default();
