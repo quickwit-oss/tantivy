@@ -34,6 +34,8 @@ pub enum Type {
     U64,
     /// `i64`
     I64,
+    /// `date(i64) timestamp`
+    Date,
     /// `tantivy::schema::Facet`. Passed as a string in JSON.
     HierarchicalFacet,
     /// `Vec<u8>`
@@ -50,6 +52,8 @@ pub enum FieldType {
     U64(IntOptions),
     /// Signed 64-bits integers 64 field type configuration
     I64(IntOptions),
+    /// Signed 64-bits Date 64 field type configuration,
+    Date(IntOptions),
     /// Hierachical Facet
     HierarchicalFacet,
     /// Bytes (one per document)
@@ -63,6 +67,7 @@ impl FieldType {
             FieldType::Str(_) => Type::Str,
             FieldType::U64(_) => Type::U64,
             FieldType::I64(_) => Type::I64,
+            FieldType::Date(_) => Type::Date,
             FieldType::HierarchicalFacet => Type::HierarchicalFacet,
             FieldType::Bytes => Type::Bytes,
         }
@@ -75,6 +80,7 @@ impl FieldType {
             FieldType::U64(ref int_options) | FieldType::I64(ref int_options) => {
                 int_options.is_indexed()
             }
+            FieldType::Date(ref date_options) => date_options.is_indexed(),
             FieldType::HierarchicalFacet => true,
             FieldType::Bytes => false,
         }
@@ -89,7 +95,7 @@ impl FieldType {
             FieldType::Str(ref text_options) => text_options
                 .get_indexing_options()
                 .map(|indexing_options| indexing_options.index_option()),
-            FieldType::U64(ref int_options) | FieldType::I64(ref int_options) => {
+            FieldType::U64(ref int_options) | FieldType::I64(ref int_options) | FieldType::Date(ref int_options) => {
                 if int_options.is_indexed() {
                     Some(IndexRecordOption::Basic)
                 } else {
@@ -110,7 +116,7 @@ impl FieldType {
         match *json {
             JsonValue::String(ref field_text) => match *self {
                 FieldType::Str(_) => Ok(Value::Str(field_text.clone())),
-                FieldType::U64(_) | FieldType::I64(_) => Err(ValueParsingError::TypeError(
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::Date(_) => Err(ValueParsingError::TypeError(
                     format!("Expected an integer, got {:?}", json),
                 )),
                 FieldType::HierarchicalFacet => Ok(Value::Facet(Facet::from(field_text))),
@@ -122,7 +128,7 @@ impl FieldType {
                 }),
             },
             JsonValue::Number(ref field_val_num) => match *self {
-                FieldType::I64(_) => {
+                FieldType::I64(_) | FieldType::Date(_) => {
                     if let Some(field_val_i64) = field_val_num.as_i64() {
                         Ok(Value::I64(field_val_i64))
                     } else {

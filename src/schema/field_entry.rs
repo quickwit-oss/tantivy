@@ -48,6 +48,15 @@ impl FieldEntry {
         }
     }
 
+    /// Creates a new date field entry in the schema, given
+    /// a name, and some options.
+    pub fn new_date(field_name: String, field_type: IntOptions) -> FieldEntry {
+        FieldEntry {
+            name: field_name,
+            field_type: FieldType::Date(field_type),
+        }
+    }
+
     /// Creates a field entry for a facet.
     pub fn new_facet(field_name: String) -> FieldEntry {
         FieldEntry {
@@ -78,7 +87,7 @@ impl FieldEntry {
     pub fn is_indexed(&self) -> bool {
         match self.field_type {
             FieldType::Str(ref options) => options.get_indexing_options().is_some(),
-            FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_indexed(),
+            FieldType::U64(ref options) | FieldType::I64(ref options) | FieldType::Date(ref options) => options.is_indexed(),
             FieldType::HierarchicalFacet => true,
             FieldType::Bytes => false,
         }
@@ -95,7 +104,7 @@ impl FieldEntry {
     /// Returns true iff the field is stored
     pub fn is_stored(&self) -> bool {
         match self.field_type {
-            FieldType::U64(ref options) | FieldType::I64(ref options) => options.is_stored(),
+            FieldType::U64(ref options) | FieldType::I64(ref options) | FieldType::Date(ref options) => options.is_stored(),
             FieldType::Str(ref options) => options.is_stored(),
             // TODO make stored hierarchical facet optional
             FieldType::HierarchicalFacet => true,
@@ -123,6 +132,10 @@ impl Serialize for FieldEntry {
             }
             FieldType::I64(ref options) => {
                 s.serialize_field("type", "i64")?;
+                s.serialize_field("options", options)?;
+            }
+            FieldType::Date(ref options) => {
+                s.serialize_field("type", "date")?;
                 s.serialize_field("options", options)?;
             }
             FieldType::HierarchicalFacet => {
@@ -188,7 +201,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "bytes" => {
                                     field_type = Some(FieldType::Bytes);
                                 }
-                                "text" | "u64" | "i64" => {
+                                "text" | "u64" | "i64" | "date" => {
                                     // These types require additional options to create a field_type
                                 }
                                 _ => panic!("unhandled type"),
@@ -205,6 +218,7 @@ impl<'de> Deserialize<'de> for FieldEntry {
                                 "text" => field_type = Some(FieldType::Str(map.next_value()?)),
                                 "u64" => field_type = Some(FieldType::U64(map.next_value()?)),
                                 "i64" => field_type = Some(FieldType::I64(map.next_value()?)),
+                                "date" => field_type = Some(FieldType::Date(map.next_value()?)),
                                 _ => {
                                     let msg = format!("Unrecognised type {}", ty);
                                     return Err(de::Error::custom(msg));
