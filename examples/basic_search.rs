@@ -20,6 +20,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
+use tantivy::ReloadPolicy;
 use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -170,8 +171,15 @@ fn main() -> tantivy::Result<()> {
     //
     // ### Searcher
     //
-    // TODO explain what a reader does
-    let reader = index.reader()?;
+    // A reader is required to get search the index.
+    // It acts as a `Searcher` pool that reloads itself,
+    // depending on a `ReloadPolicy`.
+    //
+    // In the code below, we rely on the 'ON_COMMIT' policy: the reader
+    // will reload the index automatically after each commit.
+    let reader = index.reader_builder()
+        .reload_policy(ReloadPolicy::OnCommit)
+        .try_into()?;
 
     // We now need to acquire a searcher.
     // Some search experience might require more than
@@ -222,7 +230,6 @@ fn main() -> tantivy::Result<()> {
     // Since the body field was not configured as stored,
     // the document returned will only contain
     // a title.
-
     for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));

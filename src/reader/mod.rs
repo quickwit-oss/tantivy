@@ -51,7 +51,7 @@ impl IndexReaderBuilder {
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
             num_searchers: num_cpus::get(),
-            reload_policy: ReloadPolicy::Manual,
+            reload_policy: ReloadPolicy::OnCommit,
             index,
         }
     }

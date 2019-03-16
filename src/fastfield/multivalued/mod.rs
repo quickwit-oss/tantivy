@@ -82,8 +82,8 @@ mod tests {
         index_writer.add_document(doc!(date_field=>two_secs_ahead, date_field=>two_secs_ahead,date_field=>two_secs_ahead, time_i=>3i64));
         assert!(index_writer.commit().is_ok());
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         let reader = searcher.segment_reader(0);
         assert_eq!(reader.num_docs(), 4);
 

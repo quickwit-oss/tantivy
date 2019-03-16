@@ -90,7 +90,6 @@ mod tests {
         assert_eq!(0, counter.load(Ordering::SeqCst));
         let handle_a = watch_event_router.subscribe( inc_callback);
         thread::sleep(Duration::from_millis(WAIT_TIME));
-        assert_eq!(watch_event_router.len(), 1);
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast();
         thread::sleep(Duration::from_millis(WAIT_TIME));
@@ -133,7 +132,6 @@ mod tests {
         watch_event_router.broadcast();
         thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(32, counter.load(Ordering::SeqCst));
-        assert_eq!(watch_event_router.len(), 0);
     }
 
 
@@ -146,7 +144,6 @@ mod tests {
             counter_clone.fetch_add(1, Ordering::SeqCst);
         });
         let handle_a = watch_event_router.subscribe(inc_callback);
-        assert_eq!(watch_event_router.len(), 1);
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast();
         watch_event_router.broadcast();
