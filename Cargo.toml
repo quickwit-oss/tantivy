@@ -51,6 +51,7 @@ htmlescape = "0.3.1"
 fail = "0.2"
 scoped-pool = "1.0"
 murmurhash32 = "0.2"
+chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winapi = "0.2"
@@ -59,6 +60,7 @@ winapi = "0.2"
 rand = "0.6"
 maplit = "1"
 matches = "0.1.8"
+time = "0.1.42"
 
 [profile.release]
 opt-level = 3
