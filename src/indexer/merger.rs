@@ -1322,7 +1322,7 @@ mod tests {
                 .expect("Merging failed");
 
             // assert delete has not been committed
-            reader.load_searchers().unwrap();
+            reader.load_searchers().expect("failed to load searcher 1");
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
 
@@ -1337,7 +1337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_merge_multivalued_int_fields() {
+    fn test_merge_multivalued_int_fields_simple() {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
@@ -1354,7 +1354,6 @@ mod tests {
                 }
                 index_writer.add_document(doc);
             };
-
             index_doc(&mut index_writer, &[1, 2]);
             index_doc(&mut index_writer, &[1, 2, 3]);
             index_doc(&mut index_writer, &[4, 5]);
@@ -1363,18 +1362,14 @@ mod tests {
             index_doc(&mut index_writer, &[3]);
             index_doc(&mut index_writer, &[17]);
             index_writer.commit().expect("committed");
-
             index_doc(&mut index_writer, &[20]);
             index_writer.commit().expect("committed");
-
             index_doc(&mut index_writer, &[28, 27]);
             index_doc(&mut index_writer, &[1_000]);
-
             index_writer.commit().expect("committed");
         }
         let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-
         let mut vals: Vec<u64> = Vec::new();
 
         {
@@ -1440,10 +1435,9 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            index_writer.wait_merging_threads().unwrap();
+            index_writer.wait_merging_threads().expect("Wait for merging threads");
         }
-
-        reader.load_searchers().unwrap();
+        reader.load_searchers().expect("Load searcher");
 
         {
             let searcher = reader.searcher();

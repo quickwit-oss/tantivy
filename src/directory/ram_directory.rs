@@ -2,6 +2,7 @@ use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
 use directory::{Directory, ReadOnlySource, WatchHandle, WatchCallback};
 use std::collections::HashMap;
+use core::META_FILEPATH;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
@@ -65,7 +66,6 @@ impl Write for VecWriter {
         self.is_flushed = true;
         let mut fs = self.shared_directory.fs.write().unwrap();
         fs.write(self.path.clone(), self.data.get_ref())?;
-        fs.watch_router.broadcast();
         Ok(())
     }
 }
@@ -93,7 +93,6 @@ impl InnerDirectory {
     fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
         match self.fs.remove(path) {
             Some(_) => {
-                self.watch_router.broadcast();
                 Ok(())
             }
             None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
@@ -180,6 +179,9 @@ impl Directory for RAMDirectory {
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
+        if path == Path::new(&*META_FILEPATH) {
+            self.fs.write().unwrap().watch_router.broadcast();
+        }
         Ok(())
     }
 

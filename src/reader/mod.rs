@@ -118,12 +118,14 @@ struct InnerIndexReader {
 
 impl InnerIndexReader {
     fn load_searchers(&self) -> Result<()> {
-        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.searchable_segments()?;
-        let segment_readers: Vec<SegmentReader> = searchable_segments
-            .iter()
-            .map(SegmentReader::open)
-            .collect::<Result<_>>()?;
+        let segment_readers: Vec<SegmentReader> = {
+            let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+            let searchable_segments = self.searchable_segments()?;
+            searchable_segments
+                .iter()
+                .map(SegmentReader::open)
+                .collect::<Result<_>>()?
+        };
         let schema = self.index.schema();
         let searchers = (0..self.num_searchers)
             .map(|_| Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone()))
