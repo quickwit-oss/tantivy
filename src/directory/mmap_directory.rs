@@ -168,7 +168,9 @@ impl InnerWatcherWrapper {
         };
         let root = path.to_owned();
         let watcher_wrapper_clone = watcher_wrapper.clone();
-        thread::spawn( move || {
+        thread::Builder::new()
+            .name("meta-file-watch-thread".to_string())
+            .spawn( move || {
             loop {
                 match watcher_recv.recv().map(|evt| evt.path) {
                     Ok(Some(relative_path)) => {
@@ -190,7 +192,7 @@ impl InnerWatcherWrapper {
                     }
                 }
             }
-        });
+        }).expect("Failed to spawn thread to watch meta.json");
         Ok(watcher_wrapper)
     }
 

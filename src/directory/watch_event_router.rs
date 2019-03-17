@@ -55,7 +55,7 @@ impl WatchCallbackList {
         let callbacks = self.list_callback();
         let spawn_res = std::thread::Builder::new()
             .name("watch-callbacks".to_string())
-            .spawn(|| {
+            .spawn(move || {
                 for callback in callbacks {
                     callback();
                 }

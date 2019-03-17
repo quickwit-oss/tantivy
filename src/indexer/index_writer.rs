@@ -877,7 +877,6 @@ mod tests {
             let mut index_writer = index.writer(3_000_000).unwrap();
             index_writer.add_document(doc!(text_field=>"a"));
             index_writer.rollback().unwrap();
-
             assert_eq!(index_writer.commit_opstamp(), 0u64);
             assert_eq!(num_docs_containing("a"), 0);
             {
@@ -915,7 +914,7 @@ mod tests {
             for _doc in 0..100 {
                 index_writer.add_document(doc!(text_field=>"a"));
             }
-            // this should create 8 segments and trigger a merge.
+            //  this should create 8 segments and trigger a merge.
             index_writer.commit().expect("commit failed");
             index_writer
                 .wait_merging_threads()
