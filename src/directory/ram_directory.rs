@@ -1,4 +1,4 @@
-use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
+use directory::error::{DeleteError, OpenReadError, OpenWriteError};
 use directory::WritePtr;
 use directory::{Directory, ReadOnlySource, WatchHandle, WatchCallback};
 use std::collections::HashMap;
@@ -65,7 +65,7 @@ impl Write for VecWriter {
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
         let mut fs = self.shared_directory.fs.write().unwrap();
-        fs.write(self.path.clone(), self.data.get_ref())?;
+        fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
     }
 }
@@ -77,10 +77,11 @@ struct InnerDirectory {
 }
 
 impl InnerDirectory {
-    // TODO Result is now useless
-    fn write(&mut self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let prev_value = self.fs.insert(path, ReadOnlySource::new(Vec::from(data)));
-        Ok(prev_value.is_some())
+    fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
+        let data = ReadOnlySource::new(Vec::from(data));
+        self.fs
+            .insert(path, data)
+            .is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
@@ -148,12 +149,9 @@ impl Directory for RAMDirectory {
         let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
         let vec_writer = VecWriter::new(
-
-
             path_buf.clone(), self.clone());
         let exists = fs
-            .write(path_buf.clone(), &Vec::new())
-            .map_err(|err| IOError::with_path(path.to_owned(), err))?;
+            .write(path_buf.clone(), &[]);
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
@@ -172,10 +170,12 @@ impl Directory for RAMDirectory {
             msg.unwrap_or("Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
-        {   // Reserve the path to prevent calls to .write() to succeed.
-            let mut inner = self.fs.write().unwrap();
-            inner.write(path_buf.clone(), &Vec::new())?;
-        }
+
+        // Reserve the path to prevent calls to .write() to succeed.
+        self.fs.write()
+            .unwrap()
+            .write(path_buf.clone(), &[]);
+
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
