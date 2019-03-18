@@ -78,6 +78,12 @@ pub enum OpenDirectoryError {
     IoError(io::Error)
 }
 
+impl From<io::Error> for OpenDirectoryError {
+    fn from(io_err: io::Error) -> Self {
+        OpenDirectoryError::IoError(io_err)
+    }
+}
+
 impl fmt::Display for OpenDirectoryError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {

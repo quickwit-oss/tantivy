@@ -166,16 +166,17 @@ impl InnerWatcherWrapper {
             let watcher_wrapper = WatcherWrapper {
             inner: Arc::new(inner)
         };
-        let root = path.to_owned();
         let watcher_wrapper_clone = watcher_wrapper.clone();
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
             .spawn( move || {
             loop {
                 match watcher_recv.recv().map(|evt| evt.path) {
-                    Ok(Some(relative_path)) => {
-                        if let Ok(relative_path) = relative_path.strip_prefix(&root) {
-                            if relative_path == &*META_FILEPATH {
+                    Ok(Some(changed_path)) => {
+                        // ... Actually subject to false positive.
+                        // We might want to be more accurate than this at one point.
+                        if let Some(filename) = changed_path.file_name() {
+                            if filename == &*META_FILEPATH {
                                 watcher_wrapper_clone
                                     .inner
                                     .watcher_router
