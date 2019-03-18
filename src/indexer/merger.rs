@@ -748,7 +748,7 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
         {
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
@@ -885,7 +885,7 @@ mod tests {
                 bytes_score_field => vec![0u8, 0, 0, 3],
             ));
             index_writer.commit().expect("committed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
@@ -932,7 +932,7 @@ mod tests {
                 bytes_score_field => vec![0u8, 0, 27, 88],
             ));
             index_writer.commit().expect("committed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
 
             assert_eq!(searcher.segment_readers().len(), 2);
@@ -994,7 +994,7 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 3);
@@ -1040,7 +1040,7 @@ mod tests {
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.commit().unwrap();
 
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 2);
@@ -1091,7 +1091,7 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
 
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -1141,7 +1141,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
 
             let searcher = reader.searcher();
             assert!(segment_ids.is_empty());
@@ -1185,7 +1185,7 @@ mod tests {
             index_writer.commit().expect("committed");
         }
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         let test_searcher = |expected_num_docs: usize, expected: &[(&str, u64)]| {
             let searcher = reader.searcher();
             let mut facet_collector = FacetCollector::for_field(facet_field);
@@ -1229,7 +1229,7 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             test_searcher(
                 11,
                 &[
@@ -1250,7 +1250,7 @@ mod tests {
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
             index_writer.commit().unwrap();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             test_searcher(
                 9,
                 &[
@@ -1287,7 +1287,7 @@ mod tests {
             .expect("Failed to initiate merge")
             .wait()
             .expect("Merging failed");
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         // commit has not been called yet. The document should still be
         // there.
         assert_eq!(reader.searcher().num_docs(), 2);
@@ -1322,7 +1322,7 @@ mod tests {
                 .expect("Merging failed");
 
             // assert delete has not been committed
-            reader.load_searchers().expect("failed to load searcher 1");
+            reader.reload().expect("failed to load searcher 1");
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
 
@@ -1331,7 +1331,7 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 0);
     }
@@ -1437,7 +1437,7 @@ mod tests {
                 .expect("Merging failed");
             index_writer.wait_merging_threads().expect("Wait for merging threads");
         }
-        reader.load_searchers().expect("Load searcher");
+        reader.reload().expect("Load searcher");
 
         {
             let searcher = reader.searcher();

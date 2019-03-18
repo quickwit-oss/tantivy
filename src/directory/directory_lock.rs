@@ -43,7 +43,7 @@ lazy_static! {
         is_blocking: false
     };
     /// The meta lock file is here to protect the segment files being opened by
-    /// `.load_searchers()` from being garbage collected.
+    /// `IndexReader::reload()` from being garbage collected.
     /// It makes it possible for another process to safely consume
     /// our index in-writing. Ideally, we may have prefered `RWLock` semantics
     /// here, but it is difficult to achieve on Windows.

@@ -28,7 +28,7 @@ fn run() -> Result<()> {
         index_writer.commit()?;
         // The index will be a range of years
     }
-    reader.load_searchers()?;
+    reader.reload()?;
     let searcher = reader.searcher();
     // The end is excluded i.e. here we are searching up to 1969
     let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);

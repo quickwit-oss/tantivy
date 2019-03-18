@@ -731,6 +731,7 @@ mod tests {
     use collector::TopDocs;
     use Index;
     use Term;
+    use ReloadPolicy;
 
     #[test]
     fn test_operations_group() {
@@ -757,7 +758,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader().unwrap();
+        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
@@ -770,7 +771,7 @@ mod tests {
 
         index_writer.run(operations);
         index_writer.commit().expect("failed to commit");
-        reader.load_searchers().expect("failed to load searchers");
+        reader.reload().expect("failed to load searchers");
         
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
@@ -865,7 +866,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader().unwrap();
+        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
         let num_docs_containing = |s: &str| {
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
@@ -884,12 +885,12 @@ mod tests {
                 index_writer.add_document(doc!(text_field=>"c"));
             }
             assert!(index_writer.commit().is_ok());
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             assert_eq!(num_docs_containing("a"), 0);
             assert_eq!(num_docs_containing("b"), 1);
             assert_eq!(num_docs_containing("c"), 1);
         }
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         reader.searcher();
     }
 
@@ -898,7 +899,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader().unwrap();
+        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
             reader.searcher().doc_freq(&term_a)
@@ -920,7 +921,7 @@ mod tests {
                 .wait_merging_threads()
                 .expect("waiting merging thread failed");
 
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
 
             assert_eq!(num_docs_containing("a"), 200);
             assert!(index.searchable_segments().unwrap().len() < 8);
@@ -989,7 +990,7 @@ mod tests {
         }
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
-            index.reader().unwrap().searcher().doc_freq(&term_a)
+            index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap().searcher().doc_freq(&term_a)
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);

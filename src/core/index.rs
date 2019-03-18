@@ -475,7 +475,7 @@ mod tests {
         writer.commit().unwrap();
         thread::sleep(Duration::from_millis(500));
         assert_eq!(reader.searcher().num_docs(), 0);
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         assert_eq!(reader.searcher().num_docs(), 1);
     }
 

@@ -37,7 +37,7 @@ fn test_indexing() {
             index_writer.commit().expect("Commit failed");
             committed_docs.extend(&uncommitted_docs);
             uncommitted_docs.clear();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             // check that everything is correct.
             check_index_content(&searcher, &committed_docs);

@@ -68,7 +68,7 @@ impl IndexReaderBuilder {
             num_searchers: self.num_searchers,
             searcher_pool: Pool::new(),
         };
-        inner_reader.load_searchers()?;
+        inner_reader.reload()?;
         let inner_reader_arc = Arc::new(inner_reader);
         let watch_handle_opt: Option<WatchHandle>;
         match self.reload_policy {
@@ -79,7 +79,7 @@ impl IndexReaderBuilder {
             ReloadPolicy::OnCommit => {
                 let inner_reader_arc_clone = inner_reader_arc.clone();
                 let callback = move || {
-                    if let Err(err) = inner_reader_arc_clone.load_searchers() {
+                    if let Err(err) = inner_reader_arc_clone.reload() {
                         error!("Error while loading searcher after commit was detected. {:?}", err);
                     }
                 };
@@ -117,7 +117,7 @@ struct InnerIndexReader {
 }
 
 impl InnerIndexReader {
-    fn load_searchers(&self) -> Result<()> {
+    fn reload(&self) -> Result<()> {
         let segment_readers: Vec<SegmentReader> = {
             let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
             let searchable_segments = self.searchable_segments()?;
@@ -161,15 +161,14 @@ impl IndexReader {
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///
-    /// If indexing happens in the same process as searching,
-    /// you most likely want to call `.load_searchers()` right after each
-    /// successful call to `.commit()`.
+    /// If you set up the `OnCommit` `ReloadPolicy` (which is the default)
+    /// every commit should be rapidly reflected on your `IndexReader` and you should
+    /// not need to call `reload()` at all.
     ///
-    /// If indexing and searching happen in different processes, the way to
-    /// get the freshest `index` at all time, is to watch `meta.json` and
-    /// call `load_searchers` whenever a changes happen.
-    pub fn load_searchers(&self) -> Result<()> {
-        self.inner.load_searchers()
+    /// This automatic reload can take 10s of milliseconds to kick in however, and in unit tests
+    /// it can be nice to deterministically force the reload of searchers.
+    pub fn reload(&self) -> Result<()> {
+        self.inner.reload()
     }
 
     /// Returns a searcher

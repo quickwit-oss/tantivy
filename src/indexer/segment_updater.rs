@@ -574,7 +574,7 @@ mod tests {
                 .expect("waiting for merging threads");
         }
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         assert_eq!(reader.searcher().segment_readers().len(), 1);
         assert_eq!(reader.searcher().num_docs(), 302);
     }
@@ -643,7 +643,7 @@ mod tests {
             .expect("Searchable segments failed.");
         assert!(seg_ids.is_empty());
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         // empty segments should be erased
         assert!(index.searchable_segment_metas().unwrap().is_empty());
