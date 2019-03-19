@@ -28,16 +28,16 @@ use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::result;
-use std::sync::mpsc::{channel, Receiver};
+use std::sync::mpsc::{channel, Sender, Receiver};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
+use self::notify::RawEvent;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
-/// cannot be mmapped).
-///
+/// cannot be mmapped)
 fn open_mmap(full_path: &Path) -> result::Result<Option<Mmap>, OpenReadError> {
     let file = File::open(full_path).map_err(|e| {
         if e.kind() == io::ErrorKind::NotFound {
@@ -115,26 +115,23 @@ impl MmapCache {
 
     // Returns None if the file exists but as a len of 0 (and hence is not mmappable).
     fn get_mmap(&mut self, full_path: &Path) -> Result<Option<Arc<BoxedData>>, OpenReadError> {
-        let path_in_cache = self.cache.contains_key(full_path);
-        if path_in_cache {
-            {
-                let mmap_weak_opt = self.cache.get(full_path);
-                if let Some(mmap_arc) = mmap_weak_opt.and_then(|mmap_weak| mmap_weak.upgrade()) {
-                    self.counters.hit += 1;
-                    return Ok(Some(mmap_arc));
-                }
+        if let Some(mmap_weak) = self.cache.get(full_path) {
+            if let Some(mmap_arc) = mmap_weak.upgrade() {
+                self.counters.hit += 1;
+                return Ok(Some(mmap_arc));
             }
-            self.cache.remove(full_path);
         }
+        self.cache.remove(full_path);
         self.counters.miss += 1;
-        if let Some(mmap) = open_mmap(full_path)? {
+        Ok(if let Some(mmap) = open_mmap(full_path)? {
             let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
+            let mmap_weak = Arc::downgrade(&mmap_arc);
             self.cache
-                .insert(full_path.to_owned(), Arc::downgrade(&mmap_arc));
-            Ok(Some(mmap_arc))
+                .insert(full_path.to_owned(), mmap_weak);
+            Some(mmap_arc)
         } else {
-            Ok(None)
-        }
+            None
+        })
     }
 }
 
@@ -145,10 +142,10 @@ struct InnerWatcherWrapper {
 
 impl InnerWatcherWrapper {
     pub fn new(path: &Path) -> Result<(Self, Receiver<notify::RawEvent>), notify::Error> {
-        let (tx, watcher_recv) = channel();
+        let (tx, watcher_recv): (Sender<RawEvent>, Receiver<RawEvent>) = channel();
         // We need to initialize the
         let mut watcher = notify::raw_watcher(tx)?;
-        watcher.watch(path, RecursiveMode::Recursive).unwrap();
+        watcher.watch(path, RecursiveMode::Recursive)?;
         let inner = InnerWatcherWrapper {
             _watcher: watcher,
             watcher_router: Default::default(),
