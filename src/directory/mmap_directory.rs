@@ -35,6 +35,7 @@ use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
 use self::notify::RawEvent;
+use std::sync::Mutex;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
@@ -136,7 +137,7 @@ impl MmapCache {
 }
 
 struct InnerWatcherWrapper {
-    _watcher: notify::RecommendedWatcher,
+    _watcher: Mutex<notify::RecommendedWatcher>,
     watcher_router: WatchCallbackList,
 }
 
@@ -147,7 +148,7 @@ impl InnerWatcherWrapper {
         let mut watcher = notify::raw_watcher(tx)?;
         watcher.watch(path, RecursiveMode::Recursive)?;
         let inner = InnerWatcherWrapper {
-            _watcher: watcher,
+            _watcher: Mutex::new(watcher),
             watcher_router: Default::default(),
         };
         Ok((inner, watcher_recv))
