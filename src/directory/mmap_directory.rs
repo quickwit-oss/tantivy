@@ -533,6 +533,7 @@ mod tests {
     use std::thread;
     use Index;
     use schema::{Schema, TEXT, SchemaBuilder};
+    use ReloadPolicy;
 
     #[test]
     fn test_open_non_existant_path() {
@@ -651,7 +652,17 @@ mod tests {
                 }
                 index_writer.commit().unwrap();
             }
+            let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+            for _ in 0..30 {
+                index_writer.add_document(doc!(text_field=>"abc"));
+                index_writer.commit().unwrap();
+                reader.reload().unwrap();
+            }
             index_writer.wait_merging_threads().unwrap();
+            reader.reload().unwrap();
+            let num_segments = reader.searcher().segment_readers().len();
+            assert_eq!(num_segments, 4);
+            assert_eq!(num_segments * 7, mmap_directory.get_cache_info().mmapped.len());
         }
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }
