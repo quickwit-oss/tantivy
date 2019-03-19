@@ -2,6 +2,7 @@ extern crate fs2;
 extern crate notify;
 
 use self::fs2::FileExt;
+use self::notify::RawEvent;
 use self::notify::RecursiveMode;
 use self::notify::Watcher;
 use atomicwrites;
@@ -28,14 +29,13 @@ use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::result;
-use std::sync::mpsc::{channel, Sender, Receiver};
+use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
-use self::notify::RawEvent;
-use std::sync::Mutex;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
@@ -127,8 +127,7 @@ impl MmapCache {
         Ok(if let Some(mmap) = open_mmap(full_path)? {
             let mmap_arc: Arc<BoxedData> = Arc::new(Box::new(mmap));
             let mmap_weak = Arc::downgrade(&mmap_arc);
-            self.cache
-                .insert(full_path.to_owned(), mmap_weak);
+            self.cache.insert(full_path.to_owned(), mmap_weak);
             Some(mmap_arc)
         } else {
             None
@@ -590,7 +589,6 @@ mod tests {
             let _r = mmap_directory.open_read(path).unwrap();
             assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
         }
-
 
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 10);
