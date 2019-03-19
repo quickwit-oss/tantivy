@@ -26,8 +26,6 @@ pub(crate) use self::watch_event_router::WatchCallbackList;
 pub use self::watch_event_router::{WatchCallback, WatchHandle};
 use std::io::{BufWriter, Seek, Write};
 
-
-
 #[cfg(feature = "mmap")]
 pub use self::mmap_directory::MmapDirectory;
 

@@ -1,10 +1,10 @@
 use core::MANAGED_FILEPATH;
 use directory::error::{DeleteError, IOError, LockError, OpenReadError, OpenWriteError};
 use directory::DirectoryLock;
-use directory::{WatchCallback, WatchHandle};
 use directory::Lock;
 use directory::META_LOCK;
 use directory::{ReadOnlySource, WritePtr};
+use directory::{WatchCallback, WatchHandle};
 use error::DataCorruption;
 use serde_json;
 use std::collections::HashSet;

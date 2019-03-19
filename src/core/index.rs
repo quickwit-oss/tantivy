@@ -16,8 +16,8 @@ use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use num_cpus;
-use reader::IndexReaderBuilder;
 use reader::IndexReader;
+use reader::IndexReaderBuilder;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -195,7 +195,6 @@ impl Index {
         self.reader_builder().try_into()
     }
 
-
     /// Create a `IndexReader` for the given index.
     ///
     /// Most project should create at most one reader for a given index.
@@ -354,16 +353,16 @@ impl fmt::Debug for Index {
 #[cfg(test)]
 mod tests {
     use directory::RAMDirectory;
+    use schema::Field;
     use schema::{Schema, INDEXED, TEXT};
-    use Index;
     use std::path::PathBuf;
     use std::thread;
     use std::time::Duration;
-    use ReloadPolicy;
+    use tempdir::TempDir;
+    use Index;
     use IndexReader;
     use IndexWriter;
-    use schema::Field;
-    use tempdir::TempDir;
+    use ReloadPolicy;
 
     #[test]
     fn test_indexer_for_field() {
@@ -430,15 +429,16 @@ mod tests {
         schema_builder.build()
     }
 
-
     #[test]
     fn test_index_on_commit_reload_policy() {
         let schema = throw_away_schema();
         let field = schema.get_field("num_likes").unwrap();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader_builder()
+        let reader = index
+            .reader_builder()
             .reload_policy(ReloadPolicy::OnCommit)
-            .try_into().unwrap();
+            .try_into()
+            .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
@@ -453,9 +453,11 @@ mod tests {
         let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
         let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         writer.commit().unwrap();
-        let reader = index.reader_builder()
+        let reader = index
+            .reader_builder()
             .reload_policy(ReloadPolicy::OnCommit)
-            .try_into().unwrap();
+            .try_into()
+            .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
     }
@@ -467,9 +469,11 @@ mod tests {
         let index = Index::create_from_tempdir(schema).unwrap();
         let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         writer.commit().unwrap();
-        let reader = index.reader_builder()
+        let reader = index
+            .reader_builder()
             .reload_policy(ReloadPolicy::Manual)
-            .try_into().unwrap();
+            .try_into()
+            .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
         writer.commit().unwrap();
@@ -487,18 +491,21 @@ mod tests {
         let tempdir_path = PathBuf::from(tempdir.path());
         let write_index = Index::create_in_dir(&tempdir_path, schema).unwrap();
         let read_index = Index::open_in_dir(&tempdir_path).unwrap();
-        let reader = read_index.reader_builder()
+        let reader = read_index
+            .reader_builder()
             .reload_policy(ReloadPolicy::OnCommit)
-            .try_into().unwrap();
+            .try_into()
+            .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0);
         let mut writer = write_index.writer_with_num_threads(1, 3_000_000).unwrap();
         test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
     }
 
-
-    fn test_index_on_commit_reload_policy_aux(field: Field,
-                                              writer: &mut IndexWriter,
-                                              reader: &IndexReader) {
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        writer: &mut IndexWriter,
+        reader: &IndexReader,
+    ) {
         assert_eq!(reader.searcher().num_docs(), 0);
         writer.add_document(doc!(field=>1u64));
         writer.commit().unwrap();

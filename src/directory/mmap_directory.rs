@@ -1,12 +1,12 @@
 extern crate fs2;
 extern crate notify;
 
-use self::notify::RecursiveMode;
 use self::fs2::FileExt;
-use std::sync::mpsc::{channel, Receiver};
-use atomicwrites;
+use self::notify::RecursiveMode;
 use self::notify::Watcher;
+use atomicwrites;
 use common::make_io_err;
+use core::META_FILEPATH;
 use directory::error::LockError;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
 use directory::read_only_source::BoxedData;
@@ -14,11 +14,12 @@ use directory::Directory;
 use directory::DirectoryLock;
 use directory::Lock;
 use directory::ReadOnlySource;
-use directory::WritePtr;
 use directory::WatchCallback;
+use directory::WatchCallbackList;
+use directory::WatchHandle;
+use directory::WritePtr;
 use memmap::Mmap;
 use std::collections::HashMap;
-use core::META_FILEPATH;
 use std::convert::From;
 use std::fmt;
 use std::fs::OpenOptions;
@@ -27,13 +28,12 @@ use std::io::{self, Seek, SeekFrom};
 use std::io::{BufWriter, Read, Write};
 use std::path::{Path, PathBuf};
 use std::result;
+use std::sync::mpsc::{channel, Receiver};
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
-use directory::WatchCallbackList;
-use directory::WatchHandle;
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped).
@@ -102,11 +102,10 @@ impl MmapCache {
     }
 
     fn remove_weak_ref(&mut self) {
-        let keys_to_remove: Vec<PathBuf> = self.cache
+        let keys_to_remove: Vec<PathBuf> = self
+            .cache
             .iter()
-            .filter(|(_, mmap_weakref)| {
-                mmap_weakref.upgrade().is_none()
-            })
+            .filter(|(_, mmap_weakref)| mmap_weakref.upgrade().is_none())
             .map(|(key, _)| key.clone())
             .collect();
         for key in keys_to_remove {
@@ -150,63 +149,56 @@ impl InnerWatcherWrapper {
         // We need to initialize the
         let mut watcher = notify::raw_watcher(tx)?;
         watcher.watch(path, RecursiveMode::Recursive).unwrap();
-            let inner = InnerWatcherWrapper {
-                _watcher: watcher,
-                watcher_router: Default::default()
-            };
-            Ok((inner, watcher_recv))
-        }
+        let inner = InnerWatcherWrapper {
+            _watcher: watcher,
+            watcher_router: Default::default(),
+        };
+        Ok((inner, watcher_recv))
     }
+}
 
-    #[derive(Clone)]
-    pub(crate) struct WatcherWrapper {
-        inner: Arc<InnerWatcherWrapper>
-    }
+#[derive(Clone)]
+pub(crate) struct WatcherWrapper {
+    inner: Arc<InnerWatcherWrapper>,
+}
 
-    impl WatcherWrapper {
-        pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
-            let (inner, watcher_recv) = InnerWatcherWrapper::new(path)
-                .map_err(|err| {
-                    match err {
-                        notify::Error::PathNotFound => {
-                            OpenDirectoryError::DoesNotExist(path.to_owned())
-                        }
-                        _ => {
-                            panic!("Unknown error while starting watching directory {:?}", path);
-                        }
-                    }
-                })?;
-            let watcher_wrapper = WatcherWrapper {
-            inner: Arc::new(inner)
+impl WatcherWrapper {
+    pub fn new(path: &Path) -> Result<Self, OpenDirectoryError> {
+        let (inner, watcher_recv) = InnerWatcherWrapper::new(path).map_err(|err| match err {
+            notify::Error::PathNotFound => OpenDirectoryError::DoesNotExist(path.to_owned()),
+            _ => {
+                panic!("Unknown error while starting watching directory {:?}", path);
+            }
+        })?;
+        let watcher_wrapper = WatcherWrapper {
+            inner: Arc::new(inner),
         };
         let watcher_wrapper_clone = watcher_wrapper.clone();
         thread::Builder::new()
             .name("meta-file-watch-thread".to_string())
-            .spawn( move || {
-            loop {
-                match watcher_recv.recv().map(|evt| evt.path) {
-                    Ok(Some(changed_path)) => {
-                        // ... Actually subject to false positive.
-                        // We might want to be more accurate than this at one point.
-                        if let Some(filename) = changed_path.file_name() {
-                            if filename == &*META_FILEPATH {
-                                watcher_wrapper_clone
-                                    .inner
-                                    .watcher_router
-                                    .broadcast();
+            .spawn(move || {
+                loop {
+                    match watcher_recv.recv().map(|evt| evt.path) {
+                        Ok(Some(changed_path)) => {
+                            // ... Actually subject to false positive.
+                            // We might want to be more accurate than this at one point.
+                            if let Some(filename) = changed_path.file_name() {
+                                if filename == *META_FILEPATH {
+                                    watcher_wrapper_clone.inner.watcher_router.broadcast();
+                                }
                             }
                         }
-                    },
-                    Ok(None) => {
-                        // not an event we are interested in.
-                    }
-                    Err(_e) => {
-                        // the watch send channel was dropped
-                        break;
+                        Ok(None) => {
+                            // not an event we are interested in.
+                        }
+                        Err(_e) => {
+                            // the watch send channel was dropped
+                            break;
+                        }
                     }
                 }
-            }
-        }).expect("Failed to spawn thread to watch meta.json");
+            })
+            .expect("Failed to spawn thread to watch meta.json");
         Ok(watcher_wrapper)
     }
 
@@ -232,7 +224,6 @@ pub struct MmapDirectory {
     inner: Arc<MmapDirectoryInner>,
 }
 
-
 struct MmapDirectoryInner {
     root_path: PathBuf,
     mmap_cache: RwLock<MmapCache>,
@@ -240,16 +231,17 @@ struct MmapDirectoryInner {
     watcher: RwLock<WatcherWrapper>,
 }
 
-
 impl MmapDirectoryInner {
-
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Result<MmapDirectoryInner, OpenDirectoryError> {
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+    ) -> Result<MmapDirectoryInner, OpenDirectoryError> {
         let watch_wrapper = WatcherWrapper::new(&root_path)?;
         let mmap_directory_inner = MmapDirectoryInner {
             root_path,
             mmap_cache: Default::default(),
             _temp_directory: temp_directory,
-            watcher: RwLock::new(watch_wrapper)
+            watcher: RwLock::new(watch_wrapper),
         };
         Ok(mmap_directory_inner)
     }
@@ -267,9 +259,14 @@ impl fmt::Debug for MmapDirectory {
 }
 
 impl MmapDirectory {
-    fn new(root_path: PathBuf, temp_directory: Option<TempDir>) -> Result<MmapDirectory, OpenDirectoryError> {
+    fn new(
+        root_path: PathBuf,
+        temp_directory: Option<TempDir>,
+    ) -> Result<MmapDirectory, OpenDirectoryError> {
         let inner = MmapDirectoryInner::new(root_path, temp_directory)?;
-        Ok(MmapDirectory { inner: Arc::new(inner) })
+        Ok(MmapDirectory {
+            inner: Arc::new(inner),
+        })
     }
 
     /// Creates a new MmapDirectory in a temporary directory.
@@ -527,12 +524,12 @@ mod tests {
     // The following tests are specific to the MmapDirectory
 
     use super::*;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use schema::{Schema, SchemaBuilder, TEXT};
     use std::fs;
-    use std::time::Duration;
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::thread;
+    use std::time::Duration;
     use Index;
-    use schema::{Schema, TEXT, SchemaBuilder};
     use ReloadPolicy;
 
     #[test]
@@ -652,7 +649,11 @@ mod tests {
                 }
                 index_writer.commit().unwrap();
             }
-            let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+            let reader = index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::Manual)
+                .try_into()
+                .unwrap();
             for _ in 0..30 {
                 index_writer.add_document(doc!(text_field=>"abc"));
                 index_writer.commit().unwrap();
@@ -662,7 +663,10 @@ mod tests {
             reader.reload().unwrap();
             let num_segments = reader.searcher().segment_readers().len();
             assert_eq!(num_segments, 4);
-            assert_eq!(num_segments * 7, mmap_directory.get_cache_info().mmapped.len());
+            assert_eq!(
+                num_segments * 7,
+                mmap_directory.get_cache_info().mmapped.len()
+            );
         }
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }

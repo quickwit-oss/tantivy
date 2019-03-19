@@ -194,17 +194,17 @@ impl IndexMerger {
                         fast_field_serializer,
                     )?;
                 }
-                FieldType::U64(ref options) | FieldType::I64(ref options) | FieldType::Date(ref options) => {
-                    match options.get_fastfield_cardinality() {
-                        Some(Cardinality::SingleValue) => {
-                            self.write_single_fast_field(field, fast_field_serializer)?;
-                        }
-                        Some(Cardinality::MultiValues) => {
-                            self.write_multi_fast_field(field, fast_field_serializer)?;
-                        }
-                        None => {}
+                FieldType::U64(ref options)
+                | FieldType::I64(ref options)
+                | FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
+                        self.write_single_fast_field(field, fast_field_serializer)?;
                     }
-                }
+                    Some(Cardinality::MultiValues) => {
+                        self.write_multi_fast_field(field, fast_field_serializer)?;
+                    }
+                    None => {}
+                },
                 FieldType::Str(_) => {
                     // We don't handle str fast field for the moment
                     // They can be implemented using what is done
@@ -780,10 +780,7 @@ mod tests {
                 );
                 assert_eq!(
                     get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)]),
-                    vec![
-                        DocAddress(0, 0),
-                        DocAddress(0, 3)
-                    ]
+                    vec![DocAddress(0, 0), DocAddress(0, 3)]
                 );
             }
             {
@@ -1435,7 +1432,9 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            index_writer.wait_merging_threads().expect("Wait for merging threads");
+            index_writer
+                .wait_merging_threads()
+                .expect("Wait for merging threads");
         }
         reader.reload().expect("Load searcher");
 

@@ -43,7 +43,11 @@ pub const FAST: SchemaFlagList<FastFlag, ()> = SchemaFlagList {
 };
 
 impl<Head, OldHead, OldTail> BitOr<SchemaFlagList<Head, ()>> for SchemaFlagList<OldHead, OldTail>
-    where Head: Clone, OldHead: Clone, OldTail: Clone {
+where
+    Head: Clone,
+    OldHead: Clone,
+    OldTail: Clone,
+{
     type Output = SchemaFlagList<Head, SchemaFlagList<OldHead, OldTail>>;
 
     fn bitor(self, head: SchemaFlagList<Head, ()>) -> Self::Output {
@@ -54,7 +58,7 @@ impl<Head, OldHead, OldTail> BitOr<SchemaFlagList<Head, ()>> for SchemaFlagList<
     }
 }
 
-impl<T: Clone + Into<IntOptions>> BitOr<IntOptions> for SchemaFlagList<T, ()>  {
+impl<T: Clone + Into<IntOptions>> BitOr<IntOptions> for SchemaFlagList<T, ()> {
     type Output = IntOptions;
 
     fn bitor(self, rhs: IntOptions) -> Self::Output {
@@ -62,7 +66,7 @@ impl<T: Clone + Into<IntOptions>> BitOr<IntOptions> for SchemaFlagList<T, ()>  {
     }
 }
 
-impl<T: Clone + Into<TextOptions>> BitOr<TextOptions> for SchemaFlagList<T, ()>  {
+impl<T: Clone + Into<TextOptions>> BitOr<TextOptions> for SchemaFlagList<T, ()> {
     type Output = TextOptions;
 
     fn bitor(self, rhs: TextOptions) -> Self::Output {

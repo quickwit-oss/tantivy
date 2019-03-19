@@ -71,7 +71,9 @@ impl Addr {
 
 pub fn store<Item: Copy + 'static>(dest: &mut [u8], val: Item) {
     assert_eq!(dest.len(), std::mem::size_of::<Item>());
-    unsafe { ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val); }
+    unsafe {
+        ptr::write_unaligned(dest.as_mut_ptr() as *mut Item, val);
+    }
 }
 
 pub fn load<Item: Copy + 'static>(data: &[u8]) -> Item {

@@ -3,13 +3,13 @@ mod pool;
 use self::pool::{LeasedItem, Pool};
 use core::Segment;
 use directory::Directory;
+use directory::WatchHandle;
 use directory::META_LOCK;
 use std::sync::Arc;
 use Index;
 use Result;
 use Searcher;
 use SegmentReader;
-use directory::WatchHandle;
 
 /// Defines when a new version of the index should be reloaded.
 ///
@@ -25,8 +25,7 @@ pub enum ReloadPolicy {
     Manual,
     /// The index is reloaded within milliseconds after a new commit is available.
     /// This is made possible by watching changes in the `meta.json` file.
-    OnCommit
-    // TODO add NEAR_REAL_TIME(target_ms),
+    OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
 /// `IndexReader` builder
@@ -80,12 +79,13 @@ impl IndexReaderBuilder {
                 let inner_reader_arc_clone = inner_reader_arc.clone();
                 let callback = move || {
                     if let Err(err) = inner_reader_arc_clone.reload() {
-                        error!("Error while loading searcher after commit was detected. {:?}", err);
+                        error!(
+                            "Error while loading searcher after commit was detected. {:?}",
+                            err
+                        );
                     }
                 };
-                let watch_handle = inner_reader_arc.index
-                    .directory()
-                    .watch(Box::new(callback));
+                let watch_handle = inner_reader_arc.index.directory().watch(Box::new(callback));
                 watch_handle_opt = Some(watch_handle);
             }
         }
@@ -154,7 +154,7 @@ impl InnerIndexReader {
 #[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
-    watch_handle_opt: Option<WatchHandle>
+    watch_handle_opt: Option<WatchHandle>,
 }
 
 impl IndexReader {

@@ -1,9 +1,9 @@
-use std::sync::Weak;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::Weak;
 
 /// Type alias for callbacks registered when watching files of a `Directory`.
-pub type WatchCallback = Box<Fn()->() + Sync + Send>;
+pub type WatchCallback = Box<Fn() -> () + Sync + Send>;
 
 /// Helper struct to implement the watch method in `Directory` implementations.
 ///
@@ -11,7 +11,7 @@ pub type WatchCallback = Box<Fn()->() + Sync + Send>;
 /// calls them upon calls to `.broadcast(...)`.
 #[derive(Default)]
 pub struct WatchCallbackList {
-    router: RwLock<Vec<Weak<WatchCallback>>>
+    router: RwLock<Vec<Weak<WatchCallback>>>,
 }
 
 /// Controls how long a directory should watch for a file change.
@@ -23,15 +23,11 @@ pub struct WatchCallbackList {
 pub struct WatchHandle(Arc<WatchCallback>);
 
 impl WatchCallbackList {
-
     /// Suscribes a new callback and returns a handle that controls the lifetime of the callback.
     pub fn subscribe(&self, watch_callback: WatchCallback) -> WatchHandle {
         let watch_callback_arc = Arc::new(watch_callback);
         let watch_callback_weak = Arc::downgrade(&watch_callback_arc);
-        self
-            .router
-            .write().unwrap()
-            .push(watch_callback_weak);
+        self.router.write().unwrap().push(watch_callback_weak);
         WatchHandle(watch_callback_arc)
     }
 
@@ -61,7 +57,10 @@ impl WatchCallbackList {
                 }
             });
         if let Err(err) = spawn_res {
-            error!("Failed to spawn thread to call watch callbacks. Cause: {:?}", err);
+            error!(
+                "Failed to spawn thread to call watch callbacks. Cause: {:?}",
+                err
+            );
         }
     }
 }
@@ -69,10 +68,10 @@ impl WatchCallbackList {
 #[cfg(test)]
 mod tests {
     use directory::WatchCallbackList;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering};
-    use std::thread;
     use std::mem;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::thread;
     use std::time::Duration;
 
     const WAIT_TIME: u64 = 20;
@@ -82,13 +81,12 @@ mod tests {
         let watch_event_router = WatchCallbackList::default();
         let counter: Arc<AtomicUsize> = Default::default();
         let counter_clone = counter.clone();
-        let inc_callback =
-            Box::new(move || {
-                counter_clone.fetch_add(1, Ordering::SeqCst);
-            });
+        let inc_callback = Box::new(move || {
+            counter_clone.fetch_add(1, Ordering::SeqCst);
+        });
         watch_event_router.broadcast();
         assert_eq!(0, counter.load(Ordering::SeqCst));
-        let handle_a = watch_event_router.subscribe( inc_callback);
+        let handle_a = watch_event_router.subscribe(inc_callback);
         thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(0, counter.load(Ordering::SeqCst));
         watch_event_router.broadcast();
@@ -133,7 +131,6 @@ mod tests {
         thread::sleep(Duration::from_millis(WAIT_TIME));
         assert_eq!(32, counter.load(Ordering::SeqCst));
     }
-
 
     #[test]
     fn test_watch_event_router_multiple_callback_different_key() {

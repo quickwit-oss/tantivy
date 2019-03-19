@@ -44,7 +44,7 @@ pub const HEAP_SIZE_MAX: usize = u32::max_value() as usize - MARGIN_IN_BYTES;
 // reaches `PIPELINE_MAX_SIZE_IN_DOCS`
 const PIPELINE_MAX_SIZE_IN_DOCS: usize = 10_000;
 
-type OperationSender= channel::Sender<Vec<AddOperation>>;
+type OperationSender = channel::Sender<Vec<AddOperation>>;
 type OperationReceiver = channel::Receiver<Vec<AddOperation>>;
 
 /// Split the thread memory budget into
@@ -723,15 +723,15 @@ mod tests {
 
     use super::super::operation::UserOperation;
     use super::initial_table_size;
+    use collector::TopDocs;
     use directory::error::LockError;
     use error::*;
     use indexer::NoMergePolicy;
     use query::TermQuery;
     use schema::{self, IndexRecordOption};
-    use collector::TopDocs;
     use Index;
-    use Term;
     use ReloadPolicy;
+    use Term;
 
     #[test]
     fn test_operations_group() {
@@ -758,7 +758,11 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
@@ -772,7 +776,7 @@ mod tests {
         index_writer.run(operations);
         index_writer.commit().expect("failed to commit");
         reader.reload().expect("failed to load searchers");
-        
+
         let a_term = Term::from_field_text(text_field, "a");
         let b_term = Term::from_field_text(text_field, "b");
 
@@ -866,7 +870,11 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
         let num_docs_containing = |s: &str| {
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
@@ -899,7 +907,11 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
             reader.searcher().doc_freq(&term_a)
@@ -990,7 +1002,13 @@ mod tests {
         }
         let num_docs_containing = |s: &str| {
             let term_a = Term::from_field_text(text_field, s);
-            index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap().searcher().doc_freq(&term_a)
+            index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::Manual)
+                .try_into()
+                .unwrap()
+                .searcher()
+                .doc_freq(&term_a)
         };
         assert_eq!(num_docs_containing("a"), 0);
         assert_eq!(num_docs_containing("b"), 100);

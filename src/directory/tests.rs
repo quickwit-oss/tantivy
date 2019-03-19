@@ -1,13 +1,13 @@
 use super::*;
 use std::io::{Seek, SeekFrom, Write};
+use std::mem;
 use std::path::{Path, PathBuf};
-use std::time;
-use std::sync::Arc;
 use std::sync::atomic::AtomicUsize;
 use std::sync::atomic::Ordering;
+use std::sync::Arc;
 use std::thread;
+use std::time;
 use std::time::Duration;
-use std::mem;
 
 lazy_static! {
     static ref TEST_PATH: &'static Path = Path::new("some_path_for_test");
@@ -135,14 +135,18 @@ fn test_watch(directory: &mut Directory) {
     let watch_callback = Box::new(move || {
         counter_clone.fetch_add(1, Ordering::SeqCst);
     });
-    assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data").is_ok());
+    assert!(directory
+        .atomic_write(Path::new("meta.json"), b"random_test_data")
+        .is_ok());
     thread::sleep(Duration::new(0, 10_000));
     assert_eq!(0, counter.load(Ordering::SeqCst));
 
     let watch_handle = directory.watch(watch_callback);
     for i in 0..10 {
         assert_eq!(i, counter.load(Ordering::SeqCst));
-        assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data_2").is_ok());
+        assert!(directory
+            .atomic_write(Path::new("meta.json"), b"random_test_data_2")
+            .is_ok());
         for _ in 0..100 {
             if counter.load(Ordering::SeqCst) > i {
                 break;
@@ -152,10 +156,11 @@ fn test_watch(directory: &mut Directory) {
         assert_eq!(i + 1, counter.load(Ordering::SeqCst));
     }
     mem::drop(watch_handle);
-    assert!(directory.atomic_write(Path::new("meta.json"), b"random_test_data").is_ok());
+    assert!(directory
+        .atomic_write(Path::new("meta.json"), b"random_test_data")
+        .is_ok());
     thread::sleep(Duration::from_millis(200));
     assert_eq!(10, counter.load(Ordering::SeqCst));
-
 }
 
 fn test_lock_non_blocking(directory: &mut Directory) {

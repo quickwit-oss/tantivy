@@ -180,7 +180,8 @@ fn main() -> tantivy::Result<()> {
     //
     // In the code below, we rely on the 'ON_COMMIT' policy: the reader
     // will reload the index automatically after each commit.
-    let reader = index.reader_builder()
+    let reader = index
+        .reader_builder()
         .reload_policy(ReloadPolicy::OnCommit)
         .try_into()?;
 

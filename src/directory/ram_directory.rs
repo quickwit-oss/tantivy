@@ -1,14 +1,14 @@
-use directory::error::{DeleteError, OpenReadError, OpenWriteError};
-use directory::WritePtr;
-use directory::{Directory, ReadOnlySource, WatchHandle, WatchCallback};
-use std::collections::HashMap;
 use core::META_FILEPATH;
+use directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use directory::WatchCallbackList;
+use directory::WritePtr;
+use directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
+use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::result;
 use std::sync::{Arc, RwLock};
-use directory::WatchCallbackList;
 
 /// Writer associated with the `RAMDirectory`
 ///
@@ -73,15 +73,13 @@ impl Write for VecWriter {
 #[derive(Default)]
 struct InnerDirectory {
     fs: HashMap<PathBuf, ReadOnlySource>,
-    watch_router: WatchCallbackList
+    watch_router: WatchCallbackList,
 }
 
 impl InnerDirectory {
     fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
         let data = ReadOnlySource::new(Vec::from(data));
-        self.fs
-            .insert(path, data)
-            .is_some()
+        self.fs.insert(path, data).is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
@@ -93,9 +91,7 @@ impl InnerDirectory {
 
     fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
         match self.fs.remove(path) {
-            Some(_) => {
-                Ok(())
-            }
+            Some(_) => Ok(()),
             None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
         }
     }
@@ -104,7 +100,7 @@ impl InnerDirectory {
         self.fs.contains_key(path)
     }
 
-    fn watch(&mut self  , watch_handle: WatchCallback) -> WatchHandle {
+    fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
         self.watch_router.subscribe(watch_handle)
     }
 }
@@ -148,10 +144,8 @@ impl Directory for RAMDirectory {
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
         let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(
-            path_buf.clone(), self.clone());
-        let exists = fs
-            .write(path_buf.clone(), &[]);
+        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
+        let exists = fs.write(path_buf.clone(), &[]);
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
@@ -172,9 +166,7 @@ impl Directory for RAMDirectory {
         let path_buf = PathBuf::from(path);
 
         // Reserve the path to prevent calls to .write() to succeed.
-        self.fs.write()
-            .unwrap()
-            .write(path_buf.clone(), &[]);
+        self.fs.write().unwrap().write(path_buf.clone(), &[]);
 
         let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         vec_writer.write_all(data)?;
@@ -188,5 +180,4 @@ impl Directory for RAMDirectory {
     fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
         self.fs.write().unwrap().watch(watch_callback)
     }
-
 }

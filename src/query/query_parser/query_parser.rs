@@ -239,12 +239,13 @@ impl QueryParser {
                 let term = Term::from_field_i64(field, val);
                 Ok(vec![(0, term)])
             }
-            FieldType::Date(_) => {
-                match chrono::DateTime::parse_from_rfc3339(phrase) {
-                    Ok(x)  => Ok(vec![(0, Term::from_field_date(field, &x.with_timezone(&chrono::Utc)))]),
-                    Err(e) => Err(QueryParserError::DateFormatError(e))
-                }
-            }
+            FieldType::Date(_) => match chrono::DateTime::parse_from_rfc3339(phrase) {
+                Ok(x) => Ok(vec![(
+                    0,
+                    Term::from_field_date(field, &x.with_timezone(&chrono::Utc)),
+                )]),
+                Err(e) => Err(QueryParserError::DateFormatError(e)),
+            },
             FieldType::U64(_) => {
                 let val: u64 = u64::from_str(phrase)?;
                 let term = Term::from_field_u64(field, val);
@@ -791,7 +792,9 @@ mod test {
             query_parser.parse_query("date:18a"),
             Err(QueryParserError::DateFormatError(_))
         );
-        assert!(query_parser.parse_query("date:\"1985-04-12T23:20:50.52Z\"").is_ok());
+        assert!(query_parser
+            .parse_query("date:\"1985-04-12T23:20:50.52Z\"")
+            .is_ok());
     }
 
     #[test]

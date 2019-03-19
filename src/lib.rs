@@ -186,8 +186,8 @@ pub use error::TantivyError;
 pub use error::TantivyError as Error;
 
 extern crate census;
-extern crate owned_read;
 pub extern crate chrono;
+extern crate owned_read;
 
 /// Tantivy result.
 pub type Result<T> = std::result::Result<T, error::TantivyError>;
@@ -488,7 +488,9 @@ mod tests {
         let term_c = Term::from_field_text(text_field, "c");
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual)
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
             .try_into()
             .unwrap();
         {
@@ -688,7 +690,11 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
 
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(2, 6_000_000).unwrap();
@@ -813,7 +819,11 @@ mod tests {
         let text_field = schema_builder.add_text_field("text", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
-        let reader = index.reader_builder().reload_policy(ReloadPolicy::Manual).try_into().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
         assert_eq!(reader.searcher().num_docs(), 0u64);
         {
             // writing the segment
