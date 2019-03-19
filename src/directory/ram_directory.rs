@@ -1,7 +1,8 @@
-use common::make_io_err;
-use directory::error::{DeleteError, IOError, OpenReadError, OpenWriteError};
+use core::META_FILEPATH;
+use directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use directory::WatchCallbackList;
 use directory::WritePtr;
-use directory::{Directory, ReadOnlySource};
+use directory::{Directory, ReadOnlySource, WatchCallback, WatchHandle};
 use std::collections::HashMap;
 use std::fmt;
 use std::io::{self, BufWriter, Cursor, Seek, SeekFrom, Write};
@@ -21,13 +22,13 @@ use std::sync::{Arc, RwLock};
 ///
 struct VecWriter {
     path: PathBuf,
-    shared_directory: InnerDirectory,
+    shared_directory: RAMDirectory,
     data: Cursor<Vec<u8>>,
     is_flushed: bool,
 }
 
 impl VecWriter {
-    fn new(path_buf: PathBuf, shared_directory: InnerDirectory) -> VecWriter {
+    fn new(path_buf: PathBuf, shared_directory: RAMDirectory) -> VecWriter {
         VecWriter {
             path: path_buf,
             data: Cursor::new(Vec::new()),
@@ -63,74 +64,44 @@ impl Write for VecWriter {
 
     fn flush(&mut self) -> io::Result<()> {
         self.is_flushed = true;
-        self.shared_directory
-            .write(self.path.clone(), self.data.get_ref())?;
+        let mut fs = self.shared_directory.fs.write().unwrap();
+        fs.write(self.path.clone(), self.data.get_ref());
         Ok(())
     }
 }
 
-#[derive(Clone)]
-struct InnerDirectory(Arc<RwLock<HashMap<PathBuf, ReadOnlySource>>>);
+#[derive(Default)]
+struct InnerDirectory {
+    fs: HashMap<PathBuf, ReadOnlySource>,
+    watch_router: WatchCallbackList,
+}
 
 impl InnerDirectory {
-    fn new() -> InnerDirectory {
-        InnerDirectory(Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    fn write(&self, path: PathBuf, data: &[u8]) -> io::Result<bool> {
-        let mut map = self.0.write().map_err(|_| {
-            make_io_err(format!(
-                "Failed to lock the directory, when trying to write {:?}",
-                path
-            ))
-        })?;
-        let prev_value = map.insert(path, ReadOnlySource::new(Vec::from(data)));
-        Ok(prev_value.is_some())
+    fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
+        let data = ReadOnlySource::new(Vec::from(data));
+        self.fs.insert(path, data).is_some()
     }
 
     fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
-        self.0
-            .read()
-            .map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire read lock for the \
-                     directory when trying to read {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                OpenReadError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|readable_map| {
-                readable_map
-                    .get(path)
-                    .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-                    .map(|el| el.clone())
-            })
+        self.fs
+            .get(path)
+            .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
+            .map(|el| el.clone())
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        self.0
-            .write()
-            .map_err(|_| {
-                let msg = format!(
-                    "Failed to acquire write lock for the \
-                     directory when trying to delete {:?}",
-                    path
-                );
-                let io_err = make_io_err(msg);
-                DeleteError::IOError(IOError::with_path(path.to_owned(), io_err))
-            })
-            .and_then(|mut writable_map| match writable_map.remove(path) {
-                Some(_) => Ok(()),
-                None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
-            })
+    fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
+        match self.fs.remove(path) {
+            Some(_) => Ok(()),
+            None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
+        }
     }
 
     fn exists(&self, path: &Path) -> bool {
-        self.0
-            .read()
-            .expect("Failed to get read lock directory.")
-            .contains_key(path)
+        self.fs.contains_key(path)
+    }
+
+    fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
+        self.watch_router.subscribe(watch_handle)
     }
 }
 
@@ -145,33 +116,36 @@ impl fmt::Debug for RAMDirectory {
 /// It is mainly meant for unit testing.
 /// Writes are only made visible upon flushing.
 ///
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct RAMDirectory {
-    fs: InnerDirectory,
+    fs: Arc<RwLock<InnerDirectory>>,
 }
 
 impl RAMDirectory {
     /// Constructor
     pub fn create() -> RAMDirectory {
-        RAMDirectory {
-            fs: InnerDirectory::new(),
-        }
+        Self::default()
     }
 }
 
 impl Directory for RAMDirectory {
     fn open_read(&self, path: &Path) -> result::Result<ReadOnlySource, OpenReadError> {
-        self.fs.open_read(path)
+        self.fs.read().unwrap().open_read(path)
+    }
+
+    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
+        self.fs.write().unwrap().delete(path)
+    }
+
+    fn exists(&self, path: &Path) -> bool {
+        self.fs.read().unwrap().exists(path)
     }
 
     fn open_write(&mut self, path: &Path) -> Result<WritePtr, OpenWriteError> {
+        let mut fs = self.fs.write().unwrap();
         let path_buf = PathBuf::from(path);
-        let vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
-
-        let exists = self
-            .fs
-            .write(path_buf.clone(), &Vec::new())
-            .map_err(|err| IOError::with_path(path.to_owned(), err))?;
+        let vec_writer = VecWriter::new(path_buf.clone(), self.clone());
+        let exists = fs.write(path_buf.clone(), &[]);
         // force the creation of the file to mimic the MMap directory.
         if exists {
             Err(OpenWriteError::FileAlreadyExists(path_buf))
@@ -180,17 +154,8 @@ impl Directory for RAMDirectory {
         }
     }
 
-    fn delete(&self, path: &Path) -> result::Result<(), DeleteError> {
-        self.fs.delete(path)
-    }
-
-    fn exists(&self, path: &Path) -> bool {
-        self.fs.exists(path)
-    }
-
     fn atomic_read(&self, path: &Path) -> Result<Vec<u8>, OpenReadError> {
-        let read = self.open_read(path)?;
-        Ok(read.as_slice().to_owned())
+        Ok(self.open_read(path)?.as_slice().to_owned())
     }
 
     fn atomic_write(&mut self, path: &Path, data: &[u8]) -> io::Result<()> {
@@ -199,10 +164,20 @@ impl Directory for RAMDirectory {
             msg.unwrap_or("Undefined".to_string())
         )));
         let path_buf = PathBuf::from(path);
-        let mut vec_writer = VecWriter::new(path_buf.clone(), self.fs.clone());
-        self.fs.write(path_buf, &Vec::new())?;
+
+        // Reserve the path to prevent calls to .write() to succeed.
+        self.fs.write().unwrap().write(path_buf.clone(), &[]);
+
+        let mut vec_writer = VecWriter::new(path_buf.clone(), self.clone());
         vec_writer.write_all(data)?;
         vec_writer.flush()?;
+        if path == Path::new(&*META_FILEPATH) {
+            self.fs.write().unwrap().watch_router.broadcast();
+        }
         Ok(())
+    }
+
+    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+        self.fs.write().unwrap().watch(watch_callback)
     }
 }

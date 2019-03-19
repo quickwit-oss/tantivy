@@ -122,17 +122,16 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///             facet => Facet::from("/lang/en"),
 ///             facet => Facet::from("/category/biography")
 ///         ));
-///         index_writer.commit().unwrap();
+///         index_writer.commit()?;
 ///     }
-///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/lang");
 ///         facet_collector.add_facet("/category");
-///         let facet_counts = searcher.search(&AllQuery, &facet_collector).unwrap();
+///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 ///
 ///         // This lists all of the facet counts
 ///         let facets: Vec<(&Facet, u64)> = facet_counts
@@ -147,7 +146,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///     {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
-///         let facet_counts = searcher.search(&AllQuery, &facet_collector).unwrap();
+///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 ///
 ///         // This lists all of the facet counts
 ///         let facets: Vec<(&Facet, u64)> = facet_counts
@@ -163,7 +162,7 @@ fn facet_depth(facet_bytes: &[u8]) -> usize {
 ///    {
 ///			let mut facet_collector = FacetCollector::for_field(facet);
 ///         facet_collector.add_facet("/category/fiction");
-///         let facet_counts = searcher.search(&AllQuery, &facet_collector).unwrap();
+///         let facet_counts = searcher.search(&AllQuery, &facet_collector)?;
 ///
 ///         // This lists all of the facet counts
 ///         let facets: Vec<(&Facet, u64)> = facet_counts.top_k("/category/fiction", 1);
@@ -483,8 +482,8 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet(Facet::from("/top1"));
         let counts = searcher.search(&AllQuery, &facet_collector).unwrap();
@@ -532,8 +531,8 @@ mod tests {
             facet_field => Facet::from_text(&"/subjects/B/b"),
         ));
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 1);
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/subjects");
@@ -579,9 +578,7 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-
-        let searcher = index.searcher();
+        let searcher = index.reader().unwrap().searcher();
 
         let mut facet_collector = FacetCollector::for_field(facet_field);
         facet_collector.add_facet("/facet");
@@ -635,8 +632,7 @@ mod bench {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-        index.load_searchers().unwrap();
-
+        let reader = index.reader().unwrap();
         b.iter(|| {
             let searcher = index.searcher();
             let facet_collector = FacetCollector::for_field(facet_field);

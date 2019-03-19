@@ -52,9 +52,8 @@ lazy_static! {
 ///         ));
 ///         index_writer.commit().unwrap();
 ///     }
-///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     {
 ///
@@ -141,8 +140,8 @@ mod test {
             ));
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         {
             let term = Term::from_field_text(country_field, "japon");
 

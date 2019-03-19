@@ -4,6 +4,7 @@ use directory::DirectoryLock;
 use directory::Lock;
 use directory::META_LOCK;
 use directory::{ReadOnlySource, WritePtr};
+use directory::{WatchCallback, WatchHandle};
 use error::DataCorruption;
 use serde_json;
 use std::collections::HashSet;
@@ -240,6 +241,10 @@ impl Directory for ManagedDirectory {
 
     fn acquire_lock(&self, lock: &Lock) -> result::Result<DirectoryLock, LockError> {
         self.directory.acquire_lock(lock)
+    }
+
+    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle {
+        self.directory.watch(watch_callback)
     }
 }
 

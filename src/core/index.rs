@@ -1,19 +1,14 @@
-use super::pool::LeasedItem;
-use super::pool::Pool;
 use super::segment::create_segment;
 use super::segment::Segment;
-use core::searcher::Searcher;
 use core::Executor;
 use core::IndexMeta;
 use core::SegmentId;
 use core::SegmentMeta;
-use core::SegmentReader;
 use core::META_FILEPATH;
 use directory::ManagedDirectory;
 #[cfg(feature = "mmap")]
 use directory::MmapDirectory;
 use directory::INDEX_WRITER_LOCK;
-use directory::META_LOCK;
 use directory::{Directory, RAMDirectory};
 use error::DataCorruption;
 use error::TantivyError;
@@ -21,6 +16,8 @@ use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use num_cpus;
+use reader::IndexReader;
+use reader::IndexReaderBuilder;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -28,7 +25,6 @@ use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
 use std::path::Path;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
@@ -53,8 +49,6 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
-    num_searchers: Arc<AtomicUsize>,
-    searcher_pool: Arc<Pool<Searcher>>,
     executor: Arc<Executor>,
     tokenizers: TokenizerManager,
 }
@@ -159,16 +153,12 @@ impl Index {
     /// Creates a new index given a directory and an `IndexMeta`.
     fn create_from_metas(directory: ManagedDirectory, metas: &IndexMeta) -> Result<Index> {
         let schema = metas.schema.clone();
-        let n_cpus = num_cpus::get();
         let index = Index {
             directory,
             schema,
-            num_searchers: Arc::new(AtomicUsize::new(n_cpus)),
-            searcher_pool: Arc::new(Pool::new()),
             tokenizers: TokenizerManager::default(),
             executor: Arc::new(Executor::single_thread()),
         };
-        index.load_searchers()?;
         Ok(index)
     }
 
@@ -196,6 +186,22 @@ impl Index {
                 field_entry.name()
             ))),
         }
+    }
+
+    /// Create a default `IndexReader` for the given index.
+    ///
+    /// See [`Index.reader_builder()`](#method.reader_builder).
+    pub fn reader(&self) -> Result<IndexReader> {
+        self.reader_builder().try_into()
+    }
+
+    /// Create a `IndexReader` for the given index.
+    ///
+    /// Most project should create at most one reader for a given index.
+    /// This method is typically called only once per `Index` instance,
+    /// over the lifetime of most problem.
+    pub fn reader_builder(&self) -> IndexReaderBuilder {
+        IndexReaderBuilder::new(self.clone())
     }
 
     /// Opens a new directory from an index path.
@@ -336,53 +342,6 @@ impl Index {
             .map(|segment_meta| segment_meta.id())
             .collect())
     }
-
-    /// Sets the number of searchers to use
-    ///
-    /// Only works after the next call to `load_searchers`
-    pub fn set_num_searchers(&mut self, num_searchers: usize) {
-        self.num_searchers.store(num_searchers, Ordering::Release);
-    }
-
-    /// Update searchers so that they reflect the state of the last
-    /// `.commit()`.
-    ///
-    /// If indexing happens in the same process as searching,
-    /// you most likely want to call `.load_searchers()` right after each
-    /// successful call to `.commit()`.
-    ///
-    /// If indexing and searching happen in different processes, the way to
-    /// get the freshest `index` at all time, is to watch `meta.json` and
-    /// call `load_searchers` whenever a changes happen.
-    pub fn load_searchers(&self) -> Result<()> {
-        let _meta_lock = self.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.searchable_segments()?;
-        let segment_readers: Vec<SegmentReader> = searchable_segments
-            .iter()
-            .map(SegmentReader::open)
-            .collect::<Result<_>>()?;
-        let schema = self.schema();
-        let num_searchers: usize = self.num_searchers.load(Ordering::Acquire);
-        let searchers = (0..num_searchers)
-            .map(|_| Searcher::new(schema.clone(), self.clone(), segment_readers.clone()))
-            .collect();
-        self.searcher_pool.publish_new_generation(searchers);
-        Ok(())
-    }
-
-    /// Returns a searcher
-    ///
-    /// This method should be called every single time a search
-    /// query is performed.
-    /// The searchers are taken from a pool of `num_searchers` searchers.
-    /// If no searcher is available
-    /// this may block.
-    ///
-    /// The same searcher must be used for a given query, as it ensures
-    /// the use of a consistent segment set.
-    pub fn searcher(&self) -> LeasedItem<Searcher> {
-        self.searcher_pool.acquire()
-    }
 }
 
 impl fmt::Debug for Index {
@@ -394,8 +353,16 @@ impl fmt::Debug for Index {
 #[cfg(test)]
 mod tests {
     use directory::RAMDirectory;
+    use schema::Field;
     use schema::{Schema, INDEXED, TEXT};
+    use std::path::PathBuf;
+    use std::thread;
+    use std::time::Duration;
+    use tempdir::TempDir;
     use Index;
+    use IndexReader;
+    use IndexWriter;
+    use ReloadPolicy;
 
     #[test]
     fn test_indexer_for_field() {
@@ -460,5 +427,107 @@ mod tests {
         let mut schema_builder = Schema::builder();
         let _ = schema_builder.add_u64_field("num_likes", INDEXED);
         schema_builder.build()
+    }
+
+    #[test]
+    fn test_index_on_commit_reload_policy() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let index = Index::create_in_ram(schema);
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()
+            .unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+    }
+
+    #[test]
+    fn test_index_on_commit_reload_policy_mmap() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let tempdir = TempDir::new("index").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+        let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        writer.commit().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()
+            .unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+    }
+
+    #[test]
+    fn test_index_manual_policy_mmap() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let index = Index::create_from_tempdir(schema).unwrap();
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        writer.commit().unwrap();
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        writer.add_document(doc!(field=>1u64));
+        writer.commit().unwrap();
+        thread::sleep(Duration::from_millis(500));
+        assert_eq!(reader.searcher().num_docs(), 0);
+        reader.reload().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 1);
+    }
+
+    #[test]
+    fn test_index_on_commit_reload_policy_different_directories() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let tempdir = TempDir::new("index").unwrap();
+        let tempdir_path = PathBuf::from(tempdir.path());
+        let write_index = Index::create_in_dir(&tempdir_path, schema).unwrap();
+        let read_index = Index::open_in_dir(&tempdir_path).unwrap();
+        let reader = read_index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()
+            .unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        let mut writer = write_index.writer_with_num_threads(1, 3_000_000).unwrap();
+        test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+    }
+
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        writer: &mut IndexWriter,
+        reader: &IndexReader,
+    ) {
+        assert_eq!(reader.searcher().num_docs(), 0);
+        writer.add_document(doc!(field=>1u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..100 {
+            count = reader.searcher().num_docs();
+            if count > 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 1);
+        writer.add_document(doc!(field=>2u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..10 {
+            count = reader.searcher().num_docs();
+            if count > 1 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 2);
     }
 }

@@ -101,8 +101,7 @@ mod tests {
             assert_eq!(index_writer.commit().unwrap(), 10u64);
         }
 
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().searcher();
         let mut ffvf_i64: IntFacetCollector<I64FastFieldReader> = IntFacetCollector::new(num_field_i64);
         let mut ffvf_u64: IntFacetCollector<U64FastFieldReader> = IntFacetCollector::new(num_field_u64);
 

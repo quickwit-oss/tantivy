@@ -91,9 +91,9 @@ fn main() -> tantivy::Result<()> {
                 increasing confidence in the success of my undertaking."#
     ));
     index_writer.commit()?;
-    index.load_searchers()?;
 
-    let searcher = index.searcher();
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
 
     // The query parser can interpret human queries.
     // Here, if the user does not specify which

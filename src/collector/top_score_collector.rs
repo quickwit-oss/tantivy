@@ -51,8 +51,8 @@ use SegmentReader;
 ///         index_writer.commit().unwrap();
 ///     }
 ///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     let query_parser = QueryParser::for_index(&index, vec![title]);
 ///     let query = query_parser.parse_query("diary")?;
@@ -148,7 +148,6 @@ mod tests {
             index_writer.add_document(doc!(text_field=>"I like Droopy"));
             assert!(index_writer.commit().is_ok());
         }
-        index.load_searchers().unwrap();
         index
     }
 
@@ -159,6 +158,8 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
         let score_docs: Vec<(Score, DocAddress)> = index
+            .reader()
+            .unwrap()
             .searcher()
             .search(&text_query, &TopDocs::with_limit(4))
             .unwrap();
@@ -179,6 +180,8 @@ mod tests {
         let query_parser = QueryParser::for_index(&index, vec![field]);
         let text_query = query_parser.parse_query("droopy tax").unwrap();
         let score_docs: Vec<(Score, DocAddress)> = index
+            .reader()
+            .unwrap()
             .searcher()
             .search(&text_query, &TopDocs::with_limit(2))
             .unwrap();

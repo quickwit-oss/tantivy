@@ -477,9 +477,7 @@ mod test {
             // ok, now we should have a deleted doc
             index_writer2.commit().unwrap();
         }
-
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let searcher = index.reader().unwrap().searcher();
         let docs: Vec<DocId> = searcher.segment_reader(0).doc_ids_alive().collect();
         assert_eq!(vec![0u32, 2u32], docs);
     }

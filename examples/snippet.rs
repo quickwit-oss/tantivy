@@ -48,9 +48,8 @@ fn main() -> tantivy::Result<()> {
     // ...
     index_writer.commit()?;
 
-    index.load_searchers()?;
-
-    let searcher = index.searcher();
+    let reader = index.reader()?;
+    let searcher = reader.searcher();
     let query_parser = QueryParser::for_index(&index, vec![title, body]);
     let query = query_parser.parse_query("sycamore spring")?;
 

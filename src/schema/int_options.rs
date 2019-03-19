@@ -1,4 +1,4 @@
-use schema::flags::{SchemaFlagList, FastFlag, IndexedFlag, StoredFlag};
+use schema::flags::{FastFlag, IndexedFlag, SchemaFlagList, StoredFlag};
 use std::ops::BitOr;
 
 /// Express whether a field is single-value or multi-valued.

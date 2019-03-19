@@ -33,9 +33,9 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(title => "The modern Promotheus"));
     index_writer.commit()?;
 
-    index.load_searchers()?;
+    let reader = index.reader()?;
 
-    let searcher = index.searcher();
+    let searcher = reader.searcher();
 
     // A tantivy index is actually a collection of segments.
     // Similarly, a searcher just wraps a list `segment_reader`.

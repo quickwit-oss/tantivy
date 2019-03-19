@@ -2,6 +2,8 @@ Tantivy 0.9.0
 =====================
 *0.9.0 index format is not compatible with the 
 previous index format.*
+- MAJOR BUGFIX : 
+  Some `Mmap` objects were being leaked, and would never get released. (@fulmicoton)
 - Removed most unsafe (@fulmicoton)
 - Indexer memory footprint improved. (VInt comp, inlining the first block. (@fulmicoton)
 - Stemming in other language possible (@pentlander)
@@ -12,6 +14,7 @@ previous index format.*
 - Removed `INT_STORED` and `INT_INDEXED`. It is now possible to use `STORED` and `INDEXED`
   for int fields. (@fulmicoton)
 - Added DateTime field (@barrotsteindev)
+- Added IndexReader. By default, index is reloaded automatically upon new commits (@fulmicoton)
 
 
 Tantivy 0.8.2

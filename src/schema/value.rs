@@ -107,10 +107,10 @@ impl Value {
         }
     }
 
-   /// Returns the Date-value, provided the value is of the `Date` type.
-   ///
-   /// # Panics
-   /// If the value is not of type `Date`
+    /// Returns the Date-value, provided the value is of the `Date` type.
+    ///
+    /// # Panics
+    /// If the value is not of type `Date`
     pub fn date_value(&self) -> &DateTime {
         match *self {
             Value::Date(ref value) => value,
@@ -138,7 +138,9 @@ impl From<i64> for Value {
 }
 
 impl From<DateTime> for Value {
-    fn from(date_time: DateTime) -> Value { Value::Date(date_time) }
+    fn from(date_time: DateTime) -> Value {
+        Value::Date(date_time)
+    }
 }
 
 impl<'a> From<&'a str> for Value {
@@ -161,10 +163,10 @@ impl From<Vec<u8>> for Value {
 
 mod binary_serialize {
     use super::Value;
+    use chrono::{TimeZone, Utc};
     use common::BinarySerializable;
     use schema::Facet;
     use std::io::{self, Read, Write};
-    use chrono::{Utc, TimeZone};
 
     const TEXT_CODE: u8 = 0;
     const U64_CODE: u8 = 1;
@@ -217,7 +219,7 @@ mod binary_serialize {
                     let value = i64::deserialize(reader)?;
                     Ok(Value::I64(value))
                 }
-                DATE_CODE=> {
+                DATE_CODE => {
                     let timestamp = i64::deserialize(reader)?;
                     Ok(Value::Date(Utc.timestamp(timestamp, 0)))
                 }

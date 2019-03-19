@@ -565,9 +565,8 @@ mod tests {
             index_writer.delete_term(term);
             assert!(index_writer.commit().is_ok());
         }
-
-        index.load_searchers().unwrap();
-        assert_eq!(index.searcher().num_docs(), 302);
+        let reader = index.reader().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 302);
 
         {
             index_writer
@@ -575,9 +574,9 @@ mod tests {
                 .expect("waiting for merging threads");
         }
 
-        index.load_searchers().unwrap();
-        assert_eq!(index.searcher().segment_readers().len(), 1);
-        assert_eq!(index.searcher().num_docs(), 302);
+        reader.reload().unwrap();
+        assert_eq!(reader.searcher().segment_readers().len(), 1);
+        assert_eq!(reader.searcher().num_docs(), 302);
     }
 
     #[test]
@@ -636,18 +635,18 @@ mod tests {
                 .expect("waiting for merging threads");
         }
 
-        index.load_searchers().unwrap();
-        assert_eq!(index.searcher().num_docs(), 0);
+        let reader = index.reader().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
 
         let seg_ids = index
             .searchable_segment_ids()
             .expect("Searchable segments failed.");
         assert!(seg_ids.is_empty());
 
-        index.load_searchers().unwrap();
-        assert_eq!(index.searcher().num_docs(), 0);
+        reader.reload().unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
         // empty segments should be erased
         assert!(index.searchable_segment_metas().unwrap().is_empty());
-        assert!(index.searcher().segment_readers().is_empty());
+        assert!(reader.searcher().segment_readers().is_empty());
     }
 }

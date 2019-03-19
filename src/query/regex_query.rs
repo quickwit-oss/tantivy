@@ -44,8 +44,8 @@ use Searcher;
 ///         index_writer.commit().unwrap();
 ///     }
 ///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     let term = Term::from_field_text(title, "Diary");
 ///     let query = RegexQuery::new("d[ai]{2}ry".to_string(), title);
@@ -108,8 +108,8 @@ mod test {
             ));
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         {
             let regex_query = RegexQuery::new("jap[ao]n".to_string(), country_field);
             let scored_docs = searcher

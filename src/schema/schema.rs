@@ -97,7 +97,7 @@ impl SchemaBuilder {
     pub fn add_date_field<T: Into<IntOptions>>(
         &mut self,
         field_name_str: &str,
-        field_options: T
+        field_options: T,
     ) -> Field {
         let field_name = String::from(field_name_str);
         let field_entry = FieldEntry::new_date(field_name, field_options.into());

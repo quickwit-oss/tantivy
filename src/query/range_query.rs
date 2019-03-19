@@ -61,8 +61,8 @@ fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
 /// #         }
 /// #         index_writer.commit().unwrap();
 /// #     }
-/// #   index.load_searchers()?;
-/// let searcher = index.searcher();
+/// #   let reader = index.reader()?;
+/// let searcher = reader.searcher();
 ///
 /// let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960..1970);
 ///
@@ -316,8 +316,8 @@ mod tests {
                 }
                 index_writer.commit().unwrap();
             }
-            index.load_searchers().unwrap();
-            let searcher = index.searcher();
+            let reader = index.reader().unwrap();
+            let searcher = reader.searcher();
 
             let docs_in_the_sixties = RangeQuery::new_u64(year_field, 1960u64..1970u64);
 
@@ -355,8 +355,8 @@ mod tests {
 
             index_writer.commit().unwrap();
         }
-        index.load_searchers().unwrap();
-        let searcher = index.searcher();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
         let count_multiples =
             |range_query: RangeQuery| searcher.search(&range_query, &Count).unwrap();
 

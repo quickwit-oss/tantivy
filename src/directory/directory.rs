@@ -1,6 +1,8 @@
 use directory::directory_lock::Lock;
 use directory::error::LockError;
 use directory::error::{DeleteError, OpenReadError, OpenWriteError};
+use directory::WatchCallback;
+use directory::WatchHandle;
 use directory::{ReadOnlySource, WritePtr};
 use std::fmt;
 use std::io;
@@ -187,6 +189,22 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
             }
         }
     }
+
+    /// Registers a callback that will be called whenever a change on the `meta.json`
+    /// using the `atomic_write` API is detected.
+    ///
+    /// The behavior when using `.watch()` on a file using `.open_write(...)` is, on the other
+    /// hand, undefined.
+    ///
+    /// The file will be watched for the lifetime of the returned `WatchHandle`. The caller is
+    /// required to keep it.
+    /// It does not override previous callbacks. When the file is modified, all callback that are
+    /// registered (and whose `WatchHandle` is still alive) are triggered.
+    ///
+    /// Internally, tantivy only uses this API to detect new commits to implement the
+    /// `OnCommit` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents the
+    /// `OnCommit` `ReloadPolicy` to work properly.
+    fn watch(&self, watch_callback: WatchCallback) -> WatchHandle;
 }
 
 /// DirectoryClone
