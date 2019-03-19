@@ -590,26 +590,28 @@ mod tests {
 
         for path in paths.iter() {
             let _r = mmap_directory.open_read(path).unwrap();
-            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
         }
+
+
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 10);
         assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
         drop(keep);
         for path in paths.iter() {
             let _r = mmap_directory.open_read(path).unwrap();
-            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), num_paths);
+            assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 1);
         }
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 20);
-        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
 
         for path in &paths {
             mmap_directory.delete(path).unwrap();
         }
         assert_eq!(mmap_directory.get_cache_info().counters.hit, 20);
         assert_eq!(mmap_directory.get_cache_info().counters.miss, 20);
-        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 10);
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
         for path in paths.iter() {
             assert!(mmap_directory.open_read(path).is_err());
         }
