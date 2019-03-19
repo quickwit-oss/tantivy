@@ -52,7 +52,7 @@ parser! {
             field_name: None,
             phrase,
         });
-        try(term_query)
+        attempt(term_query)
             .or(term_default_field)
             .map(UserInputLeaf::from)
     }
@@ -83,12 +83,12 @@ parser! {
         let lower_bound = {
             let excl = (char('{'), term_val()).map(|(_, w)| UserInputBound::Exclusive(w));
             let incl = (char('['), term_val()).map(|(_, w)| UserInputBound::Inclusive(w));
-            try(excl).or(incl)
+            attempt(excl).or(incl)
         };
         let upper_bound = {
             let excl = (term_val(), char('}')).map(|(w, _)| UserInputBound::Exclusive(w));
             let incl = (term_val(), char(']')).map(|(w, _)| UserInputBound::Inclusive(w));
-            try(excl).or(incl)
+            attempt(excl).or(incl)
         };
         (
             optional((field(), char(':')).map(|x| x.0)),
@@ -112,11 +112,11 @@ parser! {
         .or((char('+'), leaf()).map(|(_, expr)| expr.unary(Occur::Must) ))
         .or((char('('), parse_to_ast(), char(')')).map(|(_, expr, _)| expr))
         .or(char('*').map(|_| UserInputAST::from(UserInputLeaf::All) ))
-        .or(try(
+        .or(attempt(
             (string("NOT"), spaces1(), leaf()).map(|(_, _, expr)| expr.unary(Occur::MustNot))
             )
          )
-        .or(try(
+        .or(attempt(
             range().map(UserInputAST::from)
             )
         )
@@ -160,7 +160,7 @@ parser! {
     where [I: Stream<Item = char>]
     {
         (
-            try(
+            attempt(
                 chainl1(
                     leaf().map(Element::SingleEl),
                     binary_operand().map(|op: BinaryOperand|
