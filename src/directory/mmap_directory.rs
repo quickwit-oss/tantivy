@@ -93,11 +93,24 @@ impl Default for MmapCache {
 }
 
 impl MmapCache {
-    fn get_info(&mut self) -> CacheInfo {
+    fn get_info(&self) -> CacheInfo {
         let paths: Vec<PathBuf> = self.cache.keys().cloned().collect();
         CacheInfo {
             counters: self.counters.clone(),
             mmapped: paths,
+        }
+    }
+
+    fn remove_weak_ref(&mut self) {
+        let keys_to_remove: Vec<PathBuf> = self.cache
+            .iter()
+            .filter(|(_, mmap_weakref)| {
+                mmap_weakref.upgrade().is_none()
+            })
+            .map(|(key, _)| key.clone())
+            .collect();
+        for key in keys_to_remove {
+            self.cache.remove(&key);
         }
     }
 
@@ -326,10 +339,15 @@ impl MmapDirectory {
     ///
     /// The `MmapDirectory` embeds a `MmapDirectory`
     /// to avoid multiplying the `mmap` system calls.
-    pub fn get_cache_info(&mut self) -> CacheInfo {
+    pub fn get_cache_info(&self) -> CacheInfo {
         self.inner
             .mmap_cache
             .write()
+            .expect("mmap cache lock is poisoned")
+            .remove_weak_ref();
+        self.inner
+            .mmap_cache
+            .read()
             .expect("Mmap cache lock is poisoned.")
             .get_info()
     }
@@ -513,6 +531,8 @@ mod tests {
     use std::fs;
     use std::time::Duration;
     use std::thread;
+    use Index;
+    use schema::{Schema, TEXT, SchemaBuilder};
 
     #[test]
     fn test_open_non_existant_path() {
@@ -614,5 +634,25 @@ mod tests {
         assert_eq!(counter.load(Ordering::SeqCst), 0);
         fs::write(&tmp_file, b"whateverwilldo").unwrap();
         thread::sleep(Duration::new(0, 1_000u32));
+    }
+
+    #[test]
+    fn test_mmap_released() {
+        let mmap_directory = MmapDirectory::create_from_tempdir().unwrap();
+        let mut schema_builder: SchemaBuilder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        {
+            let index = Index::create(mmap_directory.clone(), schema).unwrap();
+            let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            for _num_commits in 0..16 {
+                for _ in 0..10 {
+                    index_writer.add_document(doc!(text_field=>"abc"));
+                }
+                index_writer.commit().unwrap();
+            }
+            index_writer.wait_merging_threads().unwrap();
+        }
+        assert_eq!(mmap_directory.get_cache_info().mmapped.len(), 0);
     }
 }
