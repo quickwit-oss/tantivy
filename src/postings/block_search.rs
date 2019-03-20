@@ -3,7 +3,6 @@
 ///
 /// Searching within a block is a hotspot when running intersection.
 /// so it was worth defining it in its own module.
-use postings::compression::COMPRESSION_BLOCK_SIZE;
 
 #[cfg(target_arch = "x86_64")]
 mod sse2 {
@@ -131,6 +130,7 @@ impl BlockSearcher {
     pub fn search_in_block(&self, block_docs: &[u32], start: usize, target: u32) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
+            use postings::compression::COMPRESSION_BLOCK_SIZE;
             if *self == BlockSearcher::SSE2 {
                 if block_docs.len() == COMPRESSION_BLOCK_SIZE {
                     return sse2::linear_search_sse2_128(block_docs, target);
