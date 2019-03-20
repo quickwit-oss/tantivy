@@ -174,6 +174,7 @@ extern crate downcast_rs;
 #[macro_use]
 extern crate fail;
 
+#[cfg(feature = "mmap")]
 #[cfg(test)]
 mod functional_test;
 

@@ -13,8 +13,6 @@ pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::vint::{read_u32_vint, serialize_vint_u32, write_u32_vint, VInt};
 pub use byteorder::LittleEndian as Endianness;
 
-use std::io;
-
 /// Computes the number of bits that will be used for bitpacking.
 ///
 /// In general the target is the minimum number of bits
@@ -50,11 +48,6 @@ pub(crate) fn compute_num_bits(n: u64) -> u8 {
 
 pub(crate) fn is_power_of_2(n: usize) -> bool {
     (n > 0) && (n & (n - 1) == 0)
-}
-
-/// Create a default io error given a string.
-pub(crate) fn make_io_err(msg: String) -> io::Error {
-    io::Error::new(io::ErrorKind::Other, msg)
 }
 
 /// Has length trait

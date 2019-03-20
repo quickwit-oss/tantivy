@@ -6,7 +6,6 @@ use self::notify::RawEvent;
 use self::notify::RecursiveMode;
 use self::notify::Watcher;
 use atomicwrites;
-use common::make_io_err;
 use core::META_FILEPATH;
 use directory::error::LockError;
 use directory::error::{DeleteError, IOError, OpenDirectoryError, OpenReadError, OpenWriteError};
@@ -36,6 +35,12 @@ use std::sync::RwLock;
 use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
+
+
+/// Create a default io error given a string.
+pub(crate) fn make_io_err(msg: String) -> io::Error {
+    io::Error::new(io::ErrorKind::Other, msg)
+}
 
 /// Returns None iff the file exists, can be read, but is empty (and hence
 /// cannot be mmapped)
