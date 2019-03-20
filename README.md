@@ -30,6 +30,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 # Features
 
 - Full-text search
+- Configurable tokenizer. (stemming available for 17 latin languages. Third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)) and [Japanese](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command line tools
 - BM25 scoring (the same as lucene)
@@ -41,6 +42,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 - SIMD integer compression when the platform/CPU includes the SSE2 instruction set.
 - Single valued and multivalued u64 and i64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
+- Text, i64, u64, dates and hierarchical facet fields
 - LZ4 compressed document store
 - Range queries
 - Faceted search
