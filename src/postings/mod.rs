@@ -2,6 +2,7 @@
 Postings module (also called inverted index)
 */
 
+mod block_search;
 pub(crate) mod compression;
 /// Postings module
 ///
@@ -15,6 +16,8 @@ mod serializer;
 mod skip;
 mod stacker;
 mod term_info;
+
+pub(crate) use self::block_search::BlockSearcher;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
@@ -104,9 +107,7 @@ pub mod tests {
         let searcher = index.reader().unwrap().searcher();
         let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
         let term = Term::from_field_text(title, "abc");
-
         let mut positions = Vec::new();
-
         {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)

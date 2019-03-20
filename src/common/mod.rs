@@ -13,6 +13,12 @@ pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::vint::{read_u32_vint, serialize_vint_u32, write_u32_vint, VInt};
 pub use byteorder::LittleEndian as Endianness;
 
+
+/// Segment's max doc must be `< MAX_DOC_LIMIT`.
+///
+/// We do not allow segments with more than
+pub const MAX_DOC_LIMIT: u32 = 1 << 31;
+
 /// Computes the number of bits that will be used for bitpacking.
 ///
 /// In general the target is the minimum number of bits
@@ -126,5 +132,12 @@ pub(crate) mod test {
         assert_eq!(compute_num_bits(255), 8u8);
         assert_eq!(compute_num_bits(256), 9u8);
         assert_eq!(compute_num_bits(5_000_000_000), 33u8);
+    }
+
+    #[test]
+    fn test_max_doc() {
+        // this is the first time I write a unit test for a constant.
+        assert!(((super::MAX_DOC_LIMIT - 1) as i32) >= 0);
+        assert!((super::MAX_DOC_LIMIT as i32) < 0);
     }
 }

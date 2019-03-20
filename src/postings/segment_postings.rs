@@ -7,6 +7,7 @@ use positions::PositionReader;
 use postings::compression::compressed_block_size;
 use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use postings::serializer::PostingsSerializer;
+use postings::BlockSearcher;
 use postings::FreqReadingOption;
 use postings::Postings;
 use postings::SkipReader;
@@ -60,6 +61,7 @@ pub struct SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
     position_computer: Option<PositionComputer>,
+    block_searcher: BlockSearcher,
 }
 
 impl SegmentPostings {
@@ -70,6 +72,7 @@ impl SegmentPostings {
             block_cursor: empty_block_cursor,
             cur: COMPRESSION_BLOCK_SIZE,
             position_computer: None,
+            block_searcher: BlockSearcher::default(),
         }
     }
 
@@ -117,39 +120,9 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             position_computer: positions_stream_opt.map(PositionComputer::new),
+            block_searcher: BlockSearcher::default(),
         }
     }
-}
-
-fn linear_search(arr: &[u32], target: u32) -> usize {
-    arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
-}
-
-fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
-    let end = arr.len();
-    let mut begin = 0;
-    for &pivot in &[1, 3, 7, 15, 31, 63] {
-        if pivot >= end {
-            break;
-        }
-        if arr[pivot] > target {
-            return (begin, pivot);
-        }
-        begin = pivot;
-    }
-    (begin, end)
-}
-
-/// Search the first index containing an element greater or equal to the target.
-///
-/// # Assumption
-///
-/// The array is assumed non empty.
-/// The target is assumed greater or equal to the first element.
-/// The target is assumed smaller or equal to the last element.
-fn search_within_block(block_docs: &[u32], target: u32) -> usize {
-    let (start, end) = exponential_search(block_docs, target);
-    start + linear_search(&block_docs[start..end], target)
 }
 
 impl DocSet for SegmentPostings {
@@ -230,9 +203,8 @@ impl DocSet for SegmentPostings {
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
         let new_cur = self
-            .cur
-            .wrapping_add(search_within_block(&block_docs[self.cur..], target));
-
+            .block_searcher
+            .search_in_block(&block_docs, self.cur, target);
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
                 .iter()
@@ -614,10 +586,6 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 
 #[cfg(test)]
 mod tests {
-
-    use super::exponential_search;
-    use super::linear_search;
-    use super::search_within_block;
     use super::BlockSegmentPostings;
     use super::BlockSegmentPostingsSkipResult;
     use super::SegmentPostings;
@@ -633,21 +601,6 @@ mod tests {
     use SkipResult;
 
     #[test]
-    fn test_linear_search() {
-        let len: usize = 50;
-        let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32) * 2).collect();
-        for target in 1..*arr.last().unwrap() {
-            let res = linear_search(&arr[..], target);
-            if res > 0 {
-                assert!(arr[res - 1] < target);
-            }
-            if res < len {
-                assert!(arr[res] >= target);
-            }
-        }
-    }
-
-    #[test]
     fn test_empty_segment_postings() {
         let mut postings = SegmentPostings::empty();
         assert!(!postings.advance());
@@ -660,56 +613,6 @@ mod tests {
         let mut postings = BlockSegmentPostings::empty();
         assert!(!postings.advance());
         assert_eq!(postings.doc_freq(), 0);
-    }
-
-    fn search_within_block_trivial_but_slow(block: &[u32], target: u32) -> usize {
-        block
-            .iter()
-            .cloned()
-            .enumerate()
-            .filter(|&(_, ref val)| *val >= target)
-            .next()
-            .unwrap()
-            .0
-    }
-
-    #[test]
-    fn test_exponentiel_search() {
-        assert_eq!(exponential_search(&[1, 2], 0), (0, 1));
-        assert_eq!(exponential_search(&[1, 2], 1), (0, 1));
-        assert_eq!(
-            exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7),
-            (3, 7)
-        );
-    }
-
-    fn util_test_search_within_block(block: &[u32], target: u32) {
-        assert_eq!(
-            search_within_block(block, target),
-            search_within_block_trivial_but_slow(block, target)
-        );
-    }
-
-    fn util_test_search_within_block_all(block: &[u32]) {
-        use std::collections::HashSet;
-        let mut targets = HashSet::new();
-        for (i, val) in block.iter().cloned().enumerate() {
-            if i > 0 {
-                targets.insert(val - 1);
-            }
-            targets.insert(val);
-        }
-        for target in targets {
-            util_test_search_within_block(block, target);
-        }
-    }
-
-    #[test]
-    fn test_search_within_block() {
-        for len in 1u32..128u32 {
-            let v: Vec<u32> = (0..len).map(|i| i * 2).collect();
-            util_test_search_within_block_all(&v[..]);
-        }
     }
 
     #[test]
