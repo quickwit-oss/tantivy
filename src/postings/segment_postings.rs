@@ -153,6 +153,25 @@ fn search_within_block(block_docs: &[u32], target: u32) -> usize {
 }
 
 impl DocSet for SegmentPostings {
+    // goes to the next element.
+    // next needs to be called a first time to point to the correct element.
+    #[inline]
+    fn advance(&mut self) -> bool {
+        if self.position_computer.is_some() {
+            let term_freq = self.term_freq() as usize;
+            self.position_computer.as_mut().unwrap().add_skip(term_freq);
+        }
+        self.cur += 1;
+        if self.cur >= self.block_cursor.block_len() {
+            self.cur = 0;
+            if !self.block_cursor.advance() {
+                self.cur = COMPRESSION_BLOCK_SIZE;
+                return false;
+            }
+        }
+        true
+    }
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -235,29 +254,6 @@ impl DocSet for SegmentPostings {
         }
     }
 
-    // goes to the next element.
-    // next needs to be called a first time to point to the correct element.
-    #[inline]
-    fn advance(&mut self) -> bool {
-        if self.position_computer.is_some() {
-            let term_freq = self.term_freq() as usize;
-            self.position_computer.as_mut().unwrap().add_skip(term_freq);
-        }
-        self.cur += 1;
-        if self.cur >= self.block_cursor.block_len() {
-            self.cur = 0;
-            if !self.block_cursor.advance() {
-                self.cur = COMPRESSION_BLOCK_SIZE;
-                return false;
-            }
-        }
-        true
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.len() as u32
-    }
-
     /// Return the current document's `DocId`.
     #[inline]
     fn doc(&self) -> DocId {
@@ -267,6 +263,10 @@ impl DocSet for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling .doc()."
         );
         docs[self.cur]
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.len() as u32
     }
 
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {

@@ -36,7 +36,6 @@ use std::sync::Weak;
 use std::thread;
 use tempdir::TempDir;
 
-
 /// Create a default io error given a string.
 pub(crate) fn make_io_err(msg: String) -> io::Error {
     io::Error::new(io::ErrorKind::Other, msg)

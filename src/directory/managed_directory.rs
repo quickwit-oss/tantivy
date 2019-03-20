@@ -267,7 +267,6 @@ mod tests {
         use std::path::Path;
         use tempdir::TempDir;
 
-
         lazy_static! {
             static ref TEST_PATH1: &'static Path = Path::new("some_path_for_test");
             static ref TEST_PATH2: &'static Path = Path::new("some_path_for_test2");
@@ -352,7 +351,6 @@ mod tests {
                 assert!(!managed_directory.exists(*TEST_PATH1));
             }
         }
-
 
     }
 

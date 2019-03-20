@@ -6,6 +6,8 @@ use core::SegmentId;
 use core::SegmentMeta;
 use core::META_FILEPATH;
 use directory::ManagedDirectory;
+#[cfg(feature = "mmap")]
+use directory::MmapDirectory;
 use directory::INDEX_WRITER_LOCK;
 use directory::{Directory, RAMDirectory};
 use error::DataCorruption;
@@ -22,15 +24,13 @@ use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
+#[cfg(feature = "mmap")]
+use std::path::Path;
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
 use tokenizer::TokenizerManager;
 use IndexWriter;
 use Result;
-#[cfg(feature = "mmap")]
-use std::path::Path;
-#[cfg(feature = "mmap")]
-use directory::MmapDirectory;
 
 fn load_metas(directory: &Directory) -> Result<IndexMeta> {
     let meta_data = directory.atomic_read(&META_FILEPATH)?;
@@ -443,13 +443,12 @@ mod tests {
         test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
     }
 
-
-    #[cfg(feature="mmap")]
+    #[cfg(feature = "mmap")]
     mod mmap_specific {
 
+        use super::*;
         use std::path::PathBuf;
         use tempdir::TempDir;
-        use super::*;
 
         #[test]
         fn test_index_on_commit_reload_policy_mmap() {
@@ -508,7 +507,6 @@ mod tests {
             test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
         }
     }
-
 
     fn test_index_on_commit_reload_policy_aux(
         field: Field,
