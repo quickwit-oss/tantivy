@@ -27,6 +27,14 @@ to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
+# Benchmark
+
+Tantivy is typically faster than Lucene, but the results will depend on 
+the nature of the queries in your workload.
+
+The following [benchmark](https://tantivy-search.github.io/bench/) break downs 
+performance for different type of queries / collection.
+
 # Features
 
 - Full-text search
