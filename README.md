@@ -17,7 +17,8 @@
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/6)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/6)
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/7)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/7)
 
-<a href="https://www.patreon.com/bePatron?u=8468621" data-patreon-widget-type="become-patron-button">Become a Patron!</a><script async src="https://c6.patreon.com/becomePatronButton.bundle.js"></script>
+[![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
+
 
 **Tantivy** is a **full text search engine library** written in rust.
 
@@ -99,13 +100,10 @@ To run the tests exhaustively, run `./run-tests.sh`.
 
 There are many ways to support this project. 
 
-- If you use tantivy, share on gitter or by email (paul.masurel@gmail.com)
-how you use it. 
+- If you use tantivy, tell us about your experience on [gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
 - Report bugs
-- Write a blog
+- Write a blog post
 - Complete documentation
-- Contribute code
-- Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or  <a href="https://www.patreon.com/bePatron?u=8468621" data-patreon-widget-type="become-patron-button">become a patron!</a><script async src="https://c6.patreon.com/becomePatronButton.bundle.js"></script> 
-
-
- (join gitter or paul.masurel@gmail.com)
+- Contribute code (you can join [our gitter](https://gitter.im/tantivy-search/tantivy) )
+- Talk about tantivy around you
+- Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or even [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
