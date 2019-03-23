@@ -17,6 +17,7 @@
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/6)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/6)
 [![](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/images/7)](https://sourcerer.io/fame/fulmicoton/tantivy-search/tantivy/links/7)
 
+[![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)
 
 
 **Tantivy** is a **full text search engine library** written in rust.
@@ -27,9 +28,18 @@ to build such a search engine.
 
 Tantivy is, in fact, strongly inspired by Lucene's design.
 
+# Benchmark
+
+Tantivy is typically faster than Lucene, but the results will depend on 
+the nature of the queries in your workload.
+
+The following [benchmark](https://tantivy-search.github.io/bench/) break downs 
+performance for different type of queries / collection.
+
 # Features
 
 - Full-text search
+- Configurable tokenizer. (stemming available for 17 latin languages. Third party support for Chinese ([tantivy-jieba](https://crates.io/crates/tantivy-jieba) and [cang-jie](https://crates.io/crates/cang-jie)) and [Japanese](https://crates.io/crates/tantivy-tokenizer-tiny-segmenter)
 - Fast (check out the :racehorse: :sparkles: [benchmark](https://tantivy-search.github.io/bench/) :sparkles: :racehorse:)
 - Tiny startup time (<10ms), perfect for command line tools
 - BM25 scoring (the same as lucene)
@@ -41,6 +51,7 @@ Tantivy is, in fact, strongly inspired by Lucene's design.
 - SIMD integer compression when the platform/CPU includes the SSE2 instruction set.
 - Single valued and multivalued u64 and i64 fast fields (equivalent of doc values in Lucene)
 - `&[u8]` fast fields
+- Text, i64, u64, dates and hierarchical facet fields
 - LZ4 compressed document store
 - Range queries
 - Faceted search
@@ -85,6 +96,14 @@ To check out and run tests, you can simply run :
 Some tests will not run with just `cargo test` because of `fail-rs`.
 To run the tests exhaustively, run `./run-tests.sh`. 
 
-# Contribute
+# How can I support this project ?
 
-Send me an email (paul.masurel at gmail.com) if you want to contribute to tantivy.
+There are many ways to support this project. 
+
+- If you use tantivy, tell us about your experience on [gitter](https://gitter.im/tantivy-search/tantivy) or by email (paul.masurel@gmail.com)
+- Report bugs
+- Write a blog post
+- Complete documentation
+- Contribute code (you can join [our gitter](https://gitter.im/tantivy-search/tantivy) )
+- Talk about tantivy around you
+- Drop a word on on [![Say Thanks!](https://img.shields.io/badge/Say%20Thanks-!-1EAEDB.svg)](https://saythanks.io/to/fulmicoton) or even [![Become a patron](https://c5.patreon.com/external/logo/become_a_patron_button.png)](https://www.patreon.com/fulmicoton)

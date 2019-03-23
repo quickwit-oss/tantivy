@@ -241,8 +241,8 @@ fn select_best_fragment_combination(fragments: &[FragmentCandidate], text: &str)
 /// #    let query_parser = QueryParser::for_index(&index, vec![text_field]);
 /// // ...
 /// let query = query_parser.parse_query("haleurs flamands").unwrap();
-/// # index.load_searchers()?;
-/// # let searcher = index.searcher();
+/// # let reader = index.reader()?;
+/// # let searcher = reader.searcher();
 /// let mut snippet_generator = SnippetGenerator::create(&searcher, &*query, text_field)?;
 /// snippet_generator.set_max_num_chars(100);
 /// let snippet = snippet_generator.snippet_from_doc(&doc);
@@ -529,7 +529,7 @@ Survey in 2016, 2017, and 2018."#;
             index_writer.add_document(doc!(text_field => "a b"));
             index_writer.commit().unwrap();
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         {
             let query = query_parser.parse_query("e").unwrap();
@@ -586,7 +586,7 @@ Survey in 2016, 2017, and 2018."#;
             }
             index_writer.commit().unwrap();
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let query_parser = QueryParser::for_index(&index, vec![text_field]);
         let query = query_parser.parse_query("rust design").unwrap();
         let mut snippet_generator =

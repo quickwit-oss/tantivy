@@ -3,6 +3,7 @@ use common::BinarySerializable;
 use common::VInt;
 use itertools::Itertools;
 use std::io::{self, Read, Write};
+use DateTime;
 
 /// Tantivy's Document is the object that can
 /// be indexed and then searched for.
@@ -82,9 +83,14 @@ impl Document {
         self.add(FieldValue::new(field, Value::U64(value)));
     }
 
-    /// Add a u64 field
+    /// Add a i64 field
     pub fn add_i64(&mut self, field: Field, value: i64) {
         self.add(FieldValue::new(field, Value::I64(value)));
+    }
+
+    /// Add a date field
+    pub fn add_date(&mut self, field: Field, value: &DateTime) {
+        self.add(FieldValue::new(field, Value::Date(*value)));
     }
 
     /// Add a bytes field

@@ -73,6 +73,14 @@ pub enum OpenDirectoryError {
     DoesNotExist(PathBuf),
     /// The path exists but is not a directory.
     NotADirectory(PathBuf),
+    /// IoError
+    IoError(io::Error),
+}
+
+impl From<io::Error> for OpenDirectoryError {
+    fn from(io_err: io::Error) -> Self {
+        OpenDirectoryError::IoError(io_err)
+    }
 }
 
 impl fmt::Display for OpenDirectoryError {
@@ -84,6 +92,11 @@ impl fmt::Display for OpenDirectoryError {
             OpenDirectoryError::NotADirectory(ref path) => {
                 write!(f, "the path '{:?}' exists but is not a directory", path)
             }
+            OpenDirectoryError::IoError(ref err) => write!(
+                f,
+                "IOError while trying to open/create the directory. {:?}",
+                err
+            ),
         }
     }
 }

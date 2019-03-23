@@ -12,7 +12,7 @@ fn main() -> tantivy::Result<()> {
     let mut schema_builder = Schema::builder();
     schema_builder.add_text_field("title", TEXT | STORED);
     schema_builder.add_text_field("body", TEXT);
-    schema_builder.add_u64_field("year", INT_INDEXED);
+    schema_builder.add_u64_field("year", INDEXED);
     let schema = schema_builder.build();
 
     // Let's assume we have a json-serialized document.

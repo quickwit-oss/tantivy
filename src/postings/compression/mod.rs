@@ -43,9 +43,14 @@ impl BlockEncoder {
     }
 }
 
+/// We ensure that the OutputBuffer is align on 128 bits
+/// in order to run SSE2 linear search on it.
+#[repr(align(128))]
+struct OutputBuffer([u32; COMPRESSION_BLOCK_SIZE + 1]);
+
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
-    pub output: [u32; COMPRESSION_BLOCK_SIZE + 1],
+    output: OutputBuffer,
     pub output_len: usize,
 }
 
@@ -59,7 +64,7 @@ impl BlockDecoder {
         output[COMPRESSION_BLOCK_SIZE] = 0u32;
         BlockDecoder {
             bitpacker: BitPacker4x::new(),
-            output,
+            output: OutputBuffer(output),
             output_len: 0,
         }
     }
@@ -72,23 +77,23 @@ impl BlockDecoder {
     ) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress_sorted(offset, &compressed_data, &mut self.output, num_bits)
+            .decompress_sorted(offset, &compressed_data, &mut self.output.0, num_bits)
     }
 
     pub fn uncompress_block_unsorted(&mut self, compressed_data: &[u8], num_bits: u8) -> usize {
         self.output_len = COMPRESSION_BLOCK_SIZE;
         self.bitpacker
-            .decompress(&compressed_data, &mut self.output, num_bits)
+            .decompress(&compressed_data, &mut self.output.0, num_bits)
     }
 
     #[inline]
     pub fn output_array(&self) -> &[u32] {
-        &self.output[..self.output_len]
+        &self.output.0[..self.output_len]
     }
 
     #[inline]
     pub fn output(&self, idx: usize) -> u32 {
-        self.output[idx]
+        self.output.0[idx]
     }
 }
 
@@ -159,12 +164,12 @@ impl VIntDecoder for BlockDecoder {
         num_els: usize,
     ) -> usize {
         self.output_len = num_els;
-        vint::uncompress_sorted(compressed_data, &mut self.output[..num_els], offset)
+        vint::uncompress_sorted(compressed_data, &mut self.output.0[..num_els], offset)
     }
 
     fn uncompress_vint_unsorted<'a>(&mut self, compressed_data: &'a [u8], num_els: usize) -> usize {
         self.output_len = num_els;
-        vint::uncompress_unsorted(compressed_data, &mut self.output[..num_els])
+        vint::uncompress_unsorted(compressed_data, &mut self.output.0[..num_els])
     }
 }
 

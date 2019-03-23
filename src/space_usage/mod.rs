@@ -295,8 +295,7 @@ mod test {
     use core::Index;
     use schema::Field;
     use schema::Schema;
-    use schema::STORED;
-    use schema::{FAST, INT_INDEXED, TEXT};
+    use schema::{FAST, INDEXED, STORED, TEXT};
     use space_usage::ByteCount;
     use space_usage::PerFieldSpaceUsage;
     use Term;
@@ -305,7 +304,7 @@ mod test {
     fn test_empty() {
         let schema = Schema::builder().build();
         let index = Index::create_in_ram(schema.clone());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert_eq!(0, searcher_space_usage.total());
@@ -331,7 +330,7 @@ mod test {
     #[test]
     fn test_fast_indexed() {
         let mut schema_builder = Schema::builder();
-        let name = schema_builder.add_u64_field("name", FAST | INT_INDEXED);
+        let name = schema_builder.add_u64_field("name", FAST | INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
 
@@ -344,7 +343,7 @@ mod test {
             index_writer.commit().unwrap();
         }
 
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
@@ -384,7 +383,7 @@ mod test {
             index_writer.commit().unwrap();
         }
 
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
@@ -423,7 +422,7 @@ mod test {
             index_writer.add_document(doc!(name => "hello hi goodbye"));
             index_writer.commit().unwrap();
         }
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);
@@ -448,7 +447,7 @@ mod test {
     #[test]
     fn test_deletes() {
         let mut schema_builder = Schema::builder();
-        let name = schema_builder.add_u64_field("name", INT_INDEXED);
+        let name = schema_builder.add_u64_field("name", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema.clone());
 
@@ -470,7 +469,7 @@ mod test {
             index_writer2.commit().unwrap();
         }
 
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         let searcher_space_usage = searcher.space_usage();
         assert!(searcher_space_usage.total() > 0);

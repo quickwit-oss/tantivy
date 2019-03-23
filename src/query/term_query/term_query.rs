@@ -48,9 +48,8 @@ use Term;
 ///         ));
 ///         index_writer.commit()?;
 ///     }
-///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     let query = TermQuery::new(
 ///         Term::from_field_text(title, "diary"),

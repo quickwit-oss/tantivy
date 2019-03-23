@@ -159,7 +159,7 @@ mod tests {
                 index_writer.commit().unwrap();
             }
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
 
         let field_searcher = searcher.field(text_field);
         let mut term_it = field_searcher.terms();

@@ -1,3 +1,4 @@
+use common::MAX_DOC_LIMIT;
 use core::Segment;
 use core::SegmentReader;
 use core::SerializableSegment;
@@ -23,6 +24,7 @@ use termdict::TermMerger;
 use termdict::TermOrdinal;
 use DocId;
 use Result;
+use TantivyError;
 
 fn compute_total_num_tokens(readers: &[SegmentReader], field: Field) -> u64 {
     let mut total_tokens = 0u64;
@@ -150,6 +152,14 @@ impl IndexMerger {
                 readers.push(reader);
             }
         }
+        if max_doc >= MAX_DOC_LIMIT {
+            let err_msg = format!(
+                "The segment resulting from this merge would have {} docs,\
+                 which exceeds the limit {}.",
+                max_doc, MAX_DOC_LIMIT
+            );
+            return Err(TantivyError::InvalidArgument(err_msg));
+        }
         Ok(IndexMerger {
             schema,
             readers,
@@ -194,17 +204,17 @@ impl IndexMerger {
                         fast_field_serializer,
                     )?;
                 }
-                FieldType::U64(ref options) | FieldType::I64(ref options) => {
-                    match options.get_fastfield_cardinality() {
-                        Some(Cardinality::SingleValue) => {
-                            self.write_single_fast_field(field, fast_field_serializer)?;
-                        }
-                        Some(Cardinality::MultiValues) => {
-                            self.write_multi_fast_field(field, fast_field_serializer)?;
-                        }
-                        None => {}
+                FieldType::U64(ref options)
+                | FieldType::I64(ref options)
+                | FieldType::Date(ref options) => match options.get_fastfield_cardinality() {
+                    Some(Cardinality::SingleValue) => {
+                        self.write_single_fast_field(field, fast_field_serializer)?;
                     }
-                }
+                    Some(Cardinality::MultiValues) => {
+                        self.write_multi_fast_field(field, fast_field_serializer)?;
+                    }
+                    None => {}
+                },
                 FieldType::Str(_) => {
                     // We don't handle str fast field for the moment
                     // They can be implemented using what is done
@@ -654,7 +664,7 @@ mod tests {
     use schema::IntOptions;
     use schema::Term;
     use schema::TextFieldIndexing;
-    use schema::INT_INDEXED;
+    use schema::INDEXED;
     use std::io::Cursor;
     use DocAddress;
     use IndexWriter;
@@ -671,11 +681,13 @@ mod tests {
             )
             .set_stored();
         let text_field = schema_builder.add_text_field("text", text_fieldtype);
+        let date_field = schema_builder.add_date_field("date", INDEXED);
         let score_fieldtype = schema::IntOptions::default().set_fast(Cardinality::SingleValue);
         let score_field = schema_builder.add_u64_field("score", score_fieldtype);
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
+        let curr_time = chrono::Utc::now();
         let add_score_bytes = |doc: &mut Document, score: u32| {
             let mut bytes = Vec::new();
             bytes
@@ -692,6 +704,7 @@ mod tests {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
                     doc.add_u64(score_field, 3);
+                    doc.add_date(date_field, &curr_time);
                     add_score_bytes(&mut doc, 3);
                     index_writer.add_document(doc);
                 }
@@ -717,6 +730,7 @@ mod tests {
                 {
                     let mut doc = Document::default();
                     doc.add_text(text_field, "af b");
+                    doc.add_date(date_field, &curr_time);
                     doc.add_u64(score_field, 11);
                     add_score_bytes(&mut doc, 11);
                     index_writer.add_document(doc);
@@ -744,7 +758,7 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
         {
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             let get_doc_ids = |terms: Vec<Term>| {
                 let query = BooleanQuery::new_multiterms_query(terms);
@@ -773,6 +787,10 @@ mod tests {
                         DocAddress(0, 3),
                         DocAddress(0, 4)
                     ]
+                );
+                assert_eq!(
+                    get_doc_ids(vec![Term::from_field_date(date_field, &curr_time)]),
+                    vec![DocAddress(0, 0), DocAddress(0, 3)]
                 );
             }
             {
@@ -837,7 +855,7 @@ mod tests {
         let bytes_score_field = schema_builder.add_bytes_field("score_bytes");
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let search_term = |searcher: &Searcher, term: Term| {
             let collector = FastFieldTestCollector::for_field(score_field);
             let bytes_collector = BytesFastFieldTestCollector::for_field(bytes_score_field);
@@ -874,7 +892,7 @@ mod tests {
                 bytes_score_field => vec![0u8, 0, 0, 3],
             ));
             index_writer.commit().expect("committed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
             assert_eq!(searcher.segment_readers()[0].num_docs(), 2);
@@ -921,7 +939,7 @@ mod tests {
                 bytes_score_field => vec![0u8, 0, 27, 88],
             ));
             index_writer.commit().expect("committed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
 
             assert_eq!(searcher.segment_readers().len(), 2);
@@ -983,7 +1001,7 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 3);
@@ -1029,7 +1047,7 @@ mod tests {
             index_writer.delete_term(Term::from_field_text(text_field, "c"));
             index_writer.commit().unwrap();
 
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
             assert_eq!(searcher.num_docs(), 2);
@@ -1080,7 +1098,7 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
 
             let searcher = reader.searcher();
             assert_eq!(searcher.segment_readers().len(), 1);
@@ -1130,7 +1148,7 @@ mod tests {
             let segment_ids = index
                 .searchable_segment_ids()
                 .expect("Searchable segments failed.");
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
 
             let searcher = reader.searcher();
             assert!(segment_ids.is_empty());
@@ -1144,7 +1162,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let facet_field = schema_builder.add_facet_field("facet");
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let index_doc = |index_writer: &mut IndexWriter, doc_facets: &[&str]| {
@@ -1174,7 +1192,7 @@ mod tests {
             index_writer.commit().expect("committed");
         }
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         let test_searcher = |expected_num_docs: usize, expected: &[(&str, u64)]| {
             let searcher = reader.searcher();
             let mut facet_collector = FacetCollector::for_field(facet_field);
@@ -1218,7 +1236,7 @@ mod tests {
                 .wait()
                 .expect("Merging failed");
             index_writer.wait_merging_threads().unwrap();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             test_searcher(
                 11,
                 &[
@@ -1239,7 +1257,7 @@ mod tests {
             let facet_term = Term::from_facet(facet_field, &facet);
             index_writer.delete_term(facet_term);
             index_writer.commit().unwrap();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             test_searcher(
                 9,
                 &[
@@ -1257,14 +1275,14 @@ mod tests {
     #[test]
     fn test_bug_merge() {
         let mut schema_builder = schema::Schema::builder();
-        let int_field = schema_builder.add_u64_field("intvals", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("intvals", INDEXED);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         index_writer.add_document(doc!(int_field => 1u64));
         index_writer.commit().expect("commit failed");
         index_writer.add_document(doc!(int_field => 1u64));
         index_writer.commit().expect("commit failed");
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 2);
         index_writer.delete_term(Term::from_field_u64(int_field, 1));
@@ -1276,7 +1294,7 @@ mod tests {
             .expect("Failed to initiate merge")
             .wait()
             .expect("Merging failed");
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         // commit has not been called yet. The document should still be
         // there.
         assert_eq!(reader.searcher().num_docs(), 2);
@@ -1290,7 +1308,7 @@ mod tests {
             .set_indexed();
         let int_field = schema_builder.add_u64_field("intvals", int_options);
         let index = Index::create_in_ram(schema_builder.build());
-        let reader = index.reader();
+        let reader = index.reader().unwrap();
         {
             let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
             let mut doc = Document::default();
@@ -1311,7 +1329,7 @@ mod tests {
                 .expect("Merging failed");
 
             // assert delete has not been committed
-            reader.load_searchers().unwrap();
+            reader.reload().expect("failed to load searcher 1");
             let searcher = reader.searcher();
             assert_eq!(searcher.num_docs(), 2);
 
@@ -1320,13 +1338,13 @@ mod tests {
             index_writer.wait_merging_threads().unwrap();
         }
 
-        reader.load_searchers().unwrap();
+        reader.reload().unwrap();
         let searcher = reader.searcher();
         assert_eq!(searcher.num_docs(), 0);
     }
 
     #[test]
-    fn test_merge_multivalued_int_fields() {
+    fn test_merge_multivalued_int_fields_simple() {
         let mut schema_builder = schema::Schema::builder();
         let int_options = IntOptions::default()
             .set_fast(Cardinality::MultiValues)
@@ -1343,7 +1361,6 @@ mod tests {
                 }
                 index_writer.add_document(doc);
             };
-
             index_doc(&mut index_writer, &[1, 2]);
             index_doc(&mut index_writer, &[1, 2, 3]);
             index_doc(&mut index_writer, &[4, 5]);
@@ -1352,20 +1369,14 @@ mod tests {
             index_doc(&mut index_writer, &[3]);
             index_doc(&mut index_writer, &[17]);
             index_writer.commit().expect("committed");
-
             index_doc(&mut index_writer, &[20]);
             index_writer.commit().expect("committed");
-
             index_doc(&mut index_writer, &[28, 27]);
             index_doc(&mut index_writer, &[1_000]);
-
             index_writer.commit().expect("committed");
         }
-        let reader = index.reader();
-        reader.load_searchers().unwrap();
-
+        let reader = index.reader().unwrap();
         let searcher = reader.searcher();
-
         let mut vals: Vec<u64> = Vec::new();
 
         {
@@ -1431,10 +1442,11 @@ mod tests {
                 .expect("Failed to initiate merge")
                 .wait()
                 .expect("Merging failed");
-            index_writer.wait_merging_threads().unwrap();
+            index_writer
+                .wait_merging_threads()
+                .expect("Wait for merging threads");
         }
-
-        reader.load_searchers().unwrap();
+        reader.reload().expect("Load searcher");
 
         {
             let searcher = reader.searcher();

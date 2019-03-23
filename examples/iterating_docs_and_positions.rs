@@ -33,7 +33,7 @@ fn main() -> tantivy::Result<()> {
     index_writer.add_document(doc!(title => "The modern Promotheus"));
     index_writer.commit()?;
 
-    let reader = index.reader();
+    let reader = index.reader()?;
 
     let searcher = reader.searcher();
 

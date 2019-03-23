@@ -52,9 +52,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_u64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
+    pub fn add_u64_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_u64(field_name, field_options);
+        let field_entry = FieldEntry::new_u64(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -68,9 +72,35 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_i64_field(&mut self, field_name_str: &str, field_options: IntOptions) -> Field {
+    pub fn add_i64_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_i64(field_name, field_options);
+        let field_entry = FieldEntry::new_i64(field_name, field_options.into());
+        self.add_field(field_entry)
+    }
+
+    /// Adds a new date field.
+    /// Returns the associated field handle
+    /// Internally, Tantivy simply stores dates as i64 UTC timestamps,
+    /// while the user supplies DateTime values for convenience.
+    ///
+    /// # Caution
+    ///
+    /// Appending two fields with the same name
+    /// will result in the shadowing of the first
+    /// by the second one.
+    /// The first field will get a field id
+    /// but only the second one will be indexed
+    pub fn add_date_field<T: Into<IntOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
+        let field_name = String::from(field_name_str);
+        let field_entry = FieldEntry::new_date(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -84,9 +114,13 @@ impl SchemaBuilder {
     /// by the second one.
     /// The first field will get a field id
     /// but only the second one will be indexed
-    pub fn add_text_field(&mut self, field_name_str: &str, field_options: TextOptions) -> Field {
+    pub fn add_text_field<T: Into<TextOptions>>(
+        &mut self,
+        field_name_str: &str,
+        field_options: T,
+    ) -> Field {
         let field_name = String::from(field_name_str);
-        let field_entry = FieldEntry::new_text(field_name, field_options);
+        let field_entry = FieldEntry::new_text(field_name, field_options.into());
         self.add_field(field_entry)
     }
 
@@ -178,15 +212,7 @@ impl Schema {
         SchemaBuilder::default()
     }
 
-    /// Returns the field options associated with a given name.
-    ///
-    /// # Panics
-    /// Panics if the field name does not exist.
-    /// It is meant as an helper for user who created
-    /// and control the content of their schema.
-    ///
-    /// If panicking is not an option for you,
-    /// you may use `get(&self, field_name: &str)`.
+    /// Returns the field option associated with a given name.
     pub fn get_field(&self, field_name: &str) -> Option<Field> {
         self.0.fields_map.get(field_name).cloned()
     }

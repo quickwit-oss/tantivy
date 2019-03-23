@@ -2,6 +2,7 @@
 Postings module (also called inverted index)
 */
 
+mod block_search;
 pub(crate) mod compression;
 /// Postings module
 ///
@@ -15,6 +16,8 @@ mod serializer;
 mod skip;
 mod stacker;
 mod term_info;
+
+pub(crate) use self::block_search::BlockSearcher;
 
 pub(crate) use self::postings_writer::MultiFieldPostingsWriter;
 pub use self::serializer::{FieldSerializer, InvertedIndexSerializer};
@@ -31,7 +34,6 @@ pub(crate) use self::stacker::compute_table_size;
 pub use common::HasLen;
 
 pub(crate) const USE_SKIP_INFO_LIMIT: u32 = COMPRESSION_BLOCK_SIZE as u32;
-
 pub(crate) type UnorderedTermId = u64;
 
 #[cfg_attr(feature = "cargo-clippy", allow(clippy::enum_variant_names))]
@@ -58,7 +60,7 @@ pub mod tests {
     use rand::{Rng, SeedableRng};
     use schema::Field;
     use schema::IndexRecordOption;
-    use schema::{Document, Schema, Term, INT_INDEXED, STRING, TEXT};
+    use schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
     use std::iter;
     use DocId;
     use Score;
@@ -102,12 +104,10 @@ pub mod tests {
         index_writer.add_document(doc!(title => r#"abc be be be be abc"#));
         index_writer.commit().unwrap();
 
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let inverted_index = searcher.segment_reader(0u32).inverted_index(title);
         let term = Term::from_field_text(title, "abc");
-
         let mut positions = Vec::new();
-
         {
             let mut postings = inverted_index
                 .read_postings(&term, IndexRecordOption::WithFreqsAndPositions)
@@ -293,7 +293,7 @@ pub mod tests {
             assert!(index_writer.commit().is_ok());
         }
         let term_a = Term::from_field_text(text_field, "a");
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
         let mut postings = segment_reader
             .inverted_index(text_field)
@@ -315,7 +315,7 @@ pub mod tests {
 
         let index = {
             let mut schema_builder = Schema::builder();
-            let value_field = schema_builder.add_u64_field("value", INT_INDEXED);
+            let value_field = schema_builder.add_u64_field("value", INDEXED);
             let schema = schema_builder.build();
 
             let index = Index::create_in_ram(schema);
@@ -332,7 +332,7 @@ pub mod tests {
             }
             index
         };
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         // check that the basic usage works
@@ -400,7 +400,7 @@ pub mod tests {
             index_writer.delete_term(term_0);
             assert!(index_writer.commit().is_ok());
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         // make sure seeking still works
@@ -449,7 +449,7 @@ pub mod tests {
             index_writer.delete_term(term_1);
             assert!(index_writer.commit().is_ok());
         }
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
 
         // finally, check that it's empty
         {

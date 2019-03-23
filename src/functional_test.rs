@@ -13,16 +13,15 @@ fn check_index_content(searcher: &Searcher, vals: &HashSet<u64>) {
 
 #[test]
 #[ignore]
-#[cfg(feature = "mmap")]
 fn test_indexing() {
     let mut schema_builder = Schema::builder();
 
-    let id_field = schema_builder.add_u64_field("id", INT_INDEXED);
-    let multiples_field = schema_builder.add_u64_field("multiples", INT_INDEXED);
+    let id_field = schema_builder.add_u64_field("id", INDEXED);
+    let multiples_field = schema_builder.add_u64_field("multiples", INDEXED);
     let schema = schema_builder.build();
 
     let index = Index::create_from_tempdir(schema).unwrap();
-    let reader = index.reader();
+    let reader = index.reader().unwrap();
 
     let mut rng = thread_rng();
 
@@ -37,7 +36,7 @@ fn test_indexing() {
             index_writer.commit().expect("Commit failed");
             committed_docs.extend(&uncommitted_docs);
             uncommitted_docs.clear();
-            reader.load_searchers().unwrap();
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             // check that everything is correct.
             check_index_content(&searcher, &committed_docs);

@@ -4,7 +4,6 @@ use postings::FieldSerializer;
 use std::io;
 use DocId;
 
-const EMPTY_ARRAY: [u32; 0] = [0u32; 0];
 const POSITION_END: u32 = 0;
 
 #[derive(Default)]
@@ -115,7 +114,7 @@ impl Recorder for NothingRecorder {
         let buffer = buffer_lender.lend_u8();
         self.stack.read_to_end(heap, buffer);
         for doc in VInt32Reader::new(&buffer[..]) {
-            serializer.write_doc(doc as u32, 0u32, &EMPTY_ARRAY)?;
+            serializer.write_doc(doc as u32, 0u32, &[][..])?;
         }
         Ok(())
     }
@@ -168,7 +167,7 @@ impl Recorder for TermFrequencyRecorder {
         let mut u32_it = VInt32Reader::new(&buffer[..]);
         while let Some(doc) = u32_it.next() {
             let term_freq = u32_it.next().unwrap_or(self.current_tf);
-            serializer.write_doc(doc as u32, term_freq, &EMPTY_ARRAY)?;
+            serializer.write_doc(doc as u32, term_freq, &[][..])?;
         }
 
         Ok(())

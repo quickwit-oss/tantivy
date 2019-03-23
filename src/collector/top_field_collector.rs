@@ -23,15 +23,16 @@ use SegmentReader;
 /// # use tantivy::schema::{Schema, Field, FAST, TEXT};
 /// # use tantivy::{Index, Result, DocAddress};
 /// # use tantivy::query::{Query, QueryParser};
+/// use tantivy::Searcher;
 /// use tantivy::collector::TopDocs;
 ///
-/// # fn main() {
+/// # fn main() -> tantivy::Result<()> {
 /// #   let mut schema_builder = Schema::builder();
 /// #   let title = schema_builder.add_text_field("title", TEXT);
 /// #   let rating = schema_builder.add_u64_field("rating", FAST);
 /// #   let schema = schema_builder.build();
 /// #   let index = Index::create_in_ram(schema);
-/// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+/// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
 /// #   index_writer.add_document(doc!(
 /// #       title => "The Name of the Wind",
 /// #       rating => 92u64,
@@ -39,13 +40,14 @@ use SegmentReader;
 /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
 /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
 /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
-/// #   index_writer.commit().unwrap();
-/// #   index.load_searchers().unwrap();
-///	#   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary").unwrap();
-/// #   let top_docs = docs_sorted_by_rating(&index, &query, rating).unwrap();
+/// #   index_writer.commit()?;
+/// #   let reader = index.reader()?;
+/// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
+/// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
 /// #   assert_eq!(top_docs,
 /// #            vec![(97u64, DocAddress(0u32, 1)),
 /// #                 (80u64, DocAddress(0u32, 3))]);
+/// #   Ok(())
 /// # }
 /// #
 /// /// Searches the document matching the given query, and
@@ -53,7 +55,9 @@ use SegmentReader;
 /// /// given in argument.
 /// ///
 /// /// `field` is required to be a FAST field.
-/// fn docs_sorted_by_rating(index: &Index, query: &Query, sort_by_field: Field)
+/// fn docs_sorted_by_rating(searcher: &Searcher,
+///                          query: &Query,
+///                          sort_by_field: Field)
 ///     -> Result<Vec<(u64, DocAddress)>> {
 ///
 ///     // This is where we build our collector!
@@ -61,8 +65,7 @@ use SegmentReader;
 ///
 ///     // ... and here is our documents. Not this is a simple vec.
 ///     // The `u64` in the pair is the value of our fast field for each documents.
-///     index.searcher()
-///          .search(query, &top_docs_by_rating)
+///     searcher.search(query, &top_docs_by_rating)
 /// }
 /// ```
 pub struct TopDocsByField<T> {
@@ -75,6 +78,12 @@ impl<T: FastValue + PartialOrd + Clone> TopDocsByField<T> {
     ///
     /// The given field name must be a fast field, otherwise the collector have an error while
     /// collecting results.
+    ///
+    /// This constructor is crate-private. Client are supposed to call
+    /// build `TopDocsByField`  object using the `TopDocs` API.
+    ///
+    /// e.g.:
+    ///   `TopDocs::with_limit(2).order_by_field(sort_by_field)`
     ///
     /// # Panics
     /// The method panics if limit is 0
@@ -171,7 +180,7 @@ mod tests {
                 size => 16u64,
             ));
         });
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
 
         let top_collector = TopDocs::with_limit(4).order_by_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
@@ -198,7 +207,7 @@ mod tests {
                 size => 12u64,
             ));
         });
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(Field(2));
         let segment_reader = searcher.segment_reader(0u32);
         top_collector
@@ -218,7 +227,7 @@ mod tests {
                 size => 12u64,
             ));
         });
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment = searcher.segment_reader(0);
         let top_collector: TopDocsByField<u64> = TopDocs::with_limit(4).order_by_field(size);
         assert_matches!(

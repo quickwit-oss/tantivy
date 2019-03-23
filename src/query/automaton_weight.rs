@@ -1,10 +1,10 @@
 use common::BitSet;
 use core::SegmentReader;
-use fst::Automaton;
 use query::BitSetDocSet;
 use query::ConstScorer;
 use query::{Scorer, Weight};
 use schema::{Field, IndexRecordOption};
+use tantivy_fst::Automaton;
 use termdict::{TermDictionary, TermStreamer};
 use Result;
 

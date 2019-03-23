@@ -32,7 +32,7 @@ use DocId;
 /// term ids when the segment is getting serialized.
 pub struct MultiValueIntFastFieldWriter {
     field: Field,
-    vals: Vec<u64>,
+    vals: Vec<UnorderedTermId>,
     doc_index: Vec<u64>,
     is_facet: bool,
 }

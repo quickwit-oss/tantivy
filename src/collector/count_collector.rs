@@ -40,8 +40,8 @@ use SegmentReader;
 ///         index_writer.commit().unwrap();
 ///     }
 ///
-///     index.load_searchers()?;
-///     let searcher = index.searcher();
+///     let reader = index.reader()?;
+///     let searcher = reader.searcher();
 ///
 ///     {
 ///         let query_parser = QueryParser::for_index(&index, vec![title]);

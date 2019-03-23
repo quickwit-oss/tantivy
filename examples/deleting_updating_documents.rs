@@ -89,7 +89,7 @@ fn main() -> tantivy::Result<()> {
        isbn => "978-9176370711",
     ));
     index_writer.commit()?;
-    let reader = index.reader();
+    let reader = index.reader()?;
 
     let frankenstein_isbn = Term::from_field_text(isbn, "978-9176370711");
 
@@ -133,7 +133,7 @@ fn main() -> tantivy::Result<()> {
     // Everything happened as if the document was updated.
     index_writer.commit()?;
     // We reload our searcher to make our change available to clients.
-    reader.load_searchers()?;
+    reader.reload()?;
 
     // No more typo!
     let frankenstein_new_doc = extract_doc_given_isbn(&reader, &frankenstein_isbn)?.unwrap();

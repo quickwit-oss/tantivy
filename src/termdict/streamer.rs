@@ -1,9 +1,9 @@
 use super::TermDictionary;
-use fst::automaton::AlwaysMatch;
-use fst::map::{Stream, StreamBuilder};
-use fst::Automaton;
-use fst::{IntoStreamer, Streamer};
 use postings::TermInfo;
+use tantivy_fst::automaton::AlwaysMatch;
+use tantivy_fst::map::{Stream, StreamBuilder};
+use tantivy_fst::Automaton;
+use tantivy_fst::{IntoStreamer, Streamer};
 use termdict::TermOrdinal;
 
 /// `TermStreamerBuilder` is a helper object used to define

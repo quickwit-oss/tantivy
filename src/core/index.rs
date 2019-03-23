@@ -16,14 +16,15 @@ use indexer::index_writer::open_index_writer;
 use indexer::index_writer::HEAP_SIZE_MIN;
 use indexer::segment_updater::save_new_metas;
 use num_cpus;
+use reader::IndexReader;
 use reader::IndexReaderBuilder;
-use reader::{IndexReader, ReloadPolicy};
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
 use serde_json;
 use std::borrow::BorrowMut;
 use std::fmt;
+#[cfg(feature = "mmap")]
 use std::path::Path;
 use std::sync::Arc;
 use tokenizer::BoxedTokenizer;
@@ -45,6 +46,7 @@ fn load_metas(directory: &Directory) -> Result<IndexMeta> {
 }
 
 /// Search Index
+#[derive(Clone)]
 pub struct Index {
     directory: ManagedDirectory,
     schema: Schema,
@@ -187,10 +189,18 @@ impl Index {
         }
     }
 
-    pub fn reader(&self) -> IndexReader {
-        self.reader_builder().into()
+    /// Create a default `IndexReader` for the given index.
+    ///
+    /// See [`Index.reader_builder()`](#method.reader_builder).
+    pub fn reader(&self) -> Result<IndexReader> {
+        self.reader_builder().try_into()
     }
 
+    /// Create a `IndexReader` for the given index.
+    ///
+    /// Most project should create at most one reader for a given index.
+    /// This method is typically called only once per `Index` instance,
+    /// over the lifetime of most problem.
     pub fn reader_builder(&self) -> IndexReaderBuilder {
         IndexReaderBuilder::new(self.clone())
     }
@@ -341,27 +351,22 @@ impl fmt::Debug for Index {
     }
 }
 
-impl Clone for Index {
-    fn clone(&self) -> Index {
-        Index {
-            directory: self.directory.clone(),
-            schema: self.schema.clone(),
-            tokenizers: self.tokenizers.clone(),
-            executor: self.executor.clone(),
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use directory::RAMDirectory;
-    use schema::{Schema, INT_INDEXED, TEXT};
+    use schema::Field;
+    use schema::{Schema, INDEXED, TEXT};
+    use std::thread;
+    use std::time::Duration;
     use Index;
+    use IndexReader;
+    use IndexWriter;
+    use ReloadPolicy;
 
     #[test]
     fn test_indexer_for_field() {
         let mut schema_builder = Schema::builder();
-        let num_likes_field = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let num_likes_field = schema_builder.add_u64_field("num_likes", INDEXED);
         let body_field = schema_builder.add_text_field("body", TEXT);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
@@ -419,7 +424,117 @@ mod tests {
 
     fn throw_away_schema() -> Schema {
         let mut schema_builder = Schema::builder();
-        let _ = schema_builder.add_u64_field("num_likes", INT_INDEXED);
+        let _ = schema_builder.add_u64_field("num_likes", INDEXED);
         schema_builder.build()
+    }
+
+    #[test]
+    fn test_index_on_commit_reload_policy() {
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let index = Index::create_in_ram(schema);
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()
+            .unwrap();
+        assert_eq!(reader.searcher().num_docs(), 0);
+        let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+    }
+
+    #[cfg(feature = "mmap")]
+    mod mmap_specific {
+
+        use super::*;
+        use std::path::PathBuf;
+        use tempdir::TempDir;
+
+        #[test]
+        fn test_index_on_commit_reload_policy_mmap() {
+            let schema = throw_away_schema();
+            let field = schema.get_field("num_likes").unwrap();
+            let tempdir = TempDir::new("index").unwrap();
+            let tempdir_path = PathBuf::from(tempdir.path());
+            let index = Index::create_in_dir(&tempdir_path, schema).unwrap();
+            let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            writer.commit().unwrap();
+            let reader = index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::OnCommit)
+                .try_into()
+                .unwrap();
+            assert_eq!(reader.searcher().num_docs(), 0);
+            test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+        }
+
+        #[test]
+        fn test_index_manual_policy_mmap() {
+            let schema = throw_away_schema();
+            let field = schema.get_field("num_likes").unwrap();
+            let index = Index::create_from_tempdir(schema).unwrap();
+            let mut writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+            writer.commit().unwrap();
+            let reader = index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::Manual)
+                .try_into()
+                .unwrap();
+            assert_eq!(reader.searcher().num_docs(), 0);
+            writer.add_document(doc!(field=>1u64));
+            writer.commit().unwrap();
+            thread::sleep(Duration::from_millis(500));
+            assert_eq!(reader.searcher().num_docs(), 0);
+            reader.reload().unwrap();
+            assert_eq!(reader.searcher().num_docs(), 1);
+        }
+
+        #[test]
+        fn test_index_on_commit_reload_policy_different_directories() {
+            let schema = throw_away_schema();
+            let field = schema.get_field("num_likes").unwrap();
+            let tempdir = TempDir::new("index").unwrap();
+            let tempdir_path = PathBuf::from(tempdir.path());
+            let write_index = Index::create_in_dir(&tempdir_path, schema).unwrap();
+            let read_index = Index::open_in_dir(&tempdir_path).unwrap();
+            let reader = read_index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::OnCommit)
+                .try_into()
+                .unwrap();
+            assert_eq!(reader.searcher().num_docs(), 0);
+            let mut writer = write_index.writer_with_num_threads(1, 3_000_000).unwrap();
+            test_index_on_commit_reload_policy_aux(field, &mut writer, &reader);
+        }
+    }
+
+    fn test_index_on_commit_reload_policy_aux(
+        field: Field,
+        writer: &mut IndexWriter,
+        reader: &IndexReader,
+    ) {
+        assert_eq!(reader.searcher().num_docs(), 0);
+        writer.add_document(doc!(field=>1u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..100 {
+            count = reader.searcher().num_docs();
+            if count > 0 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 1);
+        writer.add_document(doc!(field=>2u64));
+        writer.commit().unwrap();
+        let mut count = 0;
+        for _ in 0..10 {
+            count = reader.searcher().num_docs();
+            if count > 1 {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        assert_eq!(count, 2);
     }
 }

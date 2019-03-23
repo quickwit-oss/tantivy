@@ -20,6 +20,7 @@ use tantivy::collector::TopDocs;
 use tantivy::query::QueryParser;
 use tantivy::schema::*;
 use tantivy::Index;
+use tantivy::ReloadPolicy;
 use tempdir::TempDir;
 
 fn main() -> tantivy::Result<()> {
@@ -170,20 +171,31 @@ fn main() -> tantivy::Result<()> {
     //
     // ### Searcher
     //
-    // TODO explain what a reader does
-    let reader = index.reader();
+    // A reader is required to get search the index.
+    // It acts as a `Searcher` pool that reloads itself,
+    // depending on a `ReloadPolicy`.
+    //
+    // For a search server you will typically create one reader for the entire lifetime of your
+    // program, and acquire a new searcher for every single request.
+    //
+    // In the code below, we rely on the 'ON_COMMIT' policy: the reader
+    // will reload the index automatically after each commit.
+    let reader = index
+        .reader_builder()
+        .reload_policy(ReloadPolicy::OnCommit)
+        .try_into()?;
 
     // We now need to acquire a searcher.
-    // Some search experience might require more than
-    // one query.
     //
-    // The searcher ensure that we get to work
-    // with a consistent version of the index.
+    // A searcher points to snapshotted, immutable version of the index.
+    //
+    // Some search experience might require more than
+    // one query. Using the same searcher ensures that all of these queries will run on the
+    // same version of the index.
     //
     // Acquiring a `searcher` is very cheap.
     //
-    // You should acquire a searcher every time you
-    // start processing a request and
+    // You should acquire a searcher every time you start processing a request and
     // and release it right after your query is finished.
     let searcher = reader.searcher();
 
@@ -222,7 +234,6 @@ fn main() -> tantivy::Result<()> {
     // Since the body field was not configured as stored,
     // the document returned will only contain
     // a title.
-
     for (_score, doc_address) in top_docs {
         let retrieved_doc = searcher.doc(doc_address)?;
         println!("{}", schema.to_json(&retrieved_doc));

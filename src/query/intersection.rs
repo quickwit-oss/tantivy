@@ -14,41 +14,35 @@ use Score;
 /// specialized implementation if the two
 /// shortest scorers are `TermScorer`s.
 pub fn intersect_scorers(mut scorers: Vec<Box<Scorer>>) -> Box<Scorer> {
+    if scorers.is_empty() {
+        return Box::new(EmptyScorer);
+    }
+    if scorers.len() == 1 {
+        return scorers.pop().unwrap();
+    }
+    // We know that we have at least 2 elements.
     let num_docsets = scorers.len();
     scorers.sort_by(|left, right| right.size_hint().cmp(&left.size_hint()));
-    let rarest_opt = scorers.pop();
-    let second_rarest_opt = scorers.pop();
+    let left = scorers.pop().unwrap();
+    let right = scorers.pop().unwrap();
     scorers.reverse();
-    match (rarest_opt, second_rarest_opt) {
-        (None, None) => Box::new(EmptyScorer),
-        (Some(single_docset), None) => single_docset,
-        (Some(left), Some(right)) => {
-            {
-                let all_term_scorers = [&left, &right]
-                    .iter()
-                    .all(|&scorer| scorer.is::<TermScorer>());
-                if all_term_scorers {
-                    let left = *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap());
-                    let right = *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap());
-                    return Box::new(Intersection {
-                        left,
-                        right,
-                        others: scorers,
-                        num_docsets,
-                    });
-                }
-            }
-            Box::new(Intersection {
-                left,
-                right,
-                others: scorers,
-                num_docsets,
-            })
-        }
-        _ => {
-            unreachable!();
-        }
+    let all_term_scorers = [&left, &right]
+        .iter()
+        .all(|&scorer| scorer.is::<TermScorer>());
+    if all_term_scorers {
+        return Box::new(Intersection {
+            left: *(left.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
+            right: *(right.downcast::<TermScorer>().map_err(|_| ()).unwrap()),
+            others: scorers,
+            num_docsets,
+        });
     }
+    Box::new(Intersection {
+        left,
+        right,
+        others: scorers,
+        num_docsets,
+    })
 }
 
 /// Creates a `DocSet` that iterator through the intersection of two `DocSet`s.
@@ -124,7 +118,6 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
                         return false;
                     }
                 }
-
                 match left.skip_next(candidate) {
                     SkipResult::Reached => {
                         break;
@@ -140,35 +133,36 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
             }
             // test the remaining scorers;
             for (ord, docset) in self.others.iter_mut().enumerate() {
-                if ord != other_candidate_ord {
-                    // `candidate_ord` is already at the
-                    // right position.
-                    //
-                    // Calling `skip_next` would advance this docset
-                    // and miss it.
-                    match docset.skip_next(candidate) {
-                        SkipResult::Reached => {}
-                        SkipResult::OverStep => {
-                            // this is not in the intersection,
-                            // let's update our candidate.
-                            candidate = docset.doc();
-                            match left.skip_next(candidate) {
-                                SkipResult::Reached => {
-                                    other_candidate_ord = ord;
-                                }
-                                SkipResult::OverStep => {
-                                    candidate = left.doc();
-                                    other_candidate_ord = usize::max_value();
-                                }
-                                SkipResult::End => {
-                                    return false;
-                                }
+                if ord == other_candidate_ord {
+                    continue;
+                }
+                // `candidate_ord` is already at the
+                // right position.
+                //
+                // Calling `skip_next` would advance this docset
+                // and miss it.
+                match docset.skip_next(candidate) {
+                    SkipResult::Reached => {}
+                    SkipResult::OverStep => {
+                        // this is not in the intersection,
+                        // let's update our candidate.
+                        candidate = docset.doc();
+                        match left.skip_next(candidate) {
+                            SkipResult::Reached => {
+                                other_candidate_ord = ord;
                             }
-                            continue 'outer;
+                            SkipResult::OverStep => {
+                                candidate = left.doc();
+                                other_candidate_ord = usize::max_value();
+                            }
+                            SkipResult::End => {
+                                return false;
+                            }
                         }
-                        SkipResult::End => {
-                            return false;
-                        }
+                        continue 'outer;
+                    }
+                    SkipResult::End => {
+                        return false;
                     }
                 }
             }

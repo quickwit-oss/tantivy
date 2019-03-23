@@ -3,6 +3,7 @@ mod pool;
 use self::pool::{LeasedItem, Pool};
 use core::Segment;
 use directory::Directory;
+use directory::WatchHandle;
 use directory::META_LOCK;
 use std::sync::Arc;
 use Index;
@@ -11,13 +12,34 @@ use Searcher;
 use SegmentReader;
 use schema::Schema;
 
+/// Defines when a new version of the index should be reloaded.
+///
+/// Regardless of whether you search and index in the same process, tantivy does not necessarily
+/// reflects the change that are commited to your index. `ReloadPolicy` precisely helps you define
+/// when you want your index to be reloaded.
 #[derive(Clone, Copy)]
 pub enum ReloadPolicy {
-    MANUAL,
-    // NEAR_REAL_TIME(target_ms),
-    ON_COMMIT,
+    /// The index is entirely reloaded manually.
+    /// All updates of the index should be manual.
+    ///
+    /// No change is reflected automatically. You are required to call `.load_seacher()` manually.
+    Manual,
+    /// The index is reloaded within milliseconds after a new commit is available.
+    /// This is made possible by watching changes in the `meta.json` file.
+    OnCommit, // TODO add NEAR_REAL_TIME(target_ms)
 }
 
+/// `IndexReader` builder
+///
+/// It makes it possible to set the following values.
+///
+/// - `num_searchers` (by default, the number of detected CPU threads):
+///
+///   When `num_searchers` queries are requested at the same time, the `num_searchers` will block
+///   until the one of the searcher in-use gets released.
+/// - `reload_policy` (by default `ReloadPolicy::OnCommit`):
+///
+///   See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
 #[derive(Clone)]
 pub struct IndexReaderBuilder {
     num_searchers: usize,
@@ -29,47 +51,82 @@ impl IndexReaderBuilder {
     pub(crate) fn new(index: Index) -> IndexReaderBuilder {
         IndexReaderBuilder {
             num_searchers: num_cpus::get(),
-            reload_policy: ReloadPolicy::MANUAL,
+            reload_policy: ReloadPolicy::OnCommit,
             index,
         }
     }
 
+    /// Builds the reader.
+    ///
+    /// Building the reader is a non-trivial operation that requires
+    /// to open different segment readers. It may take hundreds of milliseconds
+    /// of time and it may return an error.
+    /// TODO(pmasurel) Use the `TryInto` trait once it is available in stable.
+    pub fn try_into(self) -> Result<IndexReader> {
+        let inner_reader = InnerIndexReader {
+            index: self.index,
+            num_searchers: self.num_searchers,
+            searcher_pool: Pool::new(),
+        };
+        inner_reader.reload()?;
+        let inner_reader_arc = Arc::new(inner_reader);
+        let watch_handle_opt: Option<WatchHandle>;
+        match self.reload_policy {
+            ReloadPolicy::Manual => {
+                // No need to set anything...
+                watch_handle_opt = None;
+            }
+            ReloadPolicy::OnCommit => {
+                let inner_reader_arc_clone = inner_reader_arc.clone();
+                let callback = move || {
+                    if let Err(err) = inner_reader_arc_clone.reload() {
+                        error!(
+                            "Error while loading searcher after commit was detected. {:?}",
+                            err
+                        );
+                    }
+                };
+                let watch_handle = inner_reader_arc.index.directory().watch(Box::new(callback));
+                watch_handle_opt = Some(watch_handle);
+            }
+        }
+        Ok(IndexReader {
+            inner: inner_reader_arc,
+            watch_handle_opt,
+        })
+    }
+
+    /// Sets the reload_policy.
+    ///
+    /// See [`ReloadPolicy`](./enum.ReloadPolicy.html) for more details.
     pub fn reload_policy(mut self, reload_policy: ReloadPolicy) -> IndexReaderBuilder {
         self.reload_policy = reload_policy;
         self
     }
 
+    /// Sets the number of `Searcher` in the searcher pool.
     pub fn num_searchers(mut self, num_searchers: usize) -> IndexReaderBuilder {
         self.num_searchers = num_searchers;
         self
     }
 }
 
-impl Into<IndexReader> for IndexReaderBuilder {
-    fn into(self) -> IndexReader {
-        let reader = IndexReader::new(self.index, self.num_searchers, self.reload_policy);
-        if let Err(err) = reader.load_searchers() {
-            error!("Failed to load searchers.");
-        }
-        reader
-    }
-}
-
 struct InnerIndexReader {
     num_searchers: usize,
     searcher_pool: Pool<Searcher>,
-    reload_policy: ReloadPolicy,
     index: Index,
 }
 
 impl InnerIndexReader {
-    fn load_searchers(&self) -> Result<()> {
-        let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
-        let searchable_segments = self.searchable_segments()?;
-        let segment_readers: Vec<SegmentReader> = searchable_segments
-            .iter()
-            .map(SegmentReader::open)
-            .collect::<Result<_>>()?;
+    fn reload(&self) -> Result<()> {
+        let segment_readers: Vec<SegmentReader> = {
+            let _meta_lock = self.index.directory().acquire_lock(&META_LOCK)?;
+            let searchable_segments = self.searchable_segments()?;
+            searchable_segments
+                .iter()
+                .map(SegmentReader::open)
+                .collect::<Result<_>>()?
+        };
         let schema = self.index.schema();
         let searchers = (0..self.num_searchers)
             .map(|_| Searcher::new(schema.clone(), self.index.clone(), segment_readers.clone()))
@@ -88,23 +145,36 @@ impl InnerIndexReader {
     }
 }
 
+/// `IndexReader` is your entry point to read and search the index.
+///
+/// It controls when a new version of the index should be loaded and lends
+/// you instances of `Searcher` for the last loaded version.
+///
+/// `Clone` does not clone the different pool of searcher. `IndexReader`
+/// just wraps and `Arc`.
+#[derive(Clone)]
 pub struct IndexReader {
     inner: Arc<InnerIndexReader>,
+    watch_handle_opt: Option<WatchHandle>,
 }
 
 impl IndexReader {
+
+    pub fn schema(&self) -> Schema {
+        self.inner.index.schema()
+    }
+
     /// Update searchers so that they reflect the state of the last
     /// `.commit()`.
     ///
-    /// If indexing happens in the same process as searching,
-    /// you most likely want to call `.load_searchers()` right after each
-    /// successful call to `.commit()`.
+    /// If you set up the `OnCommit` `ReloadPolicy` (which is the default)
+    /// every commit should be rapidly reflected on your `IndexReader` and you should
+    /// not need to call `reload()` at all.
     ///
-    /// If indexing and searching happen in different processes, the way to
-    /// get the freshest `index` at all time, is to watch `meta.json` and
-    /// call `load_searchers` whenever a changes happen.
-    pub fn load_searchers(&self) -> Result<()> {
-        self.inner.load_searchers()
+    /// This automatic reload can take 10s of milliseconds to kick in however, and in unit tests
+    /// it can be nice to deterministically force the reload of searchers.
+    pub fn reload(&self) -> Result<()> {
+        self.inner.reload()
     }
 
     /// Returns a searcher
@@ -119,24 +189,5 @@ impl IndexReader {
     /// the use of a consistent segment set.
     pub fn searcher(&self) -> LeasedItem<Searcher> {
         self.inner.searcher()
-    }
-
-    pub fn schema(&self) -> Schema {
-        self.inner.index.schema()
-    }
-
-    pub(crate) fn new(
-        index: Index,
-        num_searchers: usize,
-        reload_policy: ReloadPolicy,
-    ) -> IndexReader {
-        IndexReader {
-            inner: Arc::new(InnerIndexReader {
-                index,
-                num_searchers,
-                searcher_pool: Pool::new(),
-                reload_policy,
-            }),
-        }
     }
 }

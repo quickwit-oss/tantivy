@@ -33,9 +33,10 @@ fn posting_from_field_entry(field_entry: &FieldEntry) -> Box<PostingsWriter> {
                 }
             })
             .unwrap_or_else(|| SpecializedPostingsWriter::<NothingRecorder>::new_boxed()),
-        FieldType::U64(_) | FieldType::I64(_) | FieldType::HierarchicalFacet => {
-            SpecializedPostingsWriter::<NothingRecorder>::new_boxed()
-        }
+        FieldType::U64(_)
+        | FieldType::I64(_)
+        | FieldType::Date(_)
+        | FieldType::HierarchicalFacet => SpecializedPostingsWriter::<NothingRecorder>::new_boxed(),
         FieldType::Bytes => {
             // FieldType::Bytes cannot actually be indexed.
             // TODO fix during the indexer refactoring described in #276
@@ -49,6 +50,31 @@ pub struct MultiFieldPostingsWriter {
     schema: Schema,
     term_index: TermHashMap,
     per_field_postings_writers: Vec<Box<PostingsWriter>>,
+}
+
+fn make_field_partition(
+    term_offsets: &[(&[u8], Addr, UnorderedTermId)],
+) -> Vec<(Field, usize, usize)> {
+    let term_offsets_it = term_offsets
+        .iter()
+        .map(|(key, _, _)| Term::wrap(key).field())
+        .enumerate();
+    let mut prev_field = Field(u32::max_value());
+    let mut fields = vec![];
+    let mut offsets = vec![];
+    for (offset, field) in term_offsets_it {
+        if field != prev_field {
+            prev_field = field;
+            fields.push(field);
+            offsets.push(offset);
+        }
+    }
+    offsets.push(term_offsets.len());
+    let mut field_offsets = vec![];
+    for i in 0..fields.len() {
+        field_offsets.push((fields[i], offsets[i], offsets[i + 1]));
+    }
+    field_offsets
 }
 
 impl MultiFieldPostingsWriter {
@@ -96,36 +122,16 @@ impl MultiFieldPostingsWriter {
         &self,
         serializer: &mut InvertedIndexSerializer,
     ) -> Result<HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>>> {
-        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> = self
-            .term_index
-            .iter()
-            .map(|(term_bytes, addr, bucket_id)| (term_bytes, addr, bucket_id as UnorderedTermId))
-            .collect();
+        let mut term_offsets: Vec<(&[u8], Addr, UnorderedTermId)> =
+            self.term_index.iter().collect();
         term_offsets.sort_unstable_by_key(|&(k, _, _)| k);
-
-        let mut offsets: Vec<(Field, usize)> = vec![];
-        let term_offsets_it = term_offsets
-            .iter()
-            .cloned()
-            .map(|(key, _, _)| Term::wrap(key).field())
-            .enumerate();
 
         let mut unordered_term_mappings: HashMap<Field, HashMap<UnorderedTermId, TermOrdinal>> =
             HashMap::new();
 
-        let mut prev_field = Field(u32::max_value());
-        for (offset, field) in term_offsets_it {
-            if field != prev_field {
-                offsets.push((field, offset));
-                prev_field = field;
-            }
-        }
-        offsets.push((Field(0), term_offsets.len()));
+        let field_offsets = make_field_partition(&term_offsets);
 
-        for i in 0..(offsets.len() - 1) {
-            let (field, start) = offsets[i];
-            let (_, stop) = offsets[i + 1];
-
+        for (field, start, stop) in field_offsets {
             let field_entry = self.schema.get_field_entry(field);
 
             match *field_entry.field_type() {
@@ -143,7 +149,7 @@ impl MultiFieldPostingsWriter {
                         .collect();
                     unordered_term_mappings.insert(field, mapping);
                 }
-                FieldType::U64(_) | FieldType::I64(_) => {}
+                FieldType::U64(_) | FieldType::I64(_) | FieldType::Date(_) => {}
                 FieldType::Bytes => {}
             }
 

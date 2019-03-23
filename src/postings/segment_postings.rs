@@ -2,21 +2,20 @@ use common::BitSet;
 use common::HasLen;
 use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
-use fst::Streamer;
 use owned_read::OwnedRead;
 use positions::PositionReader;
 use postings::compression::compressed_block_size;
 use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use postings::serializer::PostingsSerializer;
+use postings::BlockSearcher;
 use postings::FreqReadingOption;
 use postings::Postings;
 use postings::SkipReader;
 use postings::USE_SKIP_INFO_LIMIT;
 use schema::IndexRecordOption;
 use std::cmp::Ordering;
+use tantivy_fst::Streamer;
 use DocId;
-
-const EMPTY_ARR: [u8; 0] = [];
 
 struct PositionComputer {
     // store the amount of position int
@@ -62,6 +61,7 @@ pub struct SegmentPostings {
     block_cursor: BlockSegmentPostings,
     cur: usize,
     position_computer: Option<PositionComputer>,
+    block_searcher: BlockSearcher,
 }
 
 impl SegmentPostings {
@@ -72,6 +72,7 @@ impl SegmentPostings {
             block_cursor: empty_block_cursor,
             cur: COMPRESSION_BLOCK_SIZE,
             position_computer: None,
+            block_searcher: BlockSearcher::default(),
         }
     }
 
@@ -119,42 +120,31 @@ impl SegmentPostings {
             block_cursor: segment_block_postings,
             cur: COMPRESSION_BLOCK_SIZE, // cursor within the block
             position_computer: positions_stream_opt.map(PositionComputer::new),
+            block_searcher: BlockSearcher::default(),
         }
     }
-}
-
-fn linear_search(arr: &[u32], target: u32) -> usize {
-    arr.iter().map(|&el| if el < target { 1 } else { 0 }).sum()
-}
-
-fn exponential_search(arr: &[u32], target: u32) -> (usize, usize) {
-    let end = arr.len();
-    let mut begin = 0;
-    for &pivot in &[1, 3, 7, 15, 31, 63] {
-        if pivot >= end {
-            break;
-        }
-        if arr[pivot] > target {
-            return (begin, pivot);
-        }
-        begin = pivot;
-    }
-    (begin, end)
-}
-
-/// Search the first index containing an element greater or equal to the target.
-///
-/// # Assumption
-///
-/// The array is assumed non empty.
-/// The target is assumed greater or equal to the first element.
-/// The target is assumed smaller or equal to the last element.
-fn search_within_block(block_docs: &[u32], target: u32) -> usize {
-    let (start, end) = exponential_search(block_docs, target);
-    start + linear_search(&block_docs[start..end], target)
 }
 
 impl DocSet for SegmentPostings {
+    // goes to the next element.
+    // next needs to be called a first time to point to the correct element.
+    #[inline]
+    fn advance(&mut self) -> bool {
+        if self.position_computer.is_some() {
+            let term_freq = self.term_freq() as usize;
+            self.position_computer.as_mut().unwrap().add_skip(term_freq);
+        }
+        self.cur += 1;
+        if self.cur >= self.block_cursor.block_len() {
+            self.cur = 0;
+            if !self.block_cursor.advance() {
+                self.cur = COMPRESSION_BLOCK_SIZE;
+                return false;
+            }
+        }
+        true
+    }
+
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
             return SkipResult::End;
@@ -213,9 +203,8 @@ impl DocSet for SegmentPostings {
         // we're in the right block now, start with an exponential search
         let block_docs = self.block_cursor.docs();
         let new_cur = self
-            .cur
-            .wrapping_add(search_within_block(&block_docs[self.cur..], target));
-
+            .block_searcher
+            .search_in_block(&block_docs, self.cur, target);
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
                 .iter()
@@ -237,29 +226,6 @@ impl DocSet for SegmentPostings {
         }
     }
 
-    // goes to the next element.
-    // next needs to be called a first time to point to the correct element.
-    #[inline]
-    fn advance(&mut self) -> bool {
-        if self.position_computer.is_some() {
-            let term_freq = self.term_freq() as usize;
-            self.position_computer.as_mut().unwrap().add_skip(term_freq);
-        }
-        self.cur += 1;
-        if self.cur >= self.block_cursor.block_len() {
-            self.cur = 0;
-            if !self.block_cursor.advance() {
-                self.cur = COMPRESSION_BLOCK_SIZE;
-                return false;
-            }
-        }
-        true
-    }
-
-    fn size_hint(&self) -> u32 {
-        self.len() as u32
-    }
-
     /// Return the current document's `DocId`.
     #[inline]
     fn doc(&self) -> DocId {
@@ -269,6 +235,10 @@ impl DocSet for SegmentPostings {
             "Have you forgotten to call `.advance()` at least once before calling .doc()."
         );
         docs[self.cur]
+    }
+
+    fn size_hint(&self) -> u32 {
+        self.len() as u32
     }
 
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
@@ -369,7 +339,7 @@ impl BlockSegmentPostings {
         let (skip_data_opt, postings_data) = split_into_skips_and_postings(doc_freq, data);
         let skip_reader = match skip_data_opt {
             Some(skip_data) => SkipReader::new(skip_data, record_option),
-            None => SkipReader::new(OwnedRead::new(&EMPTY_ARR[..]), record_option),
+            None => SkipReader::new(OwnedRead::new(&[][..]), record_option),
         };
         let doc_freq = doc_freq as usize;
         let num_vint_docs = doc_freq % COMPRESSION_BLOCK_SIZE;
@@ -403,7 +373,7 @@ impl BlockSegmentPostings {
         if let Some(skip_data) = skip_data_opt {
             self.skip_reader.reset(skip_data);
         } else {
-            self.skip_reader.reset(OwnedRead::new(&EMPTY_ARR[..]))
+            self.skip_reader.reset(OwnedRead::new(&[][..]))
         }
         self.doc_offset = 0;
         self.doc_freq = doc_freq as usize;
@@ -616,38 +586,19 @@ impl<'b> Streamer<'b> for BlockSegmentPostings {
 
 #[cfg(test)]
 mod tests {
-
-    use super::exponential_search;
-    use super::linear_search;
-    use super::search_within_block;
     use super::BlockSegmentPostings;
     use super::BlockSegmentPostingsSkipResult;
     use super::SegmentPostings;
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
-    use fst::Streamer;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;
-    use schema::INT_INDEXED;
+    use schema::INDEXED;
+    use tantivy_fst::Streamer;
     use DocId;
     use SkipResult;
-
-    #[test]
-    fn test_linear_search() {
-        let len: usize = 50;
-        let arr: Vec<u32> = (0..len).map(|el| 1u32 + (el as u32) * 2).collect();
-        for target in 1..*arr.last().unwrap() {
-            let res = linear_search(&arr[..], target);
-            if res > 0 {
-                assert!(arr[res - 1] < target);
-            }
-            if res < len {
-                assert!(arr[res] >= target);
-            }
-        }
-    }
 
     #[test]
     fn test_empty_segment_postings() {
@@ -662,56 +613,6 @@ mod tests {
         let mut postings = BlockSegmentPostings::empty();
         assert!(!postings.advance());
         assert_eq!(postings.doc_freq(), 0);
-    }
-
-    fn search_within_block_trivial_but_slow(block: &[u32], target: u32) -> usize {
-        block
-            .iter()
-            .cloned()
-            .enumerate()
-            .filter(|&(_, ref val)| *val >= target)
-            .next()
-            .unwrap()
-            .0
-    }
-
-    #[test]
-    fn test_exponentiel_search() {
-        assert_eq!(exponential_search(&[1, 2], 0), (0, 1));
-        assert_eq!(exponential_search(&[1, 2], 1), (0, 1));
-        assert_eq!(
-            exponential_search(&[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], 7),
-            (3, 7)
-        );
-    }
-
-    fn util_test_search_within_block(block: &[u32], target: u32) {
-        assert_eq!(
-            search_within_block(block, target),
-            search_within_block_trivial_but_slow(block, target)
-        );
-    }
-
-    fn util_test_search_within_block_all(block: &[u32]) {
-        use std::collections::HashSet;
-        let mut targets = HashSet::new();
-        for (i, val) in block.iter().cloned().enumerate() {
-            if i > 0 {
-                targets.insert(val - 1);
-            }
-            targets.insert(val);
-        }
-        for target in targets {
-            util_test_search_within_block(block, target);
-        }
-    }
-
-    #[test]
-    fn test_search_within_block() {
-        for len in 1u32..128u32 {
-            let v: Vec<u32> = (0..len).map(|i| i * 2).collect();
-            util_test_search_within_block_all(&v[..]);
-        }
     }
 
     #[test]
@@ -762,7 +663,7 @@ mod tests {
 
     fn build_block_postings(docs: &[DocId]) -> BlockSegmentPostings {
         let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
@@ -775,7 +676,7 @@ mod tests {
             last_doc = doc + 1;
         }
         index_writer.commit().unwrap();
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
         let inverted_index = segment_reader.inverted_index(int_field);
         let term = Term::from_field_u64(int_field, 0u64);
@@ -832,7 +733,7 @@ mod tests {
     #[test]
     fn test_reset_block_segment_postings() {
         let mut schema_builder = Schema::builder();
-        let int_field = schema_builder.add_u64_field("id", INT_INDEXED);
+        let int_field = schema_builder.add_u64_field("id", INDEXED);
         let schema = schema_builder.build();
         let index = Index::create_in_ram(schema);
         let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
@@ -843,7 +744,7 @@ mod tests {
             index_writer.add_document(doc);
         }
         index_writer.commit().unwrap();
-        let searcher = index.reader().searcher();
+        let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);
 
         let mut block_segments;
