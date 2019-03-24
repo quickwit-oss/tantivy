@@ -17,6 +17,35 @@ previous index format.*
 - Added IndexReader. By default, index is reloaded automatically upon new commits (@fulmicoton)
 - SIMD linear search within blocks (@fulmicoton)
 
+## How to update ?
+
+tantivy 0.9 brought some API breaking change.
+To update from tantivy 0.8, you will need to go through the following steps.
+
+- `schema::INT_INDEXED` and `schema::INT_STORED`  should be replaced by `schema::INDEXED` and `schema::INT_STORED`.
+- The index now does not hold the pool of searcher anymore. You are required to create an intermediary object called 
+`IndexReader` for this. 
+    
+    ```rust
+    // create the reader. You typically need to create 1 reader for the entire
+    // lifetime of you program.
+    let reader = index.reader()?;
+    
+    // Acquire a searcher (previously `index.searcher()`) is now written:
+    let searcher = reader.searcher();
+    
+    // With the default setting of the reader, you are not required to 
+    // call `index.load_searchers()` anymore.
+    //
+    // The IndexReader will pick up that change automatically, regardless
+    // of whether the update was done in a different process or not.
+    // If this behavior is not wanted, you can create your reader with 
+    // the `ReloadPolicy::Manual`, and manually decide when to reload the index
+    // by calling `reader.reload()?`.
+  
+    ```
+
+
 Tantivy 0.8.2
 =====================
 Fixing build for x86_64 platforms. (#496)
