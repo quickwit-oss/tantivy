@@ -228,27 +228,27 @@ pub mod tests {
     fn test_non_en_tokenizer() {
         let tokenizer_manager = TokenizerManager::default();
         tokenizer_manager.register(
-            "el_stem",
+            "es_stem",
             SimpleTokenizer
                 .filter(RemoveLongFilter::limit(40))
                 .filter(LowerCaser)
-                .filter(Stemmer::new(Language::Greek)),
+                .filter(Stemmer::new(Language::Spanish)),
         );
-        let en_tokenizer = tokenizer_manager.get("el_stem").unwrap();
+        let en_tokenizer = tokenizer_manager.get("es_stem").unwrap();
         let mut tokens: Vec<Token> = vec![];
         {
             let mut add_token = |token: &Token| {
                 tokens.push(token.clone());
             };
             en_tokenizer
-                .token_stream("Καλημέρα, χαρούμενε φορολογούμενε!")
+                .token_stream("Hola, feliz contribuyente!")
                 .process(&mut add_token);
         }
 
         assert_eq!(tokens.len(), 3);
-        assert_token(&tokens[0], 0, "καλημερ", 0, 16);
-        assert_token(&tokens[1], 1, "χαρουμεν", 18, 36);
-        assert_token(&tokens[2], 2, "φορολογουμεν", 37, 63);
+        assert_token(&tokens[0], 0, "hola", 0, 4);
+        assert_token(&tokens[1], 1, "feliz", 6, 11);
+        assert_token(&tokens[2], 2, "contribuyent", 12, 25);
     }
 
     #[test]

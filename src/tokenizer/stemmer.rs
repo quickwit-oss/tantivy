@@ -2,6 +2,7 @@
 
 use super::{Token, TokenFilter, TokenStream};
 use rust_stemmers::{self, Algorithm};
+use std::sync::Arc;
 
 /// Available stemmer languages.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Copy, Clone)]
@@ -56,14 +57,14 @@ impl Language {
 /// Tokens are expected to be lowercased beforehand.
 #[derive(Clone)]
 pub struct Stemmer {
-    stemmer_algorithm: Algorithm,
+    stemmer_algorithm: Arc<Algorithm>,
 }
 
 impl Stemmer {
     /// Creates a new Stemmer `TokenFilter` for a given language algorithm.
     pub fn new(language: Language) -> Stemmer {
         Stemmer {
-            stemmer_algorithm: language.algorithm(),
+            stemmer_algorithm: Arc::new(language.algorithm()),
         }
     }
 }
@@ -82,7 +83,7 @@ where
     type ResultTokenStream = StemmerTokenStream<TailTokenStream>;
 
     fn transform(&self, token_stream: TailTokenStream) -> Self::ResultTokenStream {
-        let inner_stemmer = rust_stemmers::Stemmer::create(self.stemmer_algorithm);
+        let inner_stemmer = rust_stemmers::Stemmer::create(Algorithm::English);
         StemmerTokenStream::wrap(inner_stemmer, token_stream)
     }
 }
