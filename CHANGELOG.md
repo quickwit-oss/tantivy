@@ -1,3 +1,8 @@
+Tantivy 0.9.1
+=====================
+
+Hotfix: The english stemmer was actually used for all languages.
+
 Tantivy 0.9.0
 =====================
 *0.9.0 index format is not compatible with the 
