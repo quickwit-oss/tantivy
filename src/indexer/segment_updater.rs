@@ -296,14 +296,16 @@ impl SegmentUpdater {
                     // segment. However, we do not want to mark them as committed, and we want
                     // to keep the current set of committed segment.
                     segment_updater.0.segment_manager.soft_commit(opstamp, segment_entries);
-                    // ... obviously we do not save the meta file.
+                    // ... We do not save the meta file.
                 } else {
                     // Hard_commit. We register the new segment entries as committed.
                     segment_updater
                         .0
                         .segment_manager
                         .commit(opstamp, segment_entries);
+                    // TODO error handling.
                     segment_updater.save_metas(opstamp, payload);
+                    segment_updater.0.index.directory().flush().unwrap();
                 }
                 segment_updater.garbage_collect_files_exec();
                 segment_updater.consider_merge_options();

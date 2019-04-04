@@ -205,6 +205,14 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     /// `OnCommit` `ReloadPolicy`. Not implementing watch in a `Directory` only prevents the
     /// `OnCommit` `ReloadPolicy` to work properly.
     fn watch(&self, watch_callback: WatchCallback) -> WatchHandle;
+
+    /// Ensure that all volatile files reach are persisted (in directory where that makes sense.)
+    ///
+    /// In order to make Near Real Time efficient, tantivy introduced the notion of soft_commit vs
+    /// commit. Commit will call `.flush()`, while softcommit won't.
+    fn flush(&self) -> io::Result<()> {
+        Ok(())
+    }
 }
 
 /// DirectoryClone
