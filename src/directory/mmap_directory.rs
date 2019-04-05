@@ -368,7 +368,7 @@ impl Drop for ReleaseLockFile {
 
 /// This Write wraps a File, but has the specificity of
 /// call `sync_all` on flush.
-struct SafeFileWriter(File);
+pub struct SafeFileWriter(File);
 
 impl SafeFileWriter {
     fn new(file: File) -> SafeFileWriter {

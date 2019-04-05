@@ -71,36 +71,36 @@ impl Write for VecWriter {
 }
 
 #[derive(Default)]
-struct InnerDirectory {
+pub(crate) struct InnerRamDirectory {
     fs: HashMap<PathBuf, ReadOnlySource>,
     watch_router: WatchCallbackList,
 }
 
-impl InnerDirectory {
-    fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
+impl InnerRamDirectory {
+    pub fn write(&mut self, path: PathBuf, data: &[u8]) -> bool {
         let data = ReadOnlySource::new(Vec::from(data));
         self.fs.insert(path, data).is_some()
     }
 
-    fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
+    pub fn open_read(&self, path: &Path) -> Result<ReadOnlySource, OpenReadError> {
         self.fs
             .get(path)
             .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
             .map(|el| el.clone())
     }
 
-    fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
+    pub fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {
         match self.fs.remove(path) {
             Some(_) => Ok(()),
             None => Err(DeleteError::FileDoesNotExist(PathBuf::from(path))),
         }
     }
 
-    fn exists(&self, path: &Path) -> bool {
+    pub fn exists(&self, path: &Path) -> bool {
         self.fs.contains_key(path)
     }
 
-    fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
+    pub fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
         self.watch_router.subscribe(watch_handle)
     }
 }
@@ -118,7 +118,7 @@ impl fmt::Debug for RAMDirectory {
 ///
 #[derive(Clone, Default)]
 pub struct RAMDirectory {
-    fs: Arc<RwLock<InnerDirectory>>,
+    fs: Arc<RwLock<InnerRamDirectory>>,
 }
 
 impl RAMDirectory {

@@ -210,6 +210,8 @@ pub trait Directory: DirectoryClone + fmt::Debug + Send + Sync + 'static {
     ///
     /// In order to make Near Real Time efficient, tantivy introduced the notion of soft_commit vs
     /// commit. Commit will call `.flush()`, while softcommit won't.
+    ///
+    /// `meta.json` should be the last file to be flushed.
     fn flush(&self) -> io::Result<()> {
         Ok(())
     }

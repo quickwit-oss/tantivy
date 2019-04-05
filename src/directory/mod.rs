@@ -13,6 +13,7 @@ mod managed_directory;
 mod ram_directory;
 mod read_only_source;
 mod watch_event_router;
+mod nrt_directory;
 
 /// Errors specific to the directory module.
 pub mod error;
