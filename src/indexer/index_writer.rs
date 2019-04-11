@@ -461,6 +461,15 @@ impl IndexWriter {
         self.segment_updater.garbage_collect_files()
     }
 
+    /// Clear the index
+    /// Enables users to rebuild the index,
+    /// by clearing and resubmitting necessary documents
+    /// Garbage collects unused files after removing segments
+    pub fn clear(&mut self) -> Result<()> {
+        self.segment_updater.remove_all_segments();
+        self.garbage_collect_files()
+    }
+
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
@@ -1047,5 +1056,22 @@ mod tests {
         assert_eq!(num_docs_containing("a"), 100);
         assert_eq!(num_docs_containing("b"), 0);
         fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
+    }
+
+    #[test]
+    fn test_index_clear() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        {
+            // create 8 segments with 100 tiny docs
+            for _doc in 0..100 {
+                index_writer.add_document(doc!(text_field => "a"));
+            }
+        }
+        let res = index_writer.clear();
+        assert!(res.is_ok());
     }
 }

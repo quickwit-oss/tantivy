@@ -212,6 +212,10 @@ impl SegmentUpdater {
         }
     }
 
+    pub(crate) fn remove_all_segments(&self) {
+        self.0.segment_manager.remove_all_segments();
+    }
+
     pub fn kill(&mut self) {
         self.0.killed.store(true, Ordering::Release);
     }
@@ -649,5 +653,32 @@ mod tests {
         // empty segments should be erased
         assert!(index.searchable_segment_metas().unwrap().is_empty());
         assert!(reader.searcher().segment_readers().is_empty());
+    }
+
+    #[test]
+    fn test_remove_all_segments() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+
+        let index = Index::create_in_ram(schema);
+
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+
+        {
+            for _ in 0..100 {
+                index_writer.add_document(doc!(text_field=>"a"));
+                index_writer.add_document(doc!(text_field=>"b"));
+            }
+            assert!(index_writer.commit().is_ok());
+        }
+        index_writer.segment_updater().remove_all_segments();
+        let seg_vec = index_writer
+            .segment_updater()
+            .0
+            .segment_manager
+            .segment_entries();
+        assert!(seg_vec.is_empty());
     }
 }
