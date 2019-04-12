@@ -212,6 +212,7 @@ impl SegmentUpdater {
         }
     }
 
+    /// Orders `SegmentManager` to remove all segments
     pub(crate) fn remove_all_segments(&self) {
         self.0.segment_manager.remove_all_segments();
     }
