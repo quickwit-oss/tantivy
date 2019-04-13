@@ -129,6 +129,7 @@
 //! ```
 //!
 mod alphanum_only;
+mod ascii_folding_filter;
 mod facet_tokenizer;
 mod lower_caser;
 mod ngram_tokenizer;
@@ -142,6 +143,7 @@ mod tokenizer;
 mod tokenizer_manager;
 
 pub use self::alphanum_only::AlphaNumOnlyFilter;
+pub use self::ascii_folding_filter::AsciiFoldingFilter;
 pub use self::facet_tokenizer::FacetTokenizer;
 pub use self::lower_caser::LowerCaser;
 pub use self::ngram_tokenizer::NgramTokenizer;
