@@ -4,6 +4,7 @@ use core::SerializableSegment;
 use fastfield::FastFieldsWriter;
 use fieldnorm::FieldNormsWriter;
 use indexer::segment_serializer::SegmentSerializer;
+use indexer::Opstamp;
 use postings::MultiFieldPostingsWriter;
 use schema::FieldType;
 use schema::Schema;
@@ -28,7 +29,7 @@ pub struct SegmentWriter {
     segment_serializer: SegmentSerializer,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
-    doc_opstamps: Vec<u64>,
+    doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 

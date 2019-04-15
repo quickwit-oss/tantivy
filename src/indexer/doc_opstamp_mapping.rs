@@ -22,8 +22,10 @@ pub enum DocToOpstampMapping {
     None,
 }
 
+use super::Opstamp;
+
 impl From<Vec<u64>> for DocToOpstampMapping {
-    fn from(opstamps: Vec<u64>) -> DocToOpstampMapping {
+    fn from(opstamps: Vec<Opstamp>) -> DocToOpstampMapping {
         DocToOpstampMapping::WithMap(Arc::new(opstamps))
     }
 }
@@ -35,7 +37,7 @@ impl DocToOpstampMapping {
     //
     // The edge case opstamp = some doc opstamp is in practise
     // never called.
-    pub fn compute_doc_limit(&self, target_opstamp: u64) -> DocId {
+    pub fn compute_doc_limit(&self, target_opstamp: Opstamp) -> DocId {
         match *self {
             DocToOpstampMapping::WithMap(ref doc_opstamps) => {
                 match doc_opstamps.binary_search(&target_opstamp) {

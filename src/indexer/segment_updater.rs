@@ -20,6 +20,7 @@ use indexer::merge_operation::MergeOperationInventory;
 use indexer::merger::IndexMerger;
 use indexer::stamper::Stamper;
 use indexer::MergeOperation;
+use indexer::Opstamp;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use indexer::{DefaultMergePolicy, MergePolicy};
@@ -224,7 +225,7 @@ impl SegmentUpdater {
     ///
     /// Tne method returns copies of the segment entries,
     /// updated with the delete information.
-    fn purge_deletes(&self, target_opstamp: u64) -> Result<Vec<SegmentEntry>> {
+    fn purge_deletes(&self, target_opstamp: Opstamp) -> Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.0.segment_manager.segment_entries();
         for segment_entry in &mut segment_entries {
             let segment = self.0.index.segment(segment_entry.meta().clone());
@@ -233,7 +234,7 @@ impl SegmentUpdater {
         Ok(segment_entries)
     }
 
-    pub fn save_metas(&self, opstamp: u64, commit_message: Option<String>) {
+    pub fn save_metas(&self, opstamp: Opstamp, commit_message: Option<String>) {
         if self.is_alive() {
             let index = &self.0.index;
             let directory = index.directory();
@@ -280,7 +281,7 @@ impl SegmentUpdater {
             .garbage_collect(|| self.0.segment_manager.list_files());
     }
 
-    pub fn commit(&self, opstamp: u64, payload: Option<String>) -> Result<()> {
+    pub fn commit(&self, opstamp: Opstamp, payload: Option<String>) -> Result<()> {
         self.run_async(move |segment_updater| {
             if segment_updater.is_alive() {
                 let segment_entries = segment_updater

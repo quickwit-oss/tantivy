@@ -6,6 +6,7 @@ use directory::error::{OpenReadError, OpenWriteError};
 use directory::Directory;
 use directory::{ReadOnlySource, WritePtr};
 use indexer::segment_serializer::SegmentSerializer;
+use indexer::Opstamp;
 use schema::Schema;
 use std::fmt;
 use std::path::PathBuf;
@@ -50,7 +51,7 @@ impl Segment {
     }
 
     #[doc(hidden)]
-    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> Segment {
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Segment {
         Segment {
             index: self.index,
             meta: self.meta.with_delete_meta(num_deleted_docs, opstamp),
