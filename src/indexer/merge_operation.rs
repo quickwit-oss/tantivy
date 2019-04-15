@@ -1,4 +1,5 @@
 use census::{Inventory, TrackedObject};
+use indexer::Opstamp;
 use std::collections::HashSet;
 use SegmentId;
 
@@ -35,14 +36,14 @@ pub struct MergeOperation {
 }
 
 struct InnerMergeOperation {
-    target_opstamp: u64,
+    target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
 }
 
 impl MergeOperation {
     pub fn new(
         inventory: &MergeOperationInventory,
-        target_opstamp: u64,
+        target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
     ) -> MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
@@ -54,7 +55,7 @@ impl MergeOperation {
         }
     }
 
-    pub fn target_opstamp(&self) -> u64 {
+    pub fn target_opstamp(&self) -> Opstamp {
         self.inner.target_opstamp
     }
 

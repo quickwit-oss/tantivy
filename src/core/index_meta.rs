@@ -1,4 +1,5 @@
 use core::SegmentMeta;
+use indexer::Opstamp;
 use schema::Schema;
 use serde_json;
 use std::fmt;
@@ -15,7 +16,7 @@ use std::fmt;
 pub struct IndexMeta {
     pub segments: Vec<SegmentMeta>,
     pub schema: Schema,
-    pub opstamp: u64,
+    pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload: Option<String>,
 }

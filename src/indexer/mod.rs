@@ -16,6 +16,7 @@ pub mod segment_updater;
 mod segment_writer;
 mod stamper;
 
+pub use self::stamper::Opstamp;
 pub use self::index_writer::IndexWriter;
 pub use self::log_merge_policy::LogMergePolicy;
 pub use self::merge_operation::{MergeOperation, MergeOperationInventory};

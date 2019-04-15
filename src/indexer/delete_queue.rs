@@ -1,4 +1,5 @@
 use super::operation::DeleteOperation;
+use indexer::Opstamp;
 use std::mem;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
@@ -184,7 +185,7 @@ impl DeleteCursor {
     ///   queue are consume and the next get will return None.
     /// - the next get will return the first operation with an
     /// `opstamp >= target_opstamp`.
-    pub fn skip_to(&mut self, target_opstamp: u64) {
+    pub fn skip_to(&mut self, target_opstamp: Opstamp) {
         // TODO Can be optimize as we work with block.
         while self.is_behind_opstamp(target_opstamp) {
             self.advance();
@@ -192,7 +193,7 @@ impl DeleteCursor {
     }
 
     #[cfg_attr(feature = "cargo-clippy", allow(clippy::wrong_self_convention))]
-    fn is_behind_opstamp(&mut self, target_opstamp: u64) -> bool {
+    fn is_behind_opstamp(&mut self, target_opstamp: Opstamp) -> bool {
         self.get()
             .map(|operation| operation.opstamp < target_opstamp)
             .unwrap_or(false)
