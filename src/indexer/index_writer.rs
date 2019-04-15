@@ -382,7 +382,6 @@ impl IndexWriter {
 
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
-    ///
     fn add_indexing_worker(&mut self) -> Result<()> {
         let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
@@ -529,7 +528,7 @@ impl IndexWriter {
     /// Rollback to the last commit
     ///
     /// This cancels all of the update that
-    /// happened before after the last commit.
+    /// happened after the last commit.
     /// After calling rollback, the index is in the same
     /// state as it was after the last commit.
     ///

@@ -227,7 +227,7 @@ impl SegmentUpdater {
 
     /// Apply deletes up to the target opstamp to all segments.
     ///
-    /// Tne method returns copies of the segment entries,
+    /// The method returns copies of the segment entries,
     /// updated with the delete information.
     fn purge_deletes(&self, target_opstamp: u64) -> Result<Vec<SegmentEntry>> {
         let mut segment_entries = self.0.segment_manager.segment_entries();
