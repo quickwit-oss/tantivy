@@ -145,7 +145,7 @@ where
         }
     }
 
-    fn count(&mut self) -> u32 {
+    fn count_including_deleted(&mut self) -> u32 {
         let mut count = self.bitsets[self.cursor..HORIZON_NUM_TINYBITSETS]
             .iter()
             .map(|bitset| bitset.len())
@@ -162,6 +162,8 @@ where
         self.cursor = HORIZON_NUM_TINYBITSETS;
         count
     }
+
+    // TODO implement `count` efficiently.
 
     fn skip_next(&mut self, target: DocId) -> SkipResult {
         if !self.advance() {
@@ -300,7 +302,7 @@ mod tests {
             count += 1;
         }
         assert!(!union_expected.advance());
-        assert_eq!(count, make_union().count());
+        assert_eq!(count, make_union().count_including_deleted());
     }
 
     #[test]

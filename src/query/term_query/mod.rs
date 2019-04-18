@@ -98,4 +98,23 @@ mod tests {
         }
     }
 
+
+    #[test]
+    fn test_term_query_count_when_there_are_deletes() {
+        let mut schema_builder = Schema::builder();
+        let text_field = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+        let mut index_writer = index
+            .writer_with_num_threads(1, 5_000_000)
+            .unwrap();
+        index_writer.add_document(doc!(text_field=>"a b"));
+        index_writer.add_document(doc!(text_field=>"a c"));
+        index_writer.delete_term(Term::from_field_text(text_field, "b"));
+        index_writer.commit().unwrap();
+        let term_a = Term::from_field_text(text_field, "a");
+        let term_query = TermQuery::new(term_a, IndexRecordOption::Basic);
+        let reader = index.reader().unwrap();
+        assert_eq!(term_query.count(&*reader.searcher()).unwrap(), 1);
+    }
 }
