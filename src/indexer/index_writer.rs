@@ -1,4 +1,3 @@
-use indexer::Opstamp;
 use super::operation::{AddOperation, UserOperation};
 use super::segment_updater::SegmentUpdater;
 use super::PreparedCommit;
@@ -20,6 +19,7 @@ use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
 use indexer::stamper::Stamper;
 use indexer::MergePolicy;
+use indexer::Opstamp;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
 use postings::compute_table_size;
@@ -461,9 +461,9 @@ impl IndexWriter {
         self.segment_updater.garbage_collect_files()
     }
 
-    /// Clears the index
-    /// Requires `commit`ing to garbage collect files
-    /// associated with removed segments.
+    /// Deletes all documents from the index
+    ///
+    /// Requires `commit`ing
     /// Enables users to rebuild the index,
     /// by clearing and resubmitting necessary documents
     ///
@@ -471,6 +471,7 @@ impl IndexWriter {
     /// #[macro_use]
     /// extern crate tantivy;
     /// use tantivy::query::QueryParser;
+    /// use tantivy::collector::TopDocs;
     /// use tantivy::schema::*;
     /// use tantivy::Index;
     ///
@@ -485,8 +486,8 @@ impl IndexWriter {
     ///     index_writer.add_document(doc!(title => "The modern Promotheus"));
     ///     index_writer.commit()?;
     ///
-    ///     let clear_res = index_writer.clear().unwrap();
-    ///     assert_eq!(clear_res, 1);
+    ///     let clear_res = index_writer.delete_all_documents().unwrap();
+    ///     assert_eq!(clear_res, 2);
     ///     // have to commit, otherwise deleted terms remain available
     ///     index_writer.commit()?;
     ///
@@ -496,11 +497,19 @@ impl IndexWriter {
     ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
     ///
     ///     assert!(top_docs_promo.is_empty());
+    ///     Ok(())
+    /// }
     /// ```
-    pub fn clear(&mut self) -> Result<Opstamp> {
+    pub fn delete_all_documents(&mut self) -> Result<Opstamp> {
+        // Delete segments
         self.segment_updater.remove_all_segments();
-        self.garbage_collect_files();
-        Ok(self.stamper.stamp())
+        // End all segment merges - resets the stamper
+        self.rollback()?;
+        // Garbage collect
+        self.garbage_collect_files()?;
+        // Return new stamp - reverted stamp
+        self.stamper.revert(self.committed_opstamp);
+        Ok(self.committed_opstamp)
     }
 
     /// Merges a given list of segments
@@ -530,7 +539,7 @@ impl IndexWriter {
 
     /// Rollback to the last commit
     ///
-    /// This cancels all of the update that
+    /// This cancels all of the updates that
     /// happened after the last commit.
     /// After calling rollback, the index is in the same
     /// state as it was after the last commit.
@@ -538,11 +547,15 @@ impl IndexWriter {
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<Opstamp> {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
+        self.rollback_impl()
+    }
 
+
+    /// Private, implementation of rollback
+    fn rollback_impl(&mut self) -> Result<Opstamp> {
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
-
         let document_receiver = self.operation_receiver.clone();
 
         // take the directory lock to create a new index_writer.
@@ -1092,32 +1105,88 @@ mod tests {
     }
 
     #[test]
-    fn test_add_then_clear() {
+    fn test_add_then_delete_all_documents() {
+        // debug using
+        // find the name of the most recently compiled executable
+        // ls -t target/debug/deps/ | rg ^tantivy | head -1
+        // rust-gdb $MOST_RECENT
+        // $gdb break src/indexer/stamper.rs:tantivy::indexer::stamper::Stamper::stamp
+        // $gdb run --test-threads 1 --test test_add_then_delete_all_documents
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::OnCommit)
+            .try_into()
+            .unwrap();
+        let num_docs_containing = |s: &str| {
+            let searcher = reader.searcher();
+            let term = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term)
+        };
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+
+        let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
+        let commit_tstamp = index_writer.commit().unwrap();
+        let clear_tstamp = index_writer.delete_all_documents().unwrap();
+        let commit_tstamp2 = index_writer.commit().unwrap();
+        assert!(clear_tstamp > add_tstamp);
+        assert_eq!(clear_tstamp, commit_tstamp);
+        assert_eq!(clear_tstamp, commit_tstamp2);
+
+        // Search for documents with the same term that we added
+        assert_eq!(num_docs_containing("a"), 0);
+    }
+
+    #[test]
+    fn test_delete_all_documents_rollback_correct_stamp() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
 
         let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
-        let clear_tstamp = index_writer.clear().unwrap();
+
+        // commit documents - they are now available
+        let first_commit = index_writer.commit();
+        assert!(first_commit.is_ok());
+        let first_commit_tstamp = first_commit.unwrap();
+        assert!(first_commit_tstamp > add_tstamp);
+
+        // delete_all_documents the index
+        let clear_tstamp = index_writer.delete_all_documents().unwrap();
         assert!(clear_tstamp > add_tstamp);
 
-        let commit_tstamp = index_writer.commit().unwrap();
-        assert!(commit_tstamp > clear_tstamp);
+        // commit the clear command - now documents aren't available
+        let second_commit = index_writer.commit();
+        assert!(second_commit.is_ok());
+        let _second_commit_tstamp = second_commit.unwrap();
 
-        // Search for documents with the same term that we added
-        let term_a = Term::from_field_text(text_field, "a");
-        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 0);
+        // add new documents again
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "b"));
+        }
+
+        // rollback to last commit, when index was empty
+        let rollback = index_writer.rollback();
+        assert!(rollback.is_ok());
+        let rollback_tstamp = rollback.unwrap();
+        assert_eq!(rollback_tstamp, _second_commit_tstamp);
+
+        // working with an empty index == no documents
+        let term_b = Term::from_field_text(text_field, "b");
+        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_b), 0);
     }
 
     #[test]
-    fn test_clear_then_add() {
+    fn test_delete_all_documents_then_add() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         // writing the segment
         let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
-        let res = index_writer.clear();
+        let res = index_writer.delete_all_documents();
         assert!(res.is_ok());
 
         assert!(index_writer.commit().is_ok());
@@ -1131,7 +1200,7 @@ mod tests {
     }
 
     #[test]
-    fn test_clear_and_rollback() {
+    fn test_delete_all_documents_and_rollback() {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
@@ -1144,8 +1213,8 @@ mod tests {
         let commit_tstamp = comm.unwrap();
 
         // clear but don't commit!
-        let clear_tstamp = index_writer.clear().unwrap();
-        assert!(clear_tstamp > commit_tstamp);
+        let clear_tstamp = index_writer.delete_all_documents().unwrap();
+        assert_eq!(clear_tstamp, commit_tstamp);
 
         // rollback
         let rollback_tstamp = index_writer.rollback().unwrap();
@@ -1155,4 +1224,31 @@ mod tests {
         // expect the document with that term to be in the index
         assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 1);
     }
+
+    #[test]
+    fn test_delete_all_documents_empty_index() {
+        let schema_builder = schema::Schema::builder();
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let clear = index_writer.delete_all_documents();
+        let commit = index_writer.commit();
+        assert!(clear.is_ok());
+        assert!(commit.is_ok());
+    }
+
+    #[test]
+    fn test_delete_all_documents_index_twice() {
+        let schema_builder = schema::Schema::builder();
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let clear = index_writer.delete_all_documents();
+        let commit = index_writer.commit();
+        assert!(clear.is_ok());
+        assert!(commit.is_ok());
+        let clear_again = index_writer.delete_all_documents();
+        let commit_again = index_writer.commit();
+        assert!(clear_again.is_ok());
+        assert!(commit_again.is_ok());
+    }
+
 }

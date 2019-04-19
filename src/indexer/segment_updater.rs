@@ -42,9 +42,9 @@ use Result;
 /// Save the index meta file.
 /// This operation is atomic :
 /// Either
-//  - it fails, in which case an error is returned,
+///  - it fails, in which case an error is returned,
 /// and the `meta.json` remains untouched,
-/// - it success, and `meta.json` is written
+/// - it succeeds, and `meta.json` is written
 /// and flushed.
 ///
 /// This method is not part of tantivy's public API
