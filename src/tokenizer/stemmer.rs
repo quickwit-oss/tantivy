@@ -108,15 +108,14 @@ where
     }
 
     fn advance(&mut self) -> bool {
-        if self.tail.advance() {
-            // TODO remove allocation
-            let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
-            self.token_mut().text.clear();
-            self.token_mut().text.push_str(&stemmed_str);
-            true
-        } else {
-            false
+        if !self.tail.advance() {
+            return false;
         }
+        // TODO remove allocation
+        let stemmed_str: String = self.stemmer.stem(&self.token().text).into_owned();
+        self.token_mut().text.clear();
+        self.token_mut().text.push_str(&stemmed_str);
+        true
     }
 }
 

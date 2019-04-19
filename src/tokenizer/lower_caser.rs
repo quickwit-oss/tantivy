@@ -44,18 +44,18 @@ where
     }
 
     fn advance(&mut self) -> bool {
-        if self.tail.advance() {
-            if self.token_mut().text.is_ascii() {
-                // fast track for ascii.
-                self.token_mut().text.make_ascii_lowercase();
-            } else {
-                to_lowercase_unicode(&mut self.tail.token_mut().text, &mut self.buffer);
-                mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
-            }
-            true
-        } else {
-            false
+        if !self.tail.advance() {
+            return false;
         }
+        if self.token_mut().text.is_ascii() {
+            // fast track for ascii.
+            self.token_mut().text.make_ascii_lowercase();
+        } else {
+            to_lowercase_unicode(&mut self.tail.token_mut().text, &mut self.buffer);
+            mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
+        }
+        true
+
     }
 }
 
