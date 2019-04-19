@@ -68,6 +68,9 @@ cache: cargo
 before_cache:
   # Travis can't cache files that are not readable by "others"
   - chmod -R a+r $HOME/.cargo
+  - find ./target/debug -type f -maxdepth 1 -delete
+  - rm -f  ./target/.rustc_info.json
+  - rm -fr ./target/debug/{deps,.fingerprint}/tantivy*
 
 #branches:
 #  only:
