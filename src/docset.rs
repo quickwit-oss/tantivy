@@ -3,6 +3,7 @@ use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use DocId;
+use fastfield::DeleteBitSet;
 
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]
@@ -95,9 +96,23 @@ pub trait DocSet {
     }
 
     /// Returns the number documents matching.
-    ///
     /// Calling this method consumes the `DocSet`.
-    fn count(&mut self) -> u32 {
+    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
+        let mut count = 0u32;
+        while self.advance() {
+            if !delete_bitset.is_deleted(self.doc()) {
+                count += 1u32;
+            }
+        }
+        count
+    }
+
+    /// Returns the count of documents, deleted or not.
+    /// Calling this method consumes the `DocSet`.
+    ///
+    /// Of course, the result is an upper bound of the result
+    /// given by `count()`.
+    fn count_including_deleted(&mut self) -> u32 {
         let mut count = 0u32;
         while self.advance() {
             count += 1u32;
@@ -127,9 +142,14 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.size_hint()
     }
 
-    fn count(&mut self) -> u32 {
+    fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
         let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.count()
+        unboxed.count(delete_bitset)
+    }
+
+    fn count_including_deleted(&mut self) -> u32 {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.count_including_deleted()
     }
 
     fn append_to_bitset(&mut self, bitset: &mut BitSet) {
