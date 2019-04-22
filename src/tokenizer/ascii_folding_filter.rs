@@ -1567,7 +1567,9 @@ mod tests {
 
     #[test]
     fn test_ascii_folding() {
-        assert_eq!(folding_helper("Ràmon"), vec!["Ramon".to_string()]);
+      assert_eq!(folding_helper("Ràmon"), vec!["Ramon".to_string()]);
+      assert_eq!(folding_helper("accentué"), vec!["accentue".to_string()]);
+      assert_eq!(folding_helper("âäàéè"), vec!["aaaee".to_string()]);
     }
 
     #[test]
