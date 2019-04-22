@@ -127,14 +127,12 @@ impl BlockSearcher {
     /// then we use a different implementation that does an exhaustive linear search over
     /// the full block whenever the block is full (`len == 128`). It is surprisingly faster, most likely because of the lack
     /// of branch.
-    pub fn search_in_block(&self, block_docs: &[u32], start: usize, target: u32) -> usize {
+    pub fn search_in_block(self, block_docs: &[u32], start: usize, target: u32) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
             use postings::compression::COMPRESSION_BLOCK_SIZE;
-            if *self == BlockSearcher::SSE2 {
-                if block_docs.len() == COMPRESSION_BLOCK_SIZE {
-                    return sse2::linear_search_sse2_128(block_docs, target);
-                }
+            if self == BlockSearcher::SSE2 && block_docs.len() == COMPRESSION_BLOCK_SIZE {
+                return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
         start + galloping(&block_docs[start..], target)
