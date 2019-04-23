@@ -4,7 +4,7 @@ use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
 use owned_read::OwnedRead;
 use positions::PositionReader;
-use postings::compression::compressed_block_size;
+use postings::compression::{compressed_block_size, AlignedBuffer};
 use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use postings::serializer::PostingsSerializer;
 use postings::BlockSearcher;
@@ -201,10 +201,10 @@ impl DocSet for SegmentPostings {
         }
 
         // we're in the right block now, start with an exponential search
-        let block_docs = self.block_cursor.docs();
+        let (output, len) = self.block_cursor.docs_aligned();
         let new_cur = self
             .block_searcher
-            .search_in_block(&block_docs, self.cur, target);
+            .search_in_block(&output, len, self.cur, target);
         if need_positions {
             sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
                 .iter()
@@ -217,7 +217,7 @@ impl DocSet for SegmentPostings {
         self.cur = new_cur;
 
         // `doc` is now the first element >= `target`
-        let doc = block_docs[new_cur];
+        let doc = output.0[new_cur];
         debug_assert!(doc >= target);
         if doc == target {
             SkipResult::Reached
@@ -394,6 +394,10 @@ impl BlockSegmentPostings {
     #[inline]
     pub fn docs(&self) -> &[DocId] {
         self.doc_decoder.output_array()
+    }
+
+    pub(crate) fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
+        self.doc_decoder.output_aligned()
     }
 
     /// Return the document at index `idx` of the block.
