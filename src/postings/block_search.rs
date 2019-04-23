@@ -57,10 +57,8 @@ mod sse2 {
             for el in 0u32..128u32 {
                 block[el as usize] = el * 2 + 1 << 18;
             }
-            assert_eq!(
-                linear_search_sse2_128(&AlignedBuffer(block), output_buffer.0[64] + 1),
-                65
-            );
+            let target = block[64] + 1;
+            assert_eq!(linear_search_sse2_128(&AlignedBuffer(block), target), 65);
         }
     }
 }
