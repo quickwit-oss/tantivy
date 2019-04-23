@@ -60,7 +60,6 @@ where
     }
 }
 
-
 // Returns a string that represents the ascii folded version of
 // the character. If the `char` does not require ascii folding
 // (e.g. simple ASCII chars like `A`) or if the `char`
@@ -1556,7 +1555,6 @@ fn to_ascii(text: &mut String, output: &mut String) {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::to_ascii;
@@ -1567,9 +1565,9 @@ mod tests {
 
     #[test]
     fn test_ascii_folding() {
-      assert_eq!(folding_helper("Ràmon"), vec!["Ramon".to_string()]);
-      assert_eq!(folding_helper("accentué"), vec!["accentue".to_string()]);
-      assert_eq!(folding_helper("âäàéè"), vec!["aaaee".to_string()]);
+        assert_eq!(folding_helper("Ràmon"), vec!["Ramon".to_string()]);
+        assert_eq!(folding_helper("accentué"), vec!["accentue".to_string()]);
+        assert_eq!(folding_helper("âäàéè"), vec!["aaaee".to_string()]);
     }
 
     #[test]
@@ -1587,6 +1585,76 @@ mod tests {
             tokens.push(token_text);
         }
         tokens
+    }
+
+    fn repeat_token_helper(text: &str, number: usize) -> Vec<String> {
+        let mut vec: Vec<String> = Vec::with_capacity(number);
+        let mut i: usize = 0;
+        while i < number {
+            vec.push(text.to_string());
+            i = i + 1;
+        }
+
+        vec
+    }
+
+    #[test]
+    fn test_latin1_characters() {
+        let latin1_string = "Des mot clés À LA CHAÎNE À Á Â Ã Ä Å Æ Ç È É Ê Ë Ì Í Î Ï Ĳ Ð Ñ
+                   Ò Ó Ô Õ Ö Ø Œ Þ Ù Ú Û Ü Ý Ÿ à á â ã ä å æ ç è é ê ë ì í î ï ĳ
+                   ð ñ ò ó ô õ ö ø œ ß þ ù ú û ü ý ÿ ﬁ ﬂ";
+        let mut vec = vec![
+            "Des".to_string(),
+            "mot".to_string(),
+            "cles".to_string(),
+            "A".to_string(),
+            "LA".to_string(),
+            "CHAINE".to_string(),
+        ];
+        vec.append(&mut repeat_token_helper("A", 6));
+        vec.append(&mut repeat_token_helper("AE", 1));
+        vec.append(&mut repeat_token_helper("C", 1));
+        vec.append(&mut repeat_token_helper("E", 4));
+        vec.append(&mut repeat_token_helper("I", 4));
+        vec.append(&mut repeat_token_helper("IJ", 1));
+        vec.append(&mut repeat_token_helper("D", 1));
+        vec.append(&mut repeat_token_helper("N", 1));
+        vec.append(&mut repeat_token_helper("O", 6));
+        vec.append(&mut repeat_token_helper("OE", 1));
+        vec.append(&mut repeat_token_helper("TH", 1));
+        vec.append(&mut repeat_token_helper("U", 4));
+        vec.append(&mut repeat_token_helper("Y", 2));
+        vec.append(&mut repeat_token_helper("a", 6));
+        vec.append(&mut repeat_token_helper("ae", 1));
+        vec.append(&mut repeat_token_helper("c", 1));
+        vec.append(&mut repeat_token_helper("e", 4));
+        vec.append(&mut repeat_token_helper("i", 4));
+        vec.append(&mut repeat_token_helper("ij", 1));
+        vec.append(&mut repeat_token_helper("d", 1));
+        vec.append(&mut repeat_token_helper("n", 1));
+        vec.append(&mut repeat_token_helper("o", 6));
+        vec.append(&mut repeat_token_helper("oe", 1));
+        vec.append(&mut repeat_token_helper("ss", 1));
+        vec.append(&mut repeat_token_helper("th", 1));
+        vec.append(&mut repeat_token_helper("u", 4));
+        vec.append(&mut repeat_token_helper("y", 2));
+        vec.append(&mut repeat_token_helper("fi", 1));
+        vec.append(&mut repeat_token_helper("fl", 1));
+
+        assert_eq!(folding_helper(latin1_string), vec);
+    }
+
+    #[test]
+    fn test_unmodified_letters() {
+        assert_eq!(
+            folding_helper("§ ¦ ¤ END"),
+            vec![
+                "§".to_string(),
+                "¦".to_string(),
+                "¤".to_string(),
+                "END".to_string()
+            ]
+        );
     }
 
     #[test]
