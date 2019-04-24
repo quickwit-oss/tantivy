@@ -1560,6 +1560,7 @@ mod tests {
     use super::to_ascii;
     use tokenizer::AsciiFoldingFilter;
     use tokenizer::SimpleTokenizer;
+    use tokenizer::RawTokenizer;
     use tokenizer::TokenStream;
     use tokenizer::Tokenizer;
 
@@ -1585,6 +1586,15 @@ mod tests {
             tokens.push(token_text);
         }
         tokens
+    }
+
+    fn folding_using_raw_tokenizer_helper(text: &str) -> String {
+        let mut token_stream = RawTokenizer
+            .filter(AsciiFoldingFilter)
+            .token_stream(text);
+        token_stream.advance();
+
+        token_stream.token().text.clone()
     }
 
     fn repeat_token_helper(text: &str, number: usize) -> Vec<String> {
@@ -1647,13 +1657,8 @@ mod tests {
     #[test]
     fn test_unmodified_letters() {
         assert_eq!(
-            folding_helper("§ ¦ ¤ END"),
-            vec![
-                "§".to_string(),
-                "¦".to_string(),
-                "¤".to_string(),
-                "END".to_string()
-            ]
+            folding_using_raw_tokenizer_helper("§ ¦ ¤ END"),
+            "§ ¦ ¤ END".to_string()
         );
     }
 
