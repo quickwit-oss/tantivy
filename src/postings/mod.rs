@@ -55,13 +55,15 @@ pub mod tests {
     use fieldnorm::FieldNormReader;
     use indexer::operation::AddOperation;
     use indexer::SegmentWriter;
+    use merge_policy::NoMergePolicy;
     use query::Scorer;
     use rand::rngs::StdRng;
     use rand::{Rng, SeedableRng};
-    use schema::Field;
-    use schema::IndexRecordOption;
     use schema::{Document, Schema, Term, INDEXED, STRING, TEXT};
+    use schema::{Field, TextOptions};
+    use schema::{IndexRecordOption, TextFieldIndexing};
     use std::iter;
+    use tokenizer::{SimpleTokenizer, MAX_TOKEN_LEN};
     use DocId;
     use Score;
 
@@ -157,6 +159,52 @@ pub mod tests {
             assert_eq!(postings.doc(), 1002);
             postings.positions(&mut positions);
             assert_eq!(&[0, 5], &positions[..]);
+        }
+    }
+
+    #[test]
+    pub fn test_drop_token_that_are_too_long() {
+        let ok_token_text: String = iter::repeat('A').take(MAX_TOKEN_LEN).collect();
+        let mut exceeding_token_text: String = iter::repeat('A').take(MAX_TOKEN_LEN + 1).collect();
+        exceeding_token_text.push_str(" hello");
+        let mut schema_builder = Schema::builder();
+        let text_options = TextOptions::default().set_indexing_options(
+            TextFieldIndexing::default()
+                .set_index_option(IndexRecordOption::WithFreqsAndPositions)
+                .set_tokenizer("simple_no_truncation"),
+        );
+        let text_field = schema_builder.add_text_field("text", text_options);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema.clone());
+        index
+            .tokenizers()
+            .register("simple_no_truncation", SimpleTokenizer);
+        let reader = index.reader().unwrap();
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.set_merge_policy(Box::new(NoMergePolicy));
+        {
+            index_writer.add_document(doc!(text_field=>exceeding_token_text));
+            index_writer.commit().unwrap();
+            reader.reload().unwrap();
+            let searcher = reader.searcher();
+            let segment_reader = searcher.segment_reader(0u32);
+            let inverted_index = segment_reader.inverted_index(text_field);
+            assert_eq!(inverted_index.terms().num_terms(), 1);
+            let mut bytes = vec![];
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes));
+            assert_eq!(&bytes, b"hello");
+        }
+        {
+            index_writer.add_document(doc!(text_field=>ok_token_text.clone()));
+            index_writer.commit().unwrap();
+            reader.reload().unwrap();
+            let searcher = reader.searcher();
+            let segment_reader = searcher.segment_reader(1u32);
+            let inverted_index = segment_reader.inverted_index(text_field);
+            assert_eq!(inverted_index.terms().num_terms(), 1);
+            let mut bytes = vec![];
+            assert!(inverted_index.terms().ord_to_term(0, &mut bytes));
+            assert_eq!(&bytes[..], ok_token_text.as_bytes());
         }
     }
 

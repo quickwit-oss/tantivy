@@ -12,8 +12,8 @@ use std::io;
 use std::marker::PhantomData;
 use std::ops::DerefMut;
 use termdict::TermOrdinal;
-use tokenizer::Token;
 use tokenizer::TokenStream;
+use tokenizer::{Token, MAX_TOKEN_LEN};
 use DocId;
 use Result;
 
@@ -210,8 +210,11 @@ pub trait PostingsWriter {
     ) -> u32 {
         let mut term = Term::for_field(field);
         let mut sink = |token: &Token| {
-            term.set_text(token.text.as_str());
-            self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+            // We skip all tokens with a len greater than u16.
+            if token.text.len() <= MAX_TOKEN_LEN {
+                term.set_text(token.text.as_str());
+                self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+            }
         };
         token_stream.process(&mut sink)
     }
