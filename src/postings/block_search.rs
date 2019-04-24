@@ -1,3 +1,5 @@
+use postings::compression::AlignedBuffer;
+
 /// This modules define the logic used to search for a doc in a given
 /// block. (at most 128 docs)
 ///
@@ -6,7 +8,7 @@
 
 #[cfg(target_arch = "x86_64")]
 mod sse2 {
-    use postings::compression::COMPRESSION_BLOCK_SIZE;
+    use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
     use std::arch::x86_64::__m128i as DataType;
     use std::arch::x86_64::_mm_add_epi32 as op_add;
     use std::arch::x86_64::_mm_cmplt_epi32 as op_lt;
@@ -23,9 +25,9 @@ mod sse2 {
     ///
     /// There is no early exit here. We simply count the
     /// number of elements that are `< target`.
-    pub fn linear_search_sse2_128(arr: &[u32], target: u32) -> usize {
+    pub(crate) fn linear_search_sse2_128(arr: &AlignedBuffer, target: u32) -> usize {
         unsafe {
-            let ptr = arr.as_ptr() as *const DataType;
+            let ptr = arr as *const AlignedBuffer as *const DataType;
             let vkey = set1(target as i32);
             let mut cnt = set0();
             // We work over 4 `__m128i` at a time.
@@ -47,14 +49,16 @@ mod sse2 {
     #[cfg(test)]
     mod test {
         use super::linear_search_sse2_128;
+        use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
         #[test]
         fn test_linear_search_sse2_128_u32() {
-            for i in 0..23 {
-                dbg!(i);
-                let arr: Vec<u32> = (0..128).map(|el| el * 2 + 1 << 18).collect();
-                assert_eq!(linear_search_sse2_128(&arr, arr[64] + 1), 65);
+            let mut block = [0u32; COMPRESSION_BLOCK_SIZE];
+            for el in 0u32..128u32 {
+                block[el as usize] = el * 2 + 1 << 18;
             }
+            let target = block[64] + 1;
+            assert_eq!(linear_search_sse2_128(&AlignedBuffer(block), target), 65);
         }
     }
 }
@@ -127,15 +131,21 @@ impl BlockSearcher {
     /// then we use a different implementation that does an exhaustive linear search over
     /// the full block whenever the block is full (`len == 128`). It is surprisingly faster, most likely because of the lack
     /// of branch.
-    pub fn search_in_block(self, block_docs: &[u32], start: usize, target: u32) -> usize {
+    pub(crate) fn search_in_block(
+        self,
+        block_docs: &AlignedBuffer,
+        len: usize,
+        start: usize,
+        target: u32,
+    ) -> usize {
         #[cfg(target_arch = "x86_64")]
         {
             use postings::compression::COMPRESSION_BLOCK_SIZE;
-            if self == BlockSearcher::SSE2 && block_docs.len() == COMPRESSION_BLOCK_SIZE {
+            if self == BlockSearcher::SSE2 && len == COMPRESSION_BLOCK_SIZE {
                 return sse2::linear_search_sse2_128(block_docs, target);
             }
         }
-        start + galloping(&block_docs[start..], target)
+        start + galloping(&block_docs.0[start..len], target)
     }
 }
 
@@ -156,6 +166,7 @@ mod tests {
     use super::exponential_search;
     use super::linear_search;
     use super::BlockSearcher;
+    use postings::compression::{AlignedBuffer, COMPRESSION_BLOCK_SIZE};
 
     #[test]
     fn test_linear_search() {
@@ -184,8 +195,19 @@ mod tests {
 
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
+        assert!(block.len() < COMPRESSION_BLOCK_SIZE);
+        let mut output_buffer = [u32::max_value(); COMPRESSION_BLOCK_SIZE];
+        output_buffer[..block.len()].copy_from_slice(block);
         for i in 0..cursor {
-            assert_eq!(block_searcher.search_in_block(block, i, target), cursor);
+            assert_eq!(
+                block_searcher.search_in_block(
+                    &AlignedBuffer(output_buffer),
+                    block.len(),
+                    i,
+                    target
+                ),
+                cursor
+            );
         }
     }
 

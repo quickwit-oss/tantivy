@@ -1,3 +1,15 @@
+Tantivy 0.10.0
+====================
+
+
+Minor
+---------
+- Small simplification of the code. 
+Calling .freq() or .doc() when .advance() has never 
+on segment postings should panic from now on.
+
+
+
 Tantivy 0.9.0
 =====================
 *0.9.0 index format is not compatible with the 

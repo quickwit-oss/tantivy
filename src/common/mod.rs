@@ -13,7 +13,6 @@ pub use self::serialize::{BinarySerializable, FixedSize};
 pub use self::vint::{read_u32_vint, serialize_vint_u32, write_u32_vint, VInt};
 pub use byteorder::LittleEndian as Endianness;
 
-
 /// Segment's max doc must be `< MAX_DOC_LIMIT`.
 ///
 /// We do not allow segments with more than
