@@ -53,7 +53,7 @@ mod sse2 {
 
         #[test]
         fn test_linear_search_sse2_128_u32() {
-            let mut block = [u32::max_value(); COMPRESSION_BLOCK_SIZE + 1];
+            let mut block = [0u32; COMPRESSION_BLOCK_SIZE];
             for el in 0u32..128u32 {
                 block[el as usize] = el * 2 + 1 << 18;
             }
@@ -195,8 +195,8 @@ mod tests {
 
     fn util_test_search_in_block(block_searcher: BlockSearcher, block: &[u32], target: u32) {
         let cursor = search_in_block_trivial_but_slow(block, target);
-        assert!(block.len() <= COMPRESSION_BLOCK_SIZE);
-        let mut output_buffer = [u32::max_value(); COMPRESSION_BLOCK_SIZE + 1];
+        assert!(block.len() < COMPRESSION_BLOCK_SIZE);
+        let mut output_buffer = [u32::max_value(); COMPRESSION_BLOCK_SIZE];
         output_buffer[..block.len()].copy_from_slice(block);
         for i in 0..cursor {
             assert_eq!(

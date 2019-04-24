@@ -1,9 +1,9 @@
 use common::BitSet;
+use fastfield::DeleteBitSet;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::cmp::Ordering;
 use DocId;
-use fastfield::DeleteBitSet;
 
 /// Expresses the outcome of a call to `DocSet`'s `.skip_next(...)`.
 #[derive(PartialEq, Eq, Debug)]

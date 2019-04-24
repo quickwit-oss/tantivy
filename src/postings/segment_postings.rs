@@ -130,7 +130,7 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        if self.position_computer.is_some() {
+        if self.position_computer.is_some() && self.cur < COMPRESSION_BLOCK_SIZE {
             let term_freq = self.term_freq() as usize;
             if let Some(position_computer) = self.position_computer.as_mut() {
                 position_computer.add_skip(term_freq);
@@ -225,12 +225,16 @@ impl DocSet for SegmentPostings {
     }
 
     /// Return the current document's `DocId`.
+    ///
+    /// # Panics
+    ///
+    /// Will panics if called without having called advance before.
     #[inline]
     fn doc(&self) -> DocId {
         let docs = self.block_cursor.docs();
         debug_assert!(
             self.cur < docs.len(),
-            "Have you forgotten to call `.advance()` at least once before calling .doc()."
+            "Have you forgotten to call `.advance()` at least once before calling `.doc()`                                      ."
         );
         docs[self.cur]
     }
@@ -262,7 +266,25 @@ impl HasLen for SegmentPostings {
 }
 
 impl Postings for SegmentPostings {
+    /// Returns the frequency associated to the current document.
+    /// If the schema is set up so that no frequency have been encoded,
+    /// this method should always return 1.
+    ///
+    /// # Panics
+    ///
+    /// Will panics if called without having called advance before.
     fn term_freq(&self) -> u32 {
+        debug_assert!(
+            // Here we do not use the len of `freqs()`
+            // because it is actually ok to request for the freq of doc
+            // even if no frequency were encoded for the field.
+            //
+            // In that case we hit the block just as if the frequency had been
+            // decoded. The block is simply prefilled by the value 1.
+            self.cur < COMPRESSION_BLOCK_SIZE,
+            "Have you forgotten to call `.advance()` at least once before calling \
+             `.term_freq()`."
+        );
         self.block_cursor.freq(self.cur)
     }
 
@@ -592,6 +614,7 @@ mod tests {
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
+    use postings::postings::Postings;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;
@@ -606,6 +629,18 @@ mod tests {
         assert!(!postings.advance());
         assert!(!postings.advance());
         assert_eq!(postings.len(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
+    fn test_panic_if_doc_called_before_advance() {
+        SegmentPostings::empty().doc();
+    }
+
+    #[test]
+    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
+    fn test_panic_if_freq_called_before_advance() {
+        SegmentPostings::empty().term_freq();
     }
 
     #[test]

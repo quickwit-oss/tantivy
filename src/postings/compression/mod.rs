@@ -46,7 +46,7 @@ impl BlockEncoder {
 /// We ensure that the OutputBuffer is align on 128 bits
 /// in order to run SSE2 linear search on it.
 #[repr(align(128))]
-pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE + 1]);
+pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
 
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
@@ -60,17 +60,9 @@ impl BlockDecoder {
     }
 
     pub fn with_val(val: u32) -> BlockDecoder {
-        // The AlignedBuffer is one value longer than expected,
-        // because we use this extra value as a strange corner case.
-        //
-        // When a segment_postings has never been advanced,
-        // `doc` has for value 128. If someone calls `.freq()` or
-        // `.position()`, 0 is returned.
-        let mut output = [val; COMPRESSION_BLOCK_SIZE + 1];
-        output[COMPRESSION_BLOCK_SIZE] = 0u32;
         BlockDecoder {
             bitpacker: BitPacker4x::new(),
-            output: AlignedBuffer(output),
+            output: AlignedBuffer([val; COMPRESSION_BLOCK_SIZE]),
             output_len: 0,
         }
     }
