@@ -46,11 +46,11 @@ impl BlockEncoder {
 /// We ensure that the OutputBuffer is align on 128 bits
 /// in order to run SSE2 linear search on it.
 #[repr(align(128))]
-struct OutputBuffer([u32; COMPRESSION_BLOCK_SIZE + 1]);
+pub(crate) struct AlignedBuffer(pub [u32; COMPRESSION_BLOCK_SIZE]);
 
 pub struct BlockDecoder {
     bitpacker: BitPacker4x,
-    output: OutputBuffer,
+    output: AlignedBuffer,
     pub output_len: usize,
 }
 
@@ -60,11 +60,9 @@ impl BlockDecoder {
     }
 
     pub fn with_val(val: u32) -> BlockDecoder {
-        let mut output = [val; COMPRESSION_BLOCK_SIZE + 1];
-        output[COMPRESSION_BLOCK_SIZE] = 0u32;
         BlockDecoder {
             bitpacker: BitPacker4x::new(),
-            output: OutputBuffer(output),
+            output: AlignedBuffer([val; COMPRESSION_BLOCK_SIZE]),
             output_len: 0,
         }
     }
@@ -89,6 +87,11 @@ impl BlockDecoder {
     #[inline]
     pub fn output_array(&self) -> &[u32] {
         &self.output.0[..self.output_len]
+    }
+
+    #[inline]
+    pub(crate) fn output_aligned(&self) -> (&AlignedBuffer, usize) {
+        (&self.output, self.output_len)
     }
 
     #[inline]
