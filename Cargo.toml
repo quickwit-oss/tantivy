@@ -54,7 +54,7 @@ murmurhash32 = "0.2"
 chrono = "0.4"
 
 [target.'cfg(windows)'.dependencies]
-winapi = "0.2"
+winapi = "0.3"
 
 [dev-dependencies]
 rand = "0.6"
