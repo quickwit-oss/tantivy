@@ -132,7 +132,9 @@ impl DocSet for SegmentPostings {
     fn advance(&mut self) -> bool {
         if self.position_computer.is_some() {
             let term_freq = self.term_freq() as usize;
-            self.position_computer.as_mut().unwrap().add_skip(term_freq);
+            if let Some(position_computer) = self.position_computer.as_mut() {
+                position_computer.add_skip(term_freq);
+            }
         }
         self.cur += 1;
         if self.cur >= self.block_cursor.block_len() {
@@ -167,7 +169,6 @@ impl DocSet for SegmentPostings {
 
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
-        let need_positions = self.position_computer.is_some();
         let mut sum_freqs_skipped: u32 = 0;
         if !self
             .block_cursor
@@ -181,7 +182,7 @@ impl DocSet for SegmentPostings {
             // we are not in the right block.
             //
             // First compute all of the freqs skipped from the current block.
-            if need_positions {
+            if self.position_computer.is_some() {
                 sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum();
                 match self.block_cursor.skip_to(target) {
                     BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
@@ -200,19 +201,16 @@ impl DocSet for SegmentPostings {
             self.cur = 0;
         }
 
+        let cur = self.cur;
+
         // we're in the right block now, start with an exponential search
         let (output, len) = self.block_cursor.docs_aligned();
         let new_cur = self
             .block_searcher
-            .search_in_block(&output, len, self.cur, target);
-        if need_positions {
-            sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
-                .iter()
-                .sum::<u32>();
-            self.position_computer
-                .as_mut()
-                .unwrap()
-                .add_skip(sum_freqs_skipped as usize);
+            .search_in_block(&output, len, cur, target);
+        if let Some(position_computer) = self.position_computer.as_mut() {
+            sum_freqs_skipped += self.block_cursor.freqs()[cur..new_cur].iter().sum::<u32>();
+            position_computer.add_skip(sum_freqs_skipped as usize);
         }
         self.cur = new_cur;
 

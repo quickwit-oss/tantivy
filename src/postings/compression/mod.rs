@@ -60,6 +60,12 @@ impl BlockDecoder {
     }
 
     pub fn with_val(val: u32) -> BlockDecoder {
+        // The AlignedBuffer is one value longer than expected,
+        // because we use this extra value as a strange corner case.
+        //
+        // When a segment_postings has never been advanced,
+        // `doc` has for value 128. If someone calls `.freq()` or
+        // `.position()`, 0 is returned.
         let mut output = [val; COMPRESSION_BLOCK_SIZE + 1];
         output[COMPRESSION_BLOCK_SIZE] = 0u32;
         BlockDecoder {
