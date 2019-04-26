@@ -214,6 +214,13 @@ pub trait PostingsWriter {
             if token.text.len() <= MAX_TOKEN_LEN {
                 term.set_text(token.text.as_str());
                 self.subscribe(term_index, doc_id, token.position as u32, &term, heap);
+            } else {
+                info!(
+                    "A token exceeding MAX_TOKEN_LEN ({}>{}) was dropped. Search for \
+                     MAX_TOKEN_LEN in the documentation for more information.",
+                    token.text.len(),
+                    MAX_TOKEN_LEN
+                );
             }
         };
         token_stream.process(&mut sink)

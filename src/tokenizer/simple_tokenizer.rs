@@ -38,23 +38,16 @@ impl<'a> TokenStream for SimpleTokenStream<'a> {
     fn advance(&mut self) -> bool {
         self.token.text.clear();
         self.token.position = self.token.position.wrapping_add(1);
-
-        loop {
-            match self.chars.next() {
-                Some((offset_from, c)) => {
-                    if c.is_alphanumeric() {
-                        let offset_to = self.search_token_end();
-                        self.token.offset_from = offset_from;
-                        self.token.offset_to = offset_to;
-                        self.token.text.push_str(&self.text[offset_from..offset_to]);
-                        return true;
-                    }
-                }
-                None => {
-                    return false;
-                }
+        while let Some((offset_from, c)) = self.chars.next() {
+            if c.is_alphanumeric() {
+                let offset_to = self.search_token_end();
+                self.token.offset_from = offset_from;
+                self.token.offset_to = offset_to;
+                self.token.text.push_str(&self.text[offset_from..offset_to]);
+                return true;
             }
         }
+        false
     }
 
     fn token(&self) -> &Token {

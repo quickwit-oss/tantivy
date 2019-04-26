@@ -1,6 +1,7 @@
 Tantivy 0.10.0
-====================
-
+=====================
+- Added an ASCII folding filter (@drusellers)
+- Bugfix in `query.count` in presence of deletes (@pmasurel)
 
 Minor
 ---------
