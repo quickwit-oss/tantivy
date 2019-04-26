@@ -13,6 +13,11 @@ pub trait Weight: Send + Sync + 'static {
 
     /// Returns the number documents within the given `SegmentReader`.
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
-        Ok(self.scorer(reader)?.count())
+        let mut scorer = self.scorer(reader)?;
+        if let Some(delete_bitset) = reader.delete_bitset() {
+            Ok(scorer.count(delete_bitset))
+        } else {
+            Ok(scorer.count_including_deleted())
+        }
     }
 }

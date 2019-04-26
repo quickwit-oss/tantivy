@@ -97,6 +97,8 @@
 //! If you built your schema programmatically, a complete example
 //! could like this for instance.
 //!
+//! Note that tokens with a len greater or equal to [`MAX_TOKEN_LEN`](./constant.MAX_TOKEN_LEN.html).
+//!
 //! # Example
 //!
 //! ```
@@ -158,6 +160,13 @@ pub use self::tokenizer::BoxedTokenizer;
 
 pub use self::tokenizer::{Token, TokenFilter, TokenStream, Tokenizer};
 pub use self::tokenizer_manager::TokenizerManager;
+
+/// Maximum authorized len (in bytes) for a token.
+///
+/// Tokenizer are in charge of not emitting tokens larger than this value.
+/// Currently, if a faulty tokenizer implementation emits tokens with a length larger than
+/// `2^16 - 1 - 4`, the token will simply be ignored downstream.
+pub const MAX_TOKEN_LEN: usize = u16::max_value() as usize - 4;
 
 #[cfg(test)]
 pub mod tests {

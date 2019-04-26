@@ -3,6 +3,14 @@ Tantivy 0.10.0
 - Added an ASCII folding filter (@drusellers)
 - Bugfix in `query.count` in presence of deletes (@pmasurel)
 
+Minor
+---------
+- Small simplification of the code. 
+Calling .freq() or .doc() when .advance() has never 
+on segment postings should panic from now on.
+- Tokens exceeding `u16::max_value() - 4` chars are discarded silently instead of panicking.
+
+
 Tantivy 0.9.0
 =====================
 *0.9.0 index format is not compatible with the 

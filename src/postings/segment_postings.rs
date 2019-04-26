@@ -4,7 +4,7 @@ use common::{BinarySerializable, VInt};
 use docset::{DocSet, SkipResult};
 use owned_read::OwnedRead;
 use positions::PositionReader;
-use postings::compression::compressed_block_size;
+use postings::compression::{compressed_block_size, AlignedBuffer};
 use postings::compression::{BlockDecoder, VIntDecoder, COMPRESSION_BLOCK_SIZE};
 use postings::serializer::PostingsSerializer;
 use postings::BlockSearcher;
@@ -130,9 +130,11 @@ impl DocSet for SegmentPostings {
     // next needs to be called a first time to point to the correct element.
     #[inline]
     fn advance(&mut self) -> bool {
-        if self.position_computer.is_some() {
+        if self.position_computer.is_some() && self.cur < COMPRESSION_BLOCK_SIZE {
             let term_freq = self.term_freq() as usize;
-            self.position_computer.as_mut().unwrap().add_skip(term_freq);
+            if let Some(position_computer) = self.position_computer.as_mut() {
+                position_computer.add_skip(term_freq);
+            }
         }
         self.cur += 1;
         if self.cur >= self.block_cursor.block_len() {
@@ -167,7 +169,6 @@ impl DocSet for SegmentPostings {
 
         // skip blocks until one that might contain the target
         // check if we need to go to the next block
-        let need_positions = self.position_computer.is_some();
         let mut sum_freqs_skipped: u32 = 0;
         if !self
             .block_cursor
@@ -181,7 +182,7 @@ impl DocSet for SegmentPostings {
             // we are not in the right block.
             //
             // First compute all of the freqs skipped from the current block.
-            if need_positions {
+            if self.position_computer.is_some() {
                 sum_freqs_skipped = self.block_cursor.freqs()[self.cur..].iter().sum();
                 match self.block_cursor.skip_to(target) {
                     BlockSegmentPostingsSkipResult::Success(block_skip_freqs) => {
@@ -200,24 +201,21 @@ impl DocSet for SegmentPostings {
             self.cur = 0;
         }
 
+        let cur = self.cur;
+
         // we're in the right block now, start with an exponential search
-        let block_docs = self.block_cursor.docs();
+        let (output, len) = self.block_cursor.docs_aligned();
         let new_cur = self
             .block_searcher
-            .search_in_block(&block_docs, self.cur, target);
-        if need_positions {
-            sum_freqs_skipped += self.block_cursor.freqs()[self.cur..new_cur]
-                .iter()
-                .sum::<u32>();
-            self.position_computer
-                .as_mut()
-                .unwrap()
-                .add_skip(sum_freqs_skipped as usize);
+            .search_in_block(&output, len, cur, target);
+        if let Some(position_computer) = self.position_computer.as_mut() {
+            sum_freqs_skipped += self.block_cursor.freqs()[cur..new_cur].iter().sum::<u32>();
+            position_computer.add_skip(sum_freqs_skipped as usize);
         }
         self.cur = new_cur;
 
         // `doc` is now the first element >= `target`
-        let doc = block_docs[new_cur];
+        let doc = output.0[new_cur];
         debug_assert!(doc >= target);
         if doc == target {
             SkipResult::Reached
@@ -227,12 +225,16 @@ impl DocSet for SegmentPostings {
     }
 
     /// Return the current document's `DocId`.
+    ///
+    /// # Panics
+    ///
+    /// Will panics if called without having called advance before.
     #[inline]
     fn doc(&self) -> DocId {
         let docs = self.block_cursor.docs();
         debug_assert!(
             self.cur < docs.len(),
-            "Have you forgotten to call `.advance()` at least once before calling .doc()."
+            "Have you forgotten to call `.advance()` at least once before calling `.doc()`                                      ."
         );
         docs[self.cur]
     }
@@ -264,17 +266,33 @@ impl HasLen for SegmentPostings {
 }
 
 impl Postings for SegmentPostings {
+    /// Returns the frequency associated to the current document.
+    /// If the schema is set up so that no frequency have been encoded,
+    /// this method should always return 1.
+    ///
+    /// # Panics
+    ///
+    /// Will panics if called without having called advance before.
     fn term_freq(&self) -> u32 {
+        debug_assert!(
+            // Here we do not use the len of `freqs()`
+            // because it is actually ok to request for the freq of doc
+            // even if no frequency were encoded for the field.
+            //
+            // In that case we hit the block just as if the frequency had been
+            // decoded. The block is simply prefilled by the value 1.
+            self.cur < COMPRESSION_BLOCK_SIZE,
+            "Have you forgotten to call `.advance()` at least once before calling \
+             `.term_freq()`."
+        );
         self.block_cursor.freq(self.cur)
     }
 
     fn positions_with_offset(&mut self, offset: u32, output: &mut Vec<u32>) {
-        if self.position_computer.is_some() {
-            output.resize(self.term_freq() as usize, 0u32);
-            self.position_computer
-                .as_mut()
-                .unwrap()
-                .positions_with_offset(offset, &mut output[..])
+        let term_freq = self.term_freq() as usize;
+        if let Some(position_comp) = self.position_computer.as_mut() {
+            output.resize(term_freq, 0u32);
+            position_comp.positions_with_offset(offset, &mut output[..]);
         } else {
             output.clear();
         }
@@ -394,6 +412,10 @@ impl BlockSegmentPostings {
     #[inline]
     pub fn docs(&self) -> &[DocId] {
         self.doc_decoder.output_array()
+    }
+
+    pub(crate) fn docs_aligned(&self) -> (&AlignedBuffer, usize) {
+        self.doc_decoder.output_aligned()
     }
 
     /// Return the document at index `idx` of the block.
@@ -592,6 +614,7 @@ mod tests {
     use common::HasLen;
     use core::Index;
     use docset::DocSet;
+    use postings::postings::Postings;
     use schema::IndexRecordOption;
     use schema::Schema;
     use schema::Term;
@@ -606,6 +629,18 @@ mod tests {
         assert!(!postings.advance());
         assert!(!postings.advance());
         assert_eq!(postings.len(), 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
+    fn test_panic_if_doc_called_before_advance() {
+        SegmentPostings::empty().doc();
+    }
+
+    #[test]
+    #[should_panic(expected = "Have you forgotten to call `.advance()`")]
+    fn test_panic_if_freq_called_before_advance() {
+        SegmentPostings::empty().term_freq();
     }
 
     #[test]
