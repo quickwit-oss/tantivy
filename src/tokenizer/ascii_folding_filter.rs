@@ -1558,6 +1558,7 @@ fn to_ascii(text: &mut String, output: &mut String) {
 #[cfg(test)]
 mod tests {
     use super::to_ascii;
+    use std::iter;
     use tokenizer::AsciiFoldingFilter;
     use tokenizer::RawTokenizer;
     use tokenizer::SimpleTokenizer;
@@ -1566,44 +1567,31 @@ mod tests {
 
     #[test]
     fn test_ascii_folding() {
-        assert_eq!(folding_helper("Ràmon"), vec!["Ramon".to_string()]);
-        assert_eq!(folding_helper("accentué"), vec!["accentue".to_string()]);
-        assert_eq!(folding_helper("âäàéè"), vec!["aaaee".to_string()]);
+        assert_eq!(&folding_helper("Ràmon"), &["Ramon"]);
+        assert_eq!(&folding_helper("accentué"), &["accentue"]);
+        assert_eq!(&folding_helper("âäàéè"), &["aaaee"]);
     }
 
     #[test]
     fn test_no_change() {
-        assert_eq!(folding_helper("Usagi"), vec!["Usagi".to_string()]);
+        assert_eq!(&folding_helper("Usagi"), &["Usagi"]);
     }
 
     fn folding_helper(text: &str) -> Vec<String> {
-        let mut tokens = vec![];
-        let mut token_stream = SimpleTokenizer
+        let mut tokens = Vec::new();
+        SimpleTokenizer
             .filter(AsciiFoldingFilter)
-            .token_stream(text);
-        while token_stream.advance() {
-            let token_text = token_stream.token().text.clone();
-            tokens.push(token_text);
-        }
+            .token_stream(text)
+            .process(&mut |token| {
+                tokens.push(token.text.clone());
+            });
         tokens
     }
 
     fn folding_using_raw_tokenizer_helper(text: &str) -> String {
         let mut token_stream = RawTokenizer.filter(AsciiFoldingFilter).token_stream(text);
         token_stream.advance();
-
         token_stream.token().text.clone()
-    }
-
-    fn repeat_token_helper(text: &str, number: usize) -> Vec<String> {
-        let mut vec: Vec<String> = Vec::with_capacity(number);
-        let mut i: usize = 0;
-        while i < number {
-            vec.push(text.to_string());
-            i = i + 1;
-        }
-
-        vec
     }
 
     #[test]
@@ -1611,44 +1599,36 @@ mod tests {
         let latin1_string = "Des mot clés À LA CHAÎNE À Á Â Ã Ä Å Æ Ç È É Ê Ë Ì Í Î Ï Ĳ Ð Ñ
                    Ò Ó Ô Õ Ö Ø Œ Þ Ù Ú Û Ü Ý Ÿ à á â ã ä å æ ç è é ê ë ì í î ï ĳ
                    ð ñ ò ó ô õ ö ø œ ß þ ù ú û ü ý ÿ ﬁ ﬂ";
-        let mut vec = vec![
-            "Des".to_string(),
-            "mot".to_string(),
-            "cles".to_string(),
-            "A".to_string(),
-            "LA".to_string(),
-            "CHAINE".to_string(),
-        ];
-        vec.append(&mut repeat_token_helper("A", 6));
-        vec.append(&mut repeat_token_helper("AE", 1));
-        vec.append(&mut repeat_token_helper("C", 1));
-        vec.append(&mut repeat_token_helper("E", 4));
-        vec.append(&mut repeat_token_helper("I", 4));
-        vec.append(&mut repeat_token_helper("IJ", 1));
-        vec.append(&mut repeat_token_helper("D", 1));
-        vec.append(&mut repeat_token_helper("N", 1));
-        vec.append(&mut repeat_token_helper("O", 6));
-        vec.append(&mut repeat_token_helper("OE", 1));
-        vec.append(&mut repeat_token_helper("TH", 1));
-        vec.append(&mut repeat_token_helper("U", 4));
-        vec.append(&mut repeat_token_helper("Y", 2));
-        vec.append(&mut repeat_token_helper("a", 6));
-        vec.append(&mut repeat_token_helper("ae", 1));
-        vec.append(&mut repeat_token_helper("c", 1));
-        vec.append(&mut repeat_token_helper("e", 4));
-        vec.append(&mut repeat_token_helper("i", 4));
-        vec.append(&mut repeat_token_helper("ij", 1));
-        vec.append(&mut repeat_token_helper("d", 1));
-        vec.append(&mut repeat_token_helper("n", 1));
-        vec.append(&mut repeat_token_helper("o", 6));
-        vec.append(&mut repeat_token_helper("oe", 1));
-        vec.append(&mut repeat_token_helper("ss", 1));
-        vec.append(&mut repeat_token_helper("th", 1));
-        vec.append(&mut repeat_token_helper("u", 4));
-        vec.append(&mut repeat_token_helper("y", 2));
-        vec.append(&mut repeat_token_helper("fi", 1));
-        vec.append(&mut repeat_token_helper("fl", 1));
-
+        let mut vec: Vec<&str> = vec!["Des", "mot", "cles", "A", "LA", "CHAINE"];
+        vec.extend(iter::repeat("A").take(6));
+        vec.extend(iter::repeat("AE").take(1));
+        vec.extend(iter::repeat("C").take(1));
+        vec.extend(iter::repeat("E").take(4));
+        vec.extend(iter::repeat("I").take(4));
+        vec.extend(iter::repeat("IJ").take(1));
+        vec.extend(iter::repeat("D").take(1));
+        vec.extend(iter::repeat("N").take(1));
+        vec.extend(iter::repeat("O").take(6));
+        vec.extend(iter::repeat("OE").take(1));
+        vec.extend(iter::repeat("TH").take(1));
+        vec.extend(iter::repeat("U").take(4));
+        vec.extend(iter::repeat("Y").take(2));
+        vec.extend(iter::repeat("a").take(6));
+        vec.extend(iter::repeat("ae").take(1));
+        vec.extend(iter::repeat("c").take(1));
+        vec.extend(iter::repeat("e").take(4));
+        vec.extend(iter::repeat("i").take(4));
+        vec.extend(iter::repeat("ij").take(1));
+        vec.extend(iter::repeat("d").take(1));
+        vec.extend(iter::repeat("n").take(1));
+        vec.extend(iter::repeat("o").take(6));
+        vec.extend(iter::repeat("oe").take(1));
+        vec.extend(iter::repeat("ss").take(1));
+        vec.extend(iter::repeat("th").take(1));
+        vec.extend(iter::repeat("u").take(4));
+        vec.extend(iter::repeat("y").take(2));
+        vec.extend(iter::repeat("fi").take(1));
+        vec.extend(iter::repeat("fl").take(1));
         assert_eq!(folding_helper(latin1_string), vec);
     }
 
@@ -1673,15 +1653,15 @@ mod tests {
         // those folding is a copy of
         // https://github.com/apache/lucene-solr/blob/28d187acd1e391723eb6e1b5445f22abf5580a80/lucene/analysis/common/src/test/org/apache/lucene/analysis/miscellaneous/TestASCIIFoldingFilter.java
         // useful regex to adapt to a Rust structure:
-        // 1. Preg and replace folded: 
-        //    - **REGEX** |,"(.){3,5}", // Folded result| 
+        // 1. Preg and replace folded:
+        //    - **REGEX** |,"(.){3,5}", // Folded result|
         //    - **REPLACEMENT** ], "$1".to_string(), ), ( vec![
-        // 2. Preg and replace characters: 
+        // 2. Preg and replace characters:
         //    - **REGEX** |[\+]{0,1} "(.{1,3})"  // U\+|
         //    - **REPLACEMENT** "$1",  // U+
-        let foldings = vec![
+        let foldings: Vec<(&[&str], &str)> = vec![
             (
-                vec![
+                &[
                     "À",  // U+00C0: LATIN CAPITAL LETTER A WITH GRAVE
                     "Á",  // U+00C1: LATIN CAPITAL LETTER A WITH ACUTE
                     "Â",  // U+00C2: LATIN CAPITAL LETTER A WITH CIRCUMFLEX
@@ -1717,10 +1697,10 @@ mod tests {
                     "Ⓐ", // U+24B6: CIRCLED LATIN CAPITAL LETTER A
                     "Ａ", // U+FF21: FULLWIDTH LATIN CAPITAL LETTER A
                 ],
-                "A".to_string(),
+                "A",
             ),
             (
-                vec![
+                &[
                     "à",  // U+00E0: LATIN SMALL LETTER A WITH GRAVE
                     "á",  // U+00E1: LATIN SMALL LETTER A WITH ACUTE
                     "â",  // U+00E2: LATIN SMALL LETTER A WITH CIRCUMFLEX
@@ -1763,96 +1743,96 @@ mod tests {
                     "Ɐ", // U+2C6F: LATIN CAPITAL LETTER TURNED A
                     "ａ", // U+FF41: FULLWIDTH LATIN SMALL LETTER A
                 ],
-                "a".to_string(),
+                "a",
             ),
             (
-                vec![
+                &[
                     "Ꜳ", // U+A732: LATIN CAPITAL LETTER AA
                 ],
-                "AA".to_string(),
+                "AA",
             ),
             (
-                vec![
+                &[
                     "Æ",  // U+00C6: LATIN CAPITAL LETTER AE
                     "Ǣ",  // U+01E2: LATIN CAPITAL LETTER AE WITH MACRON
                     "Ǽ",  // U+01FC: LATIN CAPITAL LETTER AE WITH ACUTE
                     "ᴁ", // U+1D01: LATIN LETTER SMALL CAPITAL AE
                 ],
-                "AE".to_string(),
+                "AE",
             ),
             (
-                vec![
+                &[
                     "Ꜵ", // U+A734: LATIN CAPITAL LETTER AO
                 ],
-                "AO".to_string(),
+                "AO",
             ),
             (
-                vec![
+                &[
                     "Ꜷ", // U+A736: LATIN CAPITAL LETTER AU
                 ],
-                "AU".to_string(),
+                "AU",
             ),
             (
-                vec![
+                &[
                     "Ꜹ", // U+A738: LATIN CAPITAL LETTER AV
                     "Ꜻ", // U+A73A: LATIN CAPITAL LETTER AV WITH HORIZONTAL BAR
                 ],
-                "AV".to_string(),
+                "AV",
             ),
             (
-                vec![
+                &[
                     "Ꜽ", // U+A73C: LATIN CAPITAL LETTER AY
                 ],
-                "AY".to_string(),
+                "AY",
             ),
             (
-                vec![
+                &[
                     "⒜", // U+249C: PARENTHESIZED LATIN SMALL LETTER A
                 ],
-                "(a)".to_string(),
+                "(a)",
             ),
             (
-                vec![
+                &[
                     "ꜳ", // U+A733: LATIN SMALL LETTER AA
                 ],
-                "aa".to_string(),
+                "aa",
             ),
             (
-                vec![
+                &[
                     "æ",  // U+00E6: LATIN SMALL LETTER AE
                     "ǣ",  // U+01E3: LATIN SMALL LETTER AE WITH MACRON
                     "ǽ",  // U+01FD: LATIN SMALL LETTER AE WITH ACUTE
                     "ᴂ", // U+1D02: LATIN SMALL LETTER TURNED AE
                 ],
-                "ae".to_string(),
+                "ae",
             ),
             (
-                vec![
+                &[
                     "ꜵ", // U+A735: LATIN SMALL LETTER AO
                 ],
-                "ao".to_string(),
+                "ao",
             ),
             (
-                vec![
+                &[
                     "ꜷ", // U+A737: LATIN SMALL LETTER AU
                 ],
-                "au".to_string(),
+                "au",
             ),
             (
-                vec![
+                &[
                     "ꜹ", // U+A739: LATIN SMALL LETTER AV
                     "ꜻ", // U+A73B: LATIN SMALL LETTER AV WITH HORIZONTAL BAR
                 ],
-                "av".to_string(),
+                "av",
             ),
             (
-                vec![
+                &[
                     "ꜽ", // U+A73D: LATIN SMALL LETTER AY
                 ],
-                "ay".to_string(),
+                "ay",
             ),
             (
-                vec![
+                &[
                     "Ɓ",  // U+0181: LATIN CAPITAL LETTER B WITH HOOK
                     "Ƃ",  // U+0182: LATIN CAPITAL LETTER B WITH TOPBAR
                     "Ƀ",  // U+0243: LATIN CAPITAL LETTER B WITH STROKE
@@ -1864,10 +1844,10 @@ mod tests {
                     "Ⓑ", // U+24B7: CIRCLED LATIN CAPITAL LETTER B
                     "Ｂ", // U+FF22: FULLWIDTH LATIN CAPITAL LETTER B
                 ],
-                "B".to_string(),
+                "B",
             ),
             (
-                vec![
+                &[
                     "ƀ",  // U+0180: LATIN SMALL LETTER B WITH STROKE
                     "ƃ",  // U+0183: LATIN SMALL LETTER B WITH TOPBAR
                     "ɓ",  // U+0253: LATIN SMALL LETTER B WITH HOOK
@@ -1879,16 +1859,16 @@ mod tests {
                     "ⓑ", // U+24D1: CIRCLED LATIN SMALL LETTER B
                     "ｂ", // U+FF42: FULLWIDTH LATIN SMALL LETTER B
                 ],
-                "b".to_string(),
+                "b",
             ),
             (
-                vec![
+                &[
                     "⒝", // U+249D: PARENTHESIZED LATIN SMALL LETTER B
                 ],
-                "(b)".to_string(),
+                "(b)",
             ),
             (
-                vec![
+                &[
                     "Ç",  // U+00C7: LATIN CAPITAL LETTER C WITH CEDILLA
                     "Ć",  // U+0106: LATIN CAPITAL LETTER C WITH ACUTE
                     "Ĉ",  // U+0108: LATIN CAPITAL LETTER C WITH CIRCUMFLEX
@@ -1902,10 +1882,10 @@ mod tests {
                     "Ⓒ", // U+24B8: CIRCLED LATIN CAPITAL LETTER C
                     "Ｃ", // U+FF23: FULLWIDTH LATIN CAPITAL LETTER C
                 ],
-                "C".to_string(),
+                "C",
             ),
             (
-                vec![
+                &[
                     "ç",  // U+00E7: LATIN SMALL LETTER C WITH CEDILLA
                     "ć",  // U+0107: LATIN SMALL LETTER C WITH ACUTE
                     "ĉ",  // U+0109: LATIN SMALL LETTER C WITH CIRCUMFLEX
@@ -1921,16 +1901,16 @@ mod tests {
                     "ꜿ", // U+A73F: LATIN SMALL LETTER REVERSED C WITH DOT
                     "ｃ", // U+FF43: FULLWIDTH LATIN SMALL LETTER C
                 ],
-                "c".to_string(),
+                "c",
             ),
             (
-                vec![
+                &[
                     "⒞", // U+249E: PARENTHESIZED LATIN SMALL LETTER C
                 ],
-                "(c)".to_string(),
+                "(c)",
             ),
             (
-                vec![
+                &[
                     "Ð",  // U+00D0: LATIN CAPITAL LETTER ETH
                     "Ď",  // U+010E: LATIN CAPITAL LETTER D WITH CARON
                     "Đ",  // U+0110: LATIN CAPITAL LETTER D WITH STROKE
@@ -1948,10 +1928,10 @@ mod tests {
                     "Ꝺ", // U+A779: LATIN CAPITAL LETTER INSULAR D
                     "Ｄ", // U+FF24: FULLWIDTH LATIN CAPITAL LETTER D
                 ],
-                "D".to_string(),
+                "D",
             ),
             (
-                vec![
+                &[
                     "ð",  // U+00F0: LATIN SMALL LETTER ETH
                     "ď",  // U+010F: LATIN SMALL LETTER D WITH CARON
                     "đ",  // U+0111: LATIN SMALL LETTER D WITH STROKE
@@ -1971,45 +1951,45 @@ mod tests {
                     "ꝺ", // U+A77A: LATIN SMALL LETTER INSULAR D
                     "ｄ", // U+FF44: FULLWIDTH LATIN SMALL LETTER D
                 ],
-                "d".to_string(),
+                "d",
             ),
             (
-                vec![
+                &[
                     "Ǆ", // U+01C4: LATIN CAPITAL LETTER DZ WITH CARON
                     "Ǳ", // U+01F1: LATIN CAPITAL LETTER DZ
                 ],
-                "DZ".to_string(),
+                "DZ",
             ),
             (
-                vec![
+                &[
                     "ǅ", // U+01C5: LATIN CAPITAL LETTER D WITH SMALL LETTER Z WITH CARON
                     "ǲ", // U+01F2: LATIN CAPITAL LETTER D WITH SMALL LETTER Z
                 ],
-                "Dz".to_string(),
+                "Dz",
             ),
             (
-                vec![
+                &[
                     "⒟", // U+249F: PARENTHESIZED LATIN SMALL LETTER D
                 ],
-                "(d)".to_string(),
+                "(d)",
             ),
             (
-                vec![
+                &[
                     "ȸ", // U+0238: LATIN SMALL LETTER DB DIGRAPH
                 ],
-                "db".to_string(),
+                "db",
             ),
             (
-                vec![
+                &[
                     "ǆ", // U+01C6: LATIN SMALL LETTER DZ WITH CARON
                     "ǳ", // U+01F3: LATIN SMALL LETTER DZ
                     "ʣ", // U+02A3: LATIN SMALL LETTER DZ DIGRAPH
                     "ʥ", // U+02A5: LATIN SMALL LETTER DZ DIGRAPH WITH CURL
                 ],
-                "dz".to_string(),
+                "dz",
             ),
             (
-                vec![
+                &[
                     "È",  // U+00C8: LATIN CAPITAL LETTER E WITH GRAVE
                     "É",  // U+00C9: LATIN CAPITAL LETTER E WITH ACUTE
                     "Ê",  // U+00CA: LATIN CAPITAL LETTER E WITH CIRCUMFLEX
@@ -2043,10 +2023,10 @@ mod tests {
                     "ⱻ", // U+2C7B: LATIN LETTER SMALL CAPITAL TURNED E
                     "Ｅ", // U+FF25: FULLWIDTH LATIN CAPITAL LETTER E
                 ],
-                "E".to_string(),
+                "E",
             ),
             (
-                vec![
+                &[
                     "è",  // U+00E8: LATIN SMALL LETTER E WITH GRAVE
                     "é",  // U+00E9: LATIN SMALL LETTER E WITH ACUTE
                     "ê",  // U+00EA: LATIN SMALL LETTER E WITH CIRCUMFLEX
@@ -2089,16 +2069,16 @@ mod tests {
                     "ⱸ", // U+2C78: LATIN SMALL LETTER E WITH NOTCH
                     "ｅ", // U+FF45: FULLWIDTH LATIN SMALL LETTER E
                 ],
-                "e".to_string(),
+                "e",
             ),
             (
-                vec![
+                &[
                     "⒠", // U+24A0: PARENTHESIZED LATIN SMALL LETTER E
                 ],
-                "(e)".to_string(),
+                "(e)",
             ),
             (
-                vec![
+                &[
                     "Ƒ",  // U+0191: LATIN CAPITAL LETTER F WITH HOOK
                     "Ḟ", // U+1E1E: LATIN CAPITAL LETTER F WITH DOT ABOVE
                     "Ⓕ", // U+24BB: CIRCLED LATIN CAPITAL LETTER F
@@ -2107,10 +2087,10 @@ mod tests {
                     "ꟻ", // U+A7FB: LATIN EPIGRAPHIC LETTER REVERSED F
                     "Ｆ", // U+FF26: FULLWIDTH LATIN CAPITAL LETTER F
                 ],
-                "F".to_string(),
+                "F",
             ),
             (
-                vec![
+                &[
                     "ƒ",  // U+0192: LATIN SMALL LETTER F WITH HOOK
                     "ᵮ", // U+1D6E: LATIN SMALL LETTER F WITH MIDDLE TILDE
                     "ᶂ", // U+1D82: LATIN SMALL LETTER F WITH PALATAL HOOK
@@ -2120,46 +2100,46 @@ mod tests {
                     "ꝼ", // U+A77C: LATIN SMALL LETTER INSULAR F
                     "ｆ", // U+FF46: FULLWIDTH LATIN SMALL LETTER F
                 ],
-                "f".to_string(),
+                "f",
             ),
             (
-                vec![
+                &[
                     "⒡", // U+24A1: PARENTHESIZED LATIN SMALL LETTER F
                 ],
-                "(f)".to_string(),
+                "(f)",
             ),
             (
-                vec![
+                &[
                     "ﬀ", // U+FB00: LATIN SMALL LIGATURE FF
                 ],
-                "ff".to_string(),
+                "ff",
             ),
             (
-                vec![
+                &[
                     "ﬃ", // U+FB03: LATIN SMALL LIGATURE FFI
                 ],
-                "ffi".to_string(),
+                "ffi",
             ),
             (
-                vec![
+                &[
                     "ﬄ", // U+FB04: LATIN SMALL LIGATURE FFL
                 ],
-                "ffl".to_string(),
+                "ffl",
             ),
             (
-                vec![
+                &[
                     "ﬁ", // U+FB01: LATIN SMALL LIGATURE FI
                 ],
-                "fi".to_string(),
+                "fi",
             ),
             (
-                vec![
+                &[
                     "ﬂ", // U+FB02: LATIN SMALL LIGATURE FL
                 ],
-                "fl".to_string(),
+                "fl",
             ),
             (
-                vec![
+                &[
                     "Ĝ",  // U+011C: LATIN CAPITAL LETTER G WITH CIRCUMFLEX
                     "Ğ",  // U+011E: LATIN CAPITAL LETTER G WITH BREVE
                     "Ġ",  // U+0120: LATIN CAPITAL LETTER G WITH DOT ABOVE
@@ -2178,10 +2158,10 @@ mod tests {
                     "Ꝿ", // U+A77E: LATIN CAPITAL LETTER TURNED INSULAR G
                     "Ｇ", // U+FF27: FULLWIDTH LATIN CAPITAL LETTER G
                 ],
-                "G".to_string(),
+                "G",
             ),
             (
-                vec![
+                &[
                     "ĝ",  // U+011D: LATIN SMALL LETTER G WITH CIRCUMFLEX
                     "ğ",  // U+011F: LATIN SMALL LETTER G WITH BREVE
                     "ġ",  // U+0121: LATIN SMALL LETTER G WITH DOT ABOVE
@@ -2197,16 +2177,16 @@ mod tests {
                     "ꝿ", // U+A77F: LATIN SMALL LETTER TURNED INSULAR G
                     "ｇ", // U+FF47: FULLWIDTH LATIN SMALL LETTER G
                 ],
-                "g".to_string(),
+                "g",
             ),
             (
-                vec![
+                &[
                     "⒢", // U+24A2: PARENTHESIZED LATIN SMALL LETTER G
                 ],
-                "(g)".to_string(),
+                "(g)",
             ),
             (
-                vec![
+                &[
                     "Ĥ",  // U+0124: LATIN CAPITAL LETTER H WITH CIRCUMFLEX
                     "Ħ",  // U+0126: LATIN CAPITAL LETTER H WITH STROKE
                     "Ȟ",  // U+021E: LATIN CAPITAL LETTER H WITH CARON
@@ -2221,10 +2201,10 @@ mod tests {
                     "Ⱶ", // U+2C75: LATIN CAPITAL LETTER HALF H
                     "Ｈ", // U+FF28: FULLWIDTH LATIN CAPITAL LETTER H
                 ],
-                "H".to_string(),
+                "H",
             ),
             (
-                vec![
+                &[
                     "ĥ",  // U+0125: LATIN SMALL LETTER H WITH CIRCUMFLEX
                     "ħ",  // U+0127: LATIN SMALL LETTER H WITH STROKE
                     "ȟ",  // U+021F: LATIN SMALL LETTER H WITH CARON
@@ -2243,28 +2223,28 @@ mod tests {
                     "ⱶ", // U+2C76: LATIN SMALL LETTER HALF H
                     "ｈ", // U+FF48: FULLWIDTH LATIN SMALL LETTER H
                 ],
-                "h".to_string(),
+                "h",
             ),
             (
-                vec![
+                &[
                     "Ƕ", // U+01F6: LATIN CAPITAL LETTER HWAIR
                 ],
-                "HV".to_string(),
+                "HV",
             ),
             (
-                vec![
+                &[
                     "⒣", // U+24A3: PARENTHESIZED LATIN SMALL LETTER H
                 ],
-                "(h)".to_string(),
+                "(h)",
             ),
             (
-                vec![
+                &[
                     "ƕ", // U+0195: LATIN SMALL LETTER HV
                 ],
-                "hv".to_string(),
+                "hv",
             ),
             (
-                vec![
+                &[
                     "Ì",  // U+00CC: LATIN CAPITAL LETTER I WITH GRAVE
                     "Í",  // U+00CD: LATIN CAPITAL LETTER I WITH ACUTE
                     "Î",  // U+00CE: LATIN CAPITAL LETTER I WITH CIRCUMFLEX
@@ -2289,10 +2269,10 @@ mod tests {
                     "ꟾ", // U+A7FE: LATIN EPIGRAPHIC LETTER I LONGA
                     "Ｉ", // U+FF29: FULLWIDTH LATIN CAPITAL LETTER I
                 ],
-                "I".to_string(),
+                "I",
             ),
             (
-                vec![
+                &[
                     "ì",  // U+00EC: LATIN SMALL LETTER I WITH GRAVE
                     "í",  // U+00ED: LATIN SMALL LETTER I WITH ACUTE
                     "î",  // U+00EE: LATIN SMALL LETTER I WITH CIRCUMFLEX
@@ -2318,38 +2298,38 @@ mod tests {
                     "ⓘ", // U+24D8: CIRCLED LATIN SMALL LETTER I
                     "ｉ", // U+FF49: FULLWIDTH LATIN SMALL LETTER I
                 ],
-                "i".to_string(),
+                "i",
             ),
             (
-                vec![
+                &[
                     "Ĳ", // U+0132: LATIN CAPITAL LIGATURE IJ
                 ],
-                "IJ".to_string(),
+                "IJ",
             ),
             (
-                vec![
+                &[
                     "⒤", // U+24A4: PARENTHESIZED LATIN SMALL LETTER I
                 ],
-                "(i)".to_string(),
+                "(i)",
             ),
             (
-                vec![
+                &[
                     "ĳ", // U+0133: LATIN SMALL LIGATURE IJ
                 ],
-                "ij".to_string(),
+                "ij",
             ),
             (
-                vec![
+                &[
                     "Ĵ",  // U+0134: LATIN CAPITAL LETTER J WITH CIRCUMFLEX
                     "Ɉ",  // U+0248: LATIN CAPITAL LETTER J WITH STROKE
                     "ᴊ", // U+1D0A: LATIN LETTER SMALL CAPITAL J
                     "Ⓙ", // U+24BF: CIRCLED LATIN CAPITAL LETTER J
                     "Ｊ", // U+FF2A: FULLWIDTH LATIN CAPITAL LETTER J
                 ],
-                "J".to_string(),
+                "J",
             ),
             (
-                vec![
+                &[
                     "ĵ",  // U+0135: LATIN SMALL LETTER J WITH CIRCUMFLEX
                     "ǰ",  // U+01F0: LATIN SMALL LETTER J WITH CARON
                     "ȷ",  // U+0237: LATIN SMALL LETTER DOTLESS J
@@ -2361,16 +2341,16 @@ mod tests {
                     "ⱼ", // U+2C7C: LATIN SUBSCRIPT SMALL LETTER J
                     "ｊ", // U+FF4A: FULLWIDTH LATIN SMALL LETTER J
                 ],
-                "j".to_string(),
+                "j",
             ),
             (
-                vec![
+                &[
                     "⒥", // U+24A5: PARENTHESIZED LATIN SMALL LETTER J
                 ],
-                "(j)".to_string(),
+                "(j)",
             ),
             (
-                vec![
+                &[
                     "Ķ",  // U+0136: LATIN CAPITAL LETTER K WITH CEDILLA
                     "Ƙ",  // U+0198: LATIN CAPITAL LETTER K WITH HOOK
                     "Ǩ",  // U+01E8: LATIN CAPITAL LETTER K WITH CARON
@@ -2385,10 +2365,10 @@ mod tests {
                     "Ꝅ", // U+A744: LATIN CAPITAL LETTER K WITH STROKE AND DIAGONAL STROKE
                     "Ｋ", // U+FF2B: FULLWIDTH LATIN CAPITAL LETTER K
                 ],
-                "K".to_string(),
+                "K",
             ),
             (
-                vec![
+                &[
                     "ķ",  // U+0137: LATIN SMALL LETTER K WITH CEDILLA
                     "ƙ",  // U+0199: LATIN SMALL LETTER K WITH HOOK
                     "ǩ",  // U+01E9: LATIN SMALL LETTER K WITH CARON
@@ -2404,16 +2384,16 @@ mod tests {
                     "ꝅ", // U+A745: LATIN SMALL LETTER K WITH STROKE AND DIAGONAL STROKE
                     "ｋ", // U+FF4B: FULLWIDTH LATIN SMALL LETTER K
                 ],
-                "k".to_string(),
+                "k",
             ),
             (
-                vec![
+                &[
                     "⒦", // U+24A6: PARENTHESIZED LATIN SMALL LETTER K
                 ],
-                "(k)".to_string(),
+                "(k)",
             ),
             (
-                vec![
+                &[
                     "Ĺ",  // U+0139: LATIN CAPITAL LETTER L WITH ACUTE
                     "Ļ",  // U+013B: LATIN CAPITAL LETTER L WITH CEDILLA
                     "Ľ",  // U+013D: LATIN CAPITAL LETTER L WITH CARON
@@ -2434,10 +2414,10 @@ mod tests {
                     "Ꞁ", // U+A780: LATIN CAPITAL LETTER TURNED L
                     "Ｌ", // U+FF2C: FULLWIDTH LATIN CAPITAL LETTER L
                 ],
-                "L".to_string(),
+                "L",
             ),
             (
-                vec![
+                &[
                     "ĺ",  // U+013A: LATIN SMALL LETTER L WITH ACUTE
                     "ļ",  // U+013C: LATIN SMALL LETTER L WITH CEDILLA
                     "ľ",  // U+013E: LATIN SMALL LETTER L WITH CARON
@@ -2460,58 +2440,58 @@ mod tests {
                     "ꞁ", // U+A781: LATIN SMALL LETTER TURNED L
                     "ｌ", // U+FF4C: FULLWIDTH LATIN SMALL LETTER L
                 ],
-                "l".to_string(),
+                "l",
             ),
             (
-                vec![
+                &[
                     "Ǉ", // U+01C7: LATIN CAPITAL LETTER LJ
                 ],
-                "LJ".to_string(),
+                "LJ",
             ),
             (
-                vec![
+                &[
                     "Ỻ", // U+1EFA: LATIN CAPITAL LETTER MIDDLE-WELSH LL
                 ],
-                "LL".to_string(),
+                "LL",
             ),
             (
-                vec![
+                &[
                     "ǈ", // U+01C8: LATIN CAPITAL LETTER L WITH SMALL LETTER J
                 ],
-                "Lj".to_string(),
+                "Lj",
             ),
             (
-                vec![
+                &[
                     "⒧", // U+24A7: PARENTHESIZED LATIN SMALL LETTER L
                 ],
-                "(l)".to_string(),
+                "(l)",
             ),
             (
-                vec![
+                &[
                     "ǉ", // U+01C9: LATIN SMALL LETTER LJ
                 ],
-                "lj".to_string(),
+                "lj",
             ),
             (
-                vec![
+                &[
                     "ỻ", // U+1EFB: LATIN SMALL LETTER MIDDLE-WELSH LL
                 ],
-                "ll".to_string(),
+                "ll",
             ),
             (
-                vec![
+                &[
                     "ʪ", // U+02AA: LATIN SMALL LETTER LS DIGRAPH
                 ],
-                "ls".to_string(),
+                "ls",
             ),
             (
-                vec![
+                &[
                     "ʫ", // U+02AB: LATIN SMALL LETTER LZ DIGRAPH
                 ],
-                "lz".to_string(),
+                "lz",
             ),
             (
-                vec![
+                &[
                     "Ɯ",  // U+019C: LATIN CAPITAL LETTER TURNED M
                     "ᴍ", // U+1D0D: LATIN LETTER SMALL CAPITAL M
                     "Ḿ", // U+1E3E: LATIN CAPITAL LETTER M WITH ACUTE
@@ -2523,10 +2503,10 @@ mod tests {
                     "ꟿ", // U+A7FF: LATIN EPIGRAPHIC LETTER ARCHAIC M
                     "Ｍ", // U+FF2D: FULLWIDTH LATIN CAPITAL LETTER M
                 ],
-                "M".to_string(),
+                "M",
             ),
             (
-                vec![
+                &[
                     "ɯ",  // U+026F: LATIN SMALL LETTER TURNED M
                     "ɰ",  // U+0270: LATIN SMALL LETTER TURNED M WITH LONG LEG
                     "ɱ",  // U+0271: LATIN SMALL LETTER M WITH HOOK
@@ -2538,16 +2518,16 @@ mod tests {
                     "ⓜ", // U+24DC: CIRCLED LATIN SMALL LETTER M
                     "ｍ", // U+FF4D: FULLWIDTH LATIN SMALL LETTER M
                 ],
-                "m".to_string(),
+                "m",
             ),
             (
-                vec![
+                &[
                     "⒨", // U+24A8: PARENTHESIZED LATIN SMALL LETTER M
                 ],
-                "(m)".to_string(),
+                "(m)",
             ),
             (
-                vec![
+                &[
                     "Ñ",  // U+00D1: LATIN CAPITAL LETTER N WITH TILDE
                     "Ń",  // U+0143: LATIN CAPITAL LETTER N WITH ACUTE
                     "Ņ",  // U+0145: LATIN CAPITAL LETTER N WITH CEDILLA
@@ -2565,10 +2545,10 @@ mod tests {
                     "Ⓝ", // U+24C3: CIRCLED LATIN CAPITAL LETTER N
                     "Ｎ", // U+FF2E: FULLWIDTH LATIN CAPITAL LETTER N
                 ],
-                "N".to_string(),
+                "N",
             ),
             (
-                vec![
+                &[
                     "ñ",  // U+00F1: LATIN SMALL LETTER N WITH TILDE
                     "ń",  // U+0144: LATIN SMALL LETTER N WITH ACUTE
                     "ņ",  // U+0146: LATIN SMALL LETTER N WITH CEDILLA
@@ -2590,34 +2570,34 @@ mod tests {
                     "ⓝ", // U+24DD: CIRCLED LATIN SMALL LETTER N
                     "ｎ", // U+FF4E: FULLWIDTH LATIN SMALL LETTER N
                 ],
-                "n".to_string(),
+                "n",
             ),
             (
-                vec![
+                &[
                     "Ǌ", // U+01CA: LATIN CAPITAL LETTER NJ
                 ],
-                "NJ".to_string(),
+                "NJ",
             ),
             (
-                vec![
+                &[
                     "ǋ", // U+01CB: LATIN CAPITAL LETTER N WITH SMALL LETTER J
                 ],
-                "Nj".to_string(),
+                "Nj",
             ),
             (
-                vec![
+                &[
                     "⒩", // U+24A9: PARENTHESIZED LATIN SMALL LETTER N
                 ],
-                "(n)".to_string(),
+                "(n)",
             ),
             (
-                vec![
+                &[
                     "ǌ", // U+01CC: LATIN SMALL LETTER NJ
                 ],
-                "nj".to_string(),
+                "nj",
             ),
             (
-                vec![
+                &[
                     "Ò",  // U+00D2: LATIN CAPITAL LETTER O WITH GRAVE
                     "Ó",  // U+00D3: LATIN CAPITAL LETTER O WITH ACUTE
                     "Ô",  // U+00D4: LATIN CAPITAL LETTER O WITH CIRCUMFLEX
@@ -2663,10 +2643,10 @@ mod tests {
                     "Ꝍ", // U+A74C: LATIN CAPITAL LETTER O WITH LOOP
                     "Ｏ", // U+FF2F: FULLWIDTH LATIN CAPITAL LETTER O
                 ],
-                "O".to_string(),
+                "O",
             ),
             (
-                vec![
+                &[
                     "ò",  // U+00F2: LATIN SMALL LETTER O WITH GRAVE
                     "ó",  // U+00F3: LATIN SMALL LETTER O WITH ACUTE
                     "ô",  // U+00F4: LATIN SMALL LETTER O WITH CIRCUMFLEX
@@ -2715,55 +2695,55 @@ mod tests {
                     "ꝍ", // U+A74D: LATIN SMALL LETTER O WITH LOOP
                     "ｏ", // U+FF4F: FULLWIDTH LATIN SMALL LETTER O
                 ],
-                "o".to_string(),
+                "o",
             ),
             (
-                vec![
+                &[
                     "Œ", // U+0152: LATIN CAPITAL LIGATURE OE
                     "ɶ", // U+0276: LATIN LETTER SMALL CAPITAL OE
                 ],
-                "OE".to_string(),
+                "OE",
             ),
             (
-                vec![
+                &[
                     "Ꝏ", // U+A74E: LATIN CAPITAL LETTER OO
                 ],
-                "OO".to_string(),
+                "OO",
             ),
             (
-                vec![
+                &[
                     "Ȣ",  // U+0222: LATIN CAPITAL LETTER OU
                     "ᴕ", // U+1D15: LATIN LETTER SMALL CAPITAL OU
                 ],
-                "OU".to_string(),
+                "OU",
             ),
             (
-                vec![
+                &[
                     "⒪", // U+24AA: PARENTHESIZED LATIN SMALL LETTER O
                 ],
-                "(o)".to_string(),
+                "(o)",
             ),
             (
-                vec![
+                &[
                     "œ",  // U+0153: LATIN SMALL LIGATURE OE
                     "ᴔ", // U+1D14: LATIN SMALL LETTER TURNED OE
                 ],
-                "oe".to_string(),
+                "oe",
             ),
             (
-                vec![
+                &[
                     "ꝏ", // U+A74F: LATIN SMALL LETTER OO
                 ],
-                "oo".to_string(),
+                "oo",
             ),
             (
-                vec![
+                &[
                     "ȣ", // U+0223: LATIN SMALL LETTER OU
                 ],
-                "ou".to_string(),
+                "ou",
             ),
             (
-                vec![
+                &[
                     "Ƥ",  // U+01A4: LATIN CAPITAL LETTER P WITH HOOK
                     "ᴘ", // U+1D18: LATIN LETTER SMALL CAPITAL P
                     "Ṕ", // U+1E54: LATIN CAPITAL LETTER P WITH ACUTE
@@ -2775,10 +2755,10 @@ mod tests {
                     "Ꝕ", // U+A754: LATIN CAPITAL LETTER P WITH SQUIRREL TAIL
                     "Ｐ", // U+FF30: FULLWIDTH LATIN CAPITAL LETTER P
                 ],
-                "P".to_string(),
+                "P",
             ),
             (
-                vec![
+                &[
                     "ƥ",  // U+01A5: LATIN SMALL LETTER P WITH HOOK
                     "ᵱ", // U+1D71: LATIN SMALL LETTER P WITH MIDDLE TILDE
                     "ᵽ", // U+1D7D: LATIN SMALL LETTER P WITH STROKE
@@ -2792,26 +2772,26 @@ mod tests {
                     "ꟼ", // U+A7FC: LATIN EPIGRAPHIC LETTER REVERSED P
                     "ｐ", // U+FF50: FULLWIDTH LATIN SMALL LETTER P
                 ],
-                "p".to_string(),
+                "p",
             ),
             (
-                vec![
+                &[
                     "⒫", // U+24AB: PARENTHESIZED LATIN SMALL LETTER P
                 ],
-                "(p)".to_string(),
+                "(p)",
             ),
             (
-                vec![
+                &[
                     "Ɋ",  // U+024A: LATIN CAPITAL LETTER SMALL Q WITH HOOK TAIL
                     "Ⓠ", // U+24C6: CIRCLED LATIN CAPITAL LETTER Q
                     "Ꝗ", // U+A756: LATIN CAPITAL LETTER Q WITH STROKE THROUGH DESCENDER
                     "Ꝙ", // U+A758: LATIN CAPITAL LETTER Q WITH DIAGONAL STROKE
                     "Ｑ", // U+FF31: FULLWIDTH LATIN CAPITAL LETTER Q
                 ],
-                "Q".to_string(),
+                "Q",
             ),
             (
-                vec![
+                &[
                     "ĸ",  // U+0138: LATIN SMALL LETTER KRA
                     "ɋ",  // U+024B: LATIN SMALL LETTER Q WITH HOOK TAIL
                     "ʠ",  // U+02A0: LATIN SMALL LETTER Q WITH HOOK
@@ -2820,22 +2800,22 @@ mod tests {
                     "ꝙ", // U+A759: LATIN SMALL LETTER Q WITH DIAGONAL STROKE
                     "ｑ", // U+FF51: FULLWIDTH LATIN SMALL LETTER Q
                 ],
-                "q".to_string(),
+                "q",
             ),
             (
-                vec![
+                &[
                     "⒬", // U+24AC: PARENTHESIZED LATIN SMALL LETTER Q
                 ],
-                "(q)".to_string(),
+                "(q)",
             ),
             (
-                vec![
+                &[
                     "ȹ", // U+0239: LATIN SMALL LETTER QP DIGRAPH
                 ],
-                "qp".to_string(),
+                "qp",
             ),
             (
-                vec![
+                &[
                     "Ŕ",  // U+0154: LATIN CAPITAL LETTER R WITH ACUTE
                     "Ŗ",  // U+0156: LATIN CAPITAL LETTER R WITH CEDILLA
                     "Ř",  // U+0158: LATIN CAPITAL LETTER R WITH CARON
@@ -2856,10 +2836,10 @@ mod tests {
                     "Ꞃ", // U+A782: LATIN CAPITAL LETTER INSULAR R
                     "Ｒ", // U+FF32: FULLWIDTH LATIN CAPITAL LETTER R
                 ],
-                "R".to_string(),
+                "R",
             ),
             (
-                vec![
+                &[
                     "ŕ",  // U+0155: LATIN SMALL LETTER R WITH ACUTE
                     "ŗ",  // U+0157: LATIN SMALL LETTER R WITH CEDILLA
                     "ř",  // U+0159: LATIN SMALL LETTER R WITH CARON
@@ -2883,16 +2863,16 @@ mod tests {
                     "ꞃ", // U+A783: LATIN SMALL LETTER INSULAR R
                     "ｒ", // U+FF52: FULLWIDTH LATIN SMALL LETTER R
                 ],
-                "r".to_string(),
+                "r",
             ),
             (
-                vec![
+                &[
                     "⒭", // U+24AD: PARENTHESIZED LATIN SMALL LETTER R
                 ],
-                "(r)".to_string(),
+                "(r)",
             ),
             (
-                vec![
+                &[
                     "Ś",  // U+015A: LATIN CAPITAL LETTER S WITH ACUTE
                     "Ŝ",  // U+015C: LATIN CAPITAL LETTER S WITH CIRCUMFLEX
                     "Ş",  // U+015E: LATIN CAPITAL LETTER S WITH CEDILLA
@@ -2908,10 +2888,10 @@ mod tests {
                     "ꞅ", // U+A785: LATIN SMALL LETTER INSULAR S
                     "Ｓ", // U+FF33: FULLWIDTH LATIN CAPITAL LETTER S
                 ],
-                "S".to_string(),
+                "S",
             ),
             (
-                vec![
+                &[
                     "ś",  // U+015B: LATIN SMALL LETTER S WITH ACUTE
                     "ŝ",  // U+015D: LATIN SMALL LETTER S WITH CIRCUMFLEX
                     "ş",  // U+015F: LATIN SMALL LETTER S WITH CEDILLA
@@ -2933,34 +2913,34 @@ mod tests {
                     "Ꞅ", // U+A784: LATIN CAPITAL LETTER INSULAR S
                     "ｓ", // U+FF53: FULLWIDTH LATIN SMALL LETTER S
                 ],
-                "s".to_string(),
+                "s",
             ),
             (
-                vec![
+                &[
                     "ẞ", // U+1E9E: LATIN CAPITAL LETTER SHARP S
                 ],
-                "SS".to_string(),
+                "SS",
             ),
             (
-                vec![
+                &[
                     "⒮", // U+24AE: PARENTHESIZED LATIN SMALL LETTER S
                 ],
-                "(s)".to_string(),
+                "(s)",
             ),
             (
-                vec![
+                &[
                     "ß", // U+00DF: LATIN SMALL LETTER SHARP S
                 ],
-                "ss".to_string(),
+                "ss",
             ),
             (
-                vec![
+                &[
                     "ﬆ", // U+FB06: LATIN SMALL LIGATURE ST
                 ],
-                "st".to_string(),
+                "st",
             ),
             (
-                vec![
+                &[
                     "Ţ",  // U+0162: LATIN CAPITAL LETTER T WITH CEDILLA
                     "Ť",  // U+0164: LATIN CAPITAL LETTER T WITH CARON
                     "Ŧ",  // U+0166: LATIN CAPITAL LETTER T WITH STROKE
@@ -2977,10 +2957,10 @@ mod tests {
                     "Ꞇ", // U+A786: LATIN CAPITAL LETTER INSULAR T
                     "Ｔ", // U+FF34: FULLWIDTH LATIN CAPITAL LETTER T
                 ],
-                "T".to_string(),
+                "T",
             ),
             (
-                vec![
+                &[
                     "ţ",  // U+0163: LATIN SMALL LETTER T WITH CEDILLA
                     "ť",  // U+0165: LATIN SMALL LETTER T WITH CARON
                     "ŧ",  // U+0167: LATIN SMALL LETTER T WITH STROKE
@@ -3000,55 +2980,55 @@ mod tests {
                     "ⱦ", // U+2C66: LATIN SMALL LETTER T WITH DIAGONAL STROKE
                     "ｔ", // U+FF54: FULLWIDTH LATIN SMALL LETTER T
                 ],
-                "t".to_string(),
+                "t",
             ),
             (
-                vec![
+                &[
                     "Þ",  // U+00DE: LATIN CAPITAL LETTER THORN
                     "Ꝧ", // U+A766: LATIN CAPITAL LETTER THORN WITH STROKE THROUGH DESCENDER
                 ],
-                "TH".to_string(),
+                "TH",
             ),
             (
-                vec![
+                &[
                     "Ꜩ", // U+A728: LATIN CAPITAL LETTER TZ
                 ],
-                "TZ".to_string(),
+                "TZ",
             ),
             (
-                vec![
+                &[
                     "⒯", // U+24AF: PARENTHESIZED LATIN SMALL LETTER T
                 ],
-                "(t)".to_string(),
+                "(t)",
             ),
             (
-                vec![
+                &[
                     "ʨ", // U+02A8: LATIN SMALL LETTER TC DIGRAPH WITH CURL
                 ],
-                "tc".to_string(),
+                "tc",
             ),
             (
-                vec![
+                &[
                     "þ",  // U+00FE: LATIN SMALL LETTER THORN
                     "ᵺ", // U+1D7A: LATIN SMALL LETTER TH WITH STRIKETHROUGH
                     "ꝧ", // U+A767: LATIN SMALL LETTER THORN WITH STROKE THROUGH DESCENDER
                 ],
-                "th".to_string(),
+                "th",
             ),
             (
-                vec![
+                &[
                     "ʦ", // U+02A6: LATIN SMALL LETTER TS DIGRAPH
                 ],
-                "ts".to_string(),
+                "ts",
             ),
             (
-                vec![
+                &[
                     "ꜩ", // U+A729: LATIN SMALL LETTER TZ
                 ],
-                "tz".to_string(),
+                "tz",
             ),
             (
-                vec![
+                &[
                     "Ù",  // U+00D9: LATIN CAPITAL LETTER U WITH GRAVE
                     "Ú",  // U+00DA: LATIN CAPITAL LETTER U WITH ACUTE
                     "Û",  // U+00DB: LATIN CAPITAL LETTER U WITH CIRCUMFLEX
@@ -3085,10 +3065,10 @@ mod tests {
                     "Ⓤ", // U+24CA: CIRCLED LATIN CAPITAL LETTER U
                     "Ｕ", // U+FF35: FULLWIDTH LATIN CAPITAL LETTER U
                 ],
-                "U".to_string(),
+                "U",
             ),
             (
-                vec![
+                &[
                     "ù",  // U+00F9: LATIN SMALL LETTER U WITH GRAVE
                     "ú",  // U+00FA: LATIN SMALL LETTER U WITH ACUTE
                     "û",  // U+00FB: LATIN SMALL LETTER U WITH CIRCUMFLEX
@@ -3125,22 +3105,22 @@ mod tests {
                     "ⓤ", // U+24E4: CIRCLED LATIN SMALL LETTER U
                     "ｕ", // U+FF55: FULLWIDTH LATIN SMALL LETTER U
                 ],
-                "u".to_string(),
+                "u",
             ),
             (
-                vec![
+                &[
                     "⒰", // U+24B0: PARENTHESIZED LATIN SMALL LETTER U
                 ],
-                "(u)".to_string(),
+                "(u)",
             ),
             (
-                vec![
+                &[
                     "ᵫ", // U+1D6B: LATIN SMALL LETTER UE
                 ],
-                "ue".to_string(),
+                "ue",
             ),
             (
-                vec![
+                &[
                     "Ʋ",  // U+01B2: LATIN CAPITAL LETTER V WITH HOOK
                     "Ʌ",  // U+0245: LATIN CAPITAL LETTER TURNED V
                     "ᴠ", // U+1D20: LATIN LETTER SMALL CAPITAL V
@@ -3152,10 +3132,10 @@ mod tests {
                     "Ꝩ", // U+A768: LATIN CAPITAL LETTER VEND
                     "Ｖ", // U+FF36: FULLWIDTH LATIN CAPITAL LETTER V
                 ],
-                "V".to_string(),
+                "V",
             ),
             (
-                vec![
+                &[
                     "ʋ",  // U+028B: LATIN SMALL LETTER V WITH HOOK
                     "ʌ",  // U+028C: LATIN SMALL LETTER TURNED V
                     "ᵥ", // U+1D65: LATIN SUBSCRIPT SMALL LETTER V
@@ -3168,28 +3148,28 @@ mod tests {
                     "ꝟ", // U+A75F: LATIN SMALL LETTER V WITH DIAGONAL STROKE
                     "ｖ", // U+FF56: FULLWIDTH LATIN SMALL LETTER V
                 ],
-                "v".to_string(),
+                "v",
             ),
             (
-                vec![
+                &[
                     "Ꝡ", // U+A760: LATIN CAPITAL LETTER VY
                 ],
-                "VY".to_string(),
+                "VY",
             ),
             (
-                vec![
+                &[
                     "⒱", // U+24B1: PARENTHESIZED LATIN SMALL LETTER V
                 ],
-                "(v)".to_string(),
+                "(v)",
             ),
             (
-                vec![
+                &[
                     "ꝡ", // U+A761: LATIN SMALL LETTER VY
                 ],
-                "vy".to_string(),
+                "vy",
             ),
             (
-                vec![
+                &[
                     "Ŵ",  // U+0174: LATIN CAPITAL LETTER W WITH CIRCUMFLEX
                     "Ƿ",  // U+01F7: LATIN CAPITAL LETTER WYNN
                     "ᴡ", // U+1D21: LATIN LETTER SMALL CAPITAL W
@@ -3202,10 +3182,10 @@ mod tests {
                     "Ⱳ", // U+2C72: LATIN CAPITAL LETTER W WITH HOOK
                     "Ｗ", // U+FF37: FULLWIDTH LATIN CAPITAL LETTER W
                 ],
-                "W".to_string(),
+                "W",
             ),
             (
-                vec![
+                &[
                     "ŵ",  // U+0175: LATIN SMALL LETTER W WITH CIRCUMFLEX
                     "ƿ",  // U+01BF: LATIN LETTER WYNN
                     "ʍ",  // U+028D: LATIN SMALL LETTER TURNED W
@@ -3219,25 +3199,25 @@ mod tests {
                     "ⱳ", // U+2C73: LATIN SMALL LETTER W WITH HOOK
                     "ｗ", // U+FF57: FULLWIDTH LATIN SMALL LETTER W
                 ],
-                "w".to_string(),
+                "w",
             ),
             (
-                vec![
+                &[
                     "⒲", // U+24B2: PARENTHESIZED LATIN SMALL LETTER W
                 ],
-                "(w)".to_string(),
+                "(w)",
             ),
             (
-                vec![
+                &[
                     "Ẋ", // U+1E8A: LATIN CAPITAL LETTER X WITH DOT ABOVE
                     "Ẍ", // U+1E8C: LATIN CAPITAL LETTER X WITH DIAERESIS
                     "Ⓧ", // U+24CD: CIRCLED LATIN CAPITAL LETTER X
                     "Ｘ", // U+FF38: FULLWIDTH LATIN CAPITAL LETTER X
                 ],
-                "X".to_string(),
+                "X",
             ),
             (
-                vec![
+                &[
                     "ᶍ", // U+1D8D: LATIN SMALL LETTER X WITH PALATAL HOOK
                     "ẋ", // U+1E8B: LATIN SMALL LETTER X WITH DOT ABOVE
                     "ẍ", // U+1E8D: LATIN SMALL LETTER X WITH DIAERESIS
@@ -3245,16 +3225,16 @@ mod tests {
                     "ⓧ", // U+24E7: CIRCLED LATIN SMALL LETTER X
                     "ｘ", // U+FF58: FULLWIDTH LATIN SMALL LETTER X
                 ],
-                "x".to_string(),
+                "x",
             ),
             (
-                vec![
+                &[
                     "⒳", // U+24B3: PARENTHESIZED LATIN SMALL LETTER X
                 ],
-                "(x)".to_string(),
+                "(x)",
             ),
             (
-                vec![
+                &[
                     "Ý",  // U+00DD: LATIN CAPITAL LETTER Y WITH ACUTE
                     "Ŷ",  // U+0176: LATIN CAPITAL LETTER Y WITH CIRCUMFLEX
                     "Ÿ",  // U+0178: LATIN CAPITAL LETTER Y WITH DIAERESIS
@@ -3271,10 +3251,10 @@ mod tests {
                     "Ⓨ", // U+24CE: CIRCLED LATIN CAPITAL LETTER Y
                     "Ｙ", // U+FF39: FULLWIDTH LATIN CAPITAL LETTER Y
                 ],
-                "Y".to_string(),
+                "Y",
             ),
             (
-                vec![
+                &[
                     "ý",  // U+00FD: LATIN SMALL LETTER Y WITH ACUTE
                     "ÿ",  // U+00FF: LATIN SMALL LETTER Y WITH DIAERESIS
                     "ŷ",  // U+0177: LATIN SMALL LETTER Y WITH CIRCUMFLEX
@@ -3292,16 +3272,16 @@ mod tests {
                     "ⓨ", // U+24E8: CIRCLED LATIN SMALL LETTER Y
                     "ｙ", // U+FF59: FULLWIDTH LATIN SMALL LETTER Y
                 ],
-                "y".to_string(),
+                "y",
             ),
             (
-                vec![
+                &[
                     "⒴", // U+24B4: PARENTHESIZED LATIN SMALL LETTER Y
                 ],
-                "(y)".to_string(),
+                "(y)",
             ),
             (
-                vec![
+                &[
                     "Ź",  // U+0179: LATIN CAPITAL LETTER Z WITH ACUTE
                     "Ż",  // U+017B: LATIN CAPITAL LETTER Z WITH DOT ABOVE
                     "Ž",  // U+017D: LATIN CAPITAL LETTER Z WITH CARON
@@ -3317,10 +3297,10 @@ mod tests {
                     "Ꝣ", // U+A762: LATIN CAPITAL LETTER VISIGOTHIC Z
                     "Ｚ", // U+FF3A: FULLWIDTH LATIN CAPITAL LETTER Z
                 ],
-                "Z".to_string(),
+                "Z",
             ),
             (
-                vec![
+                &[
                     "ź",  // U+017A: LATIN SMALL LETTER Z WITH ACUTE
                     "ż",  // U+017C: LATIN SMALL LETTER Z WITH DOT ABOVE
                     "ž",  // U+017E: LATIN SMALL LETTER Z WITH CARON
@@ -3340,26 +3320,26 @@ mod tests {
                     "ꝣ", // U+A763: LATIN SMALL LETTER VISIGOTHIC Z
                     "ｚ", // U+FF5A: FULLWIDTH LATIN SMALL LETTER Z
                 ],
-                "z".to_string(),
+                "z",
             ),
             (
-                vec![
+                &[
                     "⒵", // U+24B5: PARENTHESIZED LATIN SMALL LETTER Z
                 ],
-                "(z)".to_string(),
+                "(z)",
             ),
             (
-                vec![
+                &[
                     "⁰", // U+2070: SUPERSCRIPT ZERO
                     "₀", // U+2080: SUBSCRIPT ZERO
                     "⓪", // U+24EA: CIRCLED DIGIT ZERO
                     "⓿", // U+24FF: NEGATIVE CIRCLED DIGIT ZERO
                     "０", // U+FF10: FULLWIDTH DIGIT ZERO
                 ],
-                "0".to_string(),
+                "0",
             ),
             (
-                vec![
+                &[
                     "¹",  // U+00B9: SUPERSCRIPT ONE
                     "₁", // U+2081: SUBSCRIPT ONE
                     "①", // U+2460: CIRCLED DIGIT ONE
@@ -3369,22 +3349,22 @@ mod tests {
                     "➊", // U+278A: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT ONE
                     "１", // U+FF11: FULLWIDTH DIGIT ONE
                 ],
-                "1".to_string(),
+                "1",
             ),
             (
-                vec![
+                &[
                     "⒈", // U+2488: DIGIT ONE FULL STOP
                 ],
-                "1.".to_string(),
+                "1.",
             ),
             (
-                vec![
+                &[
                     "⑴", // U+2474: PARENTHESIZED DIGIT ONE
                 ],
-                "(1)".to_string(),
+                "(1)",
             ),
             (
-                vec![
+                &[
                     "²",  // U+00B2: SUPERSCRIPT TWO
                     "₂", // U+2082: SUBSCRIPT TWO
                     "②", // U+2461: CIRCLED DIGIT TWO
@@ -3394,22 +3374,22 @@ mod tests {
                     "➋", // U+278B: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT TWO
                     "２", // U+FF12: FULLWIDTH DIGIT TWO
                 ],
-                "2".to_string(),
+                "2",
             ),
             (
-                vec![
+                &[
                     "⒉", // U+2489: DIGIT TWO FULL STOP
                 ],
-                "2.".to_string(),
+                "2.",
             ),
             (
-                vec![
+                &[
                     "⑵", // U+2475: PARENTHESIZED DIGIT TWO
                 ],
-                "(2)".to_string(),
+                "(2)",
             ),
             (
-                vec![
+                &[
                     "³",  // U+00B3: SUPERSCRIPT THREE
                     "₃", // U+2083: SUBSCRIPT THREE
                     "③", // U+2462: CIRCLED DIGIT THREE
@@ -3419,22 +3399,22 @@ mod tests {
                     "➌", // U+278C: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT THREE
                     "３", // U+FF13: FULLWIDTH DIGIT THREE
                 ],
-                "3".to_string(),
+                "3",
             ),
             (
-                vec![
+                &[
                     "⒊", // U+248A: DIGIT THREE FULL STOP
                 ],
-                "3.".to_string(),
+                "3.",
             ),
             (
-                vec![
+                &[
                     "⑶", // U+2476: PARENTHESIZED DIGIT THREE
                 ],
-                "(3)".to_string(),
+                "(3)",
             ),
             (
-                vec![
+                &[
                     "⁴", // U+2074: SUPERSCRIPT FOUR
                     "₄", // U+2084: SUBSCRIPT FOUR
                     "④", // U+2463: CIRCLED DIGIT FOUR
@@ -3444,22 +3424,22 @@ mod tests {
                     "➍", // U+278D: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FOUR
                     "４", // U+FF14: FULLWIDTH DIGIT FOUR
                 ],
-                "4".to_string(),
+                "4",
             ),
             (
-                vec![
+                &[
                     "⒋", // U+248B: DIGIT FOUR FULL STOP
                 ],
-                "4.".to_string(),
+                "4.",
             ),
             (
-                vec![
+                &[
                     "⑷", // U+2477: PARENTHESIZED DIGIT FOUR
                 ],
-                "(4)".to_string(),
+                "(4)",
             ),
             (
-                vec![
+                &[
                     "⁵", // U+2075: SUPERSCRIPT FIVE
                     "₅", // U+2085: SUBSCRIPT FIVE
                     "⑤", // U+2464: CIRCLED DIGIT FIVE
@@ -3469,22 +3449,22 @@ mod tests {
                     "➎", // U+278E: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT FIVE
                     "５", // U+FF15: FULLWIDTH DIGIT FIVE
                 ],
-                "5".to_string(),
+                "5",
             ),
             (
-                vec![
+                &[
                     "⒌", // U+248C: DIGIT FIVE FULL STOP
                 ],
-                "5.".to_string(),
+                "5.",
             ),
             (
-                vec![
+                &[
                     "⑸", // U+2478: PARENTHESIZED DIGIT FIVE
                 ],
-                "(5)".to_string(),
+                "(5)",
             ),
             (
-                vec![
+                &[
                     "⁶", // U+2076: SUPERSCRIPT SIX
                     "₆", // U+2086: SUBSCRIPT SIX
                     "⑥", // U+2465: CIRCLED DIGIT SIX
@@ -3494,22 +3474,22 @@ mod tests {
                     "➏", // U+278F: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SIX
                     "６", // U+FF16: FULLWIDTH DIGIT SIX
                 ],
-                "6".to_string(),
+                "6",
             ),
             (
-                vec![
+                &[
                     "⒍", // U+248D: DIGIT SIX FULL STOP
                 ],
-                "6.".to_string(),
+                "6.",
             ),
             (
-                vec![
+                &[
                     "⑹", // U+2479: PARENTHESIZED DIGIT SIX
                 ],
-                "(6)".to_string(),
+                "(6)",
             ),
             (
-                vec![
+                &[
                     "⁷", // U+2077: SUPERSCRIPT SEVEN
                     "₇", // U+2087: SUBSCRIPT SEVEN
                     "⑦", // U+2466: CIRCLED DIGIT SEVEN
@@ -3519,22 +3499,22 @@ mod tests {
                     "➐", // U+2790: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT SEVEN
                     "７", // U+FF17: FULLWIDTH DIGIT SEVEN
                 ],
-                "7".to_string(),
+                "7",
             ),
             (
-                vec![
+                &[
                     "⒎", // U+248E: DIGIT SEVEN FULL STOP
                 ],
-                "7.".to_string(),
+                "7.",
             ),
             (
-                vec![
+                &[
                     "⑺", // U+247A: PARENTHESIZED DIGIT SEVEN
                 ],
-                "(7)".to_string(),
+                "(7)",
             ),
             (
-                vec![
+                &[
                     "⁸", // U+2078: SUPERSCRIPT EIGHT
                     "₈", // U+2088: SUBSCRIPT EIGHT
                     "⑧", // U+2467: CIRCLED DIGIT EIGHT
@@ -3544,22 +3524,22 @@ mod tests {
                     "➑", // U+2791: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT EIGHT
                     "８", // U+FF18: FULLWIDTH DIGIT EIGHT
                 ],
-                "8".to_string(),
+                "8",
             ),
             (
-                vec![
+                &[
                     "⒏", // U+248F: DIGIT EIGHT FULL STOP
                 ],
-                "8.".to_string(),
+                "8.",
             ),
             (
-                vec![
+                &[
                     "⑻", // U+247B: PARENTHESIZED DIGIT EIGHT
                 ],
-                "(8)".to_string(),
+                "(8)",
             ),
             (
-                vec![
+                &[
                     "⁹", // U+2079: SUPERSCRIPT NINE
                     "₉", // U+2089: SUBSCRIPT NINE
                     "⑨", // U+2468: CIRCLED DIGIT NINE
@@ -3569,234 +3549,234 @@ mod tests {
                     "➒", // U+2792: DINGBAT NEGATIVE CIRCLED SANS-SERIF DIGIT NINE
                     "９", // U+FF19: FULLWIDTH DIGIT NINE
                 ],
-                "9".to_string(),
+                "9",
             ),
             (
-                vec![
+                &[
                     "⒐", // U+2490: DIGIT NINE FULL STOP
                 ],
-                "9.".to_string(),
+                "9.",
             ),
             (
-                vec![
+                &[
                     "⑼", // U+247C: PARENTHESIZED DIGIT NINE
                 ],
-                "(9)".to_string(),
+                "(9)",
             ),
             (
-                vec![
+                &[
                     "⑩", // U+2469: CIRCLED NUMBER TEN
                     "⓾", // U+24FE: DOUBLE CIRCLED NUMBER TEN
                     "❿", // U+277F: DINGBAT NEGATIVE CIRCLED NUMBER TEN
                     "➉", // U+2789: DINGBAT CIRCLED SANS-SERIF NUMBER TEN
                     "➓", // U+2793: DINGBAT NEGATIVE CIRCLED SANS-SERIF NUMBER TEN
                 ],
-                "10".to_string(),
+                "10",
             ),
             (
-                vec![
+                &[
                     "⒑", // U+2491: NUMBER TEN FULL STOP
                 ],
-                "10.".to_string(),
+                "10.",
             ),
             (
-                vec![
+                &[
                     "⑽", // U+247D: PARENTHESIZED NUMBER TEN
                 ],
-                "(10)".to_string(),
+                "(10)",
             ),
             (
-                vec![
+                &[
                     "⑪", // U+246A: CIRCLED NUMBER ELEVEN
                     "⓫", // U+24EB: NEGATIVE CIRCLED NUMBER ELEVEN
                 ],
-                "11".to_string(),
+                "11",
             ),
             (
-                vec![
+                &[
                     "⒒", // U+2492: NUMBER ELEVEN FULL STOP
                 ],
-                "11.".to_string(),
+                "11.",
             ),
             (
-                vec![
+                &[
                     "⑾", // U+247E: PARENTHESIZED NUMBER ELEVEN
                 ],
-                "(11)".to_string(),
+                "(11)",
             ),
             (
-                vec![
+                &[
                     "⑫", // U+246B: CIRCLED NUMBER TWELVE
                     "⓬", // U+24EC: NEGATIVE CIRCLED NUMBER TWELVE
                 ],
-                "12".to_string(),
+                "12",
             ),
             (
-                vec![
+                &[
                     "⒓", // U+2493: NUMBER TWELVE FULL STOP
                 ],
-                "12.".to_string(),
+                "12.",
             ),
             (
-                vec![
+                &[
                     "⑿", // U+247F: PARENTHESIZED NUMBER TWELVE
                 ],
-                "(12)".to_string(),
+                "(12)",
             ),
             (
-                vec![
+                &[
                     "⑬", // U+246C: CIRCLED NUMBER THIRTEEN
                     "⓭", // U+24ED: NEGATIVE CIRCLED NUMBER THIRTEEN
                 ],
-                "13".to_string(),
+                "13",
             ),
             (
-                vec![
+                &[
                     "⒔", // U+2494: NUMBER THIRTEEN FULL STOP
                 ],
-                "13.".to_string(),
+                "13.",
             ),
             (
-                vec![
+                &[
                     "⒀", // U+2480: PARENTHESIZED NUMBER THIRTEEN
                 ],
-                "(13)".to_string(),
+                "(13)",
             ),
             (
-                vec![
+                &[
                     "⑭", // U+246D: CIRCLED NUMBER FOURTEEN
                     "⓮", // U+24EE: NEGATIVE CIRCLED NUMBER FOURTEEN
                 ],
-                "14".to_string(),
+                "14",
             ),
             (
-                vec![
+                &[
                     "⒕", // U+2495: NUMBER FOURTEEN FULL STOP
                 ],
-                "14.".to_string(),
+                "14.",
             ),
             (
-                vec![
+                &[
                     "⒁", // U+2481: PARENTHESIZED NUMBER FOURTEEN
                 ],
-                "(14)".to_string(),
+                "(14)",
             ),
             (
-                vec![
+                &[
                     "⑮", // U+246E: CIRCLED NUMBER FIFTEEN
                     "⓯", // U+24EF: NEGATIVE CIRCLED NUMBER FIFTEEN
                 ],
-                "15".to_string(),
+                "15",
             ),
             (
-                vec![
+                &[
                     "⒖", // U+2496: NUMBER FIFTEEN FULL STOP
                 ],
-                "15.".to_string(),
+                "15.",
             ),
             (
-                vec![
+                &[
                     "⒂", // U+2482: PARENTHESIZED NUMBER FIFTEEN
                 ],
-                "(15)".to_string(),
+                "(15)",
             ),
             (
-                vec![
+                &[
                     "⑯", // U+246F: CIRCLED NUMBER SIXTEEN
                     "⓰", // U+24F0: NEGATIVE CIRCLED NUMBER SIXTEEN
                 ],
-                "16".to_string(),
+                "16",
             ),
             (
-                vec![
+                &[
                     "⒗", // U+2497: NUMBER SIXTEEN FULL STOP
                 ],
-                "16.".to_string(),
+                "16.",
             ),
             (
-                vec![
+                &[
                     "⒃", // U+2483: PARENTHESIZED NUMBER SIXTEEN
                 ],
-                "(16)".to_string(),
+                "(16)",
             ),
             (
-                vec![
+                &[
                     "⑰", // U+2470: CIRCLED NUMBER SEVENTEEN
                     "⓱", // U+24F1: NEGATIVE CIRCLED NUMBER SEVENTEEN
                 ],
-                "17".to_string(),
+                "17",
             ),
             (
-                vec![
+                &[
                     "⒘", // U+2498: NUMBER SEVENTEEN FULL STOP
                 ],
-                "17.".to_string(),
+                "17.",
             ),
             (
-                vec![
+                &[
                     "⒄", // U+2484: PARENTHESIZED NUMBER SEVENTEEN
                 ],
-                "(17)".to_string(),
+                "(17)",
             ),
             (
-                vec![
+                &[
                     "⑱", // U+2471: CIRCLED NUMBER EIGHTEEN
                     "⓲", // U+24F2: NEGATIVE CIRCLED NUMBER EIGHTEEN
                 ],
-                "18".to_string(),
+                "18",
             ),
             (
-                vec![
+                &[
                     "⒙", // U+2499: NUMBER EIGHTEEN FULL STOP
                 ],
-                "18.".to_string(),
+                "18.",
             ),
             (
-                vec![
+                &[
                     "⒅", // U+2485: PARENTHESIZED NUMBER EIGHTEEN
                 ],
-                "(18)".to_string(),
+                "(18)",
             ),
             (
-                vec![
+                &[
                     "⑲", // U+2472: CIRCLED NUMBER NINETEEN
                     "⓳", // U+24F3: NEGATIVE CIRCLED NUMBER NINETEEN
                 ],
-                "19".to_string(),
+                "19",
             ),
             (
-                vec![
+                &[
                     "⒚", // U+249A: NUMBER NINETEEN FULL STOP
                 ],
-                "19.".to_string(),
+                "19.",
             ),
             (
-                vec![
+                &[
                     "⒆", // U+2486: PARENTHESIZED NUMBER NINETEEN
                 ],
-                "(19)".to_string(),
+                "(19)",
             ),
             (
-                vec![
+                &[
                     "⑳", // U+2473: CIRCLED NUMBER TWENTY
                     "⓴", // U+24F4: NEGATIVE CIRCLED NUMBER TWENTY
                 ],
-                "20".to_string(),
+                "20",
             ),
             (
-                vec![
+                &[
                     "⒛", // U+249B: NUMBER TWENTY FULL STOP
                 ],
-                "20.".to_string(),
+                "20.",
             ),
             (
-                vec![
+                &[
                     "⒇", // U+2487: PARENTHESIZED NUMBER TWENTY
                 ],
-                "(20)".to_string(),
+                "(20)",
             ),
             (
-                vec![
+                &[
                     "«",  // U+00AB: LEFT-POINTING DOUBLE ANGLE QUOTATION MARK
                     "»",  // U+00BB: RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK
                     "“", // U+201C: LEFT DOUBLE QUOTATION MARK
@@ -3810,10 +3790,10 @@ mod tests {
                     "❯", // U+276F: HEAVY RIGHT-POINTING ANGLE QUOTATION MARK ORNAMENT
                     "＂", // U+FF02: FULLWIDTH QUOTATION MARK
                 ],
-                "\"".to_string(),
+                "\"",
             ),
             (
-                vec![
+                &[
                     "‘", // U+2018: LEFT SINGLE QUOTATION MARK
                     "’", // U+2019: RIGHT SINGLE QUOTATION MARK
                     "‚", // U+201A: SINGLE LOW-9 QUOTATION MARK
@@ -3826,10 +3806,10 @@ mod tests {
                     "❜", // U+275C: HEAVY SINGLE COMMA QUOTATION MARK ORNAMENT
                     "＇", // U+FF07: FULLWIDTH APOSTROPHE
                 ],
-                "'".to_string(),
+                "'",
             ),
             (
-                vec![
+                &[
                     "‐", // U+2010: HYPHEN
                     "‑", // U+2011: NON-BREAKING HYPHEN
                     "‒", // U+2012: FIGURE DASH
@@ -3839,239 +3819,245 @@ mod tests {
                     "₋", // U+208B: SUBSCRIPT MINUS
                     "－", // U+FF0D: FULLWIDTH HYPHEN-MINUS
                 ],
-                "-".to_string(),
+                "-",
             ),
             (
-                vec![
+                &[
                     "⁅", // U+2045: LEFT SQUARE BRACKET WITH QUILL
                     "❲", // U+2772: LIGHT LEFT TORTOISE SHELL BRACKET ORNAMENT
                     "［", // U+FF3B: FULLWIDTH LEFT SQUARE BRACKET
                 ],
-                "[".to_string(),
+                "[",
             ),
             (
-                vec![
+                &[
                     "⁆", // U+2046: RIGHT SQUARE BRACKET WITH QUILL
                     "❳", // U+2773: LIGHT RIGHT TORTOISE SHELL BRACKET ORNAMENT
                     "］", // U+FF3D: FULLWIDTH RIGHT SQUARE BRACKET
                 ],
-                "]".to_string(),
+                "]",
             ),
             (
-                vec![
+                &[
                     "⁽", // U+207D: SUPERSCRIPT LEFT PARENTHESIS
                     "₍", // U+208D: SUBSCRIPT LEFT PARENTHESIS
                     "❨", // U+2768: MEDIUM LEFT PARENTHESIS ORNAMENT
                     "❪", // U+276A: MEDIUM FLATTENED LEFT PARENTHESIS ORNAMENT
                     "（", // U+FF08: FULLWIDTH LEFT PARENTHESIS
                 ],
-                "(".to_string(),
+                "(",
             ),
             (
-                vec![
+                &[
                     "⸨", // U+2E28: LEFT DOUBLE PARENTHESIS
                 ],
-                "((".to_string(),
+                "((",
             ),
             (
-                vec![
+                &[
                     "⁾", // U+207E: SUPERSCRIPT RIGHT PARENTHESIS
                     "₎", // U+208E: SUBSCRIPT RIGHT PARENTHESIS
                     "❩", // U+2769: MEDIUM RIGHT PARENTHESIS ORNAMENT
                     "❫", // U+276B: MEDIUM FLATTENED RIGHT PARENTHESIS ORNAMENT
                     "）", // U+FF09: FULLWIDTH RIGHT PARENTHESIS
                 ],
-                ")".to_string(),
+                ")",
             ),
             (
-                vec![
+                &[
                     "⸩", // U+2E29: RIGHT DOUBLE PARENTHESIS
                 ],
-                "))".to_string(),
+                "))",
             ),
             (
-                vec![
+                &[
                     "❬", // U+276C: MEDIUM LEFT-POINTING ANGLE BRACKET ORNAMENT
                     "❰", // U+2770: HEAVY LEFT-POINTING ANGLE BRACKET ORNAMENT
                     "＜", // U+FF1C: FULLWIDTH LESS-THAN SIGN
                 ],
-                "<".to_string(),
+                "<",
             ),
             (
-                vec![
+                &[
                     "❭", // U+276D: MEDIUM RIGHT-POINTING ANGLE BRACKET ORNAMENT
                     "❱", // U+2771: HEAVY RIGHT-POINTING ANGLE BRACKET ORNAMENT
                     "＞", // U+FF1E: FULLWIDTH GREATER-THAN SIGN
                 ],
-                ">".to_string(),
+                ">",
             ),
             (
-                vec![
+                &[
                     "❴", // U+2774: MEDIUM LEFT CURLY BRACKET ORNAMENT
                     "｛", // U+FF5B: FULLWIDTH LEFT CURLY BRACKET
                 ],
-                "{".to_string(),
+                "{",
             ),
             (
-                vec![
+                &[
                     "❵", // U+2775: MEDIUM RIGHT CURLY BRACKET ORNAMENT
                     "｝", // U+FF5D: FULLWIDTH RIGHT CURLY BRACKET
                 ],
-                "}".to_string(),
+                "}",
             ),
             (
-                vec![
+                &[
                     "⁺", // U+207A: SUPERSCRIPT PLUS SIGN
                     "₊", // U+208A: SUBSCRIPT PLUS SIGN
                     "＋", // U+FF0B: FULLWIDTH PLUS SIGN
                 ],
-                "+".to_string(),
+                "+",
             ),
             (
-                vec![
+                &[
                     "⁼", // U+207C: SUPERSCRIPT EQUALS SIGN
                     "₌", // U+208C: SUBSCRIPT EQUALS SIGN
                     "＝", // U+FF1D: FULLWIDTH EQUALS SIGN
                 ],
-                "=".to_string(),
+                "=",
             ),
             (
-                vec![
+                &[
                     "！", // U+FF01: FULLWIDTH EXCLAMATION MARK
                 ],
-                "!".to_string(),
+                "!",
             ),
             (
-                vec![
+                &[
                     "‼", // U+203C: DOUBLE EXCLAMATION MARK
                 ],
-                "!!".to_string(),
+                "!!",
             ),
             (
-                vec![
+                &[
                     "⁉", // U+2049: EXCLAMATION QUESTION MARK
                 ],
-                "!?".to_string(),
+                "!?",
             ),
             (
-                vec![
+                &[
                     "＃", // U+FF03: FULLWIDTH NUMBER SIGN
                 ],
-                "#".to_string(),
+                "#",
             ),
             (
-                vec![
+                &[
                     "＄", // U+FF04: FULLWIDTH DOLLAR SIGN
                 ],
-                "$".to_string(),
+                "$",
             ),
             (
-                vec![
+                &[
                     "⁒", // U+2052: COMMERCIAL MINUS SIGN
                     "％", // U+FF05: FULLWIDTH PERCENT SIGN
                 ],
-                "%".to_string(),
+                "%",
             ),
             (
-                vec![
+                &[
                     "＆", // U+FF06: FULLWIDTH AMPERSAND
                 ],
-                "&".to_string(),
+                "&",
             ),
             (
-                vec![
+                &[
                     "⁎", // U+204E: LOW ASTERISK
                     "＊", // U+FF0A: FULLWIDTH ASTERISK
                 ],
-                "*".to_string(),
+                "*",
             ),
             (
-                vec![
+                &[
                     "，", // U+FF0C: FULLWIDTH COMMA
                 ],
-                ",".to_string(),
+                ",",
             ),
             (
-                vec![
+                &[
                     "．", // U+FF0E: FULLWIDTH FULL STOP
                 ],
-                ".".to_string(),
+                ".",
             ),
             (
-                vec![
+                &[
                     "⁄", // U+2044: FRACTION SLASH
                     "／", // U+FF0F: FULLWIDTH SOLIDUS
                 ],
-                "/".to_string(),
+                "/",
             ),
             (
-                vec![
+                &[
                     "：", // U+FF1A: FULLWIDTH COLON
                 ],
-                ":".to_string(),
+                ":",
             ),
             (
-                vec![
+                &[
                     "⁏", // U+204F: REVERSED SEMICOLON
                     "；", // U+FF1B: FULLWIDTH SEMICOLON
                 ],
-                ";".to_string(),
+                ";",
             ),
             (
-                vec![
+                &[
                     "？", // U+FF1F: FULLWIDTH QUESTION MARK
                 ],
-                "?".to_string(),
+                "?",
             ),
             (
-                vec![
+                &[
                     "⁇", // U+2047: DOUBLE QUESTION MARK
                 ],
-                "??".to_string(),
+                "??",
             ),
             (
-                vec![
+                &[
                     "⁈", // U+2048: QUESTION EXCLAMATION MARK
                 ],
-                "?!".to_string(),
+                "?!",
             ),
             (
-                vec![
+                &[
                     "＠", // U+FF20: FULLWIDTH COMMERCIAL AT
                 ],
-                "@".to_string(),
+                "@",
             ),
             (
-                vec![
+                &[
                     "＼", // U+FF3C: FULLWIDTH REVERSE SOLIDUS
                 ],
-                "\\".to_string(),
+                "\\",
             ),
             (
-                vec![
+                &[
                     "‸", // U+2038: CARET
                     "＾", // U+FF3E: FULLWIDTH CIRCUMFLEX ACCENT
                 ],
-                "^".to_string(),
+                "^",
             ),
             (
-                vec![
+                &[
                     "＿", // U+FF3F: FULLWIDTH LOW LINE
                 ],
-                "_".to_string(),
+                "_",
             ),
             (
-                vec![
+                &[
                     "⁓", // U+2053: SWUNG DASH
                     "～", // U+FF5E: FULLWIDTH TILDE
                 ],
-                "~".to_string(),
+                "~",
             ),
         ];
 
         for (characters, folded) in foldings {
-            for c in characters {
-                assert_eq!(folding_using_raw_tokenizer_helper(&c), folded, "testing that character \"{}\" becomes \"{}\"", c, folded);
+            for &c in characters {
+                assert_eq!(
+                    folding_using_raw_tokenizer_helper(&c),
+                    folded,
+                    "testing that character \"{}\" becomes \"{}\"",
+                    c,
+                    folded
+                );
             }
         }
     }

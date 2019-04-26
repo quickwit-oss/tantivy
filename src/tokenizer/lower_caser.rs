@@ -55,7 +55,6 @@ where
             mem::swap(&mut self.tail.token_mut().text, &mut self.buffer);
         }
         true
-
     }
 }
 
