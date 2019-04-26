@@ -1,8 +1,8 @@
 use super::operation::DeleteOperation;
-use indexer::Opstamp;
 use std::mem;
 use std::ops::DerefMut;
 use std::sync::{Arc, RwLock};
+use Opstamp;
 
 // The DeleteQueue is similar in conceptually to a multiple
 // consumer single producer broadcast channel.

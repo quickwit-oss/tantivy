@@ -1,6 +1,6 @@
-use indexer::Opstamp;
 use schema::Document;
 use schema::Term;
+use Opstamp;
 
 /// Timestamped Delete operation.
 #[derive(Clone, Eq, PartialEq, Debug)]

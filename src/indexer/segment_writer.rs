@@ -4,7 +4,6 @@ use core::SerializableSegment;
 use fastfield::FastFieldsWriter;
 use fieldnorm::FieldNormsWriter;
 use indexer::segment_serializer::SegmentSerializer;
-use indexer::Opstamp;
 use postings::MultiFieldPostingsWriter;
 use schema::FieldType;
 use schema::Schema;
@@ -16,6 +15,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
 use tokenizer::{TokenStream, Tokenizer};
 use DocId;
+use Opstamp;
 use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a

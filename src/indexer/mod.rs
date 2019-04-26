@@ -25,7 +25,6 @@ pub use self::segment_entry::SegmentEntry;
 pub use self::segment_manager::SegmentManager;
 pub use self::segment_serializer::SegmentSerializer;
 pub use self::segment_writer::SegmentWriter;
-pub use self::stamper::Opstamp;
 
 /// Alias for the default merge policy, which is the `LogMergePolicy`.
 pub type DefaultMergePolicy = LogMergePolicy;

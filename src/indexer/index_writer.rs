@@ -19,7 +19,6 @@ use indexer::doc_opstamp_mapping::DocToOpstampMapping;
 use indexer::operation::DeleteOperation;
 use indexer::stamper::Stamper;
 use indexer::MergePolicy;
-use indexer::Opstamp;
 use indexer::SegmentEntry;
 use indexer::SegmentWriter;
 use postings::compute_table_size;
@@ -31,6 +30,7 @@ use std::ops::Range;
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
+use Opstamp;
 use Result;
 
 // Size of the margin for the heap. A segment is closed when the remaining memory

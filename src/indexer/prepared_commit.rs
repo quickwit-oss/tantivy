@@ -1,5 +1,5 @@
 use super::IndexWriter;
-use indexer::Opstamp;
+use Opstamp;
 use Result;
 
 /// A prepared commit

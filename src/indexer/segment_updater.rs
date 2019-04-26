@@ -20,7 +20,6 @@ use indexer::merge_operation::MergeOperationInventory;
 use indexer::merger::IndexMerger;
 use indexer::stamper::Stamper;
 use indexer::MergeOperation;
-use indexer::Opstamp;
 use indexer::SegmentEntry;
 use indexer::SegmentSerializer;
 use indexer::{DefaultMergePolicy, MergePolicy};
@@ -37,6 +36,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
+use Opstamp;
 use Result;
 
 /// Save the index meta file.

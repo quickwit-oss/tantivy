@@ -1,8 +1,8 @@
 use core::SegmentMeta;
-use indexer::Opstamp;
 use schema::Schema;
 use serde_json;
 use std::fmt;
+use Opstamp;
 
 /// Meta information about the `Index`.
 ///

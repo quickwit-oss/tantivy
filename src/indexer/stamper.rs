@@ -1,8 +1,7 @@
 use std::ops::Range;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
-
-pub type Opstamp = u64;
+use Opstamp;
 
 // AtomicU64 have not landed in stable.
 // For the moment let's just use AtomicUsize on
@@ -10,8 +9,8 @@ pub type Opstamp = u64;
 #[cfg(target_arch = "x86_64")]
 mod archicture_impl {
 
-    use indexer::stamper::Opstamp;
     use std::sync::atomic::{AtomicU64, Ordering};
+    use Opstamp;
 
     #[derive(Default)]
     pub struct AtomicU64Ersatz(AtomicU64);
@@ -35,10 +34,10 @@ mod archicture_impl {
 #[cfg(not(target_arch = "x86_64"))]
 mod archicture_impl {
 
-    use indexer::stamper::Opstamp;
     use std::sync::atomic::Ordering;
     /// Under other architecture, we rely on a mutex.
     use std::sync::RwLock;
+    use Opstamp;
 
     #[derive(Default)]
     pub struct AtomicU64Ersatz(RwLock<u64>);

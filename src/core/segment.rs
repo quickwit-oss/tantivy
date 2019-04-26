@@ -6,11 +6,11 @@ use directory::error::{OpenReadError, OpenWriteError};
 use directory::Directory;
 use directory::{ReadOnlySource, WritePtr};
 use indexer::segment_serializer::SegmentSerializer;
-use indexer::Opstamp;
 use schema::Schema;
 use std::fmt;
 use std::path::PathBuf;
 use std::result;
+use Opstamp;
 use Result;
 
 /// A segment is a piece of the index.

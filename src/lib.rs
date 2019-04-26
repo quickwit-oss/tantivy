@@ -254,6 +254,14 @@ pub mod merge_policy {
 /// as they are added in the segment.
 pub type DocId = u32;
 
+/// A u64 assigned to every operation incrementally
+///
+/// Used to sequence operations in the correct order during
+/// asynchronous processing of adding documents, merging segments or rollback
+/// Modelled by an AtomicU64 or a u64 under a RW-lock
+/// on platforms without atomic integer support.
+pub type Opstamp = u64;
+
 /// A f32 that represents the relevance of the document to the query
 ///
 /// This is modelled internally as a `f32`. The
