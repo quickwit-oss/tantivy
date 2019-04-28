@@ -1,6 +1,10 @@
 use super::Collector;
 use crate::collector::top_collector::TopCollector;
 use crate::collector::top_collector::TopSegmentCollector;
+use crate::collector::top_custom_score_collector::ScoreTweaker;
+use crate::collector::top_custom_score_collector::SegmentScoreTweaker;
+use crate::collector::top_custom_score_collector::TweakedScoreCollector;
+use crate::collector::SegmentCollector;
 use crate::collector::SegmentCollector;
 use crate::collector::TopDocsByField;
 use crate::fastfield::FastValue;
@@ -84,6 +88,18 @@ impl TopDocs {
         field: Field,
     ) -> TopDocsByField<T> {
         TopDocsByField::new(field, self.0.limit())
+    }
+
+    pub fn tweak_score<TScore, TSegmentScoreTweaker, TScoreTweaker>(
+        self,
+        score_tweaker: TScoreTweaker,
+    ) -> TweakedScoreCollector<TScoreTweaker, TScore>
+    where
+        TScore: Send + Sync + Clone + PartialOrd,
+        TSegmentScoreTweaker: SegmentScoreTweaker<TScore> + 'static,
+        TScoreTweaker: ScoreTweaker<TScore, Child = TSegmentScoreTweaker>,
+    {
+        TweakedScoreCollector::new(score_tweaker, self.0.limit())
     }
 }
 
