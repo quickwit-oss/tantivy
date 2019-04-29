@@ -83,23 +83,34 @@ impl TopDocs {
     ///
     /// (By default, `TopDocs` collects the top-K documents sorted by
     /// the similarity score.)
-    pub fn order_by_field<T: PartialOrd + FastValue + Clone>(
+    pub fn order_by_field<TFastValue>(
         self,
         field: Field,
-    ) -> TopDocsByField<T> {
-        TopDocsByField::new(field, self.0.limit())
+    ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
+    where
+        TFastValue: FastValue + 'static,
+    {
+        self.tweak_score(move |segment_reader: &SegmentReader| {
+            let ff_reader: FastFieldReader<u64> = segment_reader
+                .fast_fields()
+                .u64_lenient(field)
+                .ok_or_else(|| {
+                TantivyError::SchemaError("Field is not a fast field.".to_string())
+            })?;
+            Ok(move |doc: DocId, _score: Score| TFastValue::from_u64(ff_reader.get(doc)))
+        })
     }
 
     pub fn tweak_score<TScore, TSegmentScoreTweaker, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,
-    ) -> TweakedScoreCollector<TScoreTweaker, TScore>
+    ) -> TweakedScoreTopCollector<TScoreTweaker, TScore>
     where
         TScore: Send + Sync + Clone + PartialOrd,
         TSegmentScoreTweaker: SegmentScoreTweaker<TScore> + 'static,
         TScoreTweaker: ScoreTweaker<TScore, Child = TSegmentScoreTweaker>,
     {
-        TweakedScoreCollector::new(score_tweaker, self.0.limit())
+        TweakedScoreTopCollector::new(score_tweaker, self.0.limit())
     }
 }
 
@@ -144,12 +155,20 @@ impl SegmentCollector for TopScoreSegmentCollector {
 #[cfg(test)]
 mod tests {
     use super::TopDocs;
+<<<<<<< HEAD
     use crate::query::QueryParser;
     use crate::schema::Schema;
     use crate::schema::TEXT;
     use crate::DocAddress;
     use crate::Index;
     use crate::Score;
+=======
+    use collector::Collector;
+    use query::{Query, QueryParser};
+    use schema::{Field, Schema, FAST, STORED, TEXT};
+    use Score;
+    use {DocAddress, Index, IndexWriter, TantivyError};
+>>>>>>> Sort by field relying on tweaked score
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -214,6 +233,104 @@ mod tests {
     #[should_panic]
     fn test_top_0() {
         TopDocs::with_limit(0);
+    }
+
+    const TITLE: &str = "title";
+    const SIZE: &str = "size";
+
+    #[test]
+    fn test_top_field_collector_not_at_capacity() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field(TITLE, TEXT);
+        let size = schema_builder.add_u64_field(SIZE, FAST);
+        let schema = schema_builder.build();
+        let (index, query) = index("beer", title, schema, |index_writer| {
+            index_writer.add_document(doc!(
+                title => "bottle of beer",
+                size => 12u64,
+            ));
+            index_writer.add_document(doc!(
+                title => "growler of beer",
+                size => 64u64,
+            ));
+            index_writer.add_document(doc!(
+                title => "pint of beer",
+                size => 16u64,
+            ));
+        });
+        let searcher = index.reader().unwrap().searcher();
+
+        let top_collector = TopDocs::with_limit(4).order_by_field(size);
+        let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
+        assert_eq!(
+            top_docs,
+            vec![
+                (64, DocAddress(0, 1)),
+                (16, DocAddress(0, 2)),
+                (12, DocAddress(0, 0))
+            ]
+        );
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_field_does_not_exist() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field(TITLE, TEXT);
+        let size = schema_builder.add_u64_field(SIZE, FAST);
+        let schema = schema_builder.build();
+        let (index, _) = index("beer", title, schema, |index_writer| {
+            index_writer.add_document(doc!(
+                title => "bottle of beer",
+                size => 12u64,
+            ));
+        });
+        let searcher = index.reader().unwrap().searcher();
+        let top_collector = TopDocs::with_limit(4).order_by_field::<u64>(Field(2));
+        let segment_reader = searcher.segment_reader(0u32);
+        top_collector
+            .for_segment(0, segment_reader)
+            .expect("should panic");
+    }
+
+    #[test]
+    fn test_field_not_fast_field() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field(TITLE, TEXT);
+        let size = schema_builder.add_u64_field(SIZE, STORED);
+        let schema = schema_builder.build();
+        let (index, _) = index("beer", title, schema, |index_writer| {
+            index_writer.add_document(doc!(
+                title => "bottle of beer",
+                size => 12u64,
+            ));
+        });
+        let searcher = index.reader().unwrap().searcher();
+        let segment = searcher.segment_reader(0);
+        let top_collector = TopDocs::with_limit(4).order_by_field::<u64>(size);
+        assert_matches!(
+            top_collector
+                .for_segment(0, segment)
+                .map(|_| ())
+                .unwrap_err(),
+            TantivyError::SchemaError(_)
+        );
+    }
+
+    fn index(
+        query: &str,
+        query_field: Field,
+        schema: Schema,
+        mut doc_adder: impl FnMut(&mut IndexWriter) -> (),
+    ) -> (Index, Box<Query>) {
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        doc_adder(&mut index_writer);
+        index_writer.commit().unwrap();
+        let query_parser = QueryParser::for_index(&index, vec![query_field]);
+        let query = query_parser.parse_query(query).unwrap();
+        (index, query)
     }
 
 }

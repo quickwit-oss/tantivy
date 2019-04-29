@@ -103,10 +103,10 @@ mod top_collector;
 mod top_score_collector;
 pub use self::top_score_collector::TopDocs;
 
-mod top_field_collector;
-pub use self::top_field_collector::TopDocsByField;
+//mod top_field_collector;
+//pub use self::top_field_collector::TopDocsByField;
 
-mod top_custom_score_collector;
+mod tweak_score_top_collector;
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;

@@ -49,7 +49,7 @@ mod serializer;
 mod writer;
 
 /// Trait for types that are allowed for fast fields: (u64 or i64).
-pub trait FastValue: Default + Clone + Copy {
+pub trait FastValue: Default + Clone + Copy + Send + Sync + PartialOrd {
     /// Converts a value from u64
     ///
     /// Internally all fast field values are encoded as u64.
