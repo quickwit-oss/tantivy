@@ -9,27 +9,6 @@ pub struct TweakedScoreTopCollector<TScoreTweaker, TScore = Score> {
     collector: TopCollector<TScore>,
 }
 
-impl<F, TScore, TSegmentScoreTweaker> ScoreTweaker<TScore> for F
-where
-    F: 'static + Send + Sync + Fn(&SegmentReader) -> Result<TSegmentScoreTweaker>,
-    TSegmentScoreTweaker: SegmentScoreTweaker<TScore>,
-{
-    type Child = TSegmentScoreTweaker;
-
-    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
-        (self)(segment_reader)
-    }
-}
-
-impl<F, TScore> SegmentScoreTweaker<TScore> for F
-where
-    F: 'static + Sync + Send + Fn(DocId, Score) -> TScore,
-{
-    fn score(&self, doc: DocId, score: Score) -> TScore {
-        (self)(doc, score)
-    }
-}
-
 impl<TScoreTweaker, TScore> TweakedScoreTopCollector<TScoreTweaker, TScore>
 where
     TScore: Clone + PartialOrd,
@@ -111,5 +90,26 @@ where
 
     fn harvest(self) -> Vec<(TScore, DocAddress)> {
         self.segment_collector.harvest()
+    }
+}
+
+impl<F, TScore, TSegmentScoreTweaker> ScoreTweaker<TScore> for F
+where
+    F: 'static + Send + Sync + Fn(&SegmentReader) -> Result<TSegmentScoreTweaker>,
+    TSegmentScoreTweaker: SegmentScoreTweaker<TScore>,
+{
+    type Child = TSegmentScoreTweaker;
+
+    fn segment_scorer(&self, segment_reader: &SegmentReader) -> Result<Self::Child> {
+        (self)(segment_reader)
+    }
+}
+
+impl<F, TScore> SegmentScoreTweaker<TScore> for F
+where
+    F: 'static + Sync + Send + Fn(DocId, Score) -> TScore,
+{
+    fn score(&self, doc: DocId, score: Score) -> TScore {
+        (self)(doc, score)
     }
 }

@@ -81,8 +81,73 @@ impl TopDocs {
 
     /// Set top-K to rank documents by a given fast field.
     ///
-    /// (By default, `TopDocs` collects the top-K documents sorted by
-    /// the similarity score.)
+    /// ```rust
+    /// #[macro_use]
+    /// extern crate tantivy;
+    /// # use tantivy::schema::{Schema, FAST, TEXT};
+    /// # use tantivy::{Index, Result, DocAddress};
+    /// # use tantivy::query::{Query, QueryParser};
+    /// use tantivy::Searcher;
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::schema::Field;
+    ///
+    /// # fn main() -> tantivy::Result<()> {
+    /// #   let mut schema_builder = Schema::builder();
+    /// #   let title = schema_builder.add_text_field("title", TEXT);
+    /// #   let rating = schema_builder.add_u64_field("rating", FAST);
+    /// #   let schema = schema_builder.build();
+    /// #  
+    /// #   let index = Index::create_in_ram(schema);
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    /// #   index_writer.add_document(doc!(
+    /// #       title => "The Name of the Wind",
+    /// #       rating => 92u64,
+    /// #   ));
+    /// #   index_writer.add_document(doc!(title => "The Diary of Muadib", rating => 97u64));
+    /// #   index_writer.add_document(doc!(title => "A Dairy Cow", rating => 63u64));
+    /// #   index_writer.add_document(doc!(title => "The Diary of a Young Girl", rating => 80u64));
+    /// #   index_writer.commit()?;
+    /// #   let reader = index.reader()?;
+    /// #   let query = QueryParser::for_index(&index, vec![title]).parse_query("diary")?;
+    /// #   let top_docs = docs_sorted_by_rating(&reader.searcher(), &query, rating)?;
+    /// #   assert_eq!(top_docs,
+    /// #            vec![(97u64, DocAddress(0u32, 1)),
+    /// #                 (80u64, DocAddress(0u32, 3))]);
+    /// #   Ok(())
+    /// # }
+    ///
+    ///
+    /// /// Searches the document matching the given query, and
+    /// /// collects the top 10 documents, order by the `field`
+    /// /// given in argument.
+    /// ///
+    /// /// `field` is required to be a FAST field.
+    /// fn docs_sorted_by_rating(searcher: &Searcher,
+    ///                          query: &Query,
+    ///                          sort_by_field: Field)
+    ///     -> Result<Vec<(u64, DocAddress)>> {
+    ///
+    ///     // This is where we build our topdocs collector
+    ///     //
+    ///     // Note the generics parameter that needs to match the
+    ///     // type `sort_by_field`.
+    ///     let top_docs_by_rating = TopDocs
+    ///                 ::with_limit(10)
+    ///                  .order_by_field::<u64>(sort_by_field);
+    ///     
+    ///     // ... and here are our documents. Note this is a simple vec.
+    ///     // The `u64` in the pair is the value of our fast field for
+    ///     // each documents.
+    ///     //
+    ///     // The vec is sorted decreasingly by `sort_by_field`, and has a
+    ///     // length of 10, or less if not enough documents matched the
+    ///     // query.
+    ///     let resulting_docs: Vec<(u64, DocAddress)> =
+    ///          searcher.search(query, &top_docs_by_rating)?;
+    ///     
+    ///     Ok(resulting_docs)
+    /// }
+    /// ```
     pub fn order_by_field<TFastValue>(
         self,
         field: Field,
@@ -101,6 +166,96 @@ impl TopDocs {
         })
     }
 
+    /// Ranks the documents using a custom score.
+    ///
+    /// This method offers a convenient way to tweak or replace
+    /// the documents score. As suggested by the prototype you can
+    /// manually define your own [`ScoreTweaker`](./trait.ScoreTweaker.html)
+    /// and pass it as an argument, but there is a much simpler way to
+    /// tweak your score: you can use a closure as in the following
+    /// example.
+    ///
+    /// # Example
+    ///
+    /// Typically, you will want to rely on one or more fast fields,
+    /// to alter or replace the original relevance `Score`.
+    ///
+    /// For instance, in the following, we assume that we are implementing
+    /// an e-commerce website that has a fast field called `popularity`
+    /// that rates whether a product is typically often bought by users.
+    ///
+    /// In the following example will will tweak our ranking a bit by
+    /// boosting popular products a notch.
+    ///  
+    /// In more serious application, this tweaking could involved running a
+    /// learning-to-rank model over various features
+    ///
+    /// ```rust
+    /// #[macro_use]
+    /// extern crate tantivy;
+    /// # use tantivy::schema::{Schema, FAST, TEXT};
+    /// # use tantivy::{Index, DocAddress, DocId, Score};
+    /// # use tantivy::query::QueryParser;
+    /// use tantivy::SegmentReader;
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::schema::Field;
+    ///
+    /// # fn create_schema() -> Schema {
+    /// #    let mut schema_builder = Schema::builder();
+    /// #    schema_builder.add_text_field("product_name", TEXT);
+    /// #    schema_builder.add_u64_field("popularity", FAST);
+    /// #    schema_builder.build()
+    /// # }
+    /// #
+    /// # fn main() -> tantivy::Result<()> {
+    /// #   let schema = create_schema();
+    /// #   let index = Index::create_in_ram(schema);
+    /// #   let mut index_writer = index.writer_with_num_threads(1, 3_000_000)?;
+    /// #   let product_name = index.schema().get_field("product_name").unwrap();
+    /// #   
+    /// let popularity: Field = index.schema().get_field("popularity").unwrap();
+    /// #   index_writer.add_document(doc!(product_name => "The Diary of Muadib", popularity => 1u64));
+    /// #   index_writer.add_document(doc!(product_name => "A Dairy Cow", popularity => 10u64));
+    /// #   index_writer.add_document(doc!(product_name => "The Diary of a Young Girl", popularity => 15u64));
+    /// #   index_writer.commit()?;
+    /// // ...
+    /// # let user_query = "diary";
+    /// # let query = QueryParser::for_index(&index, vec![product_name]).parse_query(user_query)?;
+    ///
+    /// // This is where we build our collector with our custom score.
+    /// let top_docs_by_custom_score = TopDocs
+    ///         ::with_limit(10)
+    ///          .tweak_score(move |segment_reader: &SegmentReader| {
+    ///             // We pass here function, that return our scoring
+    ///             // function.
+    ///             //
+    ///             // The raison d'être of the "mother" function,
+    ///             // is to gather all of the segment level information
+    ///             // we need for scoring. Typically, fast_fields.
+    ///             //
+    ///             // In our case, we will get a reader for the popularity
+    ///             // fast field.
+    ///             let popularity_reader =
+    ///                 segment_reader.fast_fields().u64(popularity).unwrap();
+    ///             
+    ///             // We can now define our actual scoring function
+    ///             Ok(move |doc: DocId, original_score: Score| {
+    ///                 let popularity: u64 = popularity_reader.get(doc);
+    ///                 // Well.. For the sake of the example we use a simple logarithm
+    ///                 // function.
+    ///                 let popularity_boost_score = ((2u64 + popularity) as f32).log2();
+    ///                 popularity_boost_score * original_score
+    ///             })
+    ///           });
+    /// # let reader = index.reader()?;
+    /// # let searcher = reader.searcher();
+    /// // ... and here are our documents. Note this is a simple vec.
+    /// // The `Score` in the pair is our tweaked score.
+    /// let resulting_docs: Vec<(Score, DocAddress)> =
+    ///      searcher.search(&*query, &top_docs_by_custom_score)?;
+    ///
+    /// # Ok(())
+    /// # }
     pub fn tweak_score<TScore, TSegmentScoreTweaker, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,

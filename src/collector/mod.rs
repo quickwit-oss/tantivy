@@ -107,6 +107,7 @@ pub use self::top_score_collector::TopDocs;
 //pub use self::top_field_collector::TopDocsByField;
 
 mod tweak_score_top_collector;
+pub use self::tweak_score_top_collector::{ScoreTweaker, SegmentScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
