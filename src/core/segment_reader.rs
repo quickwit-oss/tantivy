@@ -51,7 +51,7 @@ pub struct SegmentReader {
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
     positions_idx_composite: CompositeFile,
-    fast_fields_composite: CompositeFile,
+    fast_field_readers: FastFieldReaders,
     fieldnorms_composite: CompositeFile,
 
     store_source: ReadOnlySource,
@@ -261,13 +261,14 @@ impl SegmentReader {
         };
 
         let schema = segment.schema();
+        let fast_field_readers = FastFieldReaders:
         Ok(SegmentReader {
             inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
             max_doc: segment.meta().max_doc(),
             num_docs: segment.meta().num_docs(),
             termdict_composite,
             postings_composite,
-            fast_fields_composite,
+            fast_field_readers,
             fieldnorms_composite,
             segment_id: segment.id(),
             store_source,
