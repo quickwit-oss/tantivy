@@ -114,11 +114,15 @@ impl Collector for FastFieldTestCollector {
     fn for_segment(
         &self,
         _: SegmentLocalId,
-        reader: &SegmentReader,
+        segment_reader: &SegmentReader,
     ) -> Result<FastFieldSegmentCollector> {
+        let reader = segment_reader
+            .fast_fields()
+            .u64(self.field)
+            .expect("Requested field is not a fast field.");
         Ok(FastFieldSegmentCollector {
             vals: Vec::new(),
-            reader: reader.fast_field_reader(self.field)?,
+            reader,
         })
     }
 
@@ -170,11 +174,14 @@ impl Collector for BytesFastFieldTestCollector {
     fn for_segment(
         &self,
         _segment_local_id: u32,
-        segment: &SegmentReader,
+        segment_reader: &SegmentReader,
     ) -> Result<BytesFastFieldSegmentCollector> {
         Ok(BytesFastFieldSegmentCollector {
             vals: Vec::new(),
-            reader: segment.bytes_fast_field_reader(self.field)?,
+            reader: segment_reader
+                .fast_fields()
+                .bytes(self.field)
+                .expect("Field is not a bytes fast field."),
         })
     }
 
@@ -191,7 +198,7 @@ impl SegmentCollector for BytesFastFieldSegmentCollector {
     type Fruit = Vec<u8>;
 
     fn collect(&mut self, doc: u32, _score: f32) {
-        let data = self.reader.get_val(doc);
+        let data = self.reader.get_bytes(doc);
         self.vals.extend(data);
     }
 

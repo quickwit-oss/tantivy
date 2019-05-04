@@ -1,6 +1,7 @@
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::unneeded_field_pattern))]
 #![cfg_attr(feature = "cargo-clippy", allow(clippy::toplevel_ref_arg))]
 
+use super::query_grammar;
 use super::user_input_ast::*;
 use combine::char::*;
 use combine::error::StreamError;
@@ -22,7 +23,7 @@ parser! {
 parser! {
     fn word[I]()(I) -> String
     where [I: Stream<Item = char>] {
-        many1(satisfy(|c: char| c.is_alphanumeric()))
+        many1(satisfy(char::is_alphanumeric))
                .and_then(|s: String| {
                    match s.as_str() {
                      "OR" => Err(StreamErrorFor::<I>::unexpected_static_message("OR")),
@@ -62,7 +63,7 @@ parser! {
     fn negative_number[I]()(I) -> String
     where [I: Stream<Item = char>]
     {
-            (char('-'), many1(satisfy(|c: char| c.is_numeric())))
+            (char('-'), many1(satisfy(char::is_numeric)))
                 .map(|(s1, s2): (char, String)| format!("{}{}", s1, s2))
     }
 }
@@ -184,7 +185,7 @@ parser! {
                         }
                     )
                 )
-                .map(|el| el.into_dnf())
+                .map(query_grammar::Element::into_dnf)
                 .map(|fnd| {
                     if fnd.len() == 1 {
                         UserInputAST::and(fnd.into_iter().next().unwrap()) //< safe

@@ -56,7 +56,7 @@ impl SegmentRegister {
             .values()
             .map(|segment_entry| segment_entry.meta().clone())
             .collect();
-        segment_ids.sort_by_key(|meta| meta.id());
+        segment_ids.sort_by_key(SegmentMeta::id);
         segment_ids
     }
 

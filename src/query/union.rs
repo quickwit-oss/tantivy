@@ -96,7 +96,7 @@ fn refill<TScorer: Scorer, TScoreCombiner: ScoreCombiner>(
 
 impl<TScorer: Scorer, TScoreCombiner: ScoreCombiner> Union<TScorer, TScoreCombiner> {
     fn refill(&mut self) -> bool {
-        if let Some(min_doc) = self.docsets.iter_mut().map(|docset| docset.doc()).min() {
+        if let Some(min_doc) = self.docsets.iter().map(DocSet::doc).min() {
             self.offset = min_doc;
             self.cursor = 0;
             refill(

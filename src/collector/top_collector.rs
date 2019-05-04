@@ -98,11 +98,11 @@ where
             .collect())
     }
 
-    pub(crate) fn for_segment(
+    pub(crate) fn for_segment<F: PartialOrd>(
         &self,
         segment_id: SegmentLocalId,
         _: &SegmentReader,
-    ) -> Result<TopSegmentCollector<T>> {
+    ) -> Result<TopSegmentCollector<F>> {
         Ok(TopSegmentCollector::new(segment_id, self.limit))
     }
 }

@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::ops::Deref;
 use std::sync::{Arc, RwLock};
 use tokenizer::box_tokenizer;
 use tokenizer::stemmer::Language;
@@ -46,7 +47,8 @@ impl TokenizerManager {
             .read()
             .expect("Acquiring the lock should never fail")
             .get(tokenizer_name)
-            .map(|boxed_tokenizer| boxed_tokenizer.boxed_clone())
+            .map(Deref::deref)
+            .map(BoxedTokenizer::boxed_clone)
     }
 }
 

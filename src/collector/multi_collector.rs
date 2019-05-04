@@ -2,6 +2,7 @@ use super::Collector;
 use super::SegmentCollector;
 use collector::Fruit;
 use std::marker::PhantomData;
+use std::ops::Deref;
 use DocId;
 use Result;
 use Score;
@@ -199,7 +200,10 @@ impl<'a> Collector for MultiCollector<'a> {
     }
 
     fn requires_scoring(&self) -> bool {
-        self.collector_wrappers.iter().any(|c| c.requires_scoring())
+        self.collector_wrappers
+            .iter()
+            .map(Deref::deref)
+            .any(Collector::requires_scoring)
     }
 
     fn merge_fruits(&self, segments_multifruits: Vec<MultiFruit>) -> Result<MultiFruit> {
