@@ -142,6 +142,11 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
         unboxed.size_hint()
     }
 
+    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
+        let unboxed: &mut TDocSet = self.borrow_mut();
+        unboxed.append_to_bitset(bitset);
+    }
+
     fn count(&mut self, delete_bitset: &DeleteBitSet) -> u32 {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.count(delete_bitset)
@@ -150,10 +155,5 @@ impl<TDocSet: DocSet + ?Sized> DocSet for Box<TDocSet> {
     fn count_including_deleted(&mut self) -> u32 {
         let unboxed: &mut TDocSet = self.borrow_mut();
         unboxed.count_including_deleted()
-    }
-
-    fn append_to_bitset(&mut self, bitset: &mut BitSet) {
-        let unboxed: &mut TDocSet = self.borrow_mut();
-        unboxed.append_to_bitset(bitset);
     }
 }
