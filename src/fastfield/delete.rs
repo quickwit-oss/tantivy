@@ -53,16 +53,18 @@ impl DeleteBitSet {
         }
     }
 
-    /// Returns whether the document has been marked as deleted.
+    /// Returns true iff the document is still "alive". In other words, if it has not been deleted.
+    pub fn is_alive(&self, doc: DocId) -> bool {
+        !self.is_deleted(doc)
+    }
+
+    /// Returns true iff the document has been marked as deleted.
+    #[inline(always)]
     pub fn is_deleted(&self, doc: DocId) -> bool {
-        if self.len == 0 {
-            false
-        } else {
-            let byte_offset = doc / 8u32;
-            let b: u8 = (*self.data)[byte_offset as usize];
-            let shift = (doc & 7u32) as u8;
-            b & (1u8 << shift) != 0
-        }
+        let byte_offset = doc / 8u32;
+        let b: u8 = (*self.data)[byte_offset as usize];
+        let shift = (doc & 7u32) as u8;
+        b & (1u8 << shift) != 0
     }
 
     /// Summarize total space usage of this bitset.

@@ -5,10 +5,12 @@ use collector::SegmentCollector;
 use fastfield::FastFieldReader;
 use fastfield::FastValue;
 use schema::Field;
+use std::marker::PhantomData;
 use DocAddress;
 use Result;
 use SegmentLocalId;
 use SegmentReader;
+use TantivyError;
 
 /// The Top Field Collector keeps track of the K documents
 /// sorted by a fast field in the index
@@ -106,8 +108,15 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByF
         reader: &SegmentReader,
     ) -> Result<TopFieldSegmentCollector<T>> {
         let collector = self.collector.for_segment(segment_local_id, reader)?;
-        let reader = reader.fast_field_reader(self.field)?;
-        Ok(TopFieldSegmentCollector { collector, reader })
+        let reader = reader.fast_fields().u64(self.field).ok_or_else(|| {
+            let field_name = reader.schema().get_field_name(self.field);
+            TantivyError::SchemaError(format!("Failed to find fast field reader {:?}", field_name))
+        })?;
+        Ok(TopFieldSegmentCollector {
+            collector,
+            reader,
+            _type: PhantomData,
+        })
     }
 
     fn requires_scoring(&self) -> bool {
@@ -122,9 +131,10 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> Collector for TopDocsByF
     }
 }
 
-pub struct TopFieldSegmentCollector<T: FastValue + PartialOrd> {
-    collector: TopSegmentCollector<T>,
-    reader: FastFieldReader<T>,
+pub struct TopFieldSegmentCollector<T> {
+    collector: TopSegmentCollector<u64>,
+    reader: FastFieldReader<u64>,
+    _type: PhantomData<T>,
 }
 
 impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector
@@ -138,7 +148,11 @@ impl<T: FastValue + PartialOrd + Send + Sync + 'static> SegmentCollector
     }
 
     fn harvest(self) -> Vec<(T, DocAddress)> {
-        self.collector.harvest()
+        self.collector
+            .harvest()
+            .into_iter()
+            .map(|(val, doc_address)| (T::from_u64(val), doc_address))
+            .collect()
     }
 }
 
@@ -235,7 +249,7 @@ mod tests {
                 .for_segment(0, segment)
                 .map(|_| ())
                 .unwrap_err(),
-            TantivyError::FastFieldError(_)
+            TantivyError::SchemaError(_)
         );
     }
 

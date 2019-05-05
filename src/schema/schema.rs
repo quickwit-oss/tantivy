@@ -233,7 +233,7 @@ impl Schema {
             let field_name = self.get_field_name(field);
             let values: Vec<Value> = field_values
                 .into_iter()
-                .map(|field_val| field_val.value())
+                .map(FieldValue::value)
                 .cloned()
                 .collect();
             field_map.insert(field_name.to_string(), values);

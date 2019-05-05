@@ -30,6 +30,7 @@ pub use self::error::{FastFieldNotAvailableError, Result};
 pub use self::facet_reader::FacetReader;
 pub use self::multivalued::{MultiValueIntFastFieldReader, MultiValueIntFastFieldWriter};
 pub use self::reader::FastFieldReader;
+pub use self::readers::FastFieldReaders;
 pub use self::serializer::FastFieldSerializer;
 pub use self::writer::{FastFieldsWriter, IntFastFieldWriter};
 use common;
@@ -43,6 +44,7 @@ mod error;
 mod facet_reader;
 mod multivalued;
 mod reader;
+mod readers;
 mod serializer;
 mod writer;
 
@@ -78,16 +80,16 @@ impl FastValue for u64 {
         *self
     }
 
-    fn as_u64(&self) -> u64 {
-        *self
-    }
-
     fn fast_field_cardinality(field_type: &FieldType) -> Option<Cardinality> {
         match *field_type {
             FieldType::U64(ref integer_options) => integer_options.get_fastfield_cardinality(),
             FieldType::HierarchicalFacet => Some(Cardinality::MultiValues),
             _ => None,
         }
+    }
+
+    fn as_u64(&self) -> u64 {
+        *self
     }
 }
 

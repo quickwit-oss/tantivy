@@ -227,7 +227,7 @@ pub struct PerFieldSpaceUsage {
 
 impl PerFieldSpaceUsage {
     pub(crate) fn new(fields: HashMap<Field, FieldUsage>) -> PerFieldSpaceUsage {
-        let total = fields.values().map(|x| x.total()).sum();
+        let total = fields.values().map(FieldUsage::total).sum();
         PerFieldSpaceUsage { fields, total }
     }
 

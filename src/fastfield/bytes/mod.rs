@@ -23,14 +23,14 @@ mod tests {
         index_writer.add_document(doc!(field=>vec![0u8; 1000]));
         assert!(index_writer.commit().is_ok());
         let searcher = index.reader().unwrap().searcher();
-        let reader = searcher.segment_reader(0);
-        let bytes_reader = reader.bytes_fast_field_reader(field).unwrap();
+        let segment_reader = searcher.segment_reader(0);
+        let bytes_reader = segment_reader.fast_fields().bytes(field).unwrap();
 
-        assert_eq!(bytes_reader.get_val(0), &[0u8, 1, 2, 3]);
-        assert!(bytes_reader.get_val(1).is_empty());
-        assert_eq!(bytes_reader.get_val(2), &[255u8]);
-        assert_eq!(bytes_reader.get_val(3), &[1u8, 3, 5, 7, 9]);
+        assert_eq!(bytes_reader.get_bytes(0), &[0u8, 1, 2, 3]);
+        assert!(bytes_reader.get_bytes(1).is_empty());
+        assert_eq!(bytes_reader.get_bytes(2), &[255u8]);
+        assert_eq!(bytes_reader.get_bytes(3), &[1u8, 3, 5, 7, 9]);
         let long = vec![0u8; 1000];
-        assert_eq!(bytes_reader.get_val(4), long.as_slice());
+        assert_eq!(bytes_reader.get_bytes(4), long.as_slice());
     }
 }

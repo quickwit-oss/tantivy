@@ -18,7 +18,7 @@ use tantivy::fastfield::FastFieldReader;
 use tantivy::query::QueryParser;
 use tantivy::schema::Field;
 use tantivy::schema::{Schema, FAST, INDEXED, TEXT};
-use tantivy::Index;
+use tantivy::{Index, TantivyError};
 use tantivy::SegmentReader;
 
 #[derive(Default)]
@@ -75,9 +75,15 @@ impl Collector for StatsCollector {
     fn for_segment(
         &self,
         _segment_local_id: u32,
-        segment: &SegmentReader,
+        segment_reader: &SegmentReader,
     ) -> tantivy::Result<StatsSegmentCollector> {
-        let fast_field_reader = segment.fast_field_reader(self.field)?;
+        let fast_field_reader = segment_reader
+            .fast_fields()
+            .u64(self.field)
+            .ok_or_else(|| {
+                let field_name = segment_reader.schema().get_field_name()
+                TantivyError::SchemaError(format!("Field {:?} is not a u64 fast field.", field_name))
+            })?;
         Ok(StatsSegmentCollector {
             fast_field_reader,
             stats: Stats::default(),
