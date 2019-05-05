@@ -148,6 +148,11 @@ impl TopDocs {
     ///     Ok(resulting_docs)
     /// }
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// May panic if the field requested is not a fast field.
+    ///
     pub fn order_by_field<TFastValue>(
         self,
         field: Field,
@@ -155,14 +160,12 @@ impl TopDocs {
     where
         TFastValue: FastValue + 'static,
     {
-        self.tweak_score(move |segment_reader: &SegmentReader| {
+        self.custom_score(move |segment_reader: &SegmentReader| {
             let ff_reader: FastFieldReader<u64> = segment_reader
                 .fast_fields()
                 .u64_lenient(field)
-                .ok_or_else(|| {
-                TantivyError::SchemaError("Field is not a fast field.".to_string())
-            })?;
-            Ok(move |doc: DocId, _score: Score| TFastValue::from_u64(ff_reader.get(doc)))
+                .expect("Field requested is not a i64/u64 fast field.");
+            move |doc: DocId| TFastValue::from_u64(ff_reader.get(doc))
         })
     }
 
@@ -237,7 +240,7 @@ impl TopDocs {
     ///             // fast field.
     ///             let popularity_reader =
     ///                 segment_reader.fast_fields().u64(popularity).unwrap();
-    ///             
+    ///
     ///             // We can now define our actual scoring function
     ///             Ok(move |doc: DocId, original_score: Score| {
     ///                 let popularity: u64 = popularity_reader.get(doc);
@@ -256,16 +259,28 @@ impl TopDocs {
     ///
     /// # Ok(())
     /// # }
-    pub fn tweak_score<TScore, TSegmentScoreTweaker, TScoreTweaker>(
+    pub fn tweak_score<TScore, TScoreSegmentTweaker, TScoreTweaker>(
         self,
         score_tweaker: TScoreTweaker,
     ) -> TweakedScoreTopCollector<TScoreTweaker, TScore>
     where
         TScore: Send + Sync + Clone + PartialOrd,
-        TSegmentScoreTweaker: SegmentScoreTweaker<TScore> + 'static,
-        TScoreTweaker: ScoreTweaker<TScore, Child = TSegmentScoreTweaker>,
+        TScoreSegmentTweaker: ScoreSegmentTweaker<TScore> + 'static,
+        TScoreTweaker: ScoreTweaker<TScore, Child = TScoreSegmentTweaker>,
     {
         TweakedScoreTopCollector::new(score_tweaker, self.0.limit())
+    }
+
+    pub fn custom_score<TScore, TCustomSegmentScorer, TCustomScorer>(
+        self,
+        custom_score: TCustomScorer,
+    ) -> CustomScoreTopCollector<TCustomScorer, TScore>
+    where
+        TScore: Send + Sync + Clone + PartialOrd,
+        TCustomSegmentScorer: CustomSegmentScorer<TScore> + 'static,
+        TCustomScorer: CustomScorer<TScore, Child = TCustomSegmentScorer>,
+    {
+        CustomScoreTopCollector::new(custom_score, self.0.limit())
     }
 }
 
@@ -310,20 +325,14 @@ impl SegmentCollector for TopScoreSegmentCollector {
 #[cfg(test)]
 mod tests {
     use super::TopDocs;
-<<<<<<< HEAD
     use crate::query::QueryParser;
     use crate::schema::Schema;
     use crate::schema::TEXT;
     use crate::DocAddress;
     use crate::Index;
     use crate::Score;
-=======
-    use collector::Collector;
-    use query::{Query, QueryParser};
-    use schema::{Field, Schema, FAST, STORED, TEXT};
-    use Score;
-    use {DocAddress, Index, IndexWriter, TantivyError};
->>>>>>> Sort by field relying on tweaked score
+    use crate::{DocAddress, Index, IndexWriter, TantivyError};
+    use {DocAddress, Index, IndexWriter};
 
     fn make_index() -> Index {
         let mut schema_builder = Schema::builder();
@@ -449,6 +458,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Field requested is not a i64/u64 fast field")]
     fn test_field_not_fast_field() {
         let mut schema_builder = Schema::builder();
         let title = schema_builder.add_text_field(TITLE, TEXT);
@@ -463,13 +473,7 @@ mod tests {
         let searcher = index.reader().unwrap().searcher();
         let segment = searcher.segment_reader(0);
         let top_collector = TopDocs::with_limit(4).order_by_field::<u64>(size);
-        assert_matches!(
-            top_collector
-                .for_segment(0, segment)
-                .map(|_| ())
-                .unwrap_err(),
-            TantivyError::SchemaError(_)
-        );
+        assert!(top_collector.for_segment(0, segment).is_ok());
     }
 
     fn index(

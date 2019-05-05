@@ -103,11 +103,11 @@ mod top_collector;
 mod top_score_collector;
 pub use self::top_score_collector::TopDocs;
 
-//mod top_field_collector;
-//pub use self::top_field_collector::TopDocsByField;
+mod custom_score_top_collector;
+pub use self::custom_score_top_collector::{CustomScorer, CustomSegmentScorer};
 
 mod tweak_score_top_collector;
-pub use self::tweak_score_top_collector::{ScoreTweaker, SegmentScoreTweaker};
+pub use self::tweak_score_top_collector::{ScoreSegmentTweaker, ScoreTweaker};
 
 mod facet_collector;
 pub use self::facet_collector::FacetCollector;
