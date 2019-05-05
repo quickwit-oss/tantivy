@@ -118,7 +118,7 @@ impl TopDocs {
     ///
     ///
     /// /// Searches the document matching the given query, and
-    /// /// collects the top 10 documents, order by the `field`
+    /// /// collects the top 10 documents, order by the u64-`field`
     /// /// given in argument.
     /// ///
     /// /// `field` is required to be a FAST field.
@@ -133,7 +133,7 @@ impl TopDocs {
     ///     // type `sort_by_field`.
     ///     let top_docs_by_rating = TopDocs
     ///                 ::with_limit(10)
-    ///                  .order_by_field::<u64>(sort_by_field);
+    ///                  .order_by_u64_field(sort_by_field);
     ///     
     ///     // ... and here are our documents. Note this is a simple vec.
     ///     // The `u64` in the pair is the value of our fast field for
@@ -153,19 +153,16 @@ impl TopDocs {
     ///
     /// May panic if the field requested is not a fast field.
     ///
-    pub fn order_by_field<TFastValue>(
+    pub fn order_by_u64_field(
         self,
         field: Field,
-    ) -> impl Collector<Fruit = Vec<(TFastValue, DocAddress)>>
-    where
-        TFastValue: FastValue + 'static,
-    {
+    ) -> impl Collector<Fruit = Vec<(u64, DocAddress)>> {
         self.custom_score(move |segment_reader: &SegmentReader| {
-            let ff_reader: FastFieldReader<u64> = segment_reader
+            let ff_reader = segment_reader
                 .fast_fields()
-                .u64_lenient(field)
+                .u64(field)
                 .expect("Field requested is not a i64/u64 fast field.");
-            move |doc: DocId| TFastValue::from_u64(ff_reader.get(doc))
+            return move |doc: DocId| ff_reader.get(doc);
         })
     }
 
@@ -242,13 +239,13 @@ impl TopDocs {
     ///                 segment_reader.fast_fields().u64(popularity).unwrap();
     ///
     ///             // We can now define our actual scoring function
-    ///             Ok(move |doc: DocId, original_score: Score| {
+    ///             move |doc: DocId, original_score: Score| {
     ///                 let popularity: u64 = popularity_reader.get(doc);
     ///                 // Well.. For the sake of the example we use a simple logarithm
     ///                 // function.
     ///                 let popularity_boost_score = ((2u64 + popularity) as f32).log2();
     ///                 popularity_boost_score * original_score
-    ///             })
+    ///             }
     ///           });
     /// # let reader = index.reader()?;
     /// # let searcher = reader.searcher();
@@ -424,7 +421,7 @@ mod tests {
         });
         let searcher = index.reader().unwrap().searcher();
 
-        let top_collector = TopDocs::with_limit(4).order_by_field(size);
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         let top_docs: Vec<(u64, DocAddress)> = searcher.search(&query, &top_collector).unwrap();
         assert_eq!(
             top_docs,
@@ -450,7 +447,7 @@ mod tests {
             ));
         });
         let searcher = index.reader().unwrap().searcher();
-        let top_collector = TopDocs::with_limit(4).order_by_field::<u64>(Field(2));
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(Field(2));
         let segment_reader = searcher.segment_reader(0u32);
         top_collector
             .for_segment(0, segment_reader)
@@ -472,7 +469,7 @@ mod tests {
         });
         let searcher = index.reader().unwrap().searcher();
         let segment = searcher.segment_reader(0);
-        let top_collector = TopDocs::with_limit(4).order_by_field::<u64>(size);
+        let top_collector = TopDocs::with_limit(4).order_by_u64_field(size);
         assert!(top_collector.for_segment(0, segment).is_ok());
     }
 

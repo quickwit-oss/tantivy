@@ -28,7 +28,7 @@ fn collect_segment<C: Collector>(
     let mut segment_collector = collector.for_segment(segment_ord as u32, segment_reader)?;
     if let Some(delete_bitset) = segment_reader.delete_bitset() {
         scorer.for_each(&mut |doc, score| {
-            if !delete_bitset.is_deleted(doc) {
+            if delete_bitset.is_alive(doc) {
                 segment_collector.collect(doc, score);
             }
         });
