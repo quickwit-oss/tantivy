@@ -224,6 +224,87 @@ where
             + self.right.score()
             + self.others.iter_mut().map(Scorer::score).sum::<Score>()
     }
+
+    fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {b
+        let (left, right) = (&mut self.left, &mut self.right);
+
+        if !left.advance() {
+            return;
+        }
+
+        let mut candidate = left.doc();
+        let mut other_candidate_ord: usize = usize::max_value();
+
+        'outer: loop {
+            // In the first part we look for a document in the intersection
+            // of the two rarest `DocSet` in the intersection.
+            loop {
+                match right.skip_next(candidate) {
+                    SkipResult::Reached => {
+                        break;
+                    }
+                    SkipResult::OverStep => {
+                        candidate = right.doc();
+                        other_candidate_ord = usize::max_value();
+                    }
+                    SkipResult::End => {
+                        return;
+                    }
+                }
+                match left.skip_next(candidate) {
+                    SkipResult::Reached => {
+                        break;
+                    }
+                    SkipResult::OverStep => {
+                        candidate = left.doc();
+                        other_candidate_ord = usize::max_value();
+                    }
+                    SkipResult::End => {
+                        return;
+                    }
+                }
+            }
+
+
+            // test the remaining scorers;
+            for (ord, docset) in self.others.iter_mut().enumerate() {
+                if ord == other_candidate_ord {
+                    continue;
+                }
+                // `candidate_ord` is already at the
+                // right position.
+                //
+                // Calling `skip_next` would advance this docset
+                // and miss it.
+                match docset.skip_next(candidate) {
+                    SkipResult::Reached => {}
+                    SkipResult::OverStep => {
+                        // this is not in the intersection,
+                        // let's update our candidate.
+                        candidate = docset.doc();
+                        match left.skip_next(candidate) {
+                            SkipResult::Reached => {
+                                other_candidate_ord = ord;
+                            }
+                            SkipResult::OverStep => {
+                                candidate = left.doc();
+                                other_candidate_ord = usize::max_value();
+                            }
+                            SkipResult::End => {
+                                return;
+                            }
+                        }
+                        continue 'outer;
+                    }
+                    SkipResult::End => {
+                        return;
+                    }
+                }
+                callback(candidate, self.score())
+            }
+
+        }
+    }
 }
 
 #[cfg(test)]
