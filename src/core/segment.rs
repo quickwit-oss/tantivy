@@ -10,6 +10,7 @@ use schema::Schema;
 use std::fmt;
 use std::path::PathBuf;
 use std::result;
+use Opstamp;
 use Result;
 
 /// A segment is a piece of the index.
@@ -50,7 +51,7 @@ impl Segment {
     }
 
     #[doc(hidden)]
-    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> Segment {
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> Segment {
         Segment {
             index: self.index,
             meta: self.meta.with_delete_meta(num_deleted_docs, opstamp),

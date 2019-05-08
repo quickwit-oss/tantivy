@@ -16,6 +16,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
 use tokenizer::{TokenStream, Tokenizer};
 use DocId;
+use Opstamp;
 use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
@@ -29,7 +30,7 @@ pub struct SegmentWriter {
     segment_serializer: SegmentSerializer,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
-    doc_opstamps: Vec<u64>,
+    doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 

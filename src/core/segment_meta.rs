@@ -5,6 +5,7 @@ use serde;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
+use Opstamp;
 
 lazy_static! {
     static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
@@ -13,7 +14,7 @@ lazy_static! {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 struct DeleteMeta {
     num_deleted_docs: u32,
-    opstamp: u64,
+    opstamp: Opstamp,
 }
 
 /// `SegmentMeta` contains simple meta information about a segment.
@@ -136,9 +137,9 @@ impl SegmentMeta {
         self.max_doc() - self.num_deleted_docs()
     }
 
-    /// Returns the opstamp of the last delete operation
+    /// Returns the `Opstamp` of the last delete operation
     /// taken in account in this segment.
-    pub fn delete_opstamp(&self) -> Option<u64> {
+    pub fn delete_opstamp(&self) -> Option<Opstamp> {
         self.tracked
             .deletes
             .as_ref()
@@ -152,7 +153,7 @@ impl SegmentMeta {
     }
 
     #[doc(hidden)]
-    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: u64) -> SegmentMeta {
+    pub fn with_delete_meta(self, num_deleted_docs: u32, opstamp: Opstamp) -> SegmentMeta {
         let delete_meta = DeleteMeta {
             num_deleted_docs,
             opstamp,
