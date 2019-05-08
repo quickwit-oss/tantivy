@@ -320,7 +320,7 @@ impl MmapDirectory {
         #[cfg(windows)]
         {
             use std::os::windows::fs::OpenOptionsExt;
-            use winapi::winbase;
+            use winapi::um::winbase;
 
             open_opts
                 .write(true)
