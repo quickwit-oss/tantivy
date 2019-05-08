@@ -250,6 +250,16 @@ where
     fn size_hint(&self) -> u32 {
         0u32
     }
+}
+
+impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
+where
+    TScoreCombiner: ScoreCombiner,
+    TScorer: Scorer,
+{
+    fn score(&mut self) -> Score {
+        self.score
+    }
 
     fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
         // TODO how do we deal with the fact that people may have called .advance() before.
@@ -261,20 +271,11 @@ where
                     let doc = offset + delta;
                     let score_combiner = &mut self.scores[delta as usize];
                     let score = score_combiner.score();
+                    callback(doc, score);
                     score_combiner.clear();
                 }
             }
         }
-    }
-}
-
-impl<TScorer, TScoreCombiner> Scorer for Union<TScorer, TScoreCombiner>
-where
-    TScoreCombiner: ScoreCombiner,
-    TScorer: Scorer,
-{
-    fn score(&mut self) -> Score {
-        self.score
     }
 }
 

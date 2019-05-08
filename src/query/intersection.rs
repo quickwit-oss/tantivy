@@ -214,6 +214,102 @@ impl<TDocSet: DocSet, TOtherDocSet: DocSet> DocSet for Intersection<TDocSet, TOt
     }
 }
 
+// `ahead` is assumed to be initialized (ahead.advance() has been called at least once,
+// and this returned true).
+//
+// If behind is either uninitialized or `ahead.doc() > behind.doc()`.
+fn next_in_intersection<'a, TScorer: Scorer>(
+    ahead: &'a mut TScorer,
+    behind: &'a mut TScorer,
+) -> Option<DocId> {
+    let candidate = ahead.doc();
+    match behind.skip_next(candidate) {
+        SkipResult::Reached => Some(candidate),
+        SkipResult::OverStep => {
+            // yeah for tail-recursion
+            next_in_intersection(behind, ahead)
+        }
+        SkipResult::End => None,
+    }
+}
+
+enum SkipResultComplex {
+    Reached,
+    Overstep { other_ord: usize, candidate: DocId },
+    End,
+}
+
+fn skip_several_scorers<TDocSet: DocSet>(
+    others: &mut [TDocSet],
+    except_candidate_ord: usize,
+    target: DocId,
+) -> SkipResultComplex {
+    for (ord, docset) in others.iter_mut().enumerate() {
+        // `candidate_ord` is already at the
+        // right position.
+        //
+        // Calling `skip_next` would advance this docset
+        // and miss it.
+        if ord == except_candidate_ord {
+            continue;
+        }
+        match docset.skip_next(target) {
+            SkipResult::Reached => {}
+            SkipResult::OverStep => {
+                return SkipResultComplex::Overstep {
+                    other_ord: ord,
+                    candidate: docset.doc(),
+                };
+            }
+            SkipResult::End => {
+                return SkipResultComplex::End;
+            }
+        }
+    }
+    SkipResultComplex::Reached
+}
+
+fn for_each<'a, TScorer: Scorer, TOtherscorer: Scorer>(
+    left: &'a mut TScorer,
+    right: &'a mut TScorer,
+    others: &'a mut [TOtherscorer],
+    callback: &mut FnMut(DocId, Score),
+) {
+    let mut other_candidate_ord: usize = usize::max_value();
+    if !left.advance() {
+        return;
+    }
+    while let Some(candidate) = next_in_intersection(left, right) {
+        // test the remaining scorers
+        match skip_several_scorers(others, other_candidate_ord, candidate) {
+            SkipResultComplex::Reached => {
+                let intersection_score: Score = left.score()
+                    + right.score()
+                    + others.iter_mut().map(|other| other.score()).sum::<Score>();
+                callback(candidate, intersection_score);
+                if !left.advance() {
+                    return;
+                }
+            }
+            SkipResultComplex::Overstep {
+                other_ord,
+                candidate,
+            } => match left.skip_next(candidate) {
+                SkipResult::End => {
+                    return;
+                }
+                SkipResult::Reached => {
+                    other_candidate_ord = other_ord;
+                }
+                SkipResult::OverStep => other_candidate_ord = usize::max_value(),
+            },
+            SkipResultComplex::End => {
+                return;
+            }
+        }
+    }
+}
+
 impl<TScorer, TOtherScorer> Scorer for Intersection<TScorer, TOtherScorer>
 where
     TScorer: Scorer,
@@ -225,85 +321,8 @@ where
             + self.others.iter_mut().map(Scorer::score).sum::<Score>()
     }
 
-    fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {b
-        let (left, right) = (&mut self.left, &mut self.right);
-
-        if !left.advance() {
-            return;
-        }
-
-        let mut candidate = left.doc();
-        let mut other_candidate_ord: usize = usize::max_value();
-
-        'outer: loop {
-            // In the first part we look for a document in the intersection
-            // of the two rarest `DocSet` in the intersection.
-            loop {
-                match right.skip_next(candidate) {
-                    SkipResult::Reached => {
-                        break;
-                    }
-                    SkipResult::OverStep => {
-                        candidate = right.doc();
-                        other_candidate_ord = usize::max_value();
-                    }
-                    SkipResult::End => {
-                        return;
-                    }
-                }
-                match left.skip_next(candidate) {
-                    SkipResult::Reached => {
-                        break;
-                    }
-                    SkipResult::OverStep => {
-                        candidate = left.doc();
-                        other_candidate_ord = usize::max_value();
-                    }
-                    SkipResult::End => {
-                        return;
-                    }
-                }
-            }
-
-
-            // test the remaining scorers;
-            for (ord, docset) in self.others.iter_mut().enumerate() {
-                if ord == other_candidate_ord {
-                    continue;
-                }
-                // `candidate_ord` is already at the
-                // right position.
-                //
-                // Calling `skip_next` would advance this docset
-                // and miss it.
-                match docset.skip_next(candidate) {
-                    SkipResult::Reached => {}
-                    SkipResult::OverStep => {
-                        // this is not in the intersection,
-                        // let's update our candidate.
-                        candidate = docset.doc();
-                        match left.skip_next(candidate) {
-                            SkipResult::Reached => {
-                                other_candidate_ord = ord;
-                            }
-                            SkipResult::OverStep => {
-                                candidate = left.doc();
-                                other_candidate_ord = usize::max_value();
-                            }
-                            SkipResult::End => {
-                                return;
-                            }
-                        }
-                        continue 'outer;
-                    }
-                    SkipResult::End => {
-                        return;
-                    }
-                }
-                callback(candidate, self.score())
-            }
-
-        }
+    fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
+        for_each(&mut self.left, &mut self.right, &mut self.others, callback);
     }
 }
 

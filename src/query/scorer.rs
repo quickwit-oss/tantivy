@@ -16,6 +16,9 @@ pub trait Scorer: downcast_rs::Downcast + DocSet + 'static {
 
     /// Iterates through all of the document matched by the DocSet
     /// `DocSet` and push the scored documents to the collector.
+    ///
+    /// This method assumes that the Scorer is brand new, and `.advance()`
+    /// and `.skip()` haven't been called yet.
     fn for_each(&mut self, callback: &mut FnMut(DocId, Score)) {
         while self.advance() {
             callback(self.doc(), self.score());
