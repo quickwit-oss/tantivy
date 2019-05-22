@@ -48,14 +48,14 @@ impl RetryPolicy {
 ///
 /// It is transparently associated to a lock file, that gets deleted
 /// on `Drop.` The lock is released automatically on `Drop`.
-pub struct DirectoryLock(Box<Drop + Send + 'static>);
+pub struct DirectoryLock(Box<Drop + Send + Sync + 'static>);
 
 struct DirectoryLockGuard {
     directory: Box<Directory>,
     path: PathBuf,
 }
 
-impl<T: Drop + Send + 'static> From<Box<T>> for DirectoryLock {
+impl<T: Drop + Send + Sync + 'static> From<Box<T>> for DirectoryLock {
     fn from(underlying: Box<T>) -> Self {
         DirectoryLock(underlying)
     }

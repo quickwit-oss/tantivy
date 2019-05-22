@@ -618,7 +618,7 @@ impl IndexWriter {
     ///
     /// Like adds, the deletion itself will be visible
     /// only after calling `commit()`.
-    pub fn delete_term(&mut self, term: Term) -> Opstamp {
+    pub fn delete_term(&self, term: Term) -> Opstamp {
         let opstamp = self.stamper.stamp();
         let delete_operation = DeleteOperation { opstamp, term };
         self.delete_queue.push(delete_operation);
@@ -646,7 +646,7 @@ impl IndexWriter {
     ///
     /// Currently it represents the number of documents that
     /// have been added since the creation of the index.
-    pub fn add_document(&mut self, document: Document) -> Opstamp {
+    pub fn add_document(&self, document: Document) -> Opstamp {
         let opstamp = self.stamper.stamp();
         let add_operation = AddOperation { opstamp, document };
         let send_result = self.operation_sender.send(vec![add_operation]);
