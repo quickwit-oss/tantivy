@@ -1,3 +1,35 @@
+Tantivy 0.10.0
+=====================
+
+*Tantivy 0.10.0 index format is compatible with the index format in 0.9.0.*
+
+- Added an ASCII folding filter (@drusellers)
+- Bugfix in `query.count` in presence of deletes (@pmasurel)
+
+Minor
+---------
+- Small simplification of the code. 
+Calling .freq() or .doc() when .advance() has never 
+on segment postings should panic from now on.
+- Tokens exceeding `u16::max_value() - 4` chars are discarded silently instead of panicking.
+- Fast fields are now preloaded when the `SegmentReader` is created.
+
+## How to update?
+
+Your existing indexes are usable as is. Your may or may need some 
+trivial updates.
+
+### Fast fields
+
+Fast fields used to be accessed directly from the `SegmentReader`.
+The API changed, you are now required to acquire your fast field reader via the
+`segment_reader.fast_fields()`, and use one of the typed method: 
+- `.u64()`, `.i64()` if your field is single-valued ;
+- `.u64s()`, `.i64s()` if your field is multi-valued ;
+- `.bytes()` if your field is bytes fast field.
+
+
+
 Tantivy 0.9.0
 =====================
 *0.9.0 index format is not compatible with the 

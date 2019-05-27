@@ -1,6 +1,7 @@
 use htmlescape::encode_minimal;
 use query::Query;
 use schema::Field;
+use schema::Value;
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
@@ -303,7 +304,7 @@ impl SnippetGenerator {
         let text: String = doc
             .get_all(self.field)
             .into_iter()
-            .flat_map(|val| val.text())
+            .flat_map(Value::text)
             .collect::<Vec<&str>>()
             .join(" ");
         self.snippet(&text)

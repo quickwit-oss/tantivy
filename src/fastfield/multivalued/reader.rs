@@ -26,6 +26,13 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
         }
     }
 
+    pub(crate) fn into_u64s_reader(self) -> MultiValueIntFastFieldReader<u64> {
+        MultiValueIntFastFieldReader {
+            idx_reader: self.idx_reader,
+            vals_reader: self.vals_reader.into_u64_reader(),
+        }
+    }
+
     /// Returns `(start, stop)`, such that the values associated
     /// to the given document are `start..stop`.
     fn range(&self, doc: DocId) -> (u64, u64) {
@@ -41,13 +48,24 @@ impl<Item: FastValue> MultiValueIntFastFieldReader<Item> {
         vals.resize(len, Item::default());
         self.vals_reader.get_range_u64(start, &mut vals[..]);
     }
+
+    /// Returns the number of values associated with the document `DocId`.
+    pub fn num_vals(&self, doc: DocId) -> usize {
+        let (start, stop) = self.range(doc);
+        (stop - start) as usize
+    }
+
+    /// Returns the overall number of values in this field  .
+    pub fn total_num_vals(&self) -> u64 {
+        self.idx_reader.max_value()
+    }
 }
 
 #[cfg(test)]
 mod tests {
 
     use core::Index;
-    use schema::{Document, Facet, Schema};
+    use schema::{Facet, Schema};
 
     #[test]
     fn test_multifastfield_reader() {
@@ -58,22 +76,12 @@ mod tests {
         let mut index_writer = index
             .writer_with_num_threads(1, 30_000_000)
             .expect("Failed to create index writer.");
-        {
-            let mut doc = Document::new();
-            doc.add_facet(facet_field, "/category/cat2");
-            doc.add_facet(facet_field, "/category/cat1");
-            index_writer.add_document(doc);
-        }
-        {
-            let mut doc = Document::new();
-            doc.add_facet(facet_field, "/category/cat2");
-            index_writer.add_document(doc);
-        }
-        {
-            let mut doc = Document::new();
-            doc.add_facet(facet_field, "/category/cat3");
-            index_writer.add_document(doc);
-        }
+        index_writer.add_document(doc!(
+            facet_field => Facet::from("/category/cat2"),
+            facet_field => Facet::from("/category/cat1"),
+        ));
+        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat2")));
+        index_writer.add_document(doc!(facet_field => Facet::from("/category/cat3")));
         index_writer.commit().expect("Commit failed");
         let searcher = index.reader().unwrap().searcher();
         let segment_reader = searcher.segment_reader(0);

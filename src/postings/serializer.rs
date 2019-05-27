@@ -14,7 +14,7 @@ use termdict::{TermDictionaryBuilder, TermOrdinal};
 use DocId;
 use Result;
 
-/// `PostingsSerializer` is in charge of serializing
+/// `InvertedIndexSerializer` is in charge of serializing
 /// postings on disk, in the
 /// * `.idx` (inverted index)
 /// * `.pos` (positions file)
@@ -54,7 +54,7 @@ pub struct InvertedIndexSerializer {
 }
 
 impl InvertedIndexSerializer {
-    /// Open a new `PostingsSerializer` for the given segment
+    /// Open a new `InvertedIndexSerializer` for the given segment
     fn create(
         terms_write: CompositeWrite<WritePtr>,
         postings_write: CompositeWrite<WritePtr>,
@@ -175,7 +175,7 @@ impl<'a> FieldSerializer<'a> {
         let positions_idx = self
             .positions_serializer_opt
             .as_ref()
-            .map(|positions_serializer| positions_serializer.positions_idx())
+            .map(PositionSerializer::positions_idx)
             .unwrap_or(0u64);
         TermInfo {
             doc_freq: 0,

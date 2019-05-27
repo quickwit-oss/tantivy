@@ -1,70 +1,27 @@
 use std::ops::Range;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use Opstamp;
 
-// AtomicU64 have not landed in stable.
-// For the moment let's just use AtomicUsize on
-// x86/64 bit platform, and a mutex on other platform.
-#[cfg(target_arch = "x86_64")]
-mod archicture_impl {
-
-    use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[derive(Default)]
-    pub struct AtomicU64Ersatz(AtomicUsize);
-
-    impl AtomicU64Ersatz {
-        pub fn new(first_opstamp: u64) -> AtomicU64Ersatz {
-            AtomicU64Ersatz(AtomicUsize::new(first_opstamp as usize))
-        }
-
-        pub fn fetch_add(&self, val: u64, order: Ordering) -> u64 {
-            self.0.fetch_add(val as usize, order) as u64
-        }
-    }
-}
-
-#[cfg(not(target_arch = "x86_64"))]
-mod archicture_impl {
-
-    use std::sync::atomic::Ordering;
-    /// Under other architecture, we rely on a mutex.
-    use std::sync::RwLock;
-
-    #[derive(Default)]
-    pub struct AtomicU64Ersatz(RwLock<u64>);
-
-    impl AtomicU64Ersatz {
-        pub fn new(first_opstamp: u64) -> AtomicU64Ersatz {
-            AtomicU64Ersatz(RwLock::new(first_opstamp))
-        }
-
-        pub fn fetch_add(&self, incr: u64, _order: Ordering) -> u64 {
-            let mut lock = self.0.write().unwrap();
-            let previous_val = *lock;
-            *lock = previous_val + incr;
-            previous_val
-        }
-    }
-}
-
-use self::archicture_impl::AtomicU64Ersatz;
-
+/// Stamper provides Opstamps, which is just an auto-increment id to label
+/// an operation.
+///
+/// Cloning does not "fork" the stamp generation. The stamper actually wraps an `Arc`.
 #[derive(Clone, Default)]
-pub struct Stamper(Arc<AtomicU64Ersatz>);
+pub struct Stamper(Arc<AtomicU64>);
 
 impl Stamper {
-    pub fn new(first_opstamp: u64) -> Stamper {
-        Stamper(Arc::new(AtomicU64Ersatz::new(first_opstamp)))
+    pub fn new(first_opstamp: Opstamp) -> Stamper {
+        Stamper(Arc::new(AtomicU64::new(first_opstamp)))
     }
 
-    pub fn stamp(&self) -> u64 {
+    pub fn stamp(&self) -> Opstamp {
         self.0.fetch_add(1u64, Ordering::SeqCst) as u64
     }
 
     /// Given a desired count `n`, `stamps` returns an iterator that
     /// will supply `n` number of u64 stamps.
-    pub fn stamps(&self, n: u64) -> Range<u64> {
+    pub fn stamps(&self, n: u64) -> Range<Opstamp> {
         let start = self.0.fetch_add(n, Ordering::SeqCst);
         Range {
             start,
@@ -92,4 +49,5 @@ mod test {
         assert_eq!(stamper.stamps(3u64), (12..15));
         assert_eq!(stamper.stamp(), 15u64);
     }
+
 }

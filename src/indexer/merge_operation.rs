@@ -1,5 +1,6 @@
 use census::{Inventory, TrackedObject};
 use std::collections::HashSet;
+use Opstamp;
 use SegmentId;
 
 #[derive(Default)]
@@ -17,8 +18,8 @@ impl MergeOperationInventory {
     }
 }
 
-/// A `MergeOperation` has two role.
-/// It carries all of the information required to describe a merge :
+/// A `MergeOperation` has two roles.
+/// It carries all of the information required to describe a merge:
 /// - `target_opstamp` is the opstamp up to which we want to consume the
 /// delete queue and reflect their deletes.
 /// - `segment_ids` is the list of segment to be merged.
@@ -35,14 +36,14 @@ pub struct MergeOperation {
 }
 
 struct InnerMergeOperation {
-    target_opstamp: u64,
+    target_opstamp: Opstamp,
     segment_ids: Vec<SegmentId>,
 }
 
 impl MergeOperation {
     pub fn new(
         inventory: &MergeOperationInventory,
-        target_opstamp: u64,
+        target_opstamp: Opstamp,
         segment_ids: Vec<SegmentId>,
     ) -> MergeOperation {
         let inner_merge_operation = InnerMergeOperation {
@@ -54,7 +55,7 @@ impl MergeOperation {
         }
     }
 
-    pub fn target_opstamp(&self) -> u64 {
+    pub fn target_opstamp(&self) -> Opstamp {
         self.inner.target_opstamp
     }
 

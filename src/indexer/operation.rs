@@ -1,17 +1,18 @@
 use schema::Document;
 use schema::Term;
+use Opstamp;
 
 /// Timestamped Delete operation.
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub struct DeleteOperation {
-    pub opstamp: u64,
+    pub opstamp: Opstamp,
     pub term: Term,
 }
 
 /// Timestamped Add operation.
 #[derive(Eq, PartialEq, Debug)]
 pub struct AddOperation {
-    pub opstamp: u64,
+    pub opstamp: Opstamp,
     pub document: Document,
 }
 

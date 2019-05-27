@@ -254,6 +254,16 @@ pub mod merge_policy {
 /// as they are added in the segment.
 pub type DocId = u32;
 
+/// A u64 assigned to every operation incrementally
+///
+/// All operations modifying the index receives an monotonic Opstamp.
+/// The resulting state of the index is consistent with the opstamp ordering.
+///
+/// For instance, a commit with opstamp `32_423` will reflect all Add and Delete operations
+/// with an opstamp `<= 32_423`. A delete operation with opstamp n will no affect a document added
+/// with opstamp `n+1`.
+pub type Opstamp = u64;
+
 /// A f32 that represents the relevance of the document to the query
 ///
 /// This is modelled internally as a `f32`. The
@@ -876,28 +886,28 @@ mod tests {
         let searcher = reader.searcher();
         let segment_reader: &SegmentReader = searcher.segment_reader(0);
         {
-            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(text_field);
-            assert!(fast_field_reader_res.is_err());
+            let fast_field_reader_opt = segment_reader.fast_fields().u64(text_field);
+            assert!(fast_field_reader_opt.is_none());
         }
         {
-            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(stored_int_field);
-            assert!(fast_field_reader_res.is_err());
+            let fast_field_reader_opt = segment_reader.fast_fields().u64(stored_int_field);
+            assert!(fast_field_reader_opt.is_none());
         }
         {
-            let fast_field_reader_res = segment_reader.fast_field_reader::<u64>(fast_field_signed);
-            assert!(fast_field_reader_res.is_err());
+            let fast_field_reader_opt = segment_reader.fast_fields().u64(fast_field_signed);
+            assert!(fast_field_reader_opt.is_none());
         }
         {
-            let fast_field_reader_res = segment_reader.fast_field_reader::<i64>(fast_field_signed);
-            assert!(fast_field_reader_res.is_ok());
-            let fast_field_reader = fast_field_reader_res.unwrap();
+            let fast_field_reader_opt = segment_reader.fast_fields().i64(fast_field_signed);
+            assert!(fast_field_reader_opt.is_some());
+            let fast_field_reader = fast_field_reader_opt.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
 
         {
-            let fast_field_reader_res = segment_reader.fast_field_reader::<i64>(fast_field_signed);
-            assert!(fast_field_reader_res.is_ok());
-            let fast_field_reader = fast_field_reader_res.unwrap();
+            let fast_field_reader_opt = segment_reader.fast_fields().i64(fast_field_signed);
+            assert!(fast_field_reader_opt.is_some());
+            let fast_field_reader = fast_field_reader_opt.unwrap();
             assert_eq!(fast_field_reader.get(0), 4i64)
         }
     }

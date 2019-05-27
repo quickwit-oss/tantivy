@@ -130,7 +130,16 @@ impl SchemaBuilder {
         self.add_field(field_entry)
     }
 
-    /// Adds a fast bytes field to the schema
+    /// Adds a fast bytes field to the schema.
+    ///
+    /// Bytes field are not searchable and are only used
+    /// as fast field, to associate any kind of payload
+    /// to a document.
+    ///
+    /// For instance, learning-to-rank often requires to access
+    /// some document features at scoring time.
+    /// These can be serializing and stored as a bytes field to
+    /// get access rapidly when scoring each document.
     pub fn add_bytes_field(&mut self, field_name: &str) -> Field {
         let field_entry = FieldEntry::new_bytes(field_name.to_string());
         self.add_field(field_entry)
@@ -224,7 +233,7 @@ impl Schema {
             let field_name = self.get_field_name(field);
             let values: Vec<Value> = field_values
                 .into_iter()
-                .map(|field_val| field_val.value())
+                .map(FieldValue::value)
                 .cloned()
                 .collect();
             field_map.insert(field_name.to_string(), values);

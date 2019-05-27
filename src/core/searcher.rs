@@ -59,7 +59,7 @@ impl Searcher {
     ) -> Searcher {
         let store_readers = segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.get_store_reader())
+            .map(SegmentReader::get_store_reader)
             .collect();
         Searcher {
             schema,
@@ -218,7 +218,7 @@ impl fmt::Debug for Searcher {
         let segment_ids = self
             .segment_readers
             .iter()
-            .map(|segment_reader| segment_reader.segment_id())
+            .map(SegmentReader::segment_id)
             .collect::<Vec<_>>();
         write!(f, "Searcher({:?})", segment_ids)
     }

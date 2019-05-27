@@ -5,6 +5,7 @@ use fastfield::FastFieldsWriter;
 use fieldnorm::FieldNormsWriter;
 use indexer::segment_serializer::SegmentSerializer;
 use postings::MultiFieldPostingsWriter;
+use schema::FieldEntry;
 use schema::FieldType;
 use schema::Schema;
 use schema::Term;
@@ -15,6 +16,7 @@ use tokenizer::BoxedTokenizer;
 use tokenizer::FacetTokenizer;
 use tokenizer::{TokenStream, Tokenizer};
 use DocId;
+use Opstamp;
 use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
@@ -28,7 +30,7 @@ pub struct SegmentWriter {
     segment_serializer: SegmentSerializer,
     fast_field_writers: FastFieldsWriter,
     fieldnorms_writer: FieldNormsWriter,
-    doc_opstamps: Vec<u64>,
+    doc_opstamps: Vec<Opstamp>,
     tokenizers: Vec<Option<Box<BoxedTokenizer>>>,
 }
 
@@ -53,7 +55,7 @@ impl SegmentWriter {
             schema
                 .fields()
                 .iter()
-                .map(|field_entry| field_entry.field_type())
+                .map(FieldEntry::field_type)
                 .map(|field_type| match *field_type {
                     FieldType::Str(ref text_options) => text_options
                         .get_indexing_options()

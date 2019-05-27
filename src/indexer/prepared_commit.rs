@@ -1,15 +1,16 @@
 use super::IndexWriter;
+use Opstamp;
 use Result;
 
 /// A prepared commit
 pub struct PreparedCommit<'a> {
     index_writer: &'a mut IndexWriter,
     payload: Option<String>,
-    opstamp: u64,
+    opstamp: Opstamp,
 }
 
 impl<'a> PreparedCommit<'a> {
-    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: u64) -> PreparedCommit {
+    pub(crate) fn new(index_writer: &'a mut IndexWriter, opstamp: Opstamp) -> PreparedCommit {
         PreparedCommit {
             index_writer,
             payload: None,
@@ -17,7 +18,7 @@ impl<'a> PreparedCommit<'a> {
         }
     }
 
-    pub fn opstamp(&self) -> u64 {
+    pub fn opstamp(&self) -> Opstamp {
         self.opstamp
     }
 
@@ -25,11 +26,11 @@ impl<'a> PreparedCommit<'a> {
         self.payload = Some(payload.to_string())
     }
 
-    pub fn abort(self) -> Result<()> {
+    pub fn abort(self) -> Result<Opstamp> {
         self.index_writer.rollback()
     }
 
-    pub fn commit(self) -> Result<u64> {
+    pub fn commit(self) -> Result<Opstamp> {
         info!("committing {}", self.opstamp);
         self.index_writer
             .segment_updater()
