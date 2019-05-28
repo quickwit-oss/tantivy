@@ -740,7 +740,7 @@ mod tests {
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        let index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
         let operations = vec![
             UserOperation::Add(doc!(text_field=>"a")),
             UserOperation::Add(doc!(text_field=>"b")),
@@ -802,7 +802,7 @@ mod tests {
     fn test_empty_operations_group() {
         let schema_builder = schema::Schema::builder();
         let index = Index::create_in_ram(schema_builder.build());
-        let mut index_writer = index.writer(3_000_000).unwrap();
+        let index_writer = index.writer(3_000_000).unwrap();
         let operations1 = vec![];
         let batch_opstamp1 = index_writer.run(operations1);
         assert_eq!(batch_opstamp1, 0u64);
