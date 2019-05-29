@@ -61,9 +61,6 @@ before_script:
 script:
   - bash ci/script.sh
 
-after_success:
-  - cargo doc-upload
-
 before_deploy:
   - sh ci/before_deploy.sh
 
