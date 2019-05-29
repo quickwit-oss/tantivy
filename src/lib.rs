@@ -219,6 +219,7 @@ pub mod termdict;
 mod reader;
 
 pub use self::reader::{IndexReader, IndexReaderBuilder, ReloadPolicy};
+pub use self::reader::LeasedItem;
 mod snippet;
 pub use self::snippet::{Snippet, SnippetGenerator};
 

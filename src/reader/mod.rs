@@ -1,6 +1,6 @@
 mod pool;
 
-use self::pool::{LeasedItem, Pool};
+pub use self::pool::{LeasedItem, Pool};
 use core::Segment;
 use directory::Directory;
 use directory::WatchHandle;
