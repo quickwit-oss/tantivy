@@ -1,7 +1,7 @@
 use core::Searcher;
 use core::SegmentReader;
 use docset::DocSet;
-use query::{Query, Scorer, Weight};
+use query::{Explanation, Query, Scorer, Weight};
 use DocId;
 use Result;
 use Score;
@@ -28,6 +28,10 @@ impl Weight for AllWeight {
             doc: 0u32,
             max_doc: reader.max_doc(),
         }))
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
+        Ok(Explanation::new("AllQuery", 1f32))
     }
 }
 

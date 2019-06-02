@@ -1,4 +1,5 @@
 use fieldnorm::FieldNormReader;
+use query::Explanation;
 use Score;
 use Searcher;
 use Term;
@@ -80,6 +81,13 @@ impl BM25Weight {
         let norm = self.cache[fieldnorm_id as usize];
         let term_freq = term_freq as f32;
         self.weight * term_freq / (term_freq + norm)
+    }
+
+    pub fn explain(&self, fieldnorm_id: u8, term_freq: u32) -> Explanation {
+        let score = self.score(fieldnorm_id, term_freq);
+        let mut explanation = Explanation::new("TermQuery", score);
+        // explanation.set_child();
+        explanation
     }
 }
 

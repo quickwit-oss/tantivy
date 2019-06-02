@@ -1,5 +1,5 @@
 use docset::{DocSet, SkipResult};
-use query::Scorer;
+use query::{Explanation, Scorer};
 use DocId;
 use Score;
 
@@ -28,6 +28,22 @@ impl TermScorer {
     }
 }
 
+impl TermScorer {
+    pub fn term_freq(&self) -> u32 {
+        self.postings.term_freq()
+    }
+
+    pub fn fieldnorm_id(&self) -> u8 {
+        self.fieldnorm_reader.fieldnorm_id(self.doc())
+    }
+
+    pub fn explain(&self) -> Explanation {
+        let fieldnorm_id = self.fieldnorm_id();
+        let term_freq = self.term_freq();
+        self.similarity_weight.explain(fieldnorm_id, term_freq)
+    }
+}
+
 impl DocSet for TermScorer {
     fn advance(&mut self) -> bool {
         self.postings.advance()
@@ -48,9 +64,8 @@ impl DocSet for TermScorer {
 
 impl Scorer for TermScorer {
     fn score(&mut self) -> Score {
-        let doc = self.doc();
-        let fieldnorm_id = self.fieldnorm_reader.fieldnorm_id(doc);
-        self.similarity_weight
-            .score(fieldnorm_id, self.postings.term_freq())
+        let fieldnorm_id = self.fieldnorm_id();
+        let term_freq = self.term_freq();
+        self.similarity_weight.score(fieldnorm_id, term_freq)
     }
 }
