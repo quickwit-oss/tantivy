@@ -1,0 +1,17 @@
+[package]
+name = "tantivy-python"
+version = "0.1.0"
+authors = ["Damir Jelić <poljar@termina.org.uk>"]
+edition = "2018"
+
+[lib]
+name = "tantivy"
+crate-type = ["dylib"]
+
+[dependencies]
+chrono = "0.4"
+tantivy = { path = "../" }
+
+[dependencies.pyo3]
+version = "0.7.0"
+features = ["extension-module"]

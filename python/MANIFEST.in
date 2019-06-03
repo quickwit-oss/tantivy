@@ -1,0 +1,4 @@
+include Cargo.toml
+include Makefile
+include rust-toolchain
+recursive-include src *
