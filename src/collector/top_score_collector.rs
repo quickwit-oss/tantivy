@@ -64,6 +64,7 @@ use SegmentReader;
 ///     Ok(())
 /// }
 /// ```
+#[derive(Debug, Clone)]
 pub struct TopDocs(TopCollector<Score>);
 
 impl TopDocs {
