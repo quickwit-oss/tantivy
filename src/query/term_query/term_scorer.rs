@@ -49,16 +49,16 @@ impl DocSet for TermScorer {
         self.postings.advance()
     }
 
+    fn skip_next(&mut self, target: DocId) -> SkipResult {
+        self.postings.skip_next(target)
+    }
+
     fn doc(&self) -> DocId {
         self.postings.doc()
     }
 
     fn size_hint(&self) -> u32 {
         self.postings.size_hint()
-    }
-
-    fn skip_next(&mut self, target: DocId) -> SkipResult {
-        self.postings.skip_next(target)
     }
 }
 

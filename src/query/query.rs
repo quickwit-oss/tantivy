@@ -1,10 +1,11 @@
 use super::Weight;
 use core::searcher::Searcher;
-use downcast_rs;
+use query::Explanation;
 use std::collections::BTreeSet;
 use std::fmt;
 use Result;
 use Term;
+use {downcast_rs, DocAddress};
 
 /// The `Query` trait defines a set of documents and a scoring method
 /// for those documents.
@@ -47,6 +48,12 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     ///
     /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
+
+    fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
+        let reader = searcher.segment_reader(doc_address.segment_ord());
+        let weight = self.weight(searcher, true)?;
+        weight.explain(reader, doc_address.doc())
+    }
 
     /// Returns the number of documents matching the query.
     fn count(&self, searcher: &Searcher) -> Result<usize> {

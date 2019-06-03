@@ -1,5 +1,6 @@
 use fieldnorm::FieldNormReader;
 use query::Explanation;
+use std::collections::btree_map::BTreeMap;
 use Score;
 use Searcher;
 use Term;
@@ -85,9 +86,31 @@ impl BM25Weight {
 
     pub fn explain(&self, fieldnorm_id: u8, term_freq: u32) -> Explanation {
         let score = self.score(fieldnorm_id, term_freq);
-        let mut explanation = Explanation::new("TermQuery", score);
-        // explanation.set_child();
-        explanation
+
+        let norm = self.cache[fieldnorm_id as usize];
+        let mut norm_explanation_children = BTreeMap::default();
+        norm_explanation_children.insert("k1".to_string(), Explanation::value(K1));
+        norm_explanation_children.insert("b".to_string(), Explanation::value(B));
+        let norm_explanation = Explanation::new(
+            "k1 * (1- b + b * |D| / avgdl))",
+            norm,
+            norm_explanation_children,
+        );
+
+        let term_freq = term_freq as f32;
+        let right_factor = term_freq / (term_freq + norm);
+
+        let mut right_explanation_children = BTreeMap::default();
+        right_explanation_children.insert("norm".to_string(), norm_explanation);
+        right_explanation_children.insert("tf".to_string(), Explanation::value(term_freq));
+        let right_explanation =
+            Explanation::new("tf/(tf+norm)", right_factor, right_explanation_children);
+
+        let mut children = BTreeMap::default();
+        children.insert("weight".to_string(), Explanation::value(self.weight));
+        children.insert("tf / (tf+norm)".to_string(), right_explanation);
+
+        Explanation::new("TermQuery", score, children)
     }
 }
 

@@ -93,21 +93,14 @@ impl Query for PhraseQuery {
                 field_name
             )));
         }
-        if scoring_enabled {
+        let phrase_weight: PhraseWeight = if scoring_enabled {
             let terms = self.phrase_terms();
             let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(Box::new(PhraseWeight::new(
-                self.phrase_terms.clone(),
-                bm25_weight,
-                true,
-            )))
+            PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)
         } else {
-            Ok(Box::new(PhraseWeight::new(
-                self.phrase_terms.clone(),
-                BM25Weight::null(),
-                false,
-            )))
-        }
+            PhraseWeight::new(self.phrase_terms.clone(), BM25Weight::null(), false)
+        };
+        Ok(Box::new(phrase_weight))
     }
 
     fn query_terms(&self, term_set: &mut BTreeSet<Term>) {

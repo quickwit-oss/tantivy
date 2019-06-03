@@ -3,10 +3,11 @@ use core::SegmentReader;
 use docset::DocSet;
 use postings::SegmentPostings;
 use query::bm25::BM25Weight;
+use query::explanation::does_not_match;
 use query::Weight;
 use query::{Explanation, Scorer};
 use schema::IndexRecordOption;
-use TantivyError;
+use DocId;
 use Term;
 use {Result, SkipResult};
 
@@ -22,17 +23,12 @@ impl Weight for TermWeight {
         Ok(Box::new(term_scorer))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer_specialized(reader)?;
-        if scorer.skip_next(doc) == SkipResult::Reached {
-            let fieldnorm_id = scorer.fieldnorm_id();
-            let term_freq = scorer.term_freq();
-            Ok(scorer.explain())
-        } else {
-            Err(TantivyError::InvalidArgument(
-                "Document does not exist".to_string(),
-            ))
+        if scorer.skip_next(doc) != SkipResult::Reached {
+            return Err(does_not_match(doc));
         }
+        Ok(scorer.explain())
     }
 
     fn count(&self, reader: &SegmentReader) -> Result<u32> {

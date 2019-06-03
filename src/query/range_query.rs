@@ -2,14 +2,17 @@ use common::BitSet;
 use core::Searcher;
 use core::SegmentReader;
 use error::TantivyError;
+use query::explanation::does_not_match;
 use query::ConstScorer;
 use query::{BitSetDocSet, Explanation};
 use query::{Query, Scorer, Weight};
 use schema::Type;
 use schema::{Field, IndexRecordOption, Term};
+use std::collections::btree_map::BTreeMap;
 use std::collections::Bound;
 use std::ops::Range;
 use termdict::{TermDictionary, TermStreamer};
+use DocId;
 use {Result, SkipResult};
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
@@ -287,14 +290,12 @@ impl Weight for RangeWeight {
         Ok(Box::new(ConstScorer::new(doc_bitset)))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer(reader)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
-            return Err(TantivyError::InvalidArgument(
-                "Document does not match".to_string(),
-            ));
+            return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("RangeQuery", 1.0f32))
+        Ok(Explanation::new("RangeQuery", 1.0f32, BTreeMap::default()))
     }
 }
 

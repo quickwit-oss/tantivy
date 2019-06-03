@@ -3,13 +3,14 @@ use core::SegmentReader;
 use fieldnorm::FieldNormReader;
 use postings::SegmentPostings;
 use query::bm25::BM25Weight;
+use query::explanation::does_not_match;
 use query::Scorer;
 use query::Weight;
 use query::{EmptyScorer, Explanation};
 use schema::IndexRecordOption;
 use schema::Term;
-use DocSet;
-use TantivyError;
+use std::collections::btree_map::BTreeMap;
+use {DocId, DocSet};
 use {Result, SkipResult};
 
 pub struct PhraseWeight {
@@ -92,25 +93,21 @@ impl Weight for PhraseWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
-        let mut scorer_opt = self.phrase_scorer(reader)?;
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        let scorer_opt = self.phrase_scorer(reader)?;
         if scorer_opt.is_none() {
-            return Err(TantivyError::InvalidArgument(
-                "Document does not match".to_string(),
-            ));
+            return Err(does_not_match(doc));
         }
         let mut scorer = scorer_opt.unwrap();
         if scorer.skip_next(doc) != SkipResult::Reached {
-            return Err(TantivyError::InvalidArgument(
-                "Document does not match".to_string(),
-            ));
+            return Err(does_not_match(doc));
         }
         let fieldnorm_reader = self.fieldnorm_reader(reader);
         let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
         let phrase_count = scorer.phrase_count();
-        let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
+        let mut children = BTreeMap::default();
         let child_explanation = self.similarity_weight.explain(fieldnorm_id, phrase_count);
-        explanation.set_child("phrase_explanation", child_explanation);
-        Ok(explanation)
+        children.insert("phrase_explanation".to_string(), child_explanation);
+        Ok(Explanation::new("Phrase Scorer", scorer.score(), children))
     }
 }

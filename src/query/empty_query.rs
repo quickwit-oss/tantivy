@@ -1,4 +1,5 @@
 use super::Scorer;
+use query::explanation::does_not_match;
 use query::Weight;
 use query::{Explanation, Query};
 use DocId;
@@ -7,7 +8,6 @@ use Result;
 use Score;
 use Searcher;
 use SegmentReader;
-use TantivyError;
 
 /// `EmptyQuery` is a dummy `Query` in which no document matches.
 ///
@@ -34,10 +34,8 @@ impl Weight for EmptyWeight {
         Ok(Box::new(EmptyScorer))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
-        Err(TantivyError::InvalidArgument(
-            "Document does not match".to_string(),
-        ))
+    fn explain(&self, _reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        Err(does_not_match(doc))
     }
 }
 

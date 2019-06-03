@@ -1,4 +1,5 @@
 use core::SegmentReader;
+use query::explanation::does_not_match;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use query::term_query::TermScorer;
 use query::EmptyScorer;
@@ -9,9 +10,10 @@ use query::Scorer;
 use query::Union;
 use query::Weight;
 use query::{intersect_scorers, Explanation};
+use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
-use SkipResult;
-use {Result, TantivyError};
+use Result;
+use {DocId, SkipResult};
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -128,31 +130,32 @@ impl Weight for BooleanWeight {
         }
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer(reader)?;
         if scorer.skip_next(doc) != SkipResult::Reached {
-            return Err(TantivyError::InvalidArgument(
-                "Document does not match".to_string(),
-            ));
+            return Err(does_not_match(doc));
         }
         if !self.scoring_enabled {
             return Ok(Explanation::new(
                 "BooleanQuery with no scoring".to_string(),
                 1f32,
+                BTreeMap::default(),
             ));
         }
 
-        let mut explanation = Explanation::new("BooleanClause. Sum of ...", scorer.score());
-
-        for &(ref occur, ref subweight) in &self.weights {
+        let mut children = BTreeMap::default();
+        for (i, &(ref occur, ref subweight)) in self.weights.iter().enumerate() {
             if is_positive_occur(*occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
-                    explanation.set_child(format!("Occur {:?}", occur), child_explanation);
+                    children.insert(format!("#{} - Occur {:?}", i, occur), child_explanation);
                 }
             }
         }
-
-        Ok(explanation)
+        Ok(Explanation::new(
+            "BooleanClause. Sum of ...",
+            scorer.score(),
+            children,
+        ))
     }
 }
 

@@ -1,7 +1,9 @@
 use core::Searcher;
 use core::SegmentReader;
 use docset::DocSet;
+use query::explanation::does_not_match;
 use query::{Explanation, Query, Scorer, Weight};
+use std::collections::btree_map::BTreeMap;
 use DocId;
 use Result;
 use Score;
@@ -30,8 +32,11 @@ impl Weight for AllWeight {
         }))
     }
 
-    fn explain(&self, reader: &SegmentReader, doc: u32) -> Result<Explanation> {
-        Ok(Explanation::new("AllQuery", 1f32))
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        if doc >= reader.max_doc() {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new("AllQuery", 1f32, BTreeMap::default()))
     }
 }
 
