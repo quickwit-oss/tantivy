@@ -3,6 +3,7 @@ name = "tantivy-python"
 version = "0.1.0"
 authors = ["Damir Jelić <poljar@termina.org.uk>"]
 edition = "2018"
+license = "MIT"
 
 [lib]
 name = "tantivy"
