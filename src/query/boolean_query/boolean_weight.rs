@@ -10,7 +10,6 @@ use query::Scorer;
 use query::Union;
 use query::Weight;
 use query::{intersect_scorers, Explanation};
-use std::collections::btree_map::BTreeMap;
 use std::collections::HashMap;
 use Result;
 use {DocId, SkipResult};
@@ -136,26 +135,18 @@ impl Weight for BooleanWeight {
             return Err(does_not_match(doc));
         }
         if !self.scoring_enabled {
-            return Ok(Explanation::new(
-                "BooleanQuery with no scoring".to_string(),
-                1f32,
-                BTreeMap::default(),
-            ));
+            return Ok(Explanation::new("BooleanQuery with no scoring", 1f32));
         }
 
-        let mut children = BTreeMap::default();
-        for (i, &(ref occur, ref subweight)) in self.weights.iter().enumerate() {
+        let mut explanation = Explanation::new("BooleanClause. Sum of ...", scorer.score());
+        for &(ref occur, ref subweight) in &self.weights {
             if is_positive_occur(*occur) {
                 if let Ok(child_explanation) = subweight.explain(reader, doc) {
-                    children.insert(format!("#{} - Occur {:?}", i, occur), child_explanation);
+                    explanation.add_detail(child_explanation);
                 }
             }
         }
-        Ok(Explanation::new(
-            "BooleanClause. Sum of ...",
-            scorer.score(),
-            children,
-        ))
+        Ok(explanation)
     }
 }
 

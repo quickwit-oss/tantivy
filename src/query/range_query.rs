@@ -8,7 +8,6 @@ use query::{BitSetDocSet, Explanation};
 use query::{Query, Scorer, Weight};
 use schema::Type;
 use schema::{Field, IndexRecordOption, Term};
-use std::collections::btree_map::BTreeMap;
 use std::collections::Bound;
 use std::ops::Range;
 use termdict::{TermDictionary, TermStreamer};
@@ -295,7 +294,7 @@ impl Weight for RangeWeight {
         if scorer.skip_next(doc) != SkipResult::Reached {
             return Err(does_not_match(doc));
         }
-        Ok(Explanation::new("RangeQuery", 1.0f32, BTreeMap::default()))
+        Ok(Explanation::new("RangeQuery", 1.0f32))
     }
 }
 

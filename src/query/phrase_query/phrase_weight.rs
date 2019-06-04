@@ -9,7 +9,6 @@ use query::Weight;
 use query::{EmptyScorer, Explanation};
 use schema::IndexRecordOption;
 use schema::Term;
-use std::collections::btree_map::BTreeMap;
 use {DocId, DocSet};
 use {Result, SkipResult};
 
@@ -105,9 +104,8 @@ impl Weight for PhraseWeight {
         let fieldnorm_reader = self.fieldnorm_reader(reader);
         let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
         let phrase_count = scorer.phrase_count();
-        let mut children = BTreeMap::default();
-        let child_explanation = self.similarity_weight.explain(fieldnorm_id, phrase_count);
-        children.insert("phrase_explanation".to_string(), child_explanation);
-        Ok(Explanation::new("Phrase Scorer", scorer.score(), children))
+        let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
+        explanation.add_detail(self.similarity_weight.explain(fieldnorm_id, phrase_count));
+        Ok(explanation)
     }
 }

@@ -1,6 +1,5 @@
 use fieldnorm::FieldNormReader;
 use query::Explanation;
-use std::collections::btree_map::BTreeMap;
 use Score;
 use Searcher;
 use Term;
@@ -28,18 +27,21 @@ fn compute_tf_cache(average_fieldnorm: f32) -> [f32; 256] {
 
 #[derive(Clone)]
 pub struct BM25Weight {
+    idf_explain: Explanation,
     weight: f32,
     cache: [f32; 256],
+    average_fieldnorm: f32,
 }
 
 impl BM25Weight {
     pub fn null() -> BM25Weight {
         BM25Weight {
+            idf_explain: Explanation::const_value(0f32),
             weight: 0f32,
             cache: [1f32; 256],
+            average_fieldnorm: 1f32,
         }
     }
-
     pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> BM25Weight {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();
@@ -60,20 +62,37 @@ impl BM25Weight {
         }
         let average_fieldnorm = total_num_tokens as f32 / total_num_docs as f32;
 
-        let idf = terms
-            .iter()
-            .map(|term| {
-                let term_doc_freq = searcher.doc_freq(term);
-                idf(term_doc_freq, total_num_docs)
-            })
-            .sum::<f32>();
-        BM25Weight::new(idf, average_fieldnorm)
+        let mut idf_explain: Explanation;
+        if terms.len() == 1 {
+            let term_doc_freq = searcher.doc_freq(&terms[0]);
+            let idf = idf(term_doc_freq, total_num_docs);
+            idf_explain =
+                Explanation::new("idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))", idf);
+            idf_explain.add_const(
+                "n, number of docs containing this term",
+                term_doc_freq as f32,
+            );
+            idf_explain.add_const("N, total number of docs", total_num_docs as f32);
+        } else {
+            let idf = terms
+                .iter()
+                .map(|term| {
+                    let term_doc_freq = searcher.doc_freq(term);
+                    idf(term_doc_freq, total_num_docs)
+                })
+                .sum::<f32>();
+            idf_explain = Explanation::new("idf", idf);
+        }
+        BM25Weight::new(idf_explain, average_fieldnorm)
     }
 
-    fn new(idf: f32, average_fieldnorm: f32) -> BM25Weight {
+    fn new(idf_explain: Explanation, average_fieldnorm: f32) -> BM25Weight {
+        let weight = idf_explain.val() * (1f32 + K1);
         BM25Weight {
-            weight: idf * (1f32 + K1),
+            idf_explain,
+            weight,
             cache: compute_tf_cache(average_fieldnorm),
+            average_fieldnorm,
         }
     }
 
@@ -88,29 +107,28 @@ impl BM25Weight {
         let score = self.score(fieldnorm_id, term_freq);
 
         let norm = self.cache[fieldnorm_id as usize];
-        let mut norm_explanation_children = BTreeMap::default();
-        norm_explanation_children.insert("k1".to_string(), Explanation::value(K1));
-        norm_explanation_children.insert("b".to_string(), Explanation::value(B));
-        let norm_explanation = Explanation::new(
-            "k1 * (1- b + b * |D| / avgdl))",
-            norm,
-            norm_explanation_children,
-        );
-
         let term_freq = term_freq as f32;
         let right_factor = term_freq / (term_freq + norm);
 
-        let mut right_explanation_children = BTreeMap::default();
-        right_explanation_children.insert("norm".to_string(), norm_explanation);
-        right_explanation_children.insert("tf".to_string(), Explanation::value(term_freq));
-        let right_explanation =
-            Explanation::new("tf/(tf+norm)", right_factor, right_explanation_children);
+        let mut tf_explanation = Explanation::new(
+            "freq / (freq + k1 * (1 - b + b * dl / avgdl))",
+            right_factor,
+        );
 
-        let mut children = BTreeMap::default();
-        children.insert("weight".to_string(), Explanation::value(self.weight));
-        children.insert("tf / (tf+norm)".to_string(), right_explanation);
+        tf_explanation.add_const("freq, occurrences of term within document", term_freq);
+        tf_explanation.add_const("k1, term saturation parameter", K1);
+        tf_explanation.add_const("b, length normalization parameter", B);
+        tf_explanation.add_const(
+            "dl, length of field",
+            FieldNormReader::id_to_fieldnorm(fieldnorm_id) as f32,
+        );
+        tf_explanation.add_const("avgdl, average length of field", self.average_fieldnorm);
 
-        Explanation::new("TermQuery", score, children)
+        let mut explanation = Explanation::new("TermQuery, product of...", score);
+        explanation.add_detail(Explanation::new("(K1+1)", K1 + 1f32));
+        explanation.add_detail(self.idf_explain.clone());
+        explanation.add_detail(tf_explanation);
+        explanation
     }
 }
 

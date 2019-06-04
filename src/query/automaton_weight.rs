@@ -4,7 +4,6 @@ use query::ConstScorer;
 use query::{BitSetDocSet, Explanation};
 use query::{Scorer, Weight};
 use schema::{Field, IndexRecordOption};
-use std::collections::btree_map::BTreeMap;
 use tantivy_fst::Automaton;
 use termdict::{TermDictionary, TermStreamer};
 use DocId;
@@ -63,8 +62,7 @@ where
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
         let mut scorer = self.scorer(reader)?;
         if scorer.skip_next(doc) == SkipResult::Reached {
-            let explanation = Explanation::new("AutomatonScorer", 1.0f32, BTreeMap::default());
-            Ok(explanation)
+            Ok(Explanation::new("AutomatonScorer", 1.0f32))
         } else {
             Err(TantivyError::InvalidArgument(
                 "Document does not exist".to_string(),

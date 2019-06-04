@@ -1,4 +1,3 @@
-use std::collections::btree_map::BTreeMap;
 use {DocId, TantivyError};
 
 pub fn does_not_match(doc: DocId) -> TantivyError {
@@ -6,31 +5,40 @@ pub fn does_not_match(doc: DocId) -> TantivyError {
 }
 
 #[derive(Clone, Serialize)]
-#[serde(untagged)]
-pub enum Explanation {
-    Value(f32),
-    Formula {
-        msg: String,
-        val: f32,
-        children: BTreeMap<String, Explanation>,
-    },
+pub struct Explanation {
+    value: f32,
+    description: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    details: Vec<Explanation>,
 }
 
 impl Explanation {
-    pub fn new<T: ToString>(
-        msg: T,
-        val: f32,
-        children: BTreeMap<String, Explanation>,
-    ) -> Explanation {
-        Explanation::Formula {
-            msg: msg.to_string(),
-            val,
-            children,
+    pub fn new<T: ToString>(description: T, value: f32) -> Explanation {
+        Explanation {
+            value,
+            description: description.to_string(),
+            details: vec![],
         }
     }
 
-    pub fn value(val: f32) -> Explanation {
-        Explanation::Value(val)
+    pub fn const_value(value: f32) -> Explanation {
+        Explanation {
+            value,
+            description: "".to_string(),
+            details: vec![],
+        }
+    }
+
+    pub fn val(&self) -> f32 {
+        self.value
+    }
+
+    pub fn add_const<T: ToString>(&mut self, name: T, value: f32) {
+        self.details.push(Explanation::new(name, value));
+    }
+
+    pub fn add_detail(&mut self, child_explanation: Explanation) {
+        self.details.push(child_explanation);
     }
 
     pub fn to_string(&self) -> String {

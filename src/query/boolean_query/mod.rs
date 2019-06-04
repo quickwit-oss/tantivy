@@ -251,7 +251,7 @@ mod tests {
         let mut scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
         scorer.advance();
 
-        let explanation = query.explain(&searcher, DocAddress(0u32, 2u32)).unwrap();
+        let explanation = query.explain(&searcher, DocAddress(0u32, 0u32)).unwrap();
         println!("{}", explanation.to_string());
         assert!(false);
     }
