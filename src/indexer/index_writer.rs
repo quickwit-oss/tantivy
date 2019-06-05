@@ -487,7 +487,6 @@ impl IndexWriter {
     ///     index_writer.commit()?;
     ///
     ///     let clear_res = index_writer.delete_all_documents().unwrap();
-    ///     assert_eq!(clear_res, 2);
     ///     // have to commit, otherwise deleted terms remain available
     ///     index_writer.commit()?;
     ///
@@ -547,7 +546,6 @@ impl IndexWriter {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
         self.rollback_impl()
     }
-
 
     /// Private, implementation of rollback
     fn rollback_impl(&mut self) -> Result<Opstamp> {
@@ -1119,6 +1117,7 @@ mod tests {
             .try_into()
             .unwrap();
         let num_docs_containing = |s: &str| {
+            reader.reload().unwrap();
             let searcher = reader.searcher();
             let term = Term::from_field_text(text_field, s);
             searcher.doc_freq(&term)
