@@ -252,7 +252,120 @@ mod tests {
         scorer.advance();
 
         let explanation = query.explain(&searcher, DocAddress(0u32, 0u32)).unwrap();
-        println!("{}", explanation.to_string());
-        assert!(false);
+        assert_eq!(
+            explanation.to_pretty_json(),
+            r#"{
+  "value": 12.997711,
+  "description": "BooleanClause. Sum of ...",
+  "details": [
+    {
+      "value": 12.997711,
+      "description": "BooleanClause. Sum of ...",
+      "details": [
+        {
+          "value": 6.551476,
+          "description": "TermQuery, product of...",
+          "details": [
+            {
+              "value": 2.2,
+              "description": "(K1+1)"
+            },
+            {
+              "value": 5.658984,
+              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))",
+              "details": [
+                {
+                  "value": 3.0,
+                  "description": "n, number of docs containing this term"
+                },
+                {
+                  "value": 1003.0,
+                  "description": "N, total number of docs"
+                }
+              ]
+            },
+            {
+              "value": 0.5262329,
+              "description": "freq / (freq + k1 * (1 - b + b * dl / avgdl))",
+              "details": [
+                {
+                  "value": 1.0,
+                  "description": "freq, occurrences of term within document"
+                },
+                {
+                  "value": 1.2,
+                  "description": "k1, term saturation parameter"
+                },
+                {
+                  "value": 0.75,
+                  "description": "b, length normalization parameter"
+                },
+                {
+                  "value": 4.0,
+                  "description": "dl, length of field"
+                },
+                {
+                  "value": 5.997009,
+                  "description": "avgdl, average length of field"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "value": 6.446235,
+          "description": "TermQuery, product of...",
+          "details": [
+            {
+              "value": 2.2,
+              "description": "(K1+1)"
+            },
+            {
+              "value": 5.9954567,
+              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))",
+              "details": [
+                {
+                  "value": 2.0,
+                  "description": "n, number of docs containing this term"
+                },
+                {
+                  "value": 1003.0,
+                  "description": "N, total number of docs"
+                }
+              ]
+            },
+            {
+              "value": 0.4887212,
+              "description": "freq / (freq + k1 * (1 - b + b * dl / avgdl))",
+              "details": [
+                {
+                  "value": 1.0,
+                  "description": "freq, occurrences of term within document"
+                },
+                {
+                  "value": 1.2,
+                  "description": "k1, term saturation parameter"
+                },
+                {
+                  "value": 0.75,
+                  "description": "b, length normalization parameter"
+                },
+                {
+                  "value": 20.0,
+                  "description": "dl, length of field"
+                },
+                {
+                  "value": 24.123629,
+                  "description": "avgdl, average length of field"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}"#
+        );
     }
 }

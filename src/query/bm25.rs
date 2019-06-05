@@ -34,14 +34,6 @@ pub struct BM25Weight {
 }
 
 impl BM25Weight {
-    pub fn null() -> BM25Weight {
-        BM25Weight {
-            idf_explain: Explanation::const_value(0f32),
-            weight: 0f32,
-            cache: [1f32; 256],
-            average_fieldnorm: 1f32,
-        }
-    }
     pub fn for_terms(searcher: &Searcher, terms: &[Term]) -> BM25Weight {
         assert!(!terms.is_empty(), "BM25 requires at least one term");
         let field = terms[0].field();
@@ -87,7 +79,7 @@ impl BM25Weight {
     }
 
     fn new(idf_explain: Explanation, average_fieldnorm: f32) -> BM25Weight {
-        let weight = idf_explain.val() * (1f32 + K1);
+        let weight = idf_explain.value() * (1f32 + K1);
         BM25Weight {
             idf_explain,
             weight,
@@ -104,6 +96,9 @@ impl BM25Weight {
     }
 
     pub fn explain(&self, fieldnorm_id: u8, term_freq: u32) -> Explanation {
+        // The explain format is directly copied from Lucene's.
+        // (So, Kudos to Lucene)
+
         let score = self.score(fieldnorm_id, term_freq);
 
         let norm = self.cache[fieldnorm_id as usize];

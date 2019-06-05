@@ -93,13 +93,11 @@ impl Query for PhraseQuery {
                 field_name
             )));
         }
-        let phrase_weight: PhraseWeight = if scoring_enabled {
-            let terms = self.phrase_terms();
-            let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, true)
-        } else {
-            PhraseWeight::new(self.phrase_terms.clone(), BM25Weight::null(), false)
-        };
+        let terms = self.phrase_terms();
+        let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+
+        let phrase_weight: PhraseWeight =
+            PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, scoring_enabled);
         Ok(Box::new(phrase_weight))
     }
 

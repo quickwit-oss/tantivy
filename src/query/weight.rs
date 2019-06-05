@@ -12,6 +12,7 @@ pub trait Weight: Send + Sync + 'static {
     /// See [`Query`](./trait.Query.html).
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>>;
 
+    /// Returns an `Explanation` for the given document.
     fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation>;
 
     /// Returns the number documents within the given `SegmentReader`.

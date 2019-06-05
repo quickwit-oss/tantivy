@@ -1,9 +1,14 @@
 use {DocId, TantivyError};
 
-pub fn does_not_match(doc: DocId) -> TantivyError {
+pub(crate) fn does_not_match(doc: DocId) -> TantivyError {
     TantivyError::InvalidArgument(format!("Document #({}) does not match", doc))
 }
 
+/// Object describing the score of a given document.
+/// It is organized in trees.
+///
+/// `.to_pretty_json()` can be useful to print out a human readable
+/// representation of this tree when debugging a given score.
 #[derive(Clone, Serialize)]
 pub struct Explanation {
     value: f32,
@@ -13,6 +18,7 @@ pub struct Explanation {
 }
 
 impl Explanation {
+    /// Creates a new explanation object.
     pub fn new<T: ToString>(description: T, value: f32) -> Explanation {
         Explanation {
             value,
@@ -21,27 +27,25 @@ impl Explanation {
         }
     }
 
-    pub fn const_value(value: f32) -> Explanation {
-        Explanation {
-            value,
-            description: "".to_string(),
-            details: vec![],
-        }
-    }
-
-    pub fn val(&self) -> f32 {
+    /// Returns the value associated to the current node.
+    pub fn value(&self) -> f32 {
         self.value
     }
 
-    pub fn add_const<T: ToString>(&mut self, name: T, value: f32) {
-        self.details.push(Explanation::new(name, value));
-    }
-
+    /// Add some detail, explaining some part of the current node formula.
+    ///
+    /// Details are treated as child of the current node.
     pub fn add_detail(&mut self, child_explanation: Explanation) {
         self.details.push(child_explanation);
     }
 
-    pub fn to_string(&self) -> String {
+    /// Shortcut for `self.details.push(Explanation::new(name, value));`
+    pub fn add_const<T: ToString>(&mut self, name: T, value: f32) {
+        self.details.push(Explanation::new(name, value));
+    }
+
+    /// Returns an indented json representation of the explanation tree for debug usage.
+    pub fn to_pretty_json(&self) -> String {
         serde_json::to_string_pretty(self).unwrap()
     }
 }

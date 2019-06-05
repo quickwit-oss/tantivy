@@ -49,6 +49,7 @@ pub trait Query: QueryClone + downcast_rs::Downcast + fmt::Debug {
     /// See [`Weight`](./trait.Weight.html).
     fn weight(&self, searcher: &Searcher, scoring_enabled: bool) -> Result<Box<Weight>>;
 
+    /// Returns an `Explanation` for the score of the document.
     fn explain(&self, searcher: &Searcher, doc_address: DocAddress) -> Result<Explanation> {
         let reader = searcher.segment_reader(doc_address.segment_ord());
         let weight = self.weight(searcher, true)?;
