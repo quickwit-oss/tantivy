@@ -503,8 +503,6 @@ impl IndexWriter {
     pub fn delete_all_documents(&mut self) -> Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
-        // End all segment merges - resets the stamper
-        self.rollback()?;
         // Garbage collect
         self.garbage_collect_files()?;
         // Return new stamp - reverted stamp
@@ -1129,11 +1127,9 @@ mod tests {
 
         let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
         let commit_tstamp = index_writer.commit().unwrap();
-        let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        let commit_tstamp2 = index_writer.commit().unwrap();
-        assert!(clear_tstamp > add_tstamp);
-        assert_eq!(clear_tstamp, commit_tstamp);
-        assert_eq!(clear_tstamp, commit_tstamp2);
+        assert!(commit_tstamp > add_tstamp);
+        index_writer.delete_all_documents().unwrap();
+        index_writer.commit().unwrap();
 
         // Search for documents with the same term that we added
         assert_eq!(num_docs_containing("a"), 0);
@@ -1156,7 +1152,7 @@ mod tests {
 
         // delete_all_documents the index
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        assert!(clear_tstamp > add_tstamp);
+        assert_eq!(clear_tstamp, add_tstamp);
 
         // commit the clear command - now documents aren't available
         let second_commit = index_writer.commit();
@@ -1214,11 +1210,11 @@ mod tests {
 
         // clear but don't commit!
         let clear_tstamp = index_writer.delete_all_documents().unwrap();
-        assert_eq!(clear_tstamp, commit_tstamp);
+        // clear_tstamp should reset to before the last commit
+        assert!(clear_tstamp < commit_tstamp);
 
         // rollback
         let rollback_tstamp = index_writer.rollback().unwrap();
-        assert_eq!(rollback_tstamp, clear_tstamp);
         // Find original docs in the index
         let term_a = Term::from_field_text(text_field, "a");
         // expect the document with that term to be in the index
