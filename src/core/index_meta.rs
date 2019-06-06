@@ -14,14 +14,27 @@ use Opstamp;
 ///
 #[derive(Clone, Serialize, Deserialize)]
 pub struct IndexMeta {
+    /// List of `SegmentMeta` informations associated to each finalized segment of the index.
     pub segments: Vec<SegmentMeta>,
+    /// Index `Schema`
     pub schema: Schema,
+    /// Opstamp associated to the last `commit` operation.
     pub opstamp: Opstamp,
     #[serde(skip_serializing_if = "Option::is_none")]
+    /// Payload associated to the last commit.
+    ///
+    /// Upon commit, clients can optionally add a small `Striing` payload to their commit
+    /// to help identify this commit.
+    /// This payload is entirely unused by tantivy.
     pub payload: Option<String>,
 }
 
 impl IndexMeta {
+    /// Create an `IndexMeta` object representing a brand new `Index`
+    /// with the given index.
+    ///
+    /// This new index does not contains any segments.
+    /// Opstamp will the value `0u64`.
     pub fn with_schema(schema: Schema) -> IndexMeta {
         IndexMeta {
             segments: vec![],

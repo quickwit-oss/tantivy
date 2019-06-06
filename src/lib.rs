@@ -226,7 +226,7 @@ mod docset;
 pub use self::docset::{DocSet, SkipResult};
 
 pub use core::SegmentComponent;
-pub use core::{Index, Searcher, Segment, SegmentId, SegmentMeta, IndexMeta};
+pub use core::{Index, IndexMeta, Searcher, Segment, SegmentId, SegmentMeta};
 pub use core::{InvertedIndexReader, SegmentReader};
 pub use directory::Directory;
 pub use indexer::IndexWriter;
