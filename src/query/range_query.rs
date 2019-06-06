@@ -2,15 +2,17 @@ use common::BitSet;
 use core::Searcher;
 use core::SegmentReader;
 use error::TantivyError;
-use query::BitSetDocSet;
+use query::explanation::does_not_match;
 use query::ConstScorer;
+use query::{BitSetDocSet, Explanation};
 use query::{Query, Scorer, Weight};
 use schema::Type;
 use schema::{Field, IndexRecordOption, Term};
 use std::collections::Bound;
 use std::ops::Range;
 use termdict::{TermDictionary, TermStreamer};
-use Result;
+use DocId;
+use {Result, SkipResult};
 
 fn map_bound<TFrom, TTo, Transform: Fn(&TFrom) -> TTo>(
     bound: &Bound<TFrom>,
@@ -285,6 +287,14 @@ impl Weight for RangeWeight {
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         Ok(Box::new(ConstScorer::new(doc_bitset)))
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        let mut scorer = self.scorer(reader)?;
+        if scorer.skip_next(doc) != SkipResult::Reached {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new("RangeQuery", 1.0f32))
     }
 }
 

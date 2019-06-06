@@ -148,9 +148,13 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         }
     }
 
+    pub fn phrase_count(&self) -> u32 {
+        self.phrase_count
+    }
+
     fn phrase_match(&mut self) -> bool {
         if self.score_needed {
-            let count = self.phrase_count();
+            let count = self.compute_phrase_count();
             self.phrase_count = count;
             count > 0u32
         } else {
@@ -183,7 +187,7 @@ impl<TPostings: Postings> PhraseScorer<TPostings> {
         intersection_exists(&self.left[..intersection_len], &self.right[..])
     }
 
-    fn phrase_count(&mut self) -> u32 {
+    fn compute_phrase_count(&mut self) -> u32 {
         {
             self.intersection_docset
                 .docset_mut_specialized(0)

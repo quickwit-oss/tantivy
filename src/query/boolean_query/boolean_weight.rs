@@ -1,5 +1,5 @@
 use core::SegmentReader;
-use query::intersect_scorers;
+use query::explanation::does_not_match;
 use query::score_combiner::{DoNothingCombiner, ScoreCombiner, SumWithCoordsCombiner};
 use query::term_query::TermScorer;
 use query::EmptyScorer;
@@ -9,8 +9,10 @@ use query::RequiredOptionalScorer;
 use query::Scorer;
 use query::Union;
 use query::Weight;
+use query::{intersect_scorers, Explanation};
 use std::collections::HashMap;
 use Result;
+use {DocId, SkipResult};
 
 fn scorer_union<TScoreCombiner>(scorers: Vec<Box<Scorer>>) -> Box<Scorer>
 where
@@ -50,10 +52,10 @@ impl BooleanWeight {
         }
     }
 
-    fn complex_scorer<TScoreCombiner: ScoreCombiner>(
+    fn per_occur_scorers(
         &self,
         reader: &SegmentReader,
-    ) -> Result<Box<Scorer>> {
+    ) -> Result<HashMap<Occur, Vec<Box<Scorer>>>> {
         let mut per_occur_scorers: HashMap<Occur, Vec<Box<Scorer>>> = HashMap::new();
         for &(ref occur, ref subweight) in &self.weights {
             let sub_scorer: Box<Scorer> = subweight.scorer(reader)?;
@@ -62,6 +64,14 @@ impl BooleanWeight {
                 .or_insert_with(Vec::new)
                 .push(sub_scorer);
         }
+        Ok(per_occur_scorers)
+    }
+
+    fn complex_scorer<TScoreCombiner: ScoreCombiner>(
+        &self,
+        reader: &SegmentReader,
+    ) -> Result<Box<Scorer>> {
+        let mut per_occur_scorers = self.per_occur_scorers(reader)?;
 
         let should_scorer_opt: Option<Box<Scorer>> = per_occur_scorers
             .remove(&Occur::Should)
@@ -117,5 +127,32 @@ impl Weight for BooleanWeight {
         } else {
             self.complex_scorer::<DoNothingCombiner>(reader)
         }
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        let mut scorer = self.scorer(reader)?;
+        if scorer.skip_next(doc) != SkipResult::Reached {
+            return Err(does_not_match(doc));
+        }
+        if !self.scoring_enabled {
+            return Ok(Explanation::new("BooleanQuery with no scoring", 1f32));
+        }
+
+        let mut explanation = Explanation::new("BooleanClause. Sum of ...", scorer.score());
+        for &(ref occur, ref subweight) in &self.weights {
+            if is_positive_occur(*occur) {
+                if let Ok(child_explanation) = subweight.explain(reader, doc) {
+                    explanation.add_detail(child_explanation);
+                }
+            }
+        }
+        Ok(explanation)
+    }
+}
+
+fn is_positive_occur(occur: Occur) -> bool {
+    match occur {
+        Occur::Must | Occur::Should => true,
+        Occur::MustNot => false,
     }
 }
