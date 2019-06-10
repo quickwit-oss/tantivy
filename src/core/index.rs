@@ -340,7 +340,7 @@ impl Index {
         Ok(self
             .searchable_segment_metas()?
             .iter()
-            .map(|segment_meta| segment_meta.id())
+            .map(SegmentMeta::id)
             .collect())
     }
 }

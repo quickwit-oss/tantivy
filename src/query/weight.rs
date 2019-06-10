@@ -1,6 +1,7 @@
 use super::Scorer;
 use core::SegmentReader;
-use Result;
+use query::Explanation;
+use {DocId, Result};
 
 /// A Weight is the specialization of a Query
 /// for a given set of segments.
@@ -11,8 +12,16 @@ pub trait Weight: Send + Sync + 'static {
     /// See [`Query`](./trait.Query.html).
     fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>>;
 
+    /// Returns an `Explanation` for the given document.
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation>;
+
     /// Returns the number documents within the given `SegmentReader`.
     fn count(&self, reader: &SegmentReader) -> Result<u32> {
-        Ok(self.scorer(reader)?.count())
+        let mut scorer = self.scorer(reader)?;
+        if let Some(delete_bitset) = reader.delete_bitset() {
+            Ok(scorer.count(delete_bitset))
+        } else {
+            Ok(scorer.count_including_deleted())
+        }
     }
 }

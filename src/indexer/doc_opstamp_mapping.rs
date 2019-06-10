@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use DocId;
+use Opstamp;
 
 // Doc to opstamp is used to identify which
 // document should be deleted.
@@ -21,8 +22,6 @@ pub enum DocToOpstampMapping {
     WithMap(Arc<Vec<u64>>),
     None,
 }
-
-use super::Opstamp;
 
 impl From<Vec<u64>> for DocToOpstampMapping {
     fn from(opstamps: Vec<Opstamp>) -> DocToOpstampMapping {

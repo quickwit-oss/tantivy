@@ -4,6 +4,7 @@ use schema::{IntOptions, TextOptions};
 
 use schema::Facet;
 use schema::IndexRecordOption;
+use schema::TextFieldIndexing;
 use schema::Value;
 use serde_json::Value as JsonValue;
 
@@ -94,7 +95,7 @@ impl FieldType {
         match *self {
             FieldType::Str(ref text_options) => text_options
                 .get_indexing_options()
-                .map(|indexing_options| indexing_options.index_option()),
+                .map(TextFieldIndexing::index_option),
             FieldType::U64(ref int_options)
             | FieldType::I64(ref int_options)
             | FieldType::Date(ref int_options) => {

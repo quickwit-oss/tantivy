@@ -18,8 +18,8 @@ mod tests {
     use query::Scorer;
     use query::TermQuery;
     use schema::*;
-    use DocId;
     use Index;
+    use {DocAddress, DocId};
 
     fn aux_test_helper() -> (Index, Field) {
         let mut schema_builder = Schema::builder();
@@ -204,5 +204,168 @@ mod tests {
             ]);
             assert_eq!(score_docs(&boolean_query), vec![0.977973, 0.84699446]);
         }
+    }
+
+    // motivated by #554
+    #[test]
+    fn test_bm25_several_fields() {
+        let mut schema_builder = Schema::builder();
+        let title = schema_builder.add_text_field("title", TEXT);
+        let text = schema_builder.add_text_field("text", TEXT);
+        let schema = schema_builder.build();
+        let index = Index::create_in_ram(schema);
+
+        let mut index_writer = index.writer_with_num_threads(1, 3_000_000).unwrap();
+        index_writer.add_document(doc!(
+            // tf = 1 0
+            title =>  "Законы притяжения   Оксана Кулакова",
+            // tf = 1 0
+            text => "Законы притяжения Оксана Кулакова]  \n\nТема: Сексуальное искусство, Женственность\nТип товара: Запись вебинара (аудио)\nПродолжительность: 1,5 часа\n\nСсылка на вебинар:\n  ",
+        ));
+        index_writer.add_document(doc!(
+            // tf = 1 0
+            title => "Любимые русские пироги (Оксана Путан)",
+            // tf = 2 0
+            text => "http://i95.fastpic.ru/big/2017/0628/9a/615b9c8504d94a3893d7f496ac53539a.jpg \n\nОт издателя\nОксана Путан   профессиональный повар, автор кулинарных книг и известный кулинарный блогер. Ее рецепты отличаются практичностью, доступностью и пользуются огромной популярностью в русскоязычном интернете. Это третья книга автора о самом вкусном и ароматном   настоящих русских пирогах и выпечке!\nДаже новички на кухне легко готовят по ее рецептам. Оксана описывает процесс приготовления настолько подробно и понятно, что вам остается только наслаждаться готовкой и не тратить время на лишние усилия. Готовьте легко и просто!\n\nhttps://www.ozon.ru/context/detail/id/139872462/"
+        ));
+        index_writer.add_document(doc!(
+            // tf = 1 1
+            title =>  "PDF Мастер Класс \"Морячок\" (Оксана Лифенко)",
+            // tf = 0 0 
+            text => "https://i.ibb.co/pzvHrDN/I3d U T6 Gg TM.jpg\nhttps://i.ibb.co/NFrb6v6/N0ls Z9nwjb U.jpg\nВ описание входит штаны, кофта, берет, матросский воротник. Описание продается в формате PDF, состоит из 12 страниц формата А4 и может быть напечатано на любом принтере.\nОписание предназначено для кукол BJD RealPuki от FairyLand, но может подойти и другим подобным куклам. Также вы можете вязать этот наряд из обычной пряжи, и он подойдет для куколок побольше.\nhttps://vk.com/market 95724412?w=product 95724412_2212"
+        ));
+        for _ in 0..1_000 {
+            index_writer.add_document(doc!(
+                title =>  "a b d e f g",
+                text => "maitre corbeau sur un arbre perche tenait dans son bec un fromage Maitre rnard par lodeur alleche lui tint a peu pres ce langage."
+            ));
+        }
+        index_writer.commit().unwrap();
+        let reader = index.reader().unwrap();
+        let searcher = reader.searcher();
+        let query_parser = QueryParser::for_index(&index, vec![title, text]);
+        let query = query_parser
+            .parse_query("Оксана Лифенко")
+            .unwrap();
+        let weight = query.weight(&searcher, true).unwrap();
+        let mut scorer = weight.scorer(searcher.segment_reader(0u32)).unwrap();
+        scorer.advance();
+
+        let explanation = query.explain(&searcher, DocAddress(0u32, 0u32)).unwrap();
+        assert_eq!(
+            explanation.to_pretty_json(),
+            r#"{
+  "value": 12.997711,
+  "description": "BooleanClause. Sum of ...",
+  "details": [
+    {
+      "value": 12.997711,
+      "description": "BooleanClause. Sum of ...",
+      "details": [
+        {
+          "value": 6.551476,
+          "description": "TermQuery, product of...",
+          "details": [
+            {
+              "value": 2.2,
+              "description": "(K1+1)"
+            },
+            {
+              "value": 5.658984,
+              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))",
+              "details": [
+                {
+                  "value": 3.0,
+                  "description": "n, number of docs containing this term"
+                },
+                {
+                  "value": 1003.0,
+                  "description": "N, total number of docs"
+                }
+              ]
+            },
+            {
+              "value": 0.5262329,
+              "description": "freq / (freq + k1 * (1 - b + b * dl / avgdl))",
+              "details": [
+                {
+                  "value": 1.0,
+                  "description": "freq, occurrences of term within document"
+                },
+                {
+                  "value": 1.2,
+                  "description": "k1, term saturation parameter"
+                },
+                {
+                  "value": 0.75,
+                  "description": "b, length normalization parameter"
+                },
+                {
+                  "value": 4.0,
+                  "description": "dl, length of field"
+                },
+                {
+                  "value": 5.997009,
+                  "description": "avgdl, average length of field"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "value": 6.446235,
+          "description": "TermQuery, product of...",
+          "details": [
+            {
+              "value": 2.2,
+              "description": "(K1+1)"
+            },
+            {
+              "value": 5.9954567,
+              "description": "idf, computed as log(1 + (N - n + 0.5) / (n + 0.5))",
+              "details": [
+                {
+                  "value": 2.0,
+                  "description": "n, number of docs containing this term"
+                },
+                {
+                  "value": 1003.0,
+                  "description": "N, total number of docs"
+                }
+              ]
+            },
+            {
+              "value": 0.4887212,
+              "description": "freq / (freq + k1 * (1 - b + b * dl / avgdl))",
+              "details": [
+                {
+                  "value": 1.0,
+                  "description": "freq, occurrences of term within document"
+                },
+                {
+                  "value": 1.2,
+                  "description": "k1, term saturation parameter"
+                },
+                {
+                  "value": 0.75,
+                  "description": "b, length normalization parameter"
+                },
+                {
+                  "value": 20.0,
+                  "description": "dl, length of field"
+                },
+                {
+                  "value": 24.123629,
+                  "description": "avgdl, average length of field"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}"#
+        );
     }
 }

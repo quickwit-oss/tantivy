@@ -1,6 +1,6 @@
 use census::{Inventory, TrackedObject};
-use indexer::Opstamp;
 use std::collections::HashSet;
+use Opstamp;
 use SegmentId;
 
 #[derive(Default)]
@@ -18,8 +18,8 @@ impl MergeOperationInventory {
     }
 }
 
-/// A `MergeOperation` has two role.
-/// It carries all of the information required to describe a merge :
+/// A `MergeOperation` has two roles.
+/// It carries all of the information required to describe a merge:
 /// - `target_opstamp` is the opstamp up to which we want to consume the
 /// delete queue and reflect their deletes.
 /// - `segment_ids` is the list of segment to be merged.

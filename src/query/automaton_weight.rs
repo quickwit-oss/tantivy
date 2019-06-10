@@ -1,12 +1,14 @@
 use common::BitSet;
 use core::SegmentReader;
-use query::BitSetDocSet;
 use query::ConstScorer;
+use query::{BitSetDocSet, Explanation};
 use query::{Scorer, Weight};
 use schema::{Field, IndexRecordOption};
 use tantivy_fst::Automaton;
 use termdict::{TermDictionary, TermStreamer};
-use Result;
+use DocId;
+use TantivyError;
+use {Result, SkipResult};
 
 /// A weight struct for Fuzzy Term and Regex Queries
 pub struct AutomatonWeight<A>
@@ -55,5 +57,16 @@ where
         }
         let doc_bitset = BitSetDocSet::from(doc_bitset);
         Ok(Box::new(ConstScorer::new(doc_bitset)))
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        let mut scorer = self.scorer(reader)?;
+        if scorer.skip_next(doc) == SkipResult::Reached {
+            Ok(Explanation::new("AutomatonScorer", 1.0f32))
+        } else {
+            Err(TantivyError::InvalidArgument(
+                "Document does not exist".to_string(),
+            ))
+        }
     }
 }

@@ -1,7 +1,8 @@
 use core::Searcher;
 use core::SegmentReader;
 use docset::DocSet;
-use query::{Query, Scorer, Weight};
+use query::explanation::does_not_match;
+use query::{Explanation, Query, Scorer, Weight};
 use DocId;
 use Result;
 use Score;
@@ -28,6 +29,13 @@ impl Weight for AllWeight {
             doc: 0u32,
             max_doc: reader.max_doc(),
         }))
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        if doc >= reader.max_doc() {
+            return Err(does_not_match(doc));
+        }
+        Ok(Explanation::new("AllQuery", 1f32))
     }
 }
 

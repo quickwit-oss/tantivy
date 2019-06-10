@@ -86,7 +86,7 @@ impl InnerDirectory {
         self.fs
             .get(path)
             .ok_or_else(|| OpenReadError::FileDoesNotExist(PathBuf::from(path)))
-            .map(|el| el.clone())
+            .map(Clone::clone)
     }
 
     fn delete(&mut self, path: &Path) -> result::Result<(), DeleteError> {

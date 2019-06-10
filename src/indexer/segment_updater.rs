@@ -15,7 +15,6 @@ use futures_cpupool::Builder as CpuPoolBuilder;
 use futures_cpupool::CpuFuture;
 use futures_cpupool::CpuPool;
 use indexer::delete_queue::DeleteCursor;
-use indexer::Opstamp;
 use indexer::index_writer::advance_deletes;
 use indexer::merge_operation::MergeOperationInventory;
 use indexer::merger::IndexMerger;
@@ -37,6 +36,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread;
 use std::thread::JoinHandle;
+use Opstamp;
 use Result;
 
 /// Save the index meta file.

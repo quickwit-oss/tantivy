@@ -175,7 +175,7 @@ impl<'a> FieldSerializer<'a> {
         let positions_idx = self
             .positions_serializer_opt
             .as_ref()
-            .map(|positions_serializer| positions_serializer.positions_idx())
+            .map(PositionSerializer::positions_idx)
             .unwrap_or(0u64);
         TermInfo {
             doc_freq: 0,

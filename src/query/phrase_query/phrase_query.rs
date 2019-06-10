@@ -4,6 +4,7 @@ use error::TantivyError;
 use query::bm25::BM25Weight;
 use query::Query;
 use query::Weight;
+use schema::IndexRecordOption;
 use schema::{Field, Term};
 use std::collections::BTreeSet;
 use Result;
@@ -83,7 +84,7 @@ impl Query for PhraseQuery {
         let has_positions = field_entry
             .field_type()
             .get_index_record_option()
-            .map(|index_record_option| index_record_option.has_positions())
+            .map(IndexRecordOption::has_positions)
             .unwrap_or(false);
         if !has_positions {
             let field_name = field_entry.name();
@@ -92,21 +93,12 @@ impl Query for PhraseQuery {
                 field_name
             )));
         }
-        if scoring_enabled {
-            let terms = self.phrase_terms();
-            let bm25_weight = BM25Weight::for_terms(searcher, &terms);
-            Ok(Box::new(PhraseWeight::new(
-                self.phrase_terms.clone(),
-                bm25_weight,
-                true,
-            )))
-        } else {
-            Ok(Box::new(PhraseWeight::new(
-                self.phrase_terms.clone(),
-                BM25Weight::null(),
-                false,
-            )))
-        }
+        let terms = self.phrase_terms();
+        let bm25_weight = BM25Weight::for_terms(searcher, &terms);
+
+        let phrase_weight: PhraseWeight =
+            PhraseWeight::new(self.phrase_terms.clone(), bm25_weight, scoring_enabled);
+        Ok(Box::new(phrase_weight))
     }
 
     fn query_terms(&self, term_set: &mut BTreeSet<Term>) {

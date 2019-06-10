@@ -128,7 +128,7 @@ impl Document {
         self.field_values
             .iter()
             .filter(|field_value| field_value.field() == field)
-            .map(|field_value| field_value.value())
+            .map(FieldValue::value)
             .collect()
     }
 
@@ -137,7 +137,7 @@ impl Document {
         self.field_values
             .iter()
             .find(|field_value| field_value.field() == field)
-            .map(|field_value| field_value.value())
+            .map(FieldValue::value)
     }
 }
 

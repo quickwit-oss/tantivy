@@ -5,14 +5,10 @@ use core::Segment;
 use core::SegmentComponent;
 use core::SegmentId;
 use directory::ReadOnlySource;
-use error::TantivyError;
 use fastfield::DeleteBitSet;
 use fastfield::FacetReader;
-use fastfield::FastFieldReader;
-use fastfield::{self, FastFieldNotAvailableError};
-use fastfield::{BytesFastFieldReader, FastValue, MultiValueIntFastFieldReader};
+use fastfield::FastFieldReaders;
 use fieldnorm::FieldNormReader;
-use schema::Cardinality;
 use schema::Field;
 use schema::FieldType;
 use schema::Schema;
@@ -51,7 +47,7 @@ pub struct SegmentReader {
     postings_composite: CompositeFile,
     positions_composite: CompositeFile,
     positions_idx_composite: CompositeFile,
-    fast_fields_composite: CompositeFile,
+    fast_fields_readers: Arc<FastFieldReaders>,
     fieldnorms_composite: CompositeFile,
 
     store_source: ReadOnlySource,
@@ -105,93 +101,21 @@ impl SegmentReader {
     ///
     /// # Panics
     /// May panic if the index is corrupted.
-    pub fn fast_field_reader<Item: FastValue>(
-        &self,
-        field: Field,
-    ) -> fastfield::Result<FastFieldReader<Item>> {
-        let field_entry = self.schema.get_field_entry(field);
-        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::SingleValue)
-        {
-            self.fast_fields_composite
-                .open_read(field)
-                .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-                .map(FastFieldReader::open)
-        } else {
-            Err(FastFieldNotAvailableError::new(field_entry))
-        }
-    }
-
-    pub(crate) fn fast_field_reader_with_idx<Item: FastValue>(
-        &self,
-        field: Field,
-        idx: usize,
-    ) -> fastfield::Result<FastFieldReader<Item>> {
-        if let Some(ff_source) = self.fast_fields_composite.open_read_with_idx(field, idx) {
-            Ok(FastFieldReader::open(ff_source))
-        } else {
-            let field_entry = self.schema.get_field_entry(field);
-            Err(FastFieldNotAvailableError::new(field_entry))
-        }
-    }
-
-    /// Accessor to the `MultiValueIntFastFieldReader` associated to a given `Field`.
-    /// May panick if the field is not a multivalued fastfield of the type `Item`.
-    pub fn multi_fast_field_reader<Item: FastValue>(
-        &self,
-        field: Field,
-    ) -> fastfield::Result<MultiValueIntFastFieldReader<Item>> {
-        let field_entry = self.schema.get_field_entry(field);
-        if Item::fast_field_cardinality(field_entry.field_type()) == Some(Cardinality::MultiValues)
-        {
-            let idx_reader = self.fast_field_reader_with_idx(field, 0)?;
-            let vals_reader = self.fast_field_reader_with_idx(field, 1)?;
-            Ok(MultiValueIntFastFieldReader::open(idx_reader, vals_reader))
-        } else {
-            Err(FastFieldNotAvailableError::new(field_entry))
-        }
-    }
-
-    /// Accessor to the `BytesFastFieldReader` associated to a given `Field`.
-    pub fn bytes_fast_field_reader(&self, field: Field) -> fastfield::Result<BytesFastFieldReader> {
-        let field_entry = self.schema.get_field_entry(field);
-        match *field_entry.field_type() {
-            FieldType::Bytes => {}
-            _ => return Err(FastFieldNotAvailableError::new(field_entry)),
-        }
-        let idx_reader = self
-            .fast_fields_composite
-            .open_read_with_idx(field, 0)
-            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))
-            .map(FastFieldReader::open)?;
-        let values = self
-            .fast_fields_composite
-            .open_read_with_idx(field, 1)
-            .ok_or_else(|| FastFieldNotAvailableError::new(field_entry))?;
-        Ok(BytesFastFieldReader::open(idx_reader, values))
+    pub fn fast_fields(&self) -> &FastFieldReaders {
+        &self.fast_fields_readers
     }
 
     /// Accessor to the `FacetReader` associated to a given `Field`.
-    pub fn facet_reader(&self, field: Field) -> Result<FacetReader> {
+    pub fn facet_reader(&self, field: Field) -> Option<FacetReader> {
         let field_entry = self.schema.get_field_entry(field);
         if field_entry.field_type() != &FieldType::HierarchicalFacet {
-            return Err(TantivyError::InvalidArgument(format!(
-                "The field {:?} is not a \
-                 hierarchical facet.",
-                field_entry
-            )));
+            return None;
         }
-        let term_ords_reader = self.multi_fast_field_reader(field)?;
-        let termdict_source = self.termdict_composite.open_read(field).ok_or_else(|| {
-            TantivyError::InvalidArgument(format!(
-                "The field \"{}\" is a hierarchical \
-                 but this segment does not seem to have the field term \
-                 dictionary.",
-                field_entry.name()
-            ))
-        })?;
+        let term_ords_reader = self.fast_fields().u64s(field)?;
+        let termdict_source = self.termdict_composite.open_read(field)?;
         let termdict = TermDictionary::from_source(&termdict_source);
         let facet_reader = FacetReader::new(term_ords_reader, termdict);
-        Ok(facet_reader)
+        Some(facet_reader)
     }
 
     /// Accessor to the segment's `Field norms`'s reader.
@@ -247,8 +171,12 @@ impl SegmentReader {
             }
         };
 
+        let schema = segment.schema();
+
         let fast_fields_data = segment.open_read(SegmentComponent::FASTFIELDS)?;
         let fast_fields_composite = CompositeFile::open(&fast_fields_data)?;
+        let fast_field_readers =
+            Arc::new(FastFieldReaders::load_all(&schema, &fast_fields_composite)?);
 
         let fieldnorms_data = segment.open_read(SegmentComponent::FIELDNORMS)?;
         let fieldnorms_composite = CompositeFile::open(&fieldnorms_data)?;
@@ -260,14 +188,13 @@ impl SegmentReader {
             None
         };
 
-        let schema = segment.schema();
         Ok(SegmentReader {
             inv_idx_reader_cache: Arc::new(RwLock::new(HashMap::new())),
             max_doc: segment.meta().max_doc(),
             num_docs: segment.meta().num_docs(),
             termdict_composite,
             postings_composite,
-            fast_fields_composite,
+            fast_fields_readers: fast_field_readers,
             fieldnorms_composite,
             segment_id: segment.id(),
             store_source,
@@ -381,12 +308,12 @@ impl SegmentReader {
             self.postings_composite.space_usage(),
             self.positions_composite.space_usage(),
             self.positions_idx_composite.space_usage(),
-            self.fast_fields_composite.space_usage(),
+            self.fast_fields_readers.space_usage(),
             self.fieldnorms_composite.space_usage(),
             self.get_store_reader().space_usage(),
             self.delete_bitset_opt
                 .as_ref()
-                .map(|x| x.space_usage())
+                .map(DeleteBitSet::space_usage)
                 .unwrap_or(0),
         )
     }

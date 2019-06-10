@@ -1,6 +1,7 @@
 use super::Scorer;
-use query::Query;
+use query::explanation::does_not_match;
 use query::Weight;
+use query::{Explanation, Query};
 use DocId;
 use DocSet;
 use Result;
@@ -31,6 +32,10 @@ pub struct EmptyWeight;
 impl Weight for EmptyWeight {
     fn scorer(&self, _reader: &SegmentReader) -> Result<Box<Scorer>> {
         Ok(Box::new(EmptyScorer))
+    }
+
+    fn explain(&self, _reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        Err(does_not_match(doc))
     }
 }
 

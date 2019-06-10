@@ -17,6 +17,7 @@ use Result;
 use Score;
 use SegmentLocalId;
 use SegmentReader;
+use TantivyError;
 
 struct Hit<'a> {
     count: u64,
@@ -264,7 +265,10 @@ impl Collector for FacetCollector {
         _: SegmentLocalId,
         reader: &SegmentReader,
     ) -> Result<FacetSegmentCollector> {
-        let facet_reader = reader.facet_reader(self.field)?;
+        let field_name = reader.schema().get_field_name(self.field);
+        let facet_reader = reader.facet_reader(self.field).ok_or_else(|| {
+            TantivyError::SchemaError(format!("Field {:?} is not a facet field.", field_name))
+        })?;
 
         let mut collapse_mapping = Vec::new();
         let mut counts = Vec::new();

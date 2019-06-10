@@ -1,11 +1,11 @@
 use super::SegmentComponent;
 use census::{Inventory, TrackedObject};
 use core::SegmentId;
-use indexer::Opstamp;
 use serde;
 use std::collections::HashSet;
 use std::fmt;
 use std::path::PathBuf;
+use Opstamp;
 
 lazy_static! {
     static ref INVENTORY: Inventory<InnerSegmentMeta> = { Inventory::new() };
@@ -137,7 +137,7 @@ impl SegmentMeta {
         self.max_doc() - self.num_deleted_docs()
     }
 
-    /// Returns the opstamp of the last delete operation
+    /// Returns the `Opstamp` of the last delete operation
     /// taken in account in this segment.
     pub fn delete_opstamp(&self) -> Option<Opstamp> {
         self.tracked

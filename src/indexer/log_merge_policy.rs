@@ -52,7 +52,7 @@ impl MergePolicy for LogMergePolicy {
 
         let mut size_sorted_tuples = segments
             .iter()
-            .map(|x| x.num_docs())
+            .map(SegmentMeta::num_docs)
             .enumerate()
             .collect::<Vec<(usize, u32)>>();
 

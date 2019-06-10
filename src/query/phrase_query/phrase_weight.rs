@@ -1,12 +1,16 @@
 use super::PhraseScorer;
 use core::SegmentReader;
+use fieldnorm::FieldNormReader;
+use postings::SegmentPostings;
 use query::bm25::BM25Weight;
-use query::EmptyScorer;
+use query::explanation::does_not_match;
 use query::Scorer;
 use query::Weight;
+use query::{EmptyScorer, Explanation};
 use schema::IndexRecordOption;
 use schema::Term;
-use Result;
+use {DocId, DocSet};
+use {Result, SkipResult};
 
 pub struct PhraseWeight {
     phrase_terms: Vec<(usize, Term)>,
@@ -27,13 +31,18 @@ impl PhraseWeight {
             score_needed,
         }
     }
-}
 
-impl Weight for PhraseWeight {
-    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
-        let similarity_weight = self.similarity_weight.clone();
+    fn fieldnorm_reader(&self, reader: &SegmentReader) -> FieldNormReader {
         let field = self.phrase_terms[0].1.field();
-        let fieldnorm_reader = reader.get_fieldnorms_reader(field);
+        reader.get_fieldnorms_reader(field)
+    }
+
+    fn phrase_scorer(
+        &self,
+        reader: &SegmentReader,
+    ) -> Result<Option<PhraseScorer<SegmentPostings>>> {
+        let similarity_weight = self.similarity_weight.clone();
+        let fieldnorm_reader = self.fieldnorm_reader(reader);
         if reader.has_deletes() {
             let mut term_postings_list = Vec::new();
             for &(offset, ref term) in &self.phrase_terms {
@@ -43,10 +52,10 @@ impl Weight for PhraseWeight {
                 {
                     term_postings_list.push((offset, postings));
                 } else {
-                    return Ok(Box::new(EmptyScorer));
+                    return Ok(None);
                 }
             }
-            Ok(Box::new(PhraseScorer::new(
+            Ok(Some(PhraseScorer::new(
                 term_postings_list,
                 similarity_weight,
                 fieldnorm_reader,
@@ -61,15 +70,42 @@ impl Weight for PhraseWeight {
                 {
                     term_postings_list.push((offset, postings));
                 } else {
-                    return Ok(Box::new(EmptyScorer));
+                    return Ok(None);
                 }
             }
-            Ok(Box::new(PhraseScorer::new(
+            Ok(Some(PhraseScorer::new(
                 term_postings_list,
                 similarity_weight,
                 fieldnorm_reader,
                 self.score_needed,
             )))
         }
+    }
+}
+
+impl Weight for PhraseWeight {
+    fn scorer(&self, reader: &SegmentReader) -> Result<Box<Scorer>> {
+        if let Some(scorer) = self.phrase_scorer(reader)? {
+            Ok(Box::new(scorer))
+        } else {
+            Ok(Box::new(EmptyScorer))
+        }
+    }
+
+    fn explain(&self, reader: &SegmentReader, doc: DocId) -> Result<Explanation> {
+        let scorer_opt = self.phrase_scorer(reader)?;
+        if scorer_opt.is_none() {
+            return Err(does_not_match(doc));
+        }
+        let mut scorer = scorer_opt.unwrap();
+        if scorer.skip_next(doc) != SkipResult::Reached {
+            return Err(does_not_match(doc));
+        }
+        let fieldnorm_reader = self.fieldnorm_reader(reader);
+        let fieldnorm_id = fieldnorm_reader.fieldnorm_id(doc);
+        let phrase_count = scorer.phrase_count();
+        let mut explanation = Explanation::new("Phrase Scorer", scorer.score());
+        explanation.add_detail(self.similarity_weight.explain(fieldnorm_id, phrase_count));
+        Ok(explanation)
     }
 }
