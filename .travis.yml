@@ -52,6 +52,7 @@ before_install:
 install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
+  - env | grep "TRAVIS"
 
 before_script:
   - export PATH=$HOME/.cargo/bin:$PATH
