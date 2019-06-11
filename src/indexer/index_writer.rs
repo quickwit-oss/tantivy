@@ -1102,18 +1102,12 @@ mod tests {
 
     #[test]
     fn test_add_then_delete_all_documents() {
-        // debug using
-        // find the name of the most recently compiled executable
-        // ls -t target/debug/deps/ | rg ^tantivy | head -1
-        // rust-gdb $MOST_RECENT
-        // $gdb break src/indexer/stamper.rs:tantivy::indexer::stamper::Stamper::stamp
-        // $gdb run --test-threads 1 --test test_add_then_delete_all_documents
         let mut schema_builder = schema::Schema::builder();
         let text_field = schema_builder.add_text_field("text", schema::TEXT);
         let index = Index::create_in_ram(schema_builder.build());
         let reader = index
             .reader_builder()
-            .reload_policy(ReloadPolicy::OnCommit)
+            .reload_policy(ReloadPolicy::Manual)
             .try_into()
             .unwrap();
         let num_docs_containing = |s: &str| {
@@ -1156,7 +1150,7 @@ mod tests {
         // commit the clear command - now documents aren't available
         let second_commit = index_writer.commit();
         assert!(second_commit.is_ok());
-        let _second_commit_tstamp = second_commit.unwrap();
+        let second_commit_tstamp = second_commit.unwrap();
 
         // add new documents again
         for _ in 0..100 {
@@ -1167,7 +1161,7 @@ mod tests {
         let rollback = index_writer.rollback();
         assert!(rollback.is_ok());
         let rollback_tstamp = rollback.unwrap();
-        assert_eq!(rollback_tstamp, _second_commit_tstamp);
+        assert_eq!(rollback_tstamp, second_commit_tstamp);
 
         // working with an empty index == no documents
         let term_b = Term::from_field_text(text_field, "b");
