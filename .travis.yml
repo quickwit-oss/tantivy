@@ -60,9 +60,14 @@ before_script:
 
 script:
   - bash ci/script.sh
+  - cargo doc
 
 before_deploy:
   - sh ci/before_deploy.sh
+
+after_success:
+  - cargo doc-upload # Needs GH_TOKEN env var to be set in travis settings
+
 
 cache: cargo
 before_cache:
