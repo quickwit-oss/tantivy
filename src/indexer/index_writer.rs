@@ -502,8 +502,6 @@ impl IndexWriter {
     pub fn delete_all_documents(&mut self) -> Result<Opstamp> {
         // Delete segments
         self.segment_updater.remove_all_segments();
-        // Garbage collect
-        self.garbage_collect_files()?;
         // Return new stamp - reverted stamp
         self.stamper.revert(self.committed_opstamp);
         Ok(self.committed_opstamp)
