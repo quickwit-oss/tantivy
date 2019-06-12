@@ -6,6 +6,8 @@ Tantivy 0.10.0
 - Added an ASCII folding filter (@drusellers)
 - Bugfix in `query.count` in presence of deletes (@pmasurel)
 - Added `.explain(...)` in `Query` and `Weight` to (@pmasurel)
+- Added an efficient way to `delete_all_documents` in `IndexWriter` (@petr-tik). 
+  All segments are simply removed.
 
 Minor
 ---------

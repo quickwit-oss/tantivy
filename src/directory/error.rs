@@ -6,7 +6,7 @@ use std::path::PathBuf;
 /// Error while trying to acquire a directory lock.
 #[derive(Debug, Fail)]
 pub enum LockError {
-    /// Failed to acquired a lock as it is already hold by another
+    /// Failed to acquired a lock as it is already held by another
     /// client.
     /// - In the context of a blocking lock, this means the lock was not released within some `timeout` period.
     /// - In the context of a non-blocking lock, this means the lock was busy at the moment of the call.

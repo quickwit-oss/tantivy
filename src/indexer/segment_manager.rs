@@ -118,6 +118,12 @@ impl SegmentManager {
             });
     }
 
+    pub(crate) fn remove_all_segments(&self) {
+        let mut registers_lock = self.write();
+        registers_lock.committed.clear();
+        registers_lock.uncommitted.clear();
+    }
+
     pub fn commit(&self, segment_entries: Vec<SegmentEntry>) {
         let mut registers_lock = self.write();
         registers_lock.committed.clear();

@@ -28,6 +28,12 @@ impl Stamper {
             end: start + n,
         }
     }
+
+    /// Reverts the stamper to a given `Opstamp` value and returns it
+    pub fn revert(&self, to_opstamp: Opstamp) -> Opstamp {
+        self.0.store(to_opstamp, Ordering::SeqCst);
+        to_opstamp
+    }
 }
 
 #[cfg(test)]
@@ -50,4 +56,17 @@ mod test {
         assert_eq!(stamper.stamp(), 15u64);
     }
 
+    #[test]
+    fn test_stamper_revert() {
+        let stamper = Stamper::new(7u64);
+        assert_eq!(stamper.stamp(), 7u64);
+        assert_eq!(stamper.stamp(), 8u64);
+
+        let stamper_clone = stamper.clone();
+        assert_eq!(stamper_clone.stamp(), 9u64);
+
+        stamper.revert(6);
+        assert_eq!(stamper.stamp(), 6);
+        assert_eq!(stamper_clone.stamp(), 7);
+    }
 }

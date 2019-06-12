@@ -16,7 +16,7 @@ const BLOCK_SIZE: usize = 16_384;
 /// the store is written to disc as document as being added,
 /// as opposed to when the segment is getting finalized.
 ///
-/// The skip list index on the other hand, is build in memory.
+/// The skip list index on the other hand, is built in memory.
 ///
 pub struct StoreWriter {
     doc: DocId,

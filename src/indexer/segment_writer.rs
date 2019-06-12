@@ -20,7 +20,7 @@ use Opstamp;
 use Result;
 
 /// A `SegmentWriter` is in charge of creating segment index from a
-/// documents.
+/// set of documents.
 ///
 /// They creates the postings list in anonymous memory.
 /// The segment is layed on disk when the segment gets `finalized`.

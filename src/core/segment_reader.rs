@@ -246,7 +246,7 @@ impl SegmentReader {
         let termdict_source = self
             .termdict_composite
             .open_read(field)
-            .expect("Failed to open field term dictionary in composite file. Is the field indexed");
+            .expect("Failed to open field term dictionary in composite file. Is the field indexed?");
 
         let positions_source = self
             .positions_composite

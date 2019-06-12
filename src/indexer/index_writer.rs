@@ -383,7 +383,6 @@ impl IndexWriter {
 
     /// Spawns a new worker thread for indexing.
     /// The thread consumes documents from the pipeline.
-    ///
     fn add_indexing_worker(&mut self) -> Result<()> {
         let document_receiver_clone = self.operation_receiver.clone();
         let mut segment_updater = self.segment_updater.clone();
@@ -462,6 +461,52 @@ impl IndexWriter {
         self.segment_updater.garbage_collect_files()
     }
 
+    /// Deletes all documents from the index
+    ///
+    /// Requires `commit`ing
+    /// Enables users to rebuild the index,
+    /// by clearing and resubmitting necessary documents
+    ///
+    /// ```rust
+    /// #[macro_use]
+    /// extern crate tantivy;
+    /// use tantivy::query::QueryParser;
+    /// use tantivy::collector::TopDocs;
+    /// use tantivy::schema::*;
+    /// use tantivy::Index;
+    ///
+    /// fn main() -> tantivy::Result<()> {
+    ///     let mut schema_builder = Schema::builder();
+    ///     let title = schema_builder.add_text_field("title", TEXT | STORED);
+    ///     let schema = schema_builder.build();
+    ///
+    ///     let index = Index::create_in_ram(schema.clone());
+    ///
+    ///     let mut index_writer = index.writer_with_num_threads(1, 50_000_000)?;
+    ///     index_writer.add_document(doc!(title => "The modern Promotheus"));
+    ///     index_writer.commit()?;
+    ///
+    ///     let clear_res = index_writer.delete_all_documents().unwrap();
+    ///     // have to commit, otherwise deleted terms remain available
+    ///     index_writer.commit()?;
+    ///
+    ///     let searcher = index.reader()?.searcher();
+    ///     let query_parser = QueryParser::for_index(&index, vec![title]);
+    ///     let query_promo = query_parser.parse_query("Promotheus")?;
+    ///     let top_docs_promo = searcher.search(&query_promo, &TopDocs::with_limit(1))?;
+    ///
+    ///     assert!(top_docs_promo.is_empty());
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn delete_all_documents(&mut self) -> Result<Opstamp> {
+        // Delete segments
+        self.segment_updater.remove_all_segments();
+        // Return new stamp - reverted stamp
+        self.stamper.revert(self.committed_opstamp);
+        Ok(self.committed_opstamp)
+    }
+
     /// Merges a given list of segments
     ///
     /// `segment_ids` is required to be non-empty.
@@ -489,19 +534,22 @@ impl IndexWriter {
 
     /// Rollback to the last commit
     ///
-    /// This cancels all of the update that
-    /// happened before after the last commit.
+    /// This cancels all of the updates that
+    /// happened after the last commit.
     /// After calling rollback, the index is in the same
     /// state as it was after the last commit.
     ///
     /// The opstamp at the last commit is returned.
     pub fn rollback(&mut self) -> Result<Opstamp> {
         info!("Rolling back to opstamp {}", self.committed_opstamp);
+        self.rollback_impl()
+    }
 
+    /// Private, implementation of rollback
+    fn rollback_impl(&mut self) -> Result<Opstamp> {
         // marks the segment updater as killed. From now on, all
         // segment updates will be ignored.
         self.segment_updater.kill();
-
         let document_receiver = self.operation_receiver.clone();
 
         // take the directory lock to create a new index_writer.
@@ -1049,4 +1097,145 @@ mod tests {
         assert_eq!(num_docs_containing("b"), 0);
         fail::cfg("RAMDirectory::atomic_write", "off").unwrap();
     }
+
+    #[test]
+    fn test_add_then_delete_all_documents() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
+        let num_docs_containing = |s: &str| {
+            reader.reload().unwrap();
+            let searcher = reader.searcher();
+            let term = Term::from_field_text(text_field, s);
+            searcher.doc_freq(&term)
+        };
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+
+        let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
+        let commit_tstamp = index_writer.commit().unwrap();
+        assert!(commit_tstamp > add_tstamp);
+        index_writer.delete_all_documents().unwrap();
+        index_writer.commit().unwrap();
+
+        // Search for documents with the same term that we added
+        assert_eq!(num_docs_containing("a"), 0);
+    }
+
+    #[test]
+    fn test_delete_all_documents_rollback_correct_stamp() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+
+        let add_tstamp = index_writer.add_document(doc!(text_field => "a"));
+
+        // commit documents - they are now available
+        let first_commit = index_writer.commit();
+        assert!(first_commit.is_ok());
+        let first_commit_tstamp = first_commit.unwrap();
+        assert!(first_commit_tstamp > add_tstamp);
+
+        // delete_all_documents the index
+        let clear_tstamp = index_writer.delete_all_documents().unwrap();
+        assert_eq!(clear_tstamp, add_tstamp);
+
+        // commit the clear command - now documents aren't available
+        let second_commit = index_writer.commit();
+        assert!(second_commit.is_ok());
+        let second_commit_tstamp = second_commit.unwrap();
+
+        // add new documents again
+        for _ in 0..100 {
+            index_writer.add_document(doc!(text_field => "b"));
+        }
+
+        // rollback to last commit, when index was empty
+        let rollback = index_writer.rollback();
+        assert!(rollback.is_ok());
+        let rollback_tstamp = rollback.unwrap();
+        assert_eq!(rollback_tstamp, second_commit_tstamp);
+
+        // working with an empty index == no documents
+        let term_b = Term::from_field_text(text_field, "b");
+        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_b), 0);
+    }
+
+    #[test]
+    fn test_delete_all_documents_then_add() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        // writing the segment
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let res = index_writer.delete_all_documents();
+        assert!(res.is_ok());
+
+        assert!(index_writer.commit().is_ok());
+        // add one simple doc
+        index_writer.add_document(doc!(text_field => "a"));
+        assert!(index_writer.commit().is_ok());
+
+        let term_a = Term::from_field_text(text_field, "a");
+        // expect the document with that term to be in the index
+        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 1);
+    }
+
+    #[test]
+    fn test_delete_all_documents_and_rollback() {
+        let mut schema_builder = schema::Schema::builder();
+        let text_field = schema_builder.add_text_field("text", schema::TEXT);
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+
+        // add one simple doc
+        index_writer.add_document(doc!(text_field => "a"));
+        let comm = index_writer.commit();
+        assert!(comm.is_ok());
+        let commit_tstamp = comm.unwrap();
+
+        // clear but don't commit!
+        let clear_tstamp = index_writer.delete_all_documents().unwrap();
+        // clear_tstamp should reset to before the last commit
+        assert!(clear_tstamp < commit_tstamp);
+
+        // rollback
+        let rollback_tstamp = index_writer.rollback().unwrap();
+        // Find original docs in the index
+        let term_a = Term::from_field_text(text_field, "a");
+        // expect the document with that term to be in the index
+        assert_eq!(index.reader().unwrap().searcher().doc_freq(&term_a), 1);
+    }
+
+    #[test]
+    fn test_delete_all_documents_empty_index() {
+        let schema_builder = schema::Schema::builder();
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let clear = index_writer.delete_all_documents();
+        let commit = index_writer.commit();
+        assert!(clear.is_ok());
+        assert!(commit.is_ok());
+    }
+
+    #[test]
+    fn test_delete_all_documents_index_twice() {
+        let schema_builder = schema::Schema::builder();
+        let index = Index::create_in_ram(schema_builder.build());
+        let mut index_writer = index.writer_with_num_threads(4, 12_000_000).unwrap();
+        let clear = index_writer.delete_all_documents();
+        let commit = index_writer.commit();
+        assert!(clear.is_ok());
+        assert!(commit.is_ok());
+        let clear_again = index_writer.delete_all_documents();
+        let commit_again = index_writer.commit();
+        assert!(clear_again.is_ok());
+        assert!(commit_again.is_ok());
+    }
+
 }
