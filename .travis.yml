@@ -52,6 +52,7 @@ before_install:
 install:
   - sh ci/install.sh
   - source ~/.cargo/env || true
+  - env | grep "TRAVIS"
 
 before_script:
   - export PATH=$HOME/.cargo/bin:$PATH
@@ -60,9 +61,14 @@ before_script:
 
 script:
   - bash ci/script.sh
+  - cargo doc
 
 before_deploy:
   - sh ci/before_deploy.sh
+
+after_success:
+  - cargo doc-upload # Needs GH_TOKEN env var to be set in travis settings
+
 
 cache: cargo
 before_cache:
