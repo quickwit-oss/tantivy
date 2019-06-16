@@ -61,14 +61,14 @@ before_script:
 
 script:
   - bash ci/script.sh
-  - cargo doc
 
 before_deploy:
   - sh ci/before_deploy.sh
 
 after_success:
   # Needs GH_TOKEN env var to be set in travis settings
-  - if [[ -v UPLOAD_DOCS ]]; then cargo doc-upload; fi
+  - if [[ -v GH_TOKEN ]]; then echo "GH TOKEN IS SET"; else echo "GH TOKEN NOT SET"; fi
+  - if [[ -v UPLOAD_DOCS ]]; then cargo doc; cargo doc-upload; else echo "doc upload disabled."; fi
 
 cache: cargo
 before_cache:
