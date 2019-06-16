@@ -70,6 +70,7 @@ pub fn save_new_metas(schema: Schema, directory: &mut Directory) -> Result<()> {
 ///
 /// This method is not part of tantivy's public API
 fn save_metas(metas: &IndexMeta, directory: &mut Directory) -> Result<()> {
+    info!("save metas");
     let mut buffer = serde_json::to_vec_pretty(metas)?;
     // Just adding a new line at the end of the buffer.
     writeln!(&mut buffer)?;
@@ -451,38 +452,41 @@ impl SegmentUpdater {
     ) -> Result<()> {
         self.run_async(move |segment_updater| {
             info!("End merge {:?}", after_merge_segment_entry.meta());
-            let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
-            if let Some(delete_operation) = delete_cursor.get() {
-                let committed_opstamp = segment_updater.load_metas().opstamp;
-                if delete_operation.opstamp < committed_opstamp {
-                    let index = &segment_updater.0.index;
-                    let segment = index.segment(after_merge_segment_entry.meta().clone());
-                    if let Err(e) =
-                        advance_deletes(segment, &mut after_merge_segment_entry, committed_opstamp)
-                    {
-                        error!(
-                            "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
-                            merge_operation.segment_ids(),
-                            e
-                        );
-                        if cfg!(test) {
-                            panic!("Merge failed.");
+            {
+                let mut delete_cursor = after_merge_segment_entry.delete_cursor().clone();
+                if let Some(delete_operation) = delete_cursor.get() {
+                    let committed_opstamp = segment_updater.load_metas().opstamp;
+                    if delete_operation.opstamp < committed_opstamp {
+                        let index = &segment_updater.0.index;
+                        let segment = index.segment(after_merge_segment_entry.meta().clone());
+                        if let Err(e) = advance_deletes(
+                            segment,
+                            &mut after_merge_segment_entry,
+                            committed_opstamp,
+                        ) {
+                            error!(
+                                "Merge of {:?} was cancelled (advancing deletes failed): {:?}",
+                                merge_operation.segment_ids(),
+                                e
+                            );
+                            if cfg!(test) {
+                                panic!("Merge failed.");
+                            }
+                            // ... cancel merge
+                            // `merge_operations` are tracked. As it is dropped, the
+                            // the segment_ids will be available again for merge.
+                            return;
                         }
-                        // ... cancel merge
-                        // `merge_operations` are tracked. As it is dropped, the
-                        // the segment_ids will be available again for merge.
-                        return;
                     }
                 }
-            }
-            segment_updater
-                .0
-                .segment_manager
-                .end_merge(merge_operation.segment_ids(), after_merge_segment_entry);
-            segment_updater.consider_merge_options();
-            info!("save metas");
-            let previous_metas = segment_updater.load_metas();
-            segment_updater.save_metas(previous_metas.opstamp, previous_metas.payload.clone());
+                let previous_metas = segment_updater.load_metas();
+                segment_updater
+                    .0
+                    .segment_manager
+                    .end_merge(merge_operation.segment_ids(), after_merge_segment_entry);
+                segment_updater.consider_merge_options();
+                segment_updater.save_metas(previous_metas.opstamp, previous_metas.payload.clone());
+            } // we drop all possible handle to a now useless `SegmentMeta`.
             segment_updater.garbage_collect_files_exec();
         })
         .wait()
