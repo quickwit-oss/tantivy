@@ -537,4 +537,35 @@ mod tests {
         }
         assert_eq!(count, 2);
     }
+
+    #[test]
+    fn garbage_collect_works_as_intended() {
+        let directory = RAMDirectory::create();
+        let schema = throw_away_schema();
+        let field = schema.get_field("num_likes").unwrap();
+        let index = Index::create(directory.clone(), schema).unwrap();
+
+        let mut writer = index.writer_with_num_threads(8, 24_000_000).unwrap();
+        for i in 0u64..8_000u64 {
+            writer.add_document(doc!(field => i));
+        }
+        writer.commit().unwrap();
+        let mem_right_after_commit = directory.total_mem_usage();
+        thread::sleep(Duration::from_millis(1_000));
+        let reader = index
+            .reader_builder()
+            .reload_policy(ReloadPolicy::Manual)
+            .try_into()
+            .unwrap();
+
+        assert_eq!(reader.searcher().num_docs(), 8_000);
+        writer.wait_merging_threads().unwrap();
+        let mem_right_after_merge_finished = directory.total_mem_usage();
+
+        reader.reload().unwrap();
+        let searcher = reader.searcher();
+        assert_eq!(searcher.num_docs(), 8_000);
+        assert!(mem_right_after_merge_finished < mem_right_after_commit);
+    }
+
 }

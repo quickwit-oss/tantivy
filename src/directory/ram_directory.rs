@@ -103,6 +103,10 @@ impl InnerDirectory {
     fn watch(&mut self, watch_handle: WatchCallback) -> WatchHandle {
         self.watch_router.subscribe(watch_handle)
     }
+
+    fn total_mem_usage(&self) -> usize {
+        self.fs.values().map(|f| f.len()).sum()
+    }
 }
 
 impl fmt::Debug for RAMDirectory {
@@ -125,6 +129,12 @@ impl RAMDirectory {
     /// Constructor
     pub fn create() -> RAMDirectory {
         Self::default()
+    }
+
+    /// Returns the sum of the size of the different files
+    /// in the RAMDirectory.
+    pub fn total_mem_usage(&self) -> usize {
+        self.fs.read().unwrap().total_mem_usage()
     }
 }
 

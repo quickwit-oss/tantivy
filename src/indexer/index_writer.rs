@@ -332,7 +332,8 @@ fn index_documents(
 }
 
 impl IndexWriter {
-    /// The index writer
+    /// If there are some merging threads, blocks until they all finish their work and
+    /// then drop the `IndexWriter`.
     pub fn wait_merging_threads(mut self) -> Result<()> {
         // this will stop the indexing thread,
         // dropping the last reference to the segment_updater.
@@ -1205,7 +1206,7 @@ mod tests {
         assert!(clear_tstamp < commit_tstamp);
 
         // rollback
-        let rollback_tstamp = index_writer.rollback().unwrap();
+        let _rollback_tstamp = index_writer.rollback().unwrap();
         // Find original docs in the index
         let term_a = Term::from_field_text(text_field, "a");
         // expect the document with that term to be in the index
