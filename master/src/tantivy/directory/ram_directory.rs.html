@@ -181,6 +181,16 @@
 <span id="181">181</span>
 <span id="182">182</span>
 <span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">core</span>::<span class="ident">META_FILEPATH</span>;
 <span class="kw">use</span> <span class="ident">directory</span>::<span class="ident">error</span>::{<span class="ident">DeleteError</span>, <span class="ident">OpenReadError</span>, <span class="ident">OpenWriteError</span>};
@@ -287,6 +297,10 @@
     <span class="kw">fn</span> <span class="ident">watch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">watch_handle</span>: <span class="ident">WatchCallback</span>) <span class="op">-&gt;</span> <span class="ident">WatchHandle</span> {
         <span class="self">self</span>.<span class="ident">watch_router</span>.<span class="ident">subscribe</span>(<span class="ident">watch_handle</span>)
     }
+
+    <span class="kw">fn</span> <span class="ident">total_mem_usage</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">values</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">f</span><span class="op">|</span> <span class="ident">f</span>.<span class="ident">len</span>()).<span class="ident">sum</span>()
+    }
 }
 
 <span class="kw">impl</span> <span class="ident">fmt</span>::<span class="ident">Debug</span> <span class="kw">for</span> <span class="ident">RAMDirectory</span> {
@@ -309,6 +323,12 @@
     <span class="doccomment">/// Constructor</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create</span>() <span class="op">-&gt;</span> <span class="ident">RAMDirectory</span> {
         <span class="self">Self</span>::<span class="ident">default</span>()
+    }
+
+    <span class="doccomment">/// Returns the sum of the size of the different files</span>
+    <span class="doccomment">/// in the RAMDirectory.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">total_mem_usage</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
+        <span class="self">self</span>.<span class="ident">fs</span>.<span class="ident">read</span>().<span class="ident">unwrap</span>().<span class="ident">total_mem_usage</span>()
     }
 }
 

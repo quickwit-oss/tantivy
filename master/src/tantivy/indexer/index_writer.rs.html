@@ -1239,6 +1239,7 @@
 <span id="1239">1239</span>
 <span id="1240">1240</span>
 <span id="1241">1241</span>
+<span id="1242">1242</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">operation</span>::{<span class="ident">AddOperation</span>, <span class="ident">UserOperation</span>};
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">segment_updater</span>::<span class="ident">SegmentUpdater</span>;
@@ -1574,7 +1575,8 @@
 }
 
 <span class="kw">impl</span> <span class="ident">IndexWriter</span> {
-    <span class="doccomment">/// The index writer</span>
+    <span class="doccomment">/// If there are some merging threads, blocks until they all finish their work and</span>
+    <span class="doccomment">/// then drop the `IndexWriter`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">wait_merging_threads</span>(<span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Result</span><span class="op">&lt;</span>()<span class="op">&gt;</span> {
         <span class="comment">// this will stop the indexing thread,</span>
         <span class="comment">// dropping the last reference to the segment_updater.</span>
@@ -2447,7 +2449,7 @@
         <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">clear_tstamp</span> <span class="op">&lt;</span> <span class="ident">commit_tstamp</span>);
 
         <span class="comment">// rollback</span>
-        <span class="kw">let</span> <span class="ident">rollback_tstamp</span> <span class="op">=</span> <span class="ident">index_writer</span>.<span class="ident">rollback</span>().<span class="ident">unwrap</span>();
+        <span class="kw">let</span> <span class="ident">_rollback_tstamp</span> <span class="op">=</span> <span class="ident">index_writer</span>.<span class="ident">rollback</span>().<span class="ident">unwrap</span>();
         <span class="comment">// Find original docs in the index</span>
         <span class="kw">let</span> <span class="ident">term_a</span> <span class="op">=</span> <span class="ident">Term</span>::<span class="ident">from_field_text</span>(<span class="ident">text_field</span>, <span class="string">&quot;a&quot;</span>);
         <span class="comment">// expect the document with that term to be in the index</span>
